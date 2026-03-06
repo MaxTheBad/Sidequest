@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { getSupabaseClient } from "@/lib/supabase";
 
 type Hobby = { id: string; name: string; category: string | null };
 type Quest = {
@@ -33,13 +33,17 @@ export default function Home() {
   const [skillLevel, setSkillLevel] = useState("beginner");
   const [groupSize, setGroupSize] = useState(4);
   const [hobbyId, setHobbyId] = useState("");
+  const supabase = getSupabaseClient();
+
 
   async function refreshSession() {
+    if (!supabase) return;
     const { data } = await supabase.auth.getSession();
     setUserId(data.session?.user?.id ?? null);
   }
 
   async function loadHobbies() {
+    if (!supabase) return;
     const { data, error } = await supabase.from("hobbies").select("id,name,category").order("name");
     if (error) {
       setStatus(error.message);
@@ -50,6 +54,7 @@ export default function Home() {
   }
 
   async function loadQuests() {
+    if (!supabase) return;
     setLoading(true);
     let query = supabase
       .from("quests")
@@ -80,19 +85,21 @@ export default function Home() {
   async function signIn(e: FormEvent) {
     e.preventDefault();
     setStatus("Sending magic link...");
+    if (!supabase) return setStatus("Missing Supabase env vars.");
     const { error } = await supabase.auth.signInWithOtp({ email });
     if (error) return setStatus(error.message);
     setStatus("Check your email for the sign-in link.");
   }
 
   async function signOut() {
+    if (!supabase) return;
     await supabase.auth.signOut();
     await refreshSession();
     setStatus("Signed out");
   }
 
   async function ensureProfile() {
-    if (!userId) return;
+    if (!supabase || !userId) return;
     await supabase.from("profiles").upsert({
       id: userId,
       display_name: email.split("@")[0] || "SideQuest user",
@@ -104,6 +111,7 @@ export default function Home() {
 
   async function createQuest(e: FormEvent) {
     e.preventDefault();
+    if (!supabase) return setStatus("Missing Supabase env vars.");
     if (!userId) return setStatus("Sign in first");
     if (!title.trim()) return setStatus("Title is required");
     setStatus("Creating quest...");
@@ -137,6 +145,7 @@ export default function Home() {
   }
 
   async function joinQuest(questId: string) {
+    if (!supabase) return setStatus("Missing Supabase env vars.");
     if (!userId) return setStatus("Sign in first");
     const { error } = await supabase.from("quest_members").insert({ quest_id: questId, user_id: userId, role: "member" });
     if (error && !error.message.includes("duplicate")) return setStatus(error.message);
@@ -155,6 +164,12 @@ export default function Home() {
         <p className="text-sm text-gray-600">Find people to start or restart hobbies together.</p>
         <p className="text-xs text-gray-500">{status}</p>
       </header>
+      {!supabase && (
+        <section className="rounded-xl border border-red-300 bg-red-50 p-4 text-sm text-red-700">
+          Missing Supabase env vars. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in Cloudflare Pages.
+        </section>
+      )}
+
 
       <section className="rounded-xl border p-4 space-y-3">
         <h2 className="font-semibold">1) Sign in</h2>
