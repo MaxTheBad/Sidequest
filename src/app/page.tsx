@@ -84,6 +84,12 @@ export default function Home() {
   }, [resendCooldown]);
 
   useEffect(() => {
+    if (!status) return;
+    const t = setTimeout(() => setStatus(""), 6000);
+    return () => clearTimeout(t);
+  }, [status]);
+
+  useEffect(() => {
     if (!supabase) return;
 
     const bootstrap = async () => {
@@ -370,10 +376,6 @@ export default function Home() {
 
       <div className="max-w-5xl mx-auto px-4 py-4 space-y-4">
 
-        {status && (
-          <section className="rounded-xl border bg-amber-50 px-3 py-2 text-sm">{status}</section>
-        )}
-
         <section className="rounded-2xl border bg-white p-4">
           <div className="flex flex-wrap gap-2 items-center justify-between">
             <h2 className="font-semibold">Explore quests</h2>
@@ -402,6 +404,22 @@ export default function Home() {
           {!loading && !quests.length && <p className="text-sm text-gray-500">No quests yet — create the first one.</p>}
         </section>
       </div>
+
+
+      {status && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[60] max-w-[92vw]">
+          <div className="rounded-xl bg-black text-white px-4 py-3 text-sm shadow-lg border border-white/20 flex items-center gap-3">
+            <span>{status}</span>
+            <button
+              className="text-xs underline opacity-90"
+              onClick={() => setStatus("")}
+              type="button"
+            >
+              dismiss
+            </button>
+          </div>
+        </div>
+      )}
 
       {showAuthModal && authModal}
       {showCreateModal && createModal}
