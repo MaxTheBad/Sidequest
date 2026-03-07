@@ -76,6 +76,12 @@ export default function Home() {
   useEffect(() => {
     refreshSession();
     loadHobbies();
+
+    if (!supabase) return;
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUserId(session?.user?.id ?? null);
+    });
+    return () => sub.subscription.unsubscribe();
   }, []);
 
   useEffect(() => {
@@ -86,9 +92,15 @@ export default function Home() {
     e.preventDefault();
     setStatus("Sending magic link...");
     if (!supabase) return setStatus("Missing Supabase env vars.");
-    const { error } = await supabase.auth.signInWithOtp({ email });
+
+    const redirectTo = typeof window !== "undefined" ? `${window.location.origin}/` : undefined;
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo: redirectTo },
+    });
+
     if (error) return setStatus(error.message);
-    setStatus("Check your email for the sign-in link.");
+    setStatus("✅ Magic link sent. Check your email.");
   }
 
   async function signOut() {
@@ -162,7 +174,7 @@ export default function Home() {
       <header className="space-y-2">
         <h1 className="text-3xl font-bold">Side Quest</h1>
         <p className="text-sm text-gray-600">Find people to start or restart hobbies together.</p>
-        <p className="text-xs text-gray-500">{status}</p>
+        <p className="text-sm rounded-md bg-gray-100 px-3 py-2">{status}</p>
       </header>
       {!supabase && (
         <section className="rounded-xl border border-red-300 bg-red-50 p-4 text-sm text-red-700">
