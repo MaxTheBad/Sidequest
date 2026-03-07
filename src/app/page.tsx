@@ -280,6 +280,17 @@ export default function Home() {
       setShowAuthModal(true);
       return setStatus("Log in to create.");
     }
+
+    // Ensure profile row exists (required by quests.creator_id FK)
+    const { error: profileErr } = await supabase.from("profiles").upsert({
+      id: userId,
+      display_name: fullName || userEmail.split("@")[0] || "SideQuest user",
+      city,
+      availability: availabilityMode === "specific" ? selectedDays.join(", ") : availability,
+      skill_level: skillLevel,
+    });
+    if (profileErr) return setStatus(`Profile setup failed: ${profileErr.message}`);
+
     const avail = availabilityMode === "specific" ? selectedDays.join(", ") : availability;
     const { data, error } = await supabase.from("quests").insert({ creator_id: userId, hobby_id: hobbyId, title, description, city, skill_level: skillLevel, availability: avail, group_size: groupSize }).select("id").single();
     if (error) return setStatus(error.message);
