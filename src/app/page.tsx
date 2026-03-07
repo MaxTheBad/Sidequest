@@ -27,6 +27,8 @@ const TITLE_SUGGESTIONS = [
   "Morning run partners (3x/week)",
 ];
 
+const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
 export default function Home() {
   const supabase = getSupabaseClient();
 
@@ -55,7 +57,10 @@ export default function Home() {
   const [description, setDescription] = useState("");
   const [city, setCity] = useState("");
   const [citySuggestions, setCitySuggestions] = useState<string[]>([]);
+  const [availabilityMode, setAvailabilityMode] = useState<"flexible" | "specific">("flexible");
   const [availability, setAvailability] = useState("weeknights");
+  const [selectedDays, setSelectedDays] = useState<string[]>([]);
+  const [titlePlaceholder, setTitlePlaceholder] = useState(TITLE_SUGGESTIONS[0]);
   const [skillLevel, setSkillLevel] = useState("beginner");
   const [groupSize, setGroupSize] = useState(4);
   const [hobbyId, setHobbyId] = useState("");
@@ -96,6 +101,16 @@ export default function Home() {
       setUserId(data.session?.user?.id ?? null);
       setUserEmail(data.session?.user?.email ?? "");
 
+      // extra recovery for OAuth on some mobile flows
+      if (!data.session) {
+        const u = await supabase.auth.getUser();
+        if (u.data.user) {
+          setUserId(u.data.user.id);
+          setUserEmail(u.data.user.email ?? "");
+        }
+      }
+
+      setTitlePlaceholder(TITLE_SUGGESTIONS[Math.floor(Math.random() * TITLE_SUGGESTIONS.length)]);
       const { data: hobbyData } = await supabase.from("hobbies").select("id,name,category").order("name");
       setHobbies(hobbyData || []);
       if (hobbyData?.length) setHobbyId((curr) => curr || hobbyData[0].id);
@@ -206,12 +221,12 @@ export default function Home() {
     }
     const { data, error } = await supabase
       .from("quests")
-      .insert({ creator_id: userId, hobby_id: hobbyId, title, description, city, skill_level: skillLevel, availability, group_size: groupSize })
+      .insert({ creator_id: userId, hobby_id: hobbyId, title, description, city, skill_level: skillLevel, availability: availabilityMode === "specific" ? selectedDays.join(", ") : availability, group_size: groupSize })
       .select("id")
       .single();
     if (error) return setStatus(error.message);
     if (data?.id) await supabase.from("quest_members").insert({ quest_id: data.id, user_id: userId, role: "creator" });
-    setTitle(""); setDescription(""); setShowCreateModal(false); setStatus("Quest posted ✅");
+    setTitle(""); setDescription(""); setSelectedDays([]); setAvailability("weeknights"); setAvailabilityMode("flexible"); setShowCreateModal(false); setStatus("Quest posted ✅");
     loadQuests();
   }
 
@@ -273,19 +288,48 @@ export default function Home() {
     <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center p-4">
       <div className="w-full max-w-xl rounded-2xl bg-white border p-4 space-y-3">
         <div className="flex justify-between items-center"><h3 className="font-semibold">Create Quest</h3><button onClick={() => setShowCreateModal(false)} className="border rounded px-2 py-1">Close</button></div>
-        <div className="flex flex-wrap gap-2 text-xs">
-          {TITLE_SUGGESTIONS.map((s) => <button key={s} className="border rounded-full px-3 py-1" onClick={() => setTitle(s)} type="button">{s}</button>)}
-        </div>
         <form onSubmit={createQuest} className="grid gap-2">
-          <input className="border rounded px-3 py-2" placeholder="Quest title" value={title} onChange={(e)=>setTitle(e.target.value)} />
+          <label className="text-sm font-medium">Title</label>
+          <input className="border rounded px-3 py-2" placeholder={titlePlaceholder} value={title} onChange={(e)=>setTitle(e.target.value)} />
+
+          <label className="text-sm font-medium">Category</label>
           <select className="border rounded px-3 py-2" value={hobbyId} onChange={(e)=>setHobbyId(e.target.value)}>{hobbies.map(h=><option key={h.id} value={h.id}>{h.name}</option>)}</select>
-          <div className="relative"><input className="border rounded px-3 py-2 w-full" placeholder="City" value={city} onChange={(e)=>setCity(e.target.value)} />
+
+          <label className="text-sm font-medium">City</label>
+          <div className="relative"><input className="border rounded px-3 py-2 w-full" placeholder="Start typing a city..." value={city} onChange={(e)=>setCity(e.target.value)} />
             {citySuggestions.length>0 && <div className="absolute z-20 left-0 right-0 mt-1 border rounded bg-white shadow max-h-44 overflow-auto">{citySuggestions.map(c=><button key={c} type="button" className="w-full text-left px-3 py-2 hover:bg-gray-100" onClick={()=>{setCity(c);setCitySuggestions([]);}}>{c}</button>)}</div>}
           </div>
-          <input className="border rounded px-3 py-2" placeholder="Availability" value={availability} onChange={(e)=>setAvailability(e.target.value)} />
+
+          <label className="text-sm font-medium">Availability</label>
+          <div className="flex gap-4 text-sm">
+            <label className="flex items-center gap-2"><input type="radio" name="availability-mode" checked={availabilityMode === "flexible"} onChange={() => setAvailabilityMode("flexible")} /> Flexible</label>
+            <label className="flex items-center gap-2"><input type="radio" name="availability-mode" checked={availabilityMode === "specific"} onChange={() => setAvailabilityMode("specific")} /> Specific days</label>
+          </div>
+          {availabilityMode === "flexible" ? (
+            <input className="border rounded px-3 py-2" placeholder="e.g. weeknights" value={availability} onChange={(e)=>setAvailability(e.target.value)} />
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {DAYS.map((d) => (
+                <button
+                  key={d}
+                  type="button"
+                  className={`border rounded-full px-3 py-1 text-sm ${selectedDays.includes(d) ? "bg-black text-white" : "bg-white"}`}
+                  onClick={() => setSelectedDays((prev) => prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d])}
+                >
+                  {d}
+                </button>
+              ))}
+            </div>
+          )}
+
+          <label className="text-sm font-medium">Skill level</label>
           <select className="border rounded px-3 py-2" value={skillLevel} onChange={(e)=>setSkillLevel(e.target.value)}><option value="beginner">Beginner</option><option value="returning">Returning</option><option value="intermediate">Intermediate</option><option value="advanced">Advanced</option></select>
+
+          <label className="text-sm font-medium">Group size</label>
           <input type="number" min={2} max={20} className="border rounded px-3 py-2" value={groupSize} onChange={(e)=>setGroupSize(Number(e.target.value))} />
-          <textarea className="border rounded px-3 py-2" placeholder="Description" value={description} onChange={(e)=>setDescription(e.target.value)} />
+
+          <label className="text-sm font-medium">Description</label>
+          <textarea className="border rounded px-3 py-2" placeholder="What are you trying to do?" value={description} onChange={(e)=>setDescription(e.target.value)} />
           <button className="bg-black text-white rounded px-3 py-2">Post quest</button>
         </form>
       </div>
