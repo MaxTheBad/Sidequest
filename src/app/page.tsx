@@ -277,6 +277,7 @@ export default function Home() {
           <button className={`px-3 py-2 rounded ${authMode === "login" ? "bg-black text-white" : "border"}`} onClick={() => setAuthMode("login")}>Log in</button>
           <button className={`px-3 py-2 rounded ${authMode === "reset" ? "bg-black text-white" : "border"}`} onClick={() => setAuthMode("reset")}>Reset</button>
         </div>
+        {status && <div className="text-sm rounded border bg-amber-50 px-3 py-2">{status}</div>}
         {(authMode === "login" || authMode === "signup") && (
           <form onSubmit={authMode === "signup" ? signUpWithPassword : signInWithPassword} className="grid gap-2">
             <input className="border rounded px-3 py-2" placeholder="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
@@ -407,7 +408,7 @@ export default function Home() {
 
 
       {status && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[60] max-w-[92vw]">
+        <div className="fixed top-[76px] left-1/2 -translate-x-1/2 z-[60] max-w-[92vw]">
           <div className="rounded-xl bg-black text-white px-4 py-3 text-sm shadow-lg border border-white/20 flex items-center gap-3">
             <span>{status}</span>
             <button
