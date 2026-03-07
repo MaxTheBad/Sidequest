@@ -27,6 +27,9 @@ export default function Home() {
   const [userEmail, setUserEmail] = useState<string>("");
 
   const [authMode, setAuthMode] = useState<AuthMode>("signup");
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -41,6 +44,7 @@ export default function Home() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [city, setCity] = useState("");
+  const [citySuggestions, setCitySuggestions] = useState<string[]>([]);
   const [availability, setAvailability] = useState("weeknights");
   const [skillLevel, setSkillLevel] = useState("beginner");
   const [groupSize, setGroupSize] = useState(4);
@@ -87,6 +91,7 @@ export default function Home() {
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
       setUserId(session?.user?.id ?? null);
       setUserEmail(session?.user?.email ?? "");
+      if (session?.user) setShowAuthModal(false);
     });
 
     return () => sub.subscription.unsubscribe();
@@ -95,6 +100,28 @@ export default function Home() {
   useEffect(() => {
     loadQuests();
   }, [hobbyFilter, supabase]);
+
+  useEffect(() => {
+    const q = city.trim();
+    if (q.length < 2) {
+      setCitySuggestions([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=5&q=${encodeURIComponent(q)}`
+        );
+        const json = (await res.json()) as Array<{ display_name: string }>;
+        const items = json.map((x) => x.display_name).slice(0, 5);
+        setCitySuggestions(items);
+      } catch {
+        setCitySuggestions([]);
+      }
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [city]);
 
   async function loadQuests() {
     if (!supabase) return;
@@ -243,12 +270,85 @@ export default function Home() {
     return quests[Math.floor(Math.random() * quests.length)];
   }, [quests]);
 
+  const authForm = (
+    <section className="rounded-xl border p-4 space-y-3 bg-white">
+      <div className="flex gap-2">
+        <button className={`px-3 py-2 rounded ${authMode === "signup" ? "bg-black text-white" : "border"}`} onClick={() => setAuthMode("signup")}>Sign up</button>
+        <button className={`px-3 py-2 rounded ${authMode === "login" ? "bg-black text-white" : "border"}`} onClick={() => setAuthMode("login")}>Log in</button>
+        <button className={`px-3 py-2 rounded ${authMode === "reset" ? "bg-black text-white" : "border"}`} onClick={() => setAuthMode("reset")}>Reset</button>
+      </div>
+
+      {(authMode === "login" || authMode === "signup") && (
+        <form onSubmit={authMode === "signup" ? signUpWithPassword : signInWithPassword} className="grid gap-2 md:max-w-md">
+          <input className="border rounded px-3 py-2" placeholder="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          <div className="flex gap-2">
+            <input className="border rounded px-3 py-2 flex-1" placeholder="Password" type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} required />
+            <button type="button" className="border rounded px-3 py-2" onClick={() => setShowPassword((s) => !s)}>{showPassword ? "Hide" : "Show"}</button>
+          </div>
+
+          {authMode === "signup" && (
+            <>
+              <div className="flex gap-2">
+                <input className="border rounded px-3 py-2 flex-1" placeholder="Confirm password" type={showConfirmPassword ? "text" : "password"} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required />
+                <button type="button" className="border rounded px-3 py-2" onClick={() => setShowConfirmPassword((s) => !s)}>{showConfirmPassword ? "Hide" : "Show"}</button>
+              </div>
+              <div className="text-xs rounded border p-2 bg-gray-50">
+                <p>{passwordChecks.minLength ? "✅" : "⬜"} 8+ characters</p>
+                <p>{passwordChecks.uppercase ? "✅" : "⬜"} uppercase letter</p>
+                <p>{passwordChecks.lowercase ? "✅" : "⬜"} lowercase letter</p>
+                <p>{passwordChecks.number ? "✅" : "⬜"} number</p>
+                <p>{passwordChecks.special ? "✅" : "⬜"} special character</p>
+                <p>{passwordChecks.match ? "✅" : "⬜"} passwords match</p>
+              </div>
+            </>
+          )}
+
+          <button className="bg-black text-white rounded px-3 py-2">
+            {authMode === "signup" ? "Create account" : "Log in"}
+          </button>
+        </form>
+      )}
+
+      {authMode === "reset" && (
+        <form onSubmit={sendReset} className="grid gap-2 md:max-w-md">
+          <input className="border rounded px-3 py-2" placeholder="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          <button className="bg-black text-white rounded px-3 py-2">Send reset email</button>
+        </form>
+      )}
+
+      <div className="pt-2 border-t text-sm">
+        <p className="mb-2">Or continue with:</p>
+        <div className="flex flex-wrap gap-2">
+          <button className="border rounded px-3 py-2" onClick={() => socialLogin("google")}>Google</button>
+          <button className="border rounded px-3 py-2" onClick={() => socialLogin("facebook")}>Facebook</button>
+          <button className="border rounded px-3 py-2 opacity-60" disabled>Instagram (soon)</button>
+        </div>
+      </div>
+
+      {!!pendingVerifyEmail && (
+        <div className="rounded border bg-emerald-50 p-3 text-sm">
+          <p>Verification sent to <strong>{pendingVerifyEmail}</strong>.</p>
+          <button className="mt-2 border rounded px-3 py-1 disabled:opacity-50" disabled={resendCooldown > 0} onClick={resendVerification}>
+            {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : "Resend verification"}
+          </button>
+        </div>
+      )}
+    </section>
+  );
+
   return (
     <main className="mx-auto max-w-5xl px-4 py-8 space-y-6">
       <section className="rounded-2xl border p-6 bg-gradient-to-b from-white to-gray-50">
         <h1 className="text-3xl font-bold">Side Quest</h1>
         <p className="text-gray-600 mt-1">Find your hobby people. Start something new together.</p>
         <p className="text-sm rounded-md bg-white border px-3 py-2 mt-4">{status}</p>
+
+        {!userId && (
+          <div className="mt-4 flex gap-2">
+            <button className="bg-black text-white px-4 py-2 rounded" onClick={() => { setAuthMode("signup"); setShowAuthModal(true); }}>Sign up</button>
+            <button className="border px-4 py-2 rounded" onClick={() => { setAuthMode("login"); setShowAuthModal(true); }}>Log in</button>
+          </div>
+        )}
       </section>
 
       {!supabase && (
@@ -257,69 +357,22 @@ export default function Home() {
         </section>
       )}
 
-      {!userId ? (
-        <section className="rounded-xl border p-4 space-y-3">
-          <div className="flex gap-2">
-            <button className={`px-3 py-2 rounded ${authMode === "signup" ? "bg-black text-white" : "border"}`} onClick={() => setAuthMode("signup")}>Sign up</button>
-            <button className={`px-3 py-2 rounded ${authMode === "login" ? "bg-black text-white" : "border"}`} onClick={() => setAuthMode("login")}>Log in</button>
-            <button className={`px-3 py-2 rounded ${authMode === "reset" ? "bg-black text-white" : "border"}`} onClick={() => setAuthMode("reset")}>Reset password</button>
-          </div>
-
-          {(authMode === "login" || authMode === "signup") && (
-            <form onSubmit={authMode === "signup" ? signUpWithPassword : signInWithPassword} className="grid gap-2 md:max-w-md">
-              <input className="border rounded px-3 py-2" placeholder="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-              <input className="border rounded px-3 py-2" placeholder="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
-
-              {authMode === "signup" && (
-                <>
-                  <input className="border rounded px-3 py-2" placeholder="Confirm password" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required />
-                  <div className="text-xs rounded border p-2 bg-gray-50">
-                    <p>{passwordChecks.minLength ? "✅" : "⬜"} 8+ characters</p>
-                    <p>{passwordChecks.uppercase ? "✅" : "⬜"} uppercase letter</p>
-                    <p>{passwordChecks.lowercase ? "✅" : "⬜"} lowercase letter</p>
-                    <p>{passwordChecks.number ? "✅" : "⬜"} number</p>
-                    <p>{passwordChecks.special ? "✅" : "⬜"} special character</p>
-                    <p>{passwordChecks.match ? "✅" : "⬜"} passwords match</p>
-                  </div>
-                </>
-              )}
-
-              <button className="bg-black text-white rounded px-3 py-2">
-                {authMode === "signup" ? "Create account" : "Log in"}
-              </button>
-            </form>
-          )}
-
-          {authMode === "reset" && (
-            <form onSubmit={sendReset} className="grid gap-2 md:max-w-md">
-              <input className="border rounded px-3 py-2" placeholder="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-              <button className="bg-black text-white rounded px-3 py-2">Send reset email</button>
-            </form>
-          )}
-
-          <div className="pt-2 border-t text-sm">
-            <p className="mb-2">Or continue with:</p>
-            <div className="flex flex-wrap gap-2">
-              <button className="border rounded px-3 py-2" onClick={() => socialLogin("google")}>Google</button>
-              <button className="border rounded px-3 py-2" onClick={() => socialLogin("facebook")}>Facebook</button>
-              <button className="border rounded px-3 py-2 opacity-60" disabled>Instagram (soon)</button>
-            </div>
-          </div>
-
-          {!!pendingVerifyEmail && (
-            <div className="rounded border bg-emerald-50 p-3 text-sm">
-              <p>Verification sent to <strong>{pendingVerifyEmail}</strong>.</p>
-              <button className="mt-2 border rounded px-3 py-1 disabled:opacity-50" disabled={resendCooldown > 0} onClick={resendVerification}>
-                {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : "Resend verification"}
-              </button>
-            </div>
-          )}
-        </section>
-      ) : (
+      {!userId ? null : (
         <section className="rounded-xl border p-4 flex items-center justify-between">
           <p className="text-sm">Signed in as <strong>{userEmail}</strong></p>
           <button type="button" onClick={signOut} className="border px-3 py-2 rounded">Sign out</button>
         </section>
+      )}
+
+      {showAuthModal && !userId && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="w-full max-w-xl">
+            <div className="flex justify-end mb-2">
+              <button className="bg-white border rounded px-3 py-1" onClick={() => setShowAuthModal(false)}>Close</button>
+            </div>
+            {authForm}
+          </div>
+        </div>
       )}
 
       <section className="rounded-xl border p-4 space-y-3">
@@ -331,7 +384,26 @@ export default function Home() {
               <option key={h.id} value={h.id}>{h.name}</option>
             ))}
           </select>
-          <input className="border rounded px-3 py-2" placeholder="City" value={city} onChange={(e) => setCity(e.target.value)} />
+          <div className="relative">
+            <input className="border rounded px-3 py-2 w-full" placeholder="City" value={city} onChange={(e) => setCity(e.target.value)} />
+            {citySuggestions.length > 0 && (
+              <div className="absolute z-20 left-0 right-0 mt-1 bg-white border rounded shadow max-h-44 overflow-auto text-sm">
+                {citySuggestions.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    className="block w-full text-left px-3 py-2 hover:bg-gray-100"
+                    onClick={() => {
+                      setCity(c);
+                      setCitySuggestions([]);
+                    }}
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <input className="border rounded px-3 py-2" placeholder="Availability (eg Sat mornings)" value={availability} onChange={(e) => setAvailability(e.target.value)} />
           <select className="border rounded px-3 py-2" value={skillLevel} onChange={(e) => setSkillLevel(e.target.value)}>
             <option value="beginner">Beginner</option>
