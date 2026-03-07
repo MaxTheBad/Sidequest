@@ -408,7 +408,7 @@ export default function Home() {
 
 
       {status && (
-        <div className="fixed top-[76px] left-1/2 -translate-x-1/2 z-[60] max-w-[92vw]">
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-[60] max-w-[92vw]">
           <div className="rounded-xl bg-black text-white px-4 py-3 text-sm shadow-lg border border-white/20 flex items-center gap-3">
             <span>{status}</span>
             <button
