@@ -6,6 +6,7 @@ import { getSupabaseClient } from "@/lib/supabase";
 type Hobby = { id: string; name: string; category: string | null };
 type Quest = {
   id: string;
+  creator_id: string;
   title: string;
   description: string | null;
   city: string | null;
@@ -13,7 +14,10 @@ type Quest = {
   group_size: number;
   availability: string | null;
   hobby_id: string;
+  media_video_url: string | null;
+  media_source: "live" | "upload" | null;
   hobbies?: { name: string | null }[] | null;
+  profiles?: { avatar_url: string | null }[] | null;
 };
 
 type AuthMode = "login" | "signup";
@@ -79,6 +83,10 @@ export default function Home() {
   const [selectedDays, setSelectedDays] = useState<string[]>([]);
   const [skillLevel, setSkillLevel] = useState("beginner");
   const [groupSize, setGroupSize] = useState(4);
+  const [questVideoFile, setQuestVideoFile] = useState<File | null>(null);
+  const [questVideoSource, setQuestVideoSource] = useState<"live" | "upload">("live");
+  const [savingQuest, setSavingQuest] = useState(false);
+  const [editingQuestId, setEditingQuestId] = useState<string | null>(null);
 
   const countryOptions = useMemo(() => {
     try {
@@ -202,7 +210,7 @@ export default function Home() {
   async function loadQuests() {
     if (!supabase) return;
     setLoading(true);
-    let q = supabase.from("quests").select("id,title,description,city,skill_level,group_size,availability,hobby_id,hobbies(name)").order("created_at", { ascending: false }).limit(50);
+    let q = supabase.from("quests").select("id,creator_id,title,description,city,skill_level,group_size,availability,hobby_id,media_video_url,media_source,hobbies(name),profiles:profiles!quests_creator_id_fkey(avatar_url)").order("created_at", { ascending: false }).limit(50);
     if (hobbyFilter !== "all") q = q.eq("hobby_id", hobbyFilter);
     const { data, error } = await q;
     setLoading(false);
@@ -358,7 +366,57 @@ export default function Home() {
     setStatus("Profile photo saved ✅");
   }
 
+  async function uploadQuestVideo(file: File) {
+    if (!supabase || !userId) throw new Error("Not signed in.");
+    if (!file.type.startsWith("video/")) throw new Error("Please choose a video file.");
+    if (file.size > 60 * 1024 * 1024) throw new Error("Video must be under 60MB.");
+
+    const ext = (file.name.split(".").pop() || "mp4").toLowerCase();
+    const filePath = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+    const { error } = await supabase.storage
+      .from("quest-videos")
+      .upload(filePath, file, { upsert: false, contentType: file.type });
+    if (error) throw new Error(error.message);
+
+    const { data } = supabase.storage.from("quest-videos").getPublicUrl(filePath);
+    return data.publicUrl;
+  }
+
+  function resetQuestForm() {
+    setTitle("");
+    setDescription("");
+    setSelectedDays([]);
+    setAvailabilityMode("flexible");
+    setAvailability("weeknights");
+    setUseCustomCategory(false);
+    setCustomCategory("");
+    setQuestVideoFile(null);
+    setQuestVideoSource("live");
+    setEditingQuestId(null);
+  }
+
+  function openCreateModal() {
+    resetQuestForm();
+    setShowCreateModal(true);
+  }
+
+  function openEditModal(q: Quest) {
+    setEditingQuestId(q.id);
+    setTitle(q.title || "");
+    setDescription(q.description || "");
+    setHobbyId(q.hobby_id);
+    setCity(q.city || "");
+    setAvailabilityMode("flexible");
+    setAvailability(q.availability || "weeknights");
+    setSkillLevel(q.skill_level || "beginner");
+    setGroupSize(q.group_size || 4);
+    setQuestVideoFile(null);
+    setQuestVideoSource((q.media_source as "live" | "upload") || "upload");
+    setShowCreateModal(true);
+  }
+
   async function createQuest(e: FormEvent) {
+
     e.preventDefault();
     if (!supabase) return;
     if (!userId) {
@@ -411,13 +469,49 @@ export default function Home() {
 ${description}`
       : description;
 
-    const { data, error } = await supabase.from("quests").insert({ creator_id: userId, hobby_id: finalHobbyId, title, description: finalDescription, city, skill_level: skillLevel, availability: avail, group_size: groupSize }).select("id").single();
-    if (error) return setStatus(error.message);
-    if (data?.id) await supabase.from("quest_members").insert({ quest_id: data.id, user_id: userId, role: "creator" });
-    setTitle(""); setDescription(""); setSelectedDays([]); setAvailabilityMode("flexible"); setAvailability("weeknights"); setUseCustomCategory(false); setCustomCategory("");
-    setShowCreateModal(false);
-    setStatus("Quest posted ✅");
-    void loadQuests();
+    setSavingQuest(true);
+    let videoUrl: string | null = null;
+    try {
+      if (questVideoFile) videoUrl = await uploadQuestVideo(questVideoFile);
+
+      if (editingQuestId) {
+        const payload: Record<string, unknown> = {
+          hobby_id: finalHobbyId,
+          title,
+          description: finalDescription,
+          city,
+          skill_level: skillLevel,
+          availability: avail,
+          group_size: groupSize,
+        };
+        if (videoUrl) {
+          payload.media_video_url = videoUrl;
+          payload.media_source = questVideoSource;
+        }
+
+        const { error } = await supabase
+          .from("quests")
+          .update(payload)
+          .eq("id", editingQuestId)
+          .eq("creator_id", userId);
+        if (error) throw new Error(error.message);
+
+        setStatus("Listing updated ✅");
+      } else {
+        const { data, error } = await supabase.from("quests").insert({ creator_id: userId, hobby_id: finalHobbyId, title, description: finalDescription, city, skill_level: skillLevel, availability: avail, group_size: groupSize, media_video_url: videoUrl, media_source: videoUrl ? questVideoSource : null }).select("id").single();
+        if (error) throw new Error(error.message);
+        if (data?.id) await supabase.from("quest_members").insert({ quest_id: data.id, user_id: userId, role: "creator" });
+        setStatus("Quest posted ✅");
+      }
+
+      resetQuestForm();
+      setShowCreateModal(false);
+      await loadQuests();
+    } catch (err) {
+      setStatus(err instanceof Error ? err.message : "Could not save listing.");
+    } finally {
+      setSavingQuest(false);
+    }
   }
 
   function slugify(input: string) {
@@ -450,7 +544,7 @@ ${description}`
             <p className="text-xs text-gray-500">Find your hobby people</p>
           </div>
           <div className="flex gap-2">
-            <button className="bg-black text-white rounded px-3 py-2" onClick={() => (userId ? setShowCreateModal(true) : setShowAuthModal(true))}>+ Create</button>
+            <button className="bg-black text-white rounded px-3 py-2" onClick={() => (userId ? openCreateModal() : setShowAuthModal(true))}>+ Create</button>
             {userId ? <><a href="/settings" className="border rounded px-3 py-2">Settings</a><button className="border rounded px-3 py-2" onClick={signOut}>Sign out</button></> : <button className="border rounded px-3 py-2" onClick={() => setShowAuthModal(true)}>Log in / Sign up</button>}
           </div>
         </div>
@@ -475,7 +569,16 @@ ${description}`
 
         <section className="grid gap-3">
           {loading ? <p>Loading...</p> : quests.map((q) => (
-            <article key={q.id} className="rounded-2xl border bg-white p-4">
+            <article key={q.id} className="rounded-2xl border bg-white p-4 space-y-3">
+              {q.media_video_url ? (
+                <div className="relative">
+                  <video className="w-full rounded-xl border bg-black" src={q.media_video_url} controls muted playsInline preload="metadata" />
+                  {q.media_source === "live" && <span className="absolute top-2 left-2 text-xs bg-emerald-600 text-white px-2 py-1 rounded-full">Live video</span>}
+                </div>
+               ) : q.profiles?.[0]?.avatar_url ? (
+                <img src={q.profiles[0].avatar_url || ""} alt="Profile fallback" className="w-full max-h-72 object-cover rounded-xl border" />
+              ) : null}
+
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <h3 className="font-semibold text-lg">{q.title}</h3>
@@ -483,7 +586,12 @@ ${description}`
                   <p className="text-sm mt-2">{q.description}</p>
                   <p className="text-xs text-gray-500 mt-1">{q.city || "city tbd"} · {q.availability || "availability tbd"}</p>
                 </div>
-                <button className="border rounded px-3 py-2" onClick={() => void joinQuest(q.id)}>Join</button>
+                <div className="flex gap-2">
+                  <button className="border rounded px-3 py-2" onClick={() => void joinQuest(q.id)}>Join</button>
+                  {userId === q.creator_id && (
+                    <button className="border rounded px-3 py-2" onClick={() => openEditModal(q)}>Edit</button>
+                  )}
+                </div>
               </div>
             </article>
           ))}
@@ -602,7 +710,7 @@ ${description}`
       {showCreateModal && (
         <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center p-4">
           <div className="w-full max-w-xl rounded-2xl bg-white border p-4 space-y-3">
-            <div className="flex justify-between items-center"><h3 className="font-semibold">Create Quest</h3><button onClick={() => setShowCreateModal(false)} className="border rounded px-2 py-1">Close</button></div>
+            <div className="flex justify-between items-center"><h3 className="font-semibold">{editingQuestId ? "Edit Listing" : "Create Quest"}</h3><button onClick={() => { setShowCreateModal(false); resetQuestForm(); }} className="border rounded px-2 py-1">Close</button></div>
             <form onSubmit={createQuest} className="grid gap-2">
               <label className="text-sm font-medium">Title</label>
               <input className="border rounded px-3 py-2" placeholder={titlePlaceholder} value={title} onChange={(e) => setTitle(e.target.value)} />
@@ -655,7 +763,23 @@ ${description}`
               <label className="text-sm font-medium">Description</label>
               <textarea className="border rounded px-3 py-2" placeholder="What are you trying to do?" value={description} onChange={(e) => setDescription(e.target.value)} />
 
-              <button className="bg-black text-white rounded px-3 py-2">Post quest</button>
+              <label className="text-sm font-medium">Listing video (optional)</label>
+              <div className="grid gap-2 rounded-xl border p-3 bg-gray-50">
+                <div className="flex gap-4 text-sm">
+                  <label className="flex items-center gap-2"><input type="radio" checked={questVideoSource === "live"} onChange={() => setQuestVideoSource("live")} /> Record live video</label>
+                  <label className="flex items-center gap-2"><input type="radio" checked={questVideoSource === "upload"} onChange={() => setQuestVideoSource("upload")} /> Upload existing video</label>
+                </div>
+                <input
+                  type="file"
+                  accept="video/*"
+                  capture={questVideoSource === "live" ? "environment" : undefined}
+                  className="border rounded px-3 py-2 bg-white"
+                  onChange={(e) => setQuestVideoFile(e.target.files?.[0] ?? null)}
+                />
+                <p className="text-xs text-gray-500">If no video is added, we show profile photo fallback on the listing card.</p>
+              </div>
+
+              <button className="bg-black text-white rounded px-3 py-2 disabled:opacity-50" disabled={savingQuest}>{savingQuest ? "Saving..." : (editingQuestId ? "Save changes" : "Post quest")}</button>
             </form>
           </div>
         </div>
