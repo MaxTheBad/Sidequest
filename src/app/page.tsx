@@ -250,9 +250,27 @@ export default function Home() {
   async function sendReset(e: FormEvent) {
     e.preventDefault();
     if (!supabase) return;
-    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
-    if (error) return setStatus(error.message);
-    setStatus("✅ Password reset email sent.");
+    const resetRedirect = typeof window !== "undefined" ? `${window.location.origin}/reset-password` : redirectTo;
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: resetRedirect });
+    if (error) {
+      setStatus(error.message);
+      if (typeof window !== "undefined") window.alert(error.message);
+      return;
+    }
+    setStatus("✅ Password reset email sent. Use the link in your email to set a new password.");
+    if (typeof window !== "undefined") window.alert("Password reset email sent.");
+  }
+
+  async function sendMagicLink() {
+    if (!supabase) return;
+    const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: redirectTo } });
+    if (error) {
+      setStatus(error.message);
+      if (typeof window !== "undefined") window.alert(error.message);
+      return;
+    }
+    setStatus("✅ One-time sign-in link sent.");
+    if (typeof window !== "undefined") window.alert("One-time sign-in link sent.");
   }
 
   async function socialLogin(provider: "google" | "facebook") {
@@ -330,6 +348,16 @@ export default function Home() {
             )}
             <button className="bg-black text-white rounded px-3 py-2">{authMode === "signup" ? "Create account" : "Log in"}</button>
           </form>
+        )}
+
+        {authMode === "login" && (
+          <div className="text-sm rounded border bg-gray-50 p-3 space-y-2">
+            <p className="font-medium">Trouble signing in?</p>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" className="border rounded px-3 py-2" onClick={sendMagicLink}>Send one-time sign-in link</button>
+              <button type="button" className="border rounded px-3 py-2" onClick={() => setAuthMode("reset")}>Reset password</button>
+            </div>
+          </div>
         )}
         {authMode === "reset" && (
           <form onSubmit={sendReset} className="grid gap-2"><input className="border rounded px-3 py-2" placeholder="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required /><button className="bg-black text-white rounded px-3 py-2">Send reset email</button></form>
