@@ -17,6 +17,7 @@ type Quest = {
 };
 
 type AuthMode = "login" | "signup";
+type ProfilePhotoStep = "idle" | "ready" | "uploading";
 
 const TITLE_SUGGESTIONS = [
   "Beginner tennis buddy this weekend",
@@ -54,6 +55,9 @@ export default function Home() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [pendingVerifyEmail, setPendingVerifyEmail] = useState("");
   const [resendCooldown, setResendCooldown] = useState(0);
+  const [showPhotoStepModal, setShowPhotoStepModal] = useState(false);
+  const [photoStepFile, setPhotoStepFile] = useState<File | null>(null);
+  const [photoStepState, setPhotoStepState] = useState<ProfilePhotoStep>("idle");
 
   const [hobbies, setHobbies] = useState<Hobby[]>([]);
   const [quests, setQuests] = useState<Quest[]>([]);
@@ -141,6 +145,7 @@ export default function Home() {
       if (session?.user) {
         setShowAuthModal(false);
         setStatus("Signed in ✅");
+        void maybeShowPhotoOnboarding(session.user.id);
       }
     });
 
@@ -218,7 +223,7 @@ export default function Home() {
     setUserEmail(data.session?.user?.email ?? "");
     setShowAuthModal(false);
     setStatus("Signed in ✅");
-    setTimeout(() => window.location.reload(), 120);
+    await maybeShowPhotoOnboarding(data.session?.user?.id ?? null);
   }
 
   async function signUpWithPassword(e: FormEvent) {
@@ -284,7 +289,73 @@ export default function Home() {
     await supabase.auth.signOut();
     setUserId(null);
     setUserEmail("");
+    setShowPhotoStepModal(false);
+    setPhotoStepFile(null);
+    setPhotoStepState("idle");
     setStatus("Signed out");
+  }
+
+  async function maybeShowPhotoOnboarding(uid: string | null) {
+    if (!supabase || !uid) return;
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("photo_onboarding_done")
+      .eq("id", uid)
+      .maybeSingle();
+
+    if (!profile?.photo_onboarding_done) {
+      setShowPhotoStepModal(true);
+      setPhotoStepState("idle");
+      setPhotoStepFile(null);
+    }
+  }
+
+  async function skipPhotoStep() {
+    if (!supabase || !userId) return;
+    const { error } = await supabase
+      .from("profiles")
+      .upsert({ id: userId, photo_onboarding_done: true });
+    if (error) return setStatus(error.message);
+    setShowPhotoStepModal(false);
+    setPhotoStepFile(null);
+    setPhotoStepState("idle");
+    setStatus("You can add a profile photo anytime in Settings.");
+  }
+
+  async function savePhotoStep() {
+    if (!supabase || !userId || !photoStepFile) return;
+    if (!photoStepFile.type.startsWith("image/")) return setStatus("Please choose an image file.");
+    if (photoStepFile.size > 8 * 1024 * 1024) return setStatus("Photo must be under 8MB.");
+
+    setPhotoStepState("uploading");
+    const ext = (photoStepFile.name.split(".").pop() || "jpg").toLowerCase();
+    const filePath = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("profile-photos")
+      .upload(filePath, photoStepFile, { upsert: false, contentType: photoStepFile.type });
+    if (uploadError) {
+      setPhotoStepState("ready");
+      return setStatus(`Photo upload failed: ${uploadError.message}`);
+    }
+
+    const { data: publicData } = supabase.storage.from("profile-photos").getPublicUrl(filePath);
+    const { error: profileError } = await supabase.from("profiles").upsert({
+      id: userId,
+      avatar_url: publicData.publicUrl,
+      avatar_capture_method: "camera",
+      photo_onboarding_done: true,
+    });
+
+    if (profileError) {
+      setPhotoStepState("ready");
+      return setStatus(`Could not save photo: ${profileError.message}`);
+    }
+
+    setPhotoStepState("idle");
+    setPhotoStepFile(null);
+    setShowPhotoStepModal(false);
+    setStatus("Profile photo saved ✅");
   }
 
   async function createQuest(e: FormEvent) {
@@ -490,6 +561,40 @@ ${description}`
             <div className="flex items-center justify-between"><h3 className="font-semibold">Trouble signing in?</h3><button className="border rounded px-2 py-1" onClick={() => setShowTroubleModal(false)}>Close</button></div>
             <button className="border rounded px-3 py-2 w-full text-left" onClick={() => void sendMagicLink()}>Send one-time sign-in link</button>
             <button className="border rounded px-3 py-2 w-full text-left" onClick={() => void sendReset()}>Reset password</button>
+          </div>
+        </div>
+      )}
+
+      {showPhotoStepModal && (
+        <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-white border p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold">Optional next step: profile photo</h3>
+              <button className="border rounded px-2 py-1" onClick={() => void skipPhotoStep()}>Skip</button>
+            </div>
+            <p className="text-sm text-gray-600">Use your camera to add one profile photo now, or skip and do it later in Settings.</p>
+            <input
+              type="file"
+              accept="image/*"
+              capture="user"
+              className="border rounded px-3 py-2 w-full"
+              onChange={(e) => {
+                const file = e.target.files?.[0] ?? null;
+                setPhotoStepFile(file);
+                setPhotoStepState(file ? "ready" : "idle");
+              }}
+            />
+            <div className="flex gap-2">
+              <button
+                type="button"
+                className="bg-black text-white rounded px-3 py-2 disabled:opacity-50"
+                disabled={!photoStepFile || photoStepState === "uploading"}
+                onClick={() => void savePhotoStep()}
+              >
+                {photoStepState === "uploading" ? "Uploading..." : "Save photo"}
+              </button>
+              <button type="button" className="border rounded px-3 py-2" onClick={() => void skipPhotoStep()}>Skip for now</button>
+            </div>
           </div>
         </div>
       )}

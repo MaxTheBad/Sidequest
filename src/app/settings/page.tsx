@@ -22,6 +22,9 @@ export default function SettingsPage() {
   const [bio, setBio] = useState("");
   const [dob, setDob] = useState("");
   const [citySuggestions, setCitySuggestions] = useState<string[]>([]);
+  const [avatarUrl, setAvatarUrl] = useState("");
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   const [newEmail, setNewEmail] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -60,13 +63,14 @@ export default function SettingsPage() {
 
       const { data: profile } = await supabase
         .from("profiles")
-        .select("display_name,city,bio")
+        .select("display_name,city,bio,avatar_url")
         .eq("id", uid)
         .maybeSingle();
 
       setDisplayName(profile?.display_name ?? "");
       setCity(profile?.city ?? "");
       setBio(profile?.bio ?? "");
+      setAvatarUrl(profile?.avatar_url ?? "");
 
       const u = await supabase.auth.getUser();
       const meta = (u.data.user?.user_metadata || {}) as Record<string, unknown>;
@@ -120,6 +124,38 @@ export default function SettingsPage() {
 
     if (metaErr) return setStatus(metaErr.message);
     setStatus("Profile saved ✅");
+  }
+
+
+  async function uploadProfilePhoto() {
+    if (!supabase || !userId || !photoFile) return setStatus("Choose a photo first.");
+    if (!photoFile.type.startsWith("image/")) return setStatus("Please choose an image file.");
+    if (photoFile.size > 8 * 1024 * 1024) return setStatus("Photo must be under 8MB.");
+
+    setUploadingPhoto(true);
+    const ext = (photoFile.name.split(".").pop() || "jpg").toLowerCase();
+    const filePath = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("profile-photos")
+      .upload(filePath, photoFile, { upsert: false, contentType: photoFile.type });
+
+    if (uploadError) {
+      setUploadingPhoto(false);
+      return setStatus(`Photo upload failed: ${uploadError.message}`);
+    }
+
+    const { data: publicData } = supabase.storage.from("profile-photos").getPublicUrl(filePath);
+    const { error: profileErr } = await supabase
+      .from("profiles")
+      .upsert({ id: userId, avatar_url: publicData.publicUrl, avatar_capture_method: "camera", photo_onboarding_done: true });
+
+    setUploadingPhoto(false);
+    if (profileErr) return setStatus(`Could not save photo: ${profileErr.message}`);
+
+    setAvatarUrl(publicData.publicUrl);
+    setPhotoFile(null);
+    setStatus("Profile photo updated ✅");
   }
 
   async function changeEmail(e: FormEvent) {
@@ -181,6 +217,27 @@ export default function SettingsPage() {
           <>
             {tab === "profile" && (
               <form onSubmit={saveProfile} className="grid gap-2">
+                <label className="text-sm font-medium">Profile photo</label>
+                <div className="grid gap-2 rounded-xl border p-3 bg-gray-50">
+                  {avatarUrl ? <img src={avatarUrl} alt="Profile" className="h-20 w-20 rounded-full object-cover border" /> : <p className="text-xs text-gray-500">No profile photo yet.</p>}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="user"
+                    className="border rounded px-3 py-2 bg-white"
+                    onChange={(e) => setPhotoFile(e.target.files?.[0] ?? null)}
+                  />
+                  <p className="text-xs text-gray-500">Camera capture only in supported browsers/devices.</p>
+                  <button
+                    type="button"
+                    className="border rounded px-3 py-2 w-fit disabled:opacity-50"
+                    disabled={!photoFile || uploadingPhoto}
+                    onClick={() => void uploadProfilePhoto()}
+                  >
+                    {uploadingPhoto ? "Uploading..." : "Upload camera photo"}
+                  </button>
+                </div>
+
                 <label className="text-sm font-medium">Name</label>
                 <input className="border rounded px-3 py-2" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
 
