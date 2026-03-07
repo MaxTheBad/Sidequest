@@ -26,6 +26,18 @@ const TITLE_SUGGESTIONS = [
   "Morning run partners (3x/week)",
 ];
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const COUNTRY_OPTIONS = [
+  { code: "US", name: "United States" },
+  { code: "CA", name: "Canada" },
+  { code: "GB", name: "United Kingdom" },
+  { code: "AU", name: "Australia" },
+  { code: "BR", name: "Brazil" },
+  { code: "IN", name: "India" },
+  { code: "MX", name: "Mexico" },
+  { code: "DE", name: "Germany" },
+  { code: "FR", name: "France" },
+  { code: "ES", name: "Spain" },
+];
 
 export default function Home() {
   const supabase = getSupabaseClient();
@@ -61,6 +73,7 @@ export default function Home() {
   const [titlePlaceholder, setTitlePlaceholder] = useState(TITLE_SUGGESTIONS[0]);
   const [description, setDescription] = useState("");
   const [hobbyId, setHobbyId] = useState("");
+  const [countryCode, setCountryCode] = useState("US");
   const [city, setCity] = useState("");
   const [citySuggestions, setCitySuggestions] = useState<string[]>([]);
   const [availabilityMode, setAvailabilityMode] = useState<"flexible" | "specific">("flexible");
@@ -98,6 +111,10 @@ export default function Home() {
       }
 
       setTitlePlaceholder(TITLE_SUGGESTIONS[Math.floor(Math.random() * TITLE_SUGGESTIONS.length)]);
+      if (typeof navigator !== "undefined") {
+        const region = (navigator.language.split("-")[1] || "US").toUpperCase();
+        if (region.length === 2) setCountryCode(region);
+      }
       const { data: hobbyData } = await supabase.from("hobbies").select("id,name,category").order("name");
       setHobbies(hobbyData || []);
       if (hobbyData?.length) setHobbyId((x) => x || hobbyData[0].id);
@@ -152,7 +169,8 @@ export default function Home() {
     if (q.length < 2) return setCitySuggestions([]);
     const t = setTimeout(async () => {
       try {
-        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=5&q=${encodeURIComponent(q)}`);
+        const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=5${countryCode ? `&countrycodes=${countryCode.toLowerCase()}` : ""}&q=${encodeURIComponent(q)}`;
+        const res = await fetch(url);
         const data = (await res.json()) as Array<{ display_name: string }>;
         setCitySuggestions(data.map((x) => x.display_name).slice(0, 5));
       } catch {
@@ -160,7 +178,7 @@ export default function Home() {
       }
     }, 300);
     return () => clearTimeout(t);
-  }, [city]);
+  }, [city, countryCode]);
 
   async function loadQuests() {
     if (!supabase) return;
@@ -413,9 +431,14 @@ export default function Home() {
               <label className="text-sm font-medium">Category</label>
               <select className="border rounded px-3 py-2" value={hobbyId} onChange={(e) => setHobbyId(e.target.value)}>{hobbies.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}</select>
 
+              <label className="text-sm font-medium">Country</label>
+              <select className="border rounded px-3 py-2" value={countryCode} onChange={(e) => setCountryCode(e.target.value)}>
+                {COUNTRY_OPTIONS.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
+              </select>
+
               <label className="text-sm font-medium">City</label>
               <div className="relative">
-                <input className="border rounded px-3 py-2 w-full" placeholder="Start typing a city..." value={city} onChange={(e) => setCity(e.target.value)} />
+                <input className="border rounded px-3 py-2 w-full" placeholder={`Start typing a city in ${countryCode}...`} value={city} onChange={(e) => setCity(e.target.value)} />
                 {citySuggestions.length > 0 && <div className="absolute z-20 left-0 right-0 mt-1 border rounded bg-white shadow max-h-44 overflow-auto">{citySuggestions.map((c) => <button key={c} type="button" className="w-full text-left px-3 py-2 hover:bg-gray-100" onClick={() => { setCity(c); setCitySuggestions([]); }}>{c}</button>)}</div>}
               </div>
 

@@ -5,6 +5,19 @@ import { getSupabaseClient } from "@/lib/supabase";
 
 type Tab = "profile" | "account" | "preferences";
 
+const COUNTRY_OPTIONS = [
+  { code: "US", name: "United States" },
+  { code: "CA", name: "Canada" },
+  { code: "GB", name: "United Kingdom" },
+  { code: "AU", name: "Australia" },
+  { code: "BR", name: "Brazil" },
+  { code: "IN", name: "India" },
+  { code: "MX", name: "Mexico" },
+  { code: "DE", name: "Germany" },
+  { code: "FR", name: "France" },
+  { code: "ES", name: "Spain" },
+];
+
 export default function SettingsPage() {
   const supabase = getSupabaseClient();
   const [tab, setTab] = useState<Tab>("profile");
@@ -14,6 +27,7 @@ export default function SettingsPage() {
   const [email, setEmail] = useState("");
 
   const [displayName, setDisplayName] = useState("");
+  const [countryCode, setCountryCode] = useState("US");
   const [city, setCity] = useState("");
   const [bio, setBio] = useState("");
   const [dob, setDob] = useState("");
@@ -52,6 +66,11 @@ export default function SettingsPage() {
       const meta = (u.data.user?.user_metadata || {}) as Record<string, unknown>;
       setMarketingOptIn(Boolean(meta.marketing_opt_in));
       if (typeof meta.dob === "string") setDob(meta.dob);
+      if (typeof meta.country_code === "string" && meta.country_code.length === 2) setCountryCode(meta.country_code.toUpperCase());
+      else if (typeof navigator !== "undefined") {
+        const region = (navigator.language.split("-")[1] || "US").toUpperCase();
+        if (region.length === 2) setCountryCode(region);
+      }
     };
 
     void run();
@@ -62,7 +81,8 @@ export default function SettingsPage() {
     if (q.length < 2) return setCitySuggestions([]);
     const t = setTimeout(async () => {
       try {
-        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=5&q=${encodeURIComponent(q)}`);
+        const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=5${countryCode ? `&countrycodes=${countryCode.toLowerCase()}` : ""}&q=${encodeURIComponent(q)}`;
+        const res = await fetch(url);
         const json = (await res.json()) as Array<{ display_name: string }>;
         setCitySuggestions(json.map((x) => x.display_name).slice(0, 5));
       } catch {
@@ -70,7 +90,7 @@ export default function SettingsPage() {
       }
     }, 300);
     return () => clearTimeout(t);
-  }, [city]);
+  }, [city, countryCode]);
 
   async function saveProfile(e: FormEvent) {
     e.preventDefault();
@@ -86,6 +106,7 @@ export default function SettingsPage() {
       data: {
         full_name: displayName,
         dob: dob || null,
+        country_code: countryCode,
       },
     });
 
@@ -157,9 +178,14 @@ export default function SettingsPage() {
                 <label className="text-sm font-medium">Date of birth</label>
                 <input type="date" className="border rounded px-3 py-2" value={dob} onChange={(e) => setDob(e.target.value)} />
 
+                <label className="text-sm font-medium">Country</label>
+                <select className="border rounded px-3 py-2" value={countryCode} onChange={(e) => setCountryCode(e.target.value)}>
+                  {COUNTRY_OPTIONS.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
+                </select>
+
                 <label className="text-sm font-medium">City</label>
                 <div className="relative">
-                  <input className="border rounded px-3 py-2 w-full" value={city} onChange={(e) => setCity(e.target.value)} placeholder="Start typing city..." />
+                  <input className="border rounded px-3 py-2 w-full" value={city} onChange={(e) => setCity(e.target.value)} placeholder={`Start typing city in ${countryCode}...`} />
                   {citySuggestions.length > 0 && (
                     <div className="absolute z-20 left-0 right-0 mt-1 border rounded bg-white shadow max-h-44 overflow-auto text-sm">
                       {citySuggestions.map((c) => (
