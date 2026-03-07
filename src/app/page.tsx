@@ -26,17 +26,8 @@ const TITLE_SUGGESTIONS = [
   "Morning run partners (3x/week)",
 ];
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const COUNTRY_OPTIONS = [
-  { code: "US", name: "United States" },
-  { code: "CA", name: "Canada" },
-  { code: "GB", name: "United Kingdom" },
-  { code: "AU", name: "Australia" },
-  { code: "BR", name: "Brazil" },
-  { code: "IN", name: "India" },
-  { code: "MX", name: "Mexico" },
-  { code: "DE", name: "Germany" },
-  { code: "FR", name: "France" },
-  { code: "ES", name: "Spain" },
+const FALLBACK_COUNTRIES = [
+  "United States", "Canada", "United Kingdom", "Australia", "Brazil", "India", "Mexico", "Germany", "France", "Spain", "Italy", "Portugal", "Japan", "South Korea", "Argentina", "Chile", "Colombia", "Netherlands", "Belgium", "Sweden", "Norway", "Denmark", "Finland", "Ireland", "New Zealand", "South Africa"
 ];
 
 export default function Home() {
@@ -76,6 +67,7 @@ export default function Home() {
   const [useCustomCategory, setUseCustomCategory] = useState(false);
   const [customCategory, setCustomCategory] = useState("");
   const [countryCode, setCountryCode] = useState("US");
+  const [countryQuery, setCountryQuery] = useState("United States");
   const [city, setCity] = useState("");
   const [citySuggestions, setCitySuggestions] = useState<string[]>([]);
   const [availabilityMode, setAvailabilityMode] = useState<"flexible" | "specific">("flexible");
@@ -83,6 +75,22 @@ export default function Home() {
   const [selectedDays, setSelectedDays] = useState<string[]>([]);
   const [skillLevel, setSkillLevel] = useState("beginner");
   const [groupSize, setGroupSize] = useState(4);
+
+  const countryOptions = useMemo(() => {
+    try {
+      // @ts-ignore
+      const regions: string[] | undefined = typeof Intl !== "undefined" && Intl.supportedValuesOf ? Intl.supportedValuesOf("region") : undefined;
+      const dn = new Intl.DisplayNames(["en"], { type: "region" });
+      const names = (regions || []).map((code) => ({ code, name: dn.of(code) || code })).filter((x) => !!x.name).sort((a, b) => a.name.localeCompare(b.name));
+      if (names.length) return names;
+    } catch {}
+    return FALLBACK_COUNTRIES.map((name) => ({ code: name.slice(0,2).toUpperCase(), name }));
+  }, []);
+
+  function resolveCountryCodeByName(name: string) {
+    const found = countryOptions.find((c) => c.name.toLowerCase() === name.trim().toLowerCase());
+    return found?.code || countryCode;
+  }
 
   const passwordChecks = {
     minLength: password.length >= 8,
@@ -115,7 +123,11 @@ export default function Home() {
       setTitlePlaceholder(TITLE_SUGGESTIONS[Math.floor(Math.random() * TITLE_SUGGESTIONS.length)]);
       if (typeof navigator !== "undefined") {
         const region = (navigator.language.split("-")[1] || "US").toUpperCase();
-        if (region.length === 2) setCountryCode(region);
+        if (region.length === 2) {
+          setCountryCode(region);
+          const m = countryOptions.find((c) => c.code === region);
+          if (m) setCountryQuery(m.name);
+        }
       }
       const { data: hobbyData } = await supabase.from("hobbies").select("id,name,category").order("name");
       setHobbies(hobbyData || []);
@@ -147,7 +159,7 @@ export default function Home() {
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [supabase]);
+  }, [supabase, countryOptions]);
 
   useEffect(() => {
     if (!supabase) return;
@@ -224,7 +236,7 @@ export default function Home() {
       password,
       options: {
         emailRedirectTo: redirectTo,
-        data: { full_name: fullName, dob, accepted_terms: true, marketing_opt_in: marketingOptIn },
+        data: { full_name: fullName, dob, country_code: countryCode, accepted_terms: true, marketing_opt_in: marketingOptIn },
       },
     });
     if (error) return setStatus(error.message);
@@ -510,9 +522,7 @@ ${description}`
               </div>
 
               <label className="text-sm font-medium">Country</label>
-              <select className="border rounded px-3 py-2" value={countryCode} onChange={(e) => setCountryCode(e.target.value)}>
-                {COUNTRY_OPTIONS.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
-              </select>
+              <input list="country-list" className="border rounded px-3 py-2" value={countryQuery} onChange={(e) => { setCountryQuery(e.target.value); setCountryCode(resolveCountryCodeByName(e.target.value)); }} placeholder="Start typing country..." />
 
               <label className="text-sm font-medium">City</label>
               <div className="relative">
@@ -545,6 +555,8 @@ ${description}`
           </div>
         </div>
       )}
+
+      <datalist id="country-list">{countryOptions.map((c) => <option key={c.code} value={c.name} />)}</datalist>
 
       {status && (
         <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-[60] max-w-[92vw]">

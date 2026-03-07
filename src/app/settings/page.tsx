@@ -5,18 +5,7 @@ import { getSupabaseClient } from "@/lib/supabase";
 
 type Tab = "profile" | "account" | "preferences";
 
-const COUNTRY_OPTIONS = [
-  { code: "US", name: "United States" },
-  { code: "CA", name: "Canada" },
-  { code: "GB", name: "United Kingdom" },
-  { code: "AU", name: "Australia" },
-  { code: "BR", name: "Brazil" },
-  { code: "IN", name: "India" },
-  { code: "MX", name: "Mexico" },
-  { code: "DE", name: "Germany" },
-  { code: "FR", name: "France" },
-  { code: "ES", name: "Spain" },
-];
+const FALLBACK_COUNTRIES = ["United States","Canada","United Kingdom","Australia","Brazil","India","Mexico","Germany","France","Spain","Italy","Portugal","Japan","South Korea","Argentina","Chile","Colombia","Netherlands","Belgium","Sweden","Norway","Denmark","Finland","Ireland","New Zealand","South Africa"];
 
 export default function SettingsPage() {
   const supabase = getSupabaseClient();
@@ -28,6 +17,7 @@ export default function SettingsPage() {
 
   const [displayName, setDisplayName] = useState("");
   const [countryCode, setCountryCode] = useState("US");
+  const [countryQuery, setCountryQuery] = useState("United States");
   const [city, setCity] = useState("");
   const [bio, setBio] = useState("");
   const [dob, setDob] = useState("");
@@ -38,6 +28,22 @@ export default function SettingsPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
 
   const [marketingOptIn, setMarketingOptIn] = useState(false);
+
+  const countryOptions = useState(() => {
+    try {
+      // @ts-ignore
+      const regions: string[] | undefined = typeof Intl !== "undefined" && Intl.supportedValuesOf ? Intl.supportedValuesOf("region") : undefined;
+      const dn = new Intl.DisplayNames(["en"], { type: "region" });
+      const names = (regions || []).map((code) => ({ code, name: dn.of(code) || code })).filter((x) => !!x.name).sort((a, b) => a.name.localeCompare(b.name));
+      if (names.length) return names;
+    } catch {}
+    return FALLBACK_COUNTRIES.map((name) => ({ code: name.slice(0,2).toUpperCase(), name }));
+  })[0];
+
+  function resolveCountryCodeByName(name: string) {
+    const found = countryOptions.find((c) => c.name.toLowerCase() === name.trim().toLowerCase());
+    return found?.code || countryCode;
+  }
 
   useEffect(() => {
     if (!supabase) return;
@@ -66,22 +72,24 @@ export default function SettingsPage() {
       const meta = (u.data.user?.user_metadata || {}) as Record<string, unknown>;
       setMarketingOptIn(Boolean(meta.marketing_opt_in));
       if (typeof meta.dob === "string") setDob(meta.dob);
-      if (typeof meta.country_code === "string" && meta.country_code.length === 2) setCountryCode(meta.country_code.toUpperCase());
+      const metaCountry = typeof meta.country_code === "string" ? meta.country_code : "";
+      if (metaCountry.length === 2) { const cc = metaCountry.toUpperCase(); setCountryCode(cc); const m = countryOptions.find((c)=>c.code===cc); if (m) setCountryQuery(m.name); }
       else if (typeof navigator !== "undefined") {
         const region = (navigator.language.split("-")[1] || "US").toUpperCase();
-        if (region.length === 2) setCountryCode(region);
+        if (region.length === 2) { setCountryCode(region); const m = countryOptions.find((c)=>c.code===region); if (m) setCountryQuery(m.name); }
       }
     };
 
     void run();
-  }, [supabase]);
+  }, [supabase, countryOptions]);
 
   useEffect(() => {
     const q = city.trim();
     if (q.length < 2) return setCitySuggestions([]);
     const t = setTimeout(async () => {
       try {
-        const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=5${countryCode ? `&countrycodes=${countryCode.toLowerCase()}` : ""}&q=${encodeURIComponent(q)}`;
+        const cc = resolveCountryCodeByName(countryQuery);
+        const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=5${cc ? `&countrycodes=${cc.toLowerCase()}` : ""}&q=${encodeURIComponent(q)}`;
         const res = await fetch(url);
         const json = (await res.json()) as Array<{ display_name: string }>;
         setCitySuggestions(json.map((x) => x.display_name).slice(0, 5));
@@ -90,7 +98,7 @@ export default function SettingsPage() {
       }
     }, 300);
     return () => clearTimeout(t);
-  }, [city, countryCode]);
+  }, [city, countryQuery, countryCode]);
 
   async function saveProfile(e: FormEvent) {
     e.preventDefault();
@@ -152,6 +160,7 @@ export default function SettingsPage() {
 
   return (
     <main className="min-h-screen bg-[#f6f7fb] p-4">
+      <datalist id="country-list">{countryOptions.map((c) => <option key={c.code} value={c.name} />)}</datalist>
       <section className="max-w-3xl mx-auto rounded-2xl border bg-white p-5 space-y-4">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold">Settings</h1>
@@ -179,9 +188,7 @@ export default function SettingsPage() {
                 <input type="date" className="border rounded px-3 py-2" value={dob} onChange={(e) => setDob(e.target.value)} />
 
                 <label className="text-sm font-medium">Country</label>
-                <select className="border rounded px-3 py-2" value={countryCode} onChange={(e) => setCountryCode(e.target.value)}>
-                  {COUNTRY_OPTIONS.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
-                </select>
+                <input list="country-list" className="border rounded px-3 py-2" value={countryQuery} onChange={(e) => { setCountryQuery(e.target.value); setCountryCode(resolveCountryCodeByName(e.target.value)); }} placeholder="Start typing country..." />
 
                 <label className="text-sm font-medium">City</label>
                 <div className="relative">
