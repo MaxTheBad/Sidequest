@@ -44,7 +44,7 @@ export default function Home() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [fullName, setFullName] = useState("");
-  const [age, setAge] = useState<number | "">("");
+  const [dob, setDob] = useState("");
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [marketingOptIn, setMarketingOptIn] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -193,7 +193,9 @@ export default function Home() {
     e.preventDefault();
     if (!supabase) return;
     if (!fullName.trim()) return setStatus("Please enter your name.");
-    if (!age || Number(age) < 13) return setStatus("Please enter a valid age (13+).");
+    if (!dob) return setStatus("Please enter your date of birth.");
+    const years = Math.floor((Date.now() - new Date(dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+    if (Number.isNaN(years) || years < 13) return setStatus("You must be at least 13.");
     if (!acceptTerms) return setStatus("You must accept Terms.");
     if (!Object.values(passwordChecks).every(Boolean)) return setStatus("Password requirements not met.");
 
@@ -202,7 +204,7 @@ export default function Home() {
       password,
       options: {
         emailRedirectTo: redirectTo,
-        data: { full_name: fullName, age, accepted_terms: true, marketing_opt_in: marketingOptIn },
+        data: { full_name: fullName, dob, accepted_terms: true, marketing_opt_in: marketingOptIn },
       },
     });
     if (error) return setStatus(error.message);
@@ -347,7 +349,7 @@ export default function Home() {
               {authMode === "signup" && (
                 <>
                   <input className="border rounded px-3 py-2" placeholder="Full name" value={fullName} onChange={(e) => setFullName(e.target.value)} required />
-                  <input className="border rounded px-3 py-2" placeholder="Age" type="number" min={13} value={age} onChange={(e) => setAge(e.target.value ? Number(e.target.value) : "")} required />
+                  <input className="border rounded px-3 py-2" placeholder="Date of birth" type="date" value={dob} onChange={(e) => setDob(e.target.value)} required />
                 </>
               )}
               <div className="flex gap-2">

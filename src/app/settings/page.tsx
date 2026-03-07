@@ -16,7 +16,8 @@ export default function SettingsPage() {
   const [displayName, setDisplayName] = useState("");
   const [city, setCity] = useState("");
   const [bio, setBio] = useState("");
-  const [age, setAge] = useState<number | "">("");
+  const [dob, setDob] = useState("");
+  const [citySuggestions, setCitySuggestions] = useState<string[]>([]);
 
   const [newEmail, setNewEmail] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -50,12 +51,26 @@ export default function SettingsPage() {
       const u = await supabase.auth.getUser();
       const meta = (u.data.user?.user_metadata || {}) as Record<string, unknown>;
       setMarketingOptIn(Boolean(meta.marketing_opt_in));
-      const metaAge = Number(meta.age);
-      if (Number.isFinite(metaAge) && metaAge > 0) setAge(metaAge);
+      if (typeof meta.dob === "string") setDob(meta.dob);
     };
 
     void run();
   }, [supabase]);
+
+  useEffect(() => {
+    const q = city.trim();
+    if (q.length < 2) return setCitySuggestions([]);
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=5&q=${encodeURIComponent(q)}`);
+        const json = (await res.json()) as Array<{ display_name: string }>;
+        setCitySuggestions(json.map((x) => x.display_name).slice(0, 5));
+      } catch {
+        setCitySuggestions([]);
+      }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [city]);
 
   async function saveProfile(e: FormEvent) {
     e.preventDefault();
@@ -70,7 +85,7 @@ export default function SettingsPage() {
     const { error: metaErr } = await supabase.auth.updateUser({
       data: {
         full_name: displayName,
-        age: age || null,
+        dob: dob || null,
       },
     });
 
@@ -139,11 +154,22 @@ export default function SettingsPage() {
                 <label className="text-sm font-medium">Name</label>
                 <input className="border rounded px-3 py-2" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
 
-                <label className="text-sm font-medium">Age</label>
-                <input type="number" min={13} className="border rounded px-3 py-2" value={age} onChange={(e) => setAge(e.target.value ? Number(e.target.value) : "")} />
+                <label className="text-sm font-medium">Date of birth</label>
+                <input type="date" className="border rounded px-3 py-2" value={dob} onChange={(e) => setDob(e.target.value)} />
 
                 <label className="text-sm font-medium">City</label>
-                <input className="border rounded px-3 py-2" value={city} onChange={(e) => setCity(e.target.value)} />
+                <div className="relative">
+                  <input className="border rounded px-3 py-2 w-full" value={city} onChange={(e) => setCity(e.target.value)} placeholder="Start typing city..." />
+                  {citySuggestions.length > 0 && (
+                    <div className="absolute z-20 left-0 right-0 mt-1 border rounded bg-white shadow max-h-44 overflow-auto text-sm">
+                      {citySuggestions.map((c) => (
+                        <button key={c} type="button" className="block w-full text-left px-3 py-2 hover:bg-gray-100" onClick={() => { setCity(c); setCitySuggestions([]); }}>
+                          {c}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
 
                 <label className="text-sm font-medium">Bio</label>
                 <textarea className="border rounded px-3 py-2" value={bio} onChange={(e) => setBio(e.target.value)} />
