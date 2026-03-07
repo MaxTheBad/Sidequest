@@ -378,7 +378,9 @@ export default function Home() {
               {authMode === "signup" && (
                 <>
                   <input className="border rounded px-3 py-2" placeholder="Full name" value={fullName} onChange={(e) => setFullName(e.target.value)} required />
-                  <input className="border rounded px-3 py-2" placeholder="Date of birth" type="date" value={dob} onChange={(e) => setDob(e.target.value)} required />
+                  <label className="text-sm font-medium">Date of birth (DOB)</label>
+                  <input className="border rounded px-3 py-2" type="date" value={dob} onChange={(e) => setDob(e.target.value)} required />
+                  <p className="text-xs text-gray-500">Use your birthday (MM/DD/YYYY).</p>
                 </>
               )}
               <div className="flex gap-2">
