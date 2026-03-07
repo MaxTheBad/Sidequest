@@ -187,15 +187,44 @@ export default function Home() {
 
   async function signInWithPassword(e: FormEvent) {
     e.preventDefault();
-    if (!supabase) return setStatus("Missing Supabase env vars.");
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) return setStatus(`Login failed: ${error.message}`);
+    if (!supabase) {
+      setStatus("Missing Supabase env vars.");
+      if (typeof window !== "undefined") window.alert("Missing Supabase env vars.");
+      return;
+    }
 
-    const { data } = await supabase.auth.getSession();
-    setUserId(data.session?.user?.id ?? null);
-    setUserEmail(data.session?.user?.email ?? "");
-    setShowAuthModal(false);
-    setStatus("Signed in ✅");
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) {
+        const msg = `Login failed: ${error.message}`;
+        setStatus(msg);
+        if (typeof window !== "undefined") window.alert(msg);
+        return;
+      }
+
+      // force session/UI sync
+      const { data } = await supabase.auth.getSession();
+      if (!data.session) {
+        const u = await supabase.auth.getUser();
+        if (u.data.user) {
+          setUserId(u.data.user.id);
+          setUserEmail(u.data.user.email ?? "");
+        }
+      } else {
+        setUserId(data.session.user.id);
+        setUserEmail(data.session.user.email ?? "");
+      }
+
+      setShowAuthModal(false);
+      setStatus("Signed in ✅");
+      if (typeof window !== "undefined") {
+        window.setTimeout(() => window.location.reload(), 150);
+      }
+    } catch (err) {
+      const msg = `Login failed: ${err instanceof Error ? err.message : String(err)}`;
+      setStatus(msg);
+      if (typeof window !== "undefined") window.alert(msg);
+    }
   }
 
   async function signUpWithPassword(e: FormEvent) {
@@ -229,7 +258,7 @@ export default function Home() {
   async function socialLogin(provider: "google" | "facebook") {
     if (!supabase) return;
     const { error } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo, skipBrowserRedirect: false } });
-    if (error) setStatus(`OAuth failed: ${error.message}`);
+    if (error) { setStatus(`OAuth failed: ${error.message}`); if (typeof window !== "undefined") window.alert(`OAuth failed: ${error.message}`); }
   }
 
   async function signOut() {
