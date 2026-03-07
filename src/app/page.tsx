@@ -87,16 +87,6 @@ export default function Home() {
     if (!supabase) return;
 
     const bootstrap = async () => {
-      // Fix OAuth callback state (Google returning code)
-      if (typeof window !== "undefined") {
-        const code = new URL(window.location.href).searchParams.get("code");
-        if (code) {
-          const { error } = await supabase.auth.exchangeCodeForSession(code);
-          if (error) setStatus(error.message);
-          window.history.replaceState({}, "", window.location.pathname);
-        }
-      }
-
       const { data } = await supabase.auth.getSession();
       setUserId(data.session?.user?.id ?? null);
       setUserEmail(data.session?.user?.email ?? "");
@@ -108,6 +98,11 @@ export default function Home() {
           setUserId(u.data.user.id);
           setUserEmail(u.data.user.email ?? "");
         }
+      }
+
+      // clean URL after OAuth callback params are consumed
+      if (typeof window !== "undefined" && (window.location.search.includes('code=') || window.location.search.includes('state='))) {
+        window.history.replaceState({}, "", window.location.pathname);
       }
 
       setTitlePlaceholder(TITLE_SUGGESTIONS[Math.floor(Math.random() * TITLE_SUGGESTIONS.length)]);
@@ -127,7 +122,27 @@ export default function Home() {
       }
     });
 
-    return () => sub.subscription.unsubscribe();
+    const refreshAuth = async () => {
+      const { data } = await supabase.auth.getSession();
+      setUserId(data.session?.user?.id ?? null);
+      setUserEmail(data.session?.user?.email ?? "");
+    };
+
+    const onFocus = () => { void refreshAuth(); };
+    const onVisible = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        void refreshAuth();
+      }
+    };
+
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisible);
+
+    return () => {
+      sub.subscription.unsubscribe();
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, [supabase]);
 
   useEffect(() => {
