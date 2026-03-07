@@ -73,6 +73,8 @@ export default function Home() {
   const [titlePlaceholder, setTitlePlaceholder] = useState(TITLE_SUGGESTIONS[0]);
   const [description, setDescription] = useState("");
   const [hobbyId, setHobbyId] = useState("");
+  const [useCustomCategory, setUseCustomCategory] = useState(false);
+  const [customCategory, setCustomCategory] = useState("");
   const [countryCode, setCountryCode] = useState("US");
   const [city, setCity] = useState("");
   const [citySuggestions, setCitySuggestions] = useState<string[]>([]);
@@ -292,13 +294,56 @@ export default function Home() {
     if (profileErr) return setStatus(`Profile setup failed: ${profileErr.message}`);
 
     const avail = availabilityMode === "specific" ? selectedDays.join(", ") : availability;
-    const { data, error } = await supabase.from("quests").insert({ creator_id: userId, hobby_id: hobbyId, title, description, city, skill_level: skillLevel, availability: avail, group_size: groupSize }).select("id").single();
+
+    let finalHobbyId = hobbyId;
+    if (useCustomCategory && customCategory.trim()) {
+      const custom = customCategory.trim();
+      const { data: existing } = await supabase
+        .from("hobbies")
+        .select("id,name")
+        .ilike("name", custom)
+        .limit(1)
+        .maybeSingle();
+
+      if (existing?.id) {
+        finalHobbyId = existing.id;
+      } else {
+        const slug = slugify(custom);
+        const { data: created, error: hobbyErr } = await supabase
+          .from("hobbies")
+          .insert({ slug, name: custom, category: "Custom" })
+          .select("id")
+          .single();
+
+        if (hobbyErr) {
+          setStatus(`Could not create category automatically. Posting under selected category for now.`);
+        } else if (created?.id) {
+          finalHobbyId = created.id;
+        }
+      }
+    }
+
+    const finalDescription = useCustomCategory && customCategory.trim() && finalHobbyId === hobbyId
+      ? `[Custom category suggestion: ${customCategory.trim()}]
+${description}`
+      : description;
+
+    const { data, error } = await supabase.from("quests").insert({ creator_id: userId, hobby_id: finalHobbyId, title, description: finalDescription, city, skill_level: skillLevel, availability: avail, group_size: groupSize }).select("id").single();
     if (error) return setStatus(error.message);
     if (data?.id) await supabase.from("quest_members").insert({ quest_id: data.id, user_id: userId, role: "creator" });
-    setTitle(""); setDescription(""); setSelectedDays([]); setAvailabilityMode("flexible"); setAvailability("weeknights");
+    setTitle(""); setDescription(""); setSelectedDays([]); setAvailabilityMode("flexible"); setAvailability("weeknights"); setUseCustomCategory(false); setCustomCategory("");
     setShowCreateModal(false);
     setStatus("Quest posted ✅");
     void loadQuests();
+  }
+
+  function slugify(input: string) {
+    return input
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 64);
   }
 
   async function joinQuest(id: string) {
@@ -366,7 +411,7 @@ export default function Home() {
       {showAuthModal && (
         <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center p-4">
           <div className="w-full max-w-lg rounded-2xl bg-white border p-4 space-y-3">
-            <div className="flex justify-between items-center"><h3 className="font-semibold">Welcome to Side Quest</h3><button onClick={() => setShowAuthModal(false)} className="border rounded px-2 py-1">Close</button></div>
+            <div className="flex justify-between items-center"><h3 className="font-semibold">Welcome back</h3><button onClick={() => setShowAuthModal(false)} className="border rounded px-2 py-1">Close</button></div>
             <div className="flex gap-2">
               <button className={`px-3 py-2 rounded ${authMode === "signup" ? "bg-black text-white" : "border"}`} onClick={() => setAuthMode("signup")}>Sign up</button>
               <button className={`px-3 py-2 rounded ${authMode === "login" ? "bg-black text-white" : "border"}`} onClick={() => setAuthMode("login")}>Log in</button>
@@ -374,15 +419,18 @@ export default function Home() {
             {status && <div className="text-sm rounded border bg-amber-50 px-3 py-2">{status}</div>}
 
             <form onSubmit={authMode === "signup" ? signUpWithPassword : signInWithPassword} className="grid gap-2">
-              <input className="border rounded px-3 py-2" placeholder="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+              <label className="text-xs font-medium text-gray-600">Email</label>
+              <input className="border rounded px-3 py-2" placeholder="you@email.com" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
               {authMode === "signup" && (
                 <>
-                  <input className="border rounded px-3 py-2" placeholder="Full name" value={fullName} onChange={(e) => setFullName(e.target.value)} required />
+                  <label className="text-xs font-medium text-gray-600">Full name</label>
+                  <input className="border rounded px-3 py-2" placeholder="Your name" value={fullName} onChange={(e) => setFullName(e.target.value)} required />
                   <label className="text-sm font-medium">Date of birth (DOB)</label>
                   <input className="border rounded px-3 py-2" type="date" value={dob} onChange={(e) => setDob(e.target.value)} required />
                   <p className="text-xs text-gray-500">Use your birthday (MM/DD/YYYY).</p>
                 </>
               )}
+              <label className="text-xs font-medium text-gray-600">Password</label>
               <div className="flex gap-2">
                 <input className="border rounded px-3 py-2 flex-1" placeholder="Password" type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} required />
                 <button type="button" className="border rounded px-3" onClick={() => setShowPassword((s) => !s)}>{showPassword ? "Hide" : "Show"}</button>
@@ -390,6 +438,7 @@ export default function Home() {
 
               {authMode === "signup" && (
                 <>
+                  <label className="text-xs font-medium text-gray-600">Confirm password</label>
                   <div className="flex gap-2">
                     <input className="border rounded px-3 py-2 flex-1" placeholder="Confirm password" type={showConfirmPassword ? "text" : "password"} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required />
                     <button type="button" className="border rounded px-3" onClick={() => setShowConfirmPassword((s) => !s)}>{showConfirmPassword ? "Hide" : "Show"}</button>
@@ -442,7 +491,23 @@ export default function Home() {
               <input className="border rounded px-3 py-2" placeholder={titlePlaceholder} value={title} onChange={(e) => setTitle(e.target.value)} />
 
               <label className="text-sm font-medium">Category</label>
-              <select className="border rounded px-3 py-2" value={hobbyId} onChange={(e) => setHobbyId(e.target.value)}>{hobbies.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}</select>
+              <div className="space-y-2">
+                <select className="border rounded px-3 py-2 w-full" value={hobbyId} onChange={(e) => setHobbyId(e.target.value)}>
+                  {hobbies.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
+                </select>
+                <label className="flex items-center gap-2 text-sm">
+                  <input type="checkbox" checked={useCustomCategory} onChange={(e) => setUseCustomCategory(e.target.checked)} />
+                  Suggest / use a custom category
+                </label>
+                {useCustomCategory && (
+                  <input
+                    className="border rounded px-3 py-2 w-full"
+                    placeholder="e.g. Salsa dancing, Chess club, Archery"
+                    value={customCategory}
+                    onChange={(e) => setCustomCategory(e.target.value)}
+                  />
+                )}
+              </div>
 
               <label className="text-sm font-medium">Country</label>
               <select className="border rounded px-3 py-2" value={countryCode} onChange={(e) => setCountryCode(e.target.value)}>
