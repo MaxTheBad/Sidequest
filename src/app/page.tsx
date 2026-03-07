@@ -32,7 +32,7 @@ const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 export default function Home() {
   const supabase = getSupabaseClient();
 
-  const [status, setStatus] = useState("Ready");
+  const [status, setStatus] = useState("");
   const [userId, setUserId] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string>("");
 
@@ -183,7 +183,12 @@ export default function Home() {
     e.preventDefault();
     if (!supabase) return setStatus("Missing Supabase env vars.");
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) return setStatus(error.message);
+    if (error) return setStatus(`Login failed: ${error.message}`);
+
+    const { data } = await supabase.auth.getSession();
+    setUserId(data.session?.user?.id ?? null);
+    setUserEmail(data.session?.user?.email ?? "");
+    setShowAuthModal(false);
     setStatus("Signed in ✅");
   }
 
@@ -196,7 +201,7 @@ export default function Home() {
     if (data.user?.id) await supabase.from("profiles").upsert({ id: data.user.id, display_name: email.split("@")[0] || "SideQuest user" });
     setPendingVerifyEmail(email);
     setResendCooldown(60);
-    setStatus("✅ Account created. Check your email to verify.");
+    setStatus("✅ Account created. Check your email, then tap the verify link, then come back and log in.");
   }
 
   async function resendVerification() {
@@ -218,7 +223,7 @@ export default function Home() {
   async function socialLogin(provider: "google" | "facebook") {
     if (!supabase) return;
     const { error } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo, skipBrowserRedirect: false } });
-    if (error) setStatus(error.message);
+    if (error) setStatus(`OAuth failed: ${error.message}`);
   }
 
   async function signOut() {
@@ -358,12 +363,16 @@ export default function Home() {
           <div><h1 className="text-2xl font-bold">Side Quest</h1><p className="text-xs text-gray-500">Find your hobby people</p></div>
           <div className="flex gap-2">
             <button className="bg-black text-white rounded px-3 py-2" onClick={() => userId ? setShowCreateModal(true) : setShowAuthModal(true)}>+ Create</button>
-            {userId ? <button className="border rounded px-3 py-2" onClick={signOut}>Sign out</button> : <button className="border rounded px-3 py-2" onClick={() => setShowAuthModal(true)}>Log in / Sign up</button>}
+            {userId ? <><span className="text-xs text-emerald-700 self-center">Signed in</span><button className="border rounded px-3 py-2" onClick={signOut}>Sign out</button></> : <button className="border rounded px-3 py-2" onClick={() => setShowAuthModal(true)}>Log in / Sign up</button>}
           </div>
         </div>
       </header>
 
       <div className="max-w-5xl mx-auto px-4 py-4 space-y-4">
+
+        {status && (
+          <section className="rounded-xl border bg-amber-50 px-3 py-2 text-sm">{status}</section>
+        )}
 
         <section className="rounded-2xl border bg-white p-4">
           <div className="flex flex-wrap gap-2 items-center justify-between">
