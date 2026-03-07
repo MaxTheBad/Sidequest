@@ -305,7 +305,6 @@ export default function Home() {
       </header>
 
       <div className="max-w-5xl mx-auto px-4 py-4 space-y-4">
-        <p className="text-sm rounded-md bg-white border px-3 py-2">{status}</p>
 
         <section className="rounded-2xl border bg-white p-4">
           <div className="flex flex-wrap gap-2 items-center justify-between">
