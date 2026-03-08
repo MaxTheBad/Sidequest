@@ -18,7 +18,7 @@ type Quest = {
   media_video_url: string | null;
   media_source: "live" | "upload" | null;
   hobbies?: { name: string | null }[] | null;
-  profiles?: { id: string; display_name: string | null; avatar_url: string | null }[] | null;
+  profiles?: { id: string; display_name: string | null; avatar_url: string | null }[] | { id: string; display_name: string | null; avatar_url: string | null } | null;
 };
 
 type AuthMode = "login" | "signup";
@@ -632,6 +632,11 @@ ${description}`
     setStatus(`${mode === "private" ? "Private" : "Public"} question sent ✅ Check Inbox for replies.`);
   }
 
+  function getCreatorProfile(q: Quest) {
+    if (!q.profiles) return null;
+    return Array.isArray(q.profiles) ? (q.profiles[0] ?? null) : q.profiles;
+  }
+
   async function joinQuest(id: string) {
     if (!supabase || !userId) {
       setShowAuthModal(true);
@@ -696,17 +701,19 @@ ${description}`
         </section>
 
         <section className="grid gap-3">
-          {loading ? <p>Loading...</p> : filteredQuests.map((q) => (
+          {loading ? <p>Loading...</p> : filteredQuests.map((q) => {
+            const creatorProfile = getCreatorProfile(q);
+            return (
             <article key={q.id} className="rounded-2xl border bg-white p-4">
               <div className="flex gap-4 items-start">
                 <aside className="w-24 shrink-0 text-center">
-                  {q.profiles?.[0]?.avatar_url ? (
-                    <img src={q.profiles[0].avatar_url} alt="Creator" className="h-16 w-16 rounded-full object-cover border mx-auto" />
+                  {creatorProfile?.avatar_url ? (
+                    <img src={creatorProfile.avatar_url} alt="Creator" className="h-16 w-16 rounded-full object-cover border mx-auto" />
                   ) : (
                     <div className="h-16 w-16 rounded-full border bg-gray-100 mx-auto" />
                   )}
                   <Link href={`/profile/${q.creator_id}`} className="mt-2 block text-xs underline text-gray-700 truncate">
-                    {q.profiles?.[0]?.display_name || "View profile"}
+                    {creatorProfile?.display_name || "View profile"}
                   </Link>
                 </aside>
 
@@ -716,8 +723,8 @@ ${description}`
                       <video className="w-full rounded-xl border bg-black" src={q.media_video_url} controls muted playsInline preload="metadata" />
                       {q.media_source === "live" && <span className="absolute top-2 left-2 text-xs bg-emerald-600 text-white px-2 py-1 rounded-full">Live video</span>}
                     </div>
-                  ) : q.profiles?.[0]?.avatar_url ? (
-                    <img src={q.profiles[0].avatar_url || ""} alt="Profile fallback" className="w-full max-h-72 object-cover rounded-xl border" />
+                  ) : creatorProfile?.avatar_url ? (
+                    <img src={creatorProfile.avatar_url || ""} alt="Profile fallback" className="w-full max-h-72 object-cover rounded-xl border" />
                   ) : null}
 
                   <div className="flex items-start justify-between gap-3">
@@ -748,7 +755,8 @@ ${description}`
                 </div>
               </div>
             </article>
-          ))}
+          );
+          })}
           {!loading && filteredQuests.length === 0 && <p className="text-sm text-gray-500">{showSavedOnly ? "No saved listings yet." : "No quests yet — create the first one."}</p>}
         </section>
       </div>
