@@ -22,6 +22,7 @@ type Quest = {
 
 type AuthMode = "login" | "signup";
 type ProfilePhotoStep = "idle" | "ready" | "uploading";
+type Bookmark = { quest_id: string };
 
 const TITLE_SUGGESTIONS = [
   "Beginner tennis buddy this weekend",
@@ -65,6 +66,8 @@ export default function Home() {
 
   const [hobbies, setHobbies] = useState<Hobby[]>([]);
   const [quests, setQuests] = useState<Quest[]>([]);
+  const [bookmarkedQuestIds, setBookmarkedQuestIds] = useState<string[]>([]);
+  const [showSavedOnly, setShowSavedOnly] = useState(false);
   const [hobbyFilter, setHobbyFilter] = useState("all");
   const [loading, setLoading] = useState(false);
 
@@ -179,6 +182,14 @@ export default function Home() {
     if (!supabase) return;
     void loadQuests();
   }, [supabase, hobbyFilter]);
+
+  useEffect(() => {
+    if (!supabase || !userId) {
+      setBookmarkedQuestIds([]);
+      return;
+    }
+    void loadBookmarks(userId);
+  }, [supabase, userId]);
 
   useEffect(() => {
     if (!resendCooldown) return;
@@ -563,6 +574,52 @@ ${description}`
       .slice(0, 64);
   }
 
+  async function loadBookmarks(uid: string) {
+    if (!supabase) return;
+    const { data, error } = await supabase.from("quest_bookmarks").select("quest_id").eq("user_id", uid);
+    if (error) return;
+    setBookmarkedQuestIds(((data as Bookmark[]) || []).map((b) => b.quest_id));
+  }
+
+  async function toggleBookmark(questId: string) {
+    if (!supabase || !userId) {
+      setShowAuthModal(true);
+      return setStatus("Log in to save listings.");
+    }
+
+    const isSaved = bookmarkedQuestIds.includes(questId);
+    if (isSaved) {
+      const { error } = await supabase.from("quest_bookmarks").delete().eq("user_id", userId).eq("quest_id", questId);
+      if (error) return setStatus(error.message);
+      setBookmarkedQuestIds((prev) => prev.filter((id) => id !== questId));
+      setStatus("Removed from saved listings.");
+      return;
+    }
+
+    const { error } = await supabase.from("quest_bookmarks").insert({ user_id: userId, quest_id: questId });
+    if (error && !error.message.includes("duplicate")) return setStatus(error.message);
+    setBookmarkedQuestIds((prev) => [...prev, questId]);
+    setStatus("Saved listing ✅");
+  }
+
+  async function askQuestion(quest: Quest) {
+    if (!supabase || !userId) {
+      setShowAuthModal(true);
+      return setStatus("Log in to message listing owners.");
+    }
+
+    const text = window.prompt(`Ask a question about "${quest.title}"`);
+    if (!text || !text.trim()) return;
+
+    const { error } = await supabase.from("messages").insert({
+      quest_id: quest.id,
+      sender_id: userId,
+      body: text.trim(),
+    });
+    if (error) return setStatus(error.message);
+    setStatus("Question sent ✅ Check Inbox for replies.");
+  }
+
   async function joinQuest(id: string) {
     if (!supabase || !userId) {
       setShowAuthModal(true);
@@ -573,7 +630,12 @@ ${description}`
     setStatus("Joined quest ✅");
   }
 
-  const surprisePick = useMemo(() => (quests.length ? quests[Math.floor(Math.random() * quests.length)] : null), [quests]);
+  const filteredQuests = useMemo(() => {
+    if (!showSavedOnly) return quests;
+    return quests.filter((q) => bookmarkedQuestIds.includes(q.id));
+  }, [quests, showSavedOnly, bookmarkedQuestIds]);
+
+  const surprisePick = useMemo(() => (filteredQuests.length ? filteredQuests[Math.floor(Math.random() * filteredQuests.length)] : null), [filteredQuests]);
 
   return (
     <main className="min-h-screen bg-[#f6f7fb]">
@@ -585,6 +647,7 @@ ${description}`
           </div>
           <div className="flex gap-2">
             <button className="bg-black text-white rounded px-3 py-2" onClick={() => (userId ? openCreateModal() : setShowAuthModal(true))}>+ Create</button>
+            <a href="/inbox" className="border rounded px-3 py-2">Inbox</a>
             {userId ? <><a href="/settings" className="border rounded px-3 py-2">Settings</a><button className="border rounded px-3 py-2" onClick={signOut}>Sign out</button></> : <button className="border rounded px-3 py-2" onClick={() => setShowAuthModal(true)}>Log in / Sign up</button>}
           </div>
         </div>
@@ -599,6 +662,13 @@ ${description}`
                 <option value="all">All categories</option>
                 {hobbies.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
               </select>
+              <button
+                className={`border rounded px-3 py-1 ${showSavedOnly ? "bg-black text-white" : ""}`}
+                onClick={() => setShowSavedOnly((x) => !x)}
+                type="button"
+              >
+                {showSavedOnly ? "Showing saved" : "Saved"}
+              </button>
               <button className="border rounded px-3 py-1" onClick={() => void loadQuests()}>Refresh</button>
             </div>
           </div>
@@ -608,7 +678,7 @@ ${description}`
         </section>
 
         <section className="grid gap-3">
-          {loading ? <p>Loading...</p> : quests.map((q) => (
+          {loading ? <p>Loading...</p> : filteredQuests.map((q) => (
             <article key={q.id} className="rounded-2xl border bg-white p-4 space-y-3">
               {q.media_video_url ? (
                 <div className="relative">
@@ -626,8 +696,12 @@ ${description}`
                   <p className="text-sm mt-2">{q.description}</p>
                   <p className="text-xs text-gray-500 mt-1">{q.city || "city tbd"} · {q.availability || "availability tbd"}</p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap justify-end">
                   <button className="border rounded px-3 py-2" onClick={() => void joinQuest(q.id)}>Join</button>
+                  <button className="border rounded px-3 py-2" onClick={() => void askQuestion(q)}>Ask question</button>
+                  <button className="border rounded px-3 py-2" onClick={() => void toggleBookmark(q.id)}>
+                    {bookmarkedQuestIds.includes(q.id) ? "★ Saved" : "☆ Save"}
+                  </button>
                   {userId === q.creator_id && (
                     <button className="border rounded px-3 py-2" onClick={() => openEditModal(q)}>Edit</button>
                   )}
@@ -635,7 +709,7 @@ ${description}`
               </div>
             </article>
           ))}
-          {!loading && quests.length === 0 && <p className="text-sm text-gray-500">No quests yet — create the first one.</p>}
+          {!loading && filteredQuests.length === 0 && <p className="text-sm text-gray-500">{showSavedOnly ? "No saved listings yet." : "No quests yet — create the first one."}</p>}
         </section>
       </div>
 
