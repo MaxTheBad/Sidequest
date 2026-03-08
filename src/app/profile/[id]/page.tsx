@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase";
 
@@ -21,20 +22,30 @@ type Quest = {
 
 export const runtime = "edge";
 
-export default function ProfilePage({ params }: { params: { id: string } }) {
+export default function ProfilePage() {
   const supabase = getSupabaseClient();
+  const params = useParams<{ id?: string | string[] }>();
+  const profileId = Array.isArray(params?.id) ? params.id[0] : params?.id;
   const [profile, setProfile] = useState<Profile | null>(null);
   const [quests, setQuests] = useState<Quest[]>([]);
   const [status, setStatus] = useState("Loading...");
 
   useEffect(() => {
     if (!supabase) return;
+    if (!profileId) {
+      setStatus("Profile not found.");
+      return;
+    }
+    if (!/^[0-9a-fA-F-]{36}$/.test(profileId)) {
+      setStatus("Invalid profile id.");
+      return;
+    }
 
     const load = async () => {
       const { data: p, error: pErr } = await supabase
         .from("profiles")
         .select("id,display_name,city,bio,avatar_url")
-        .eq("id", params.id)
+        .eq("id", profileId)
         .maybeSingle();
       if (pErr) return setStatus(pErr.message);
       if (!p) return setStatus("Profile not found.");
@@ -43,7 +54,7 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
       const { data: q, error: qErr } = await supabase
         .from("quests")
         .select("id,title,city,skill_level")
-        .eq("creator_id", params.id)
+        .eq("creator_id", profileId)
         .order("created_at", { ascending: false })
         .limit(20);
 
@@ -53,7 +64,7 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
     };
 
     void load();
-  }, [supabase, params.id]);
+  }, [supabase, profileId]);
 
   return (
     <main className="min-h-screen bg-[#f6f7fb] p-4">

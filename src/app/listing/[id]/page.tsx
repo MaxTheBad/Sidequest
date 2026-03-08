@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase";
 
@@ -21,19 +22,29 @@ type Listing = {
 
 export const runtime = "edge";
 
-export default function ListingPage({ params }: { params: { id: string } }) {
+export default function ListingPage() {
   const supabase = getSupabaseClient();
+  const params = useParams<{ id?: string | string[] }>();
+  const listingId = Array.isArray(params?.id) ? params.id[0] : params?.id;
   const [listing, setListing] = useState<Listing | null>(null);
   const [status, setStatus] = useState("Loading listing...");
 
   useEffect(() => {
     if (!supabase) return;
+    if (!listingId) {
+      setStatus("Listing not found.");
+      return;
+    }
+    if (!/^[0-9a-fA-F-]{36}$/.test(listingId)) {
+      setStatus("Invalid listing id.");
+      return;
+    }
 
     const load = async () => {
       const { data, error } = await supabase
         .from("quests")
         .select("id,creator_id,title,description,city,skill_level,group_size,availability,media_video_url,media_source,hobbies(name),profiles:profiles!quests_creator_id_fkey(id,display_name,avatar_url)")
-        .eq("id", params.id)
+        .eq("id", listingId)
         .maybeSingle();
 
       if (error) return setStatus(error.message);
@@ -43,7 +54,7 @@ export default function ListingPage({ params }: { params: { id: string } }) {
     };
 
     void load();
-  }, [supabase, params.id]);
+  }, [supabase, listingId]);
 
   return (
     <main className="min-h-screen bg-[#f6f7fb] p-4">
