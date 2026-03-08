@@ -608,6 +608,9 @@ ${description}`
       setShowAuthModal(true);
       return setStatus("Log in to message listing owners.");
     }
+    if (userId === quest.creator_id) {
+      return setStatus("You can’t ask a question on your own listing.");
+    }
 
     const privacyInput = window.prompt('Send as "public" or "private"?', "public");
     if (!privacyInput) return;
@@ -634,6 +637,12 @@ ${description}`
       setShowAuthModal(true);
       return setStatus("Log in to join.");
     }
+
+    const quest = quests.find((q) => q.id === id);
+    if (quest && quest.creator_id === userId) {
+      return setStatus("You can’t join your own listing.");
+    }
+
     const { error } = await supabase.from("quest_members").insert({ quest_id: id, user_id: userId, role: "member" });
     if (error && !error.message.includes("duplicate")) return setStatus(error.message);
     setStatus("Joined quest ✅");
@@ -682,7 +691,7 @@ ${description}`
             </div>
           </div>
           <div className="mt-3 rounded-lg bg-gray-50 p-3 text-sm">
-            <strong>Surprise me:</strong> {surprisePick ? <><span>{surprisePick.title} ({surprisePick.hobbies?.[0]?.name || "Hobby"})</span><button className="ml-3 border rounded px-2 py-1" onClick={() => void joinQuest(surprisePick.id)}>Join</button></> : "No quests yet"}
+            <strong>Surprise me:</strong> {surprisePick ? <><span>{surprisePick.title} ({surprisePick.hobbies?.[0]?.name || "Hobby"})</span>{userId !== surprisePick.creator_id && <button className="ml-3 border rounded px-2 py-1" onClick={() => void joinQuest(surprisePick.id)}>Join</button>}</> : "No quests yet"}
           </div>
         </section>
 
@@ -722,8 +731,12 @@ ${description}`
                     </div>
                     <div className="flex gap-2 flex-wrap justify-end">
                       <Link href={`/listing/${q.id}`} className="border rounded px-3 py-2">View</Link>
-                      <button className="border rounded px-3 py-2" onClick={() => void joinQuest(q.id)}>Join</button>
-                      <button className="border rounded px-3 py-2" onClick={() => void askQuestion(q)}>Ask question</button>
+                      {userId !== q.creator_id && (
+                        <>
+                          <button className="border rounded px-3 py-2" onClick={() => void joinQuest(q.id)}>Join</button>
+                          <button className="border rounded px-3 py-2" onClick={() => void askQuestion(q)}>Ask question</button>
+                        </>
+                      )}
                       <button className="border rounded px-3 py-2" onClick={() => void toggleBookmark(q.id)}>
                         {bookmarkedQuestIds.includes(q.id) ? "★ Saved" : "☆ Save"}
                       </button>
