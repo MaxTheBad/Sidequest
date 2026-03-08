@@ -85,6 +85,7 @@ export default function Home() {
   const [groupSize, setGroupSize] = useState(4);
   const [questVideoFile, setQuestVideoFile] = useState<File | null>(null);
   const [questVideoSource, setQuestVideoSource] = useState<"live" | "upload">("live");
+  const [questVideoDurationSec, setQuestVideoDurationSec] = useState<number | null>(null);
   const [savingQuest, setSavingQuest] = useState(false);
   const [editingQuestId, setEditingQuestId] = useState<string | null>(null);
 
@@ -366,10 +367,29 @@ export default function Home() {
     setStatus("Profile photo saved ✅");
   }
 
+  async function getVideoDurationSeconds(file: File) {
+    const blobUrl = URL.createObjectURL(file);
+    try {
+      const duration = await new Promise<number>((resolve, reject) => {
+        const video = document.createElement("video");
+        video.preload = "metadata";
+        video.onloadedmetadata = () => resolve(video.duration || 0);
+        video.onerror = () => reject(new Error("Could not read video duration."));
+        video.src = blobUrl;
+      });
+      return duration;
+    } finally {
+      URL.revokeObjectURL(blobUrl);
+    }
+  }
+
   async function uploadQuestVideo(file: File) {
     if (!supabase || !userId) throw new Error("Not signed in.");
     if (!file.type.startsWith("video/")) throw new Error("Please choose a video file.");
     if (file.size > 60 * 1024 * 1024) throw new Error("Video must be under 60MB.");
+
+    const duration = await getVideoDurationSeconds(file);
+    if (duration > 15.2) throw new Error("Video must be 15 seconds or less.");
 
     const ext = (file.name.split(".").pop() || "mp4").toLowerCase();
     const filePath = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
@@ -391,6 +411,7 @@ export default function Home() {
     setUseCustomCategory(false);
     setCustomCategory("");
     setQuestVideoFile(null);
+    setQuestVideoDurationSec(null);
     setQuestVideoSource("live");
     setEditingQuestId(null);
   }
@@ -398,6 +419,25 @@ export default function Home() {
   function openCreateModal() {
     resetQuestForm();
     setShowCreateModal(true);
+  }
+
+  async function handleQuestVideoPicked(file: File | null) {
+    setQuestVideoFile(null);
+    setQuestVideoDurationSec(null);
+    if (!file) return;
+    if (!file.type.startsWith("video/")) return setStatus("Please choose a video file.");
+
+    try {
+      const duration = await getVideoDurationSeconds(file);
+      setQuestVideoDurationSec(duration);
+      if (duration > 15.2) {
+        setStatus(`Video is ${duration.toFixed(1)}s. Max is 15s.`);
+        return;
+      }
+      setQuestVideoFile(file);
+    } catch (err) {
+      setStatus(err instanceof Error ? err.message : "Could not read video.");
+    }
   }
 
   function openEditModal(q: Quest) {
@@ -769,13 +809,23 @@ ${description}`
                   <label className="flex items-center gap-2"><input type="radio" checked={questVideoSource === "live"} onChange={() => setQuestVideoSource("live")} /> Record live video</label>
                   <label className="flex items-center gap-2"><input type="radio" checked={questVideoSource === "upload"} onChange={() => setQuestVideoSource("upload")} /> Upload existing video</label>
                 </div>
+                {questVideoSource === "live" && (
+                  <div className="text-xs rounded border border-amber-300 bg-amber-50 px-2 py-1">
+                    Live video tip: keep recording under <b>15 seconds max</b>.
+                  </div>
+                )}
                 <input
                   type="file"
                   accept="video/*"
                   capture={questVideoSource === "live" ? "environment" : undefined}
                   className="border rounded px-3 py-2 bg-white"
-                  onChange={(e) => setQuestVideoFile(e.target.files?.[0] ?? null)}
+                  onChange={(e) => void handleQuestVideoPicked(e.target.files?.[0] ?? null)}
                 />
+                {questVideoDurationSec !== null && (
+                  <p className={`text-xs ${questVideoDurationSec > 15.2 ? "text-red-600" : "text-emerald-700"}`}>
+                    Selected video: {questVideoDurationSec.toFixed(1)}s {questVideoDurationSec > 15.2 ? "(too long — max 15s)" : "(within 15s limit)"}
+                  </p>
+                )}
                 <p className="text-xs text-gray-500">If no video is added, we show profile photo fallback on the listing card.</p>
               </div>
 
