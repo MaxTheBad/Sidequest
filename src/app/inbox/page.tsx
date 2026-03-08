@@ -13,6 +13,27 @@ type InboxMessage = {
   quests?: { title: string | null; creator_id: string | null } | null;
 };
 
+type RawInboxMessage = {
+  id: string;
+  quest_id: string;
+  sender_id: string;
+  body: string;
+  created_at: string;
+  quests?: { title: string | null; creator_id: string | null }[] | { title: string | null; creator_id: string | null } | null;
+};
+
+function normalizeMessageRow(row: RawInboxMessage): InboxMessage {
+  const quest = Array.isArray(row.quests) ? (row.quests[0] ?? null) : (row.quests ?? null);
+  return {
+    id: row.id,
+    quest_id: row.quest_id,
+    sender_id: row.sender_id,
+    body: row.body,
+    created_at: row.created_at,
+    quests: quest,
+  };
+}
+
 export default function InboxPage() {
   const supabase = getSupabaseClient();
   const [userId, setUserId] = useState<string | null>(null);
@@ -57,7 +78,9 @@ export default function InboxPage() {
       return;
     }
 
-    const merged = [...((sentRes.data as InboxMessage[]) || []), ...((receivedRes.data as InboxMessage[]) || [])];
+    const sentRows = ((sentRes.data || []) as RawInboxMessage[]).map(normalizeMessageRow);
+    const receivedRows = ((receivedRes.data || []) as RawInboxMessage[]).map(normalizeMessageRow);
+    const merged = [...sentRows, ...receivedRows];
     const dedupedMap = new Map<string, InboxMessage>();
     merged.forEach((m) => dedupedMap.set(m.id, m));
     const deduped = Array.from(dedupedMap.values()).sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at));
