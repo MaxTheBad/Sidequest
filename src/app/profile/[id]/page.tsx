@@ -19,6 +19,8 @@ type Quest = {
   skill_level: string;
 };
 
+export const runtime = "edge";
+
 export default function ProfilePage({ params }: { params: { id: string } }) {
   const supabase = getSupabaseClient();
   const [profile, setProfile] = useState<Profile | null>(null);
