@@ -34,6 +34,18 @@ function normalizeMessageRow(row: RawInboxMessage): InboxMessage {
   };
 }
 
+function getMessagePrivacy(body: string) {
+  if (body.startsWith("[PRIVATE] ")) return "private";
+  if (body.startsWith("[PUBLIC] ")) return "public";
+  return null;
+}
+
+function getMessageText(body: string) {
+  if (body.startsWith("[PRIVATE] ")) return body.replace("[PRIVATE] ", "");
+  if (body.startsWith("[PUBLIC] ")) return body.replace("[PUBLIC] ", "");
+  return body;
+}
+
 export default function InboxPage() {
   const supabase = getSupabaseClient();
   const [userId, setUserId] = useState<string | null>(null);
@@ -112,7 +124,7 @@ export default function InboxPage() {
           questId: m.quest_id,
           title: m.quests?.title || "Untitled listing",
           lastMessageAt: m.created_at,
-          preview: m.body,
+          preview: getMessageText(m.body),
         });
       }
     }
@@ -197,9 +209,15 @@ export default function InboxPage() {
               ) : (
                 activeMessages.map((m) => {
                   const mine = m.sender_id === userId;
+                  const privacy = getMessagePrivacy(m.body);
                   return (
                     <div key={m.id} className={`max-w-[80%] rounded-xl px-3 py-2 text-sm ${mine ? "ml-auto bg-black text-white" : "bg-gray-100"}`}>
-                      <p>{m.body}</p>
+                      {privacy && (
+                        <p className={`mb-1 text-[10px] uppercase tracking-wide ${mine ? "text-white/70" : "text-gray-500"}`}>
+                          {privacy}
+                        </p>
+                      )}
+                      <p>{getMessageText(m.body)}</p>
                       <p className={`mt-1 text-[11px] ${mine ? "text-white/70" : "text-gray-500"}`}>{new Date(m.created_at).toLocaleString()}</p>
                     </div>
                   );

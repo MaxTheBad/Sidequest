@@ -609,16 +609,24 @@ ${description}`
       return setStatus("Log in to message listing owners.");
     }
 
-    const text = window.prompt(`Ask a question about "${quest.title}"`);
+    const privacyInput = window.prompt('Send as "public" or "private"?', "public");
+    if (!privacyInput) return;
+    const mode = privacyInput.trim().toLowerCase();
+    if (!["public", "private"].includes(mode)) {
+      return setStatus('Please type either "public" or "private".');
+    }
+
+    const text = window.prompt(`Ask a ${mode} question about "${quest.title}"`);
     if (!text || !text.trim()) return;
 
+    const prefix = mode === "private" ? "[PRIVATE] " : "[PUBLIC] ";
     const { error } = await supabase.from("messages").insert({
       quest_id: quest.id,
       sender_id: userId,
-      body: text.trim(),
+      body: `${prefix}${text.trim()}`,
     });
     if (error) return setStatus(error.message);
-    setStatus("Question sent ✅ Check Inbox for replies.");
+    setStatus(`${mode === "private" ? "Private" : "Public"} question sent ✅ Check Inbox for replies.`);
   }
 
   async function joinQuest(id: string) {
