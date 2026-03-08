@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase";
 
@@ -17,7 +18,7 @@ type Quest = {
   media_video_url: string | null;
   media_source: "live" | "upload" | null;
   hobbies?: { name: string | null }[] | null;
-  profiles?: { avatar_url: string | null }[] | null;
+  profiles?: { id: string; display_name: string | null; avatar_url: string | null }[] | null;
 };
 
 type AuthMode = "login" | "signup";
@@ -222,7 +223,7 @@ export default function Home() {
   async function loadQuests() {
     if (!supabase) return;
     setLoading(true);
-    let q = supabase.from("quests").select("id,creator_id,title,description,city,skill_level,group_size,availability,hobby_id,media_video_url,media_source,hobbies(name),profiles:profiles!quests_creator_id_fkey(avatar_url)").order("created_at", { ascending: false }).limit(50);
+    let q = supabase.from("quests").select("id,creator_id,title,description,city,skill_level,group_size,availability,hobby_id,media_video_url,media_source,hobbies(name),profiles:profiles!quests_creator_id_fkey(id,display_name,avatar_url)").order("created_at", { ascending: false }).limit(50);
     if (hobbyFilter !== "all") q = q.eq("hobby_id", hobbyFilter);
     const { data, error } = await q;
     setLoading(false);
@@ -679,32 +680,47 @@ ${description}`
 
         <section className="grid gap-3">
           {loading ? <p>Loading...</p> : filteredQuests.map((q) => (
-            <article key={q.id} className="rounded-2xl border bg-white p-4 space-y-3">
-              {q.media_video_url ? (
-                <div className="relative">
-                  <video className="w-full rounded-xl border bg-black" src={q.media_video_url} controls muted playsInline preload="metadata" />
-                  {q.media_source === "live" && <span className="absolute top-2 left-2 text-xs bg-emerald-600 text-white px-2 py-1 rounded-full">Live video</span>}
-                </div>
-               ) : q.profiles?.[0]?.avatar_url ? (
-                <img src={q.profiles[0].avatar_url || ""} alt="Profile fallback" className="w-full max-h-72 object-cover rounded-xl border" />
-              ) : null}
-
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h3 className="font-semibold text-lg">{q.title}</h3>
-                  <p className="text-xs text-gray-500">{q.hobbies?.[0]?.name || "Hobby"} · {q.skill_level} · group {q.group_size}</p>
-                  <p className="text-sm mt-2">{q.description}</p>
-                  <p className="text-xs text-gray-500 mt-1">{q.city || "city tbd"} · {q.availability || "availability tbd"}</p>
-                </div>
-                <div className="flex gap-2 flex-wrap justify-end">
-                  <button className="border rounded px-3 py-2" onClick={() => void joinQuest(q.id)}>Join</button>
-                  <button className="border rounded px-3 py-2" onClick={() => void askQuestion(q)}>Ask question</button>
-                  <button className="border rounded px-3 py-2" onClick={() => void toggleBookmark(q.id)}>
-                    {bookmarkedQuestIds.includes(q.id) ? "★ Saved" : "☆ Save"}
-                  </button>
-                  {userId === q.creator_id && (
-                    <button className="border rounded px-3 py-2" onClick={() => openEditModal(q)}>Edit</button>
+            <article key={q.id} className="rounded-2xl border bg-white p-4">
+              <div className="flex gap-4 items-start">
+                <aside className="w-24 shrink-0 text-center">
+                  {q.profiles?.[0]?.avatar_url ? (
+                    <img src={q.profiles[0].avatar_url} alt="Creator" className="h-16 w-16 rounded-full object-cover border mx-auto" />
+                  ) : (
+                    <div className="h-16 w-16 rounded-full border bg-gray-100 mx-auto" />
                   )}
+                  <Link href={`/profile/${q.creator_id}`} className="mt-2 block text-xs underline text-gray-700 truncate">
+                    {q.profiles?.[0]?.display_name || "View profile"}
+                  </Link>
+                </aside>
+
+                <div className="flex-1 space-y-3 min-w-0">
+                  {q.media_video_url ? (
+                    <div className="relative">
+                      <video className="w-full rounded-xl border bg-black" src={q.media_video_url} controls muted playsInline preload="metadata" />
+                      {q.media_source === "live" && <span className="absolute top-2 left-2 text-xs bg-emerald-600 text-white px-2 py-1 rounded-full">Live video</span>}
+                    </div>
+                  ) : q.profiles?.[0]?.avatar_url ? (
+                    <img src={q.profiles[0].avatar_url || ""} alt="Profile fallback" className="w-full max-h-72 object-cover rounded-xl border" />
+                  ) : null}
+
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h3 className="font-semibold text-lg">{q.title}</h3>
+                      <p className="text-xs text-gray-500">{q.hobbies?.[0]?.name || "Hobby"} · {q.skill_level} · group {q.group_size}</p>
+                      <p className="text-sm mt-2">{q.description}</p>
+                      <p className="text-xs text-gray-500 mt-1">{q.city || "city tbd"} · {q.availability || "availability tbd"}</p>
+                    </div>
+                    <div className="flex gap-2 flex-wrap justify-end">
+                      <button className="border rounded px-3 py-2" onClick={() => void joinQuest(q.id)}>Join</button>
+                      <button className="border rounded px-3 py-2" onClick={() => void askQuestion(q)}>Ask question</button>
+                      <button className="border rounded px-3 py-2" onClick={() => void toggleBookmark(q.id)}>
+                        {bookmarkedQuestIds.includes(q.id) ? "★ Saved" : "☆ Save"}
+                      </button>
+                      {userId === q.creator_id && (
+                        <button className="border rounded px-3 py-2" onClick={() => openEditModal(q)}>Edit</button>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
             </article>
