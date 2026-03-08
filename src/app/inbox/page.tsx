@@ -173,12 +173,24 @@ export default function InboxPage() {
                 type="button"
               >
                 <p className="font-medium truncate">{t.title}</p>
+                <Link
+                  href={`/listing/${t.questId}`}
+                  className={`text-[11px] underline ${activeQuestId === t.questId ? "text-white/90" : "text-gray-500"}`}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  View listing
+                </Link>
                 <p className={`text-xs truncate ${activeQuestId === t.questId ? "text-white/80" : "text-gray-500"}`}>{t.preview}</p>
               </button>
             ))}
           </aside>
 
           <section className="rounded-2xl border bg-white p-3 flex flex-col h-[70vh]">
+            {activeQuestId && (
+              <div className="mb-2 pb-2 border-b">
+                <Link href={`/listing/${activeQuestId}`} className="text-sm underline">Open listing details</Link>
+              </div>
+            )}
             <div className="flex-1 overflow-auto space-y-2 pr-1">
               {activeMessages.length === 0 ? (
                 <p className="text-sm text-gray-500">Pick a thread to view messages.</p>

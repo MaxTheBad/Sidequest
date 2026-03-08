@@ -705,12 +705,15 @@ ${description}`
 
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <h3 className="font-semibold text-lg">{q.title}</h3>
+                      <h3 className="font-semibold text-lg">
+                        <Link href={`/listing/${q.id}`} className="underline">{q.title}</Link>
+                      </h3>
                       <p className="text-xs text-gray-500">{q.hobbies?.[0]?.name || "Hobby"} · {q.skill_level} · group {q.group_size}</p>
                       <p className="text-sm mt-2">{q.description}</p>
                       <p className="text-xs text-gray-500 mt-1">{q.city || "city tbd"} · {q.availability || "availability tbd"}</p>
                     </div>
                     <div className="flex gap-2 flex-wrap justify-end">
+                      <Link href={`/listing/${q.id}`} className="border rounded px-3 py-2">View</Link>
                       <button className="border rounded px-3 py-2" onClick={() => void joinQuest(q.id)}>Join</button>
                       <button className="border rounded px-3 py-2" onClick={() => void askQuestion(q)}>Ask question</button>
                       <button className="border rounded px-3 py-2" onClick={() => void toggleBookmark(q.id)}>
