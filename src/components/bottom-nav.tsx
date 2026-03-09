@@ -24,7 +24,12 @@ export default function BottomNav() {
 
   function requireAuthNavigate(path: string) {
     if (userId) return router.push(path);
-    if (typeof window !== "undefined") sessionStorage.setItem("sidequest_open_auth", "1");
+    if (typeof window === "undefined") return;
+    if (pathname === "/") {
+      window.dispatchEvent(new CustomEvent("sidequest:open-auth"));
+      return;
+    }
+    sessionStorage.setItem("sidequest_open_auth", "1");
     router.push("/");
   }
 

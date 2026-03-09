@@ -448,8 +448,10 @@ export default function Home() {
       const ctx = canvas.getContext("2d");
       if (!ctx) throw new Error("Could not prepare crop.");
 
-      const drawW = img.width * photoStepZoom;
-      const drawH = img.height * photoStepZoom;
+      const baseScale = Math.max(size / img.width, size / img.height);
+      const finalScale = baseScale * photoStepZoom;
+      const drawW = img.width * finalScale;
+      const drawH = img.height * finalScale;
       const dx = (size - drawW) / 2 + photoStepOffsetX;
       const dy = (size - drawH) / 2 + photoStepOffsetY;
       ctx.drawImage(img, dx, dy, drawW, drawH);

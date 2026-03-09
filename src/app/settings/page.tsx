@@ -172,8 +172,10 @@ export default function SettingsPage() {
       if (!ctx) throw new Error("Could not prepare image editor.");
 
       const zoom = Math.max(1, cropZoom);
-      const drawW = img.width * zoom;
-      const drawH = img.height * zoom;
+      const baseScale = Math.max(size / img.width, size / img.height);
+      const finalScale = baseScale * zoom;
+      const drawW = img.width * finalScale;
+      const drawH = img.height * finalScale;
       const dx = (size - drawW) / 2 + cropOffsetX;
       const dy = (size - drawH) / 2 + cropOffsetY;
 
@@ -366,24 +368,26 @@ export default function SettingsPage() {
                     className="relative h-24 w-24 rounded-full border overflow-hidden bg-white group"
                     onClick={() => photoInputRef.current?.click()}
                   >
-                    {avatarUrl ? (
+                    {photoPreviewUrl ? (
+                      <img src={photoPreviewUrl} alt="Photo preview" className="h-full w-full object-cover" style={{ transform: `translate(${cropOffsetX}px, ${cropOffsetY}px) scale(${cropZoom})` }} />
+                    ) : avatarUrl ? (
                       <img src={avatarUrl} alt="Profile" className="h-full w-full object-cover" />
                     ) : (
                       <div className="h-full w-full grid place-items-center text-[11px] text-gray-500">Add photo</div>
                     )}
                     <div className="absolute inset-0 bg-black/40 text-white text-xs grid place-items-center opacity-0 group-hover:opacity-100 transition-opacity">
-                      {avatarUrl ? "Edit photo" : "Add photo"}
+                      {avatarUrl || photoPreviewUrl ? "Edit photo" : "Add photo"}
                     </div>
                   </button>
 
                   {photoPreviewUrl && (
                     <div className="flex gap-2 flex-wrap">
-                      <button type="button" className="border rounded px-3 py-2 w-fit" onClick={() => setShowPhotoCropper(true)}>
+                      <button type="button" className="bg-blue-600 text-white rounded px-3 py-2 w-fit" onClick={() => setShowPhotoCropper(true)}>
                         Adjust photo
                       </button>
                       <button
                         type="button"
-                        className="border rounded px-3 py-2 w-fit disabled:opacity-50"
+                        className="bg-emerald-600 text-white rounded px-3 py-2 w-fit disabled:opacity-50"
                         disabled={!photoFile || uploadingPhoto}
                         onClick={() => void uploadProfilePhoto()}
                       >
@@ -391,7 +395,7 @@ export default function SettingsPage() {
                       </button>
                       <button
                         type="button"
-                        className="border rounded px-3 py-2 w-fit"
+                        className="border rounded px-3 py-2 w-fit bg-white"
                         onClick={() => {
                           setPhotoFile(null);
                           if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl);
