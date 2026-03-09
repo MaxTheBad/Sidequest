@@ -21,6 +21,12 @@ type Listing = {
   profiles?: { id: string; display_name: string | null; avatar_url: string | null }[] | null;
 };
 
+type MemberRow = {
+  user_id: string;
+  role: "creator" | "member";
+  profiles?: { id: string; display_name: string | null; avatar_url: string | null }[] | null;
+};
+
 export const runtime = "edge";
 
 export default function ListingPage() {
@@ -32,26 +38,54 @@ export default function ListingPage() {
   const [status, setStatus] = useState("Loading listing...");
   const [userId, setUserId] = useState<string | null>(null);
   const [isSaved, setIsSaved] = useState(false);
+  const [hasJoined, setHasJoined] = useState(false);
+  const [members, setMembers] = useState<MemberRow[]>([]);
+
+  async function loadMembers(questId: string, uid: string | null) {
+    if (!supabase) return;
+    const { data, error } = await supabase
+      .from("quest_members")
+      .select("user_id,role,profiles:profiles!quest_members_user_id_fkey(id,display_name,avatar_url)")
+      .eq("quest_id", questId)
+      .order("joined_at", { ascending: true });
+
+    if (error) return;
+    const rows = (data as MemberRow[]) || [];
+    setMembers(rows);
+    setHasJoined(!!uid && rows.some((m) => m.user_id === uid));
+  }
 
   useEffect(() => {
     if (!supabase || !listingId || !/^[0-9a-fA-F-]{36}$/.test(listingId)) return;
 
     const init = async () => {
-      const [{ data, error }, { data: auth }] = await Promise.all([
-        supabase
-          .from("quests")
-          .select("id,creator_id,title,description,city,skill_level,group_size,availability,media_video_url,media_source,media_items,hobbies(name),profiles:profiles!quests_creator_id_fkey(id,display_name,avatar_url)")
-          .eq("id", listingId)
-          .maybeSingle(),
-        supabase.auth.getSession(),
-      ]);
-
+      const { data: auth } = await supabase.auth.getSession();
       const uid = auth.session?.user?.id ?? null;
       setUserId(uid);
 
+      const withMedia = await supabase
+        .from("quests")
+        .select("id,creator_id,title,description,city,skill_level,group_size,availability,media_video_url,media_source,media_items,hobbies(name),profiles:profiles!quests_creator_id_fkey(id,display_name,avatar_url)")
+        .eq("id", listingId)
+        .maybeSingle();
+
+      let data: Listing | null = withMedia.data as Listing | null;
+      let error = withMedia.error;
+
+      // Backward compatibility when DB migration for media_items has not run yet
+      if (error?.message?.includes("column quests.media_items does not exist")) {
+        const fallback = await supabase
+          .from("quests")
+          .select("id,creator_id,title,description,city,skill_level,group_size,availability,media_video_url,media_source,hobbies(name),profiles:profiles!quests_creator_id_fkey(id,display_name,avatar_url)")
+          .eq("id", listingId)
+          .maybeSingle();
+        data = fallback.data as Listing | null;
+        error = fallback.error;
+      }
+
       if (error) return setStatus(error.message);
       if (!data) return setStatus("Listing not found.");
-      setListing(data as Listing);
+      setListing(data || null);
       setStatus("");
 
       if (uid) {
@@ -63,18 +97,36 @@ export default function ListingPage() {
           .maybeSingle();
         setIsSaved(!!saved);
       }
+
+      await loadMembers(listingId, uid);
     };
 
     void init();
   }, [supabase, listingId]);
 
-  async function joinListing() {
+  async function toggleJoin() {
     if (!supabase || !userId || !listing) return setStatus("Log in to join.");
     if (listing.creator_id === userId) return setStatus("You can’t join your own listing.");
+
+    if (hasJoined) {
+      const { error } = await supabase
+        .from("quest_members")
+        .delete()
+        .eq("quest_id", listing.id)
+        .eq("user_id", userId)
+        .neq("role", "creator");
+      if (error) return setStatus(error.message);
+      setStatus("Left listing.");
+      setHasJoined(false);
+      await loadMembers(listing.id, userId);
+      return;
+    }
 
     const { error } = await supabase.from("quest_members").insert({ quest_id: listing.id, user_id: userId, role: "member" });
     if (error && !error.message.includes("duplicate")) return setStatus(error.message);
     setStatus("Joined listing ✅");
+    setHasJoined(true);
+    await loadMembers(listing.id, userId);
   }
 
   async function askQuestion() {
@@ -178,10 +230,33 @@ export default function ListingPage() {
             <p className="text-sm">{listing.description || "No description yet."}</p>
             <p className="text-xs text-gray-500">{listing.city || "city tbd"} · {listing.availability || "availability tbd"}</p>
 
+            <div className="rounded-xl border bg-gray-50 p-3">
+              <p className="text-sm font-medium mb-2">Joined members ({members.length})</p>
+              {members.length ? (
+                <div className="flex flex-wrap gap-2">
+                  {members.map((m) => {
+                    const p = m.profiles?.[0];
+                    return (
+                      <Link key={m.user_id} href={`/profile/${m.user_id}`} className="inline-flex items-center gap-2 border rounded-full bg-white px-2 py-1">
+                        {p?.avatar_url ? (
+                          <img src={p.avatar_url} alt={p?.display_name || "Member"} className="h-6 w-6 rounded-full object-cover border" />
+                        ) : (
+                          <div className="h-6 w-6 rounded-full bg-gray-100 border" />
+                        )}
+                        <span className="text-xs">{p?.display_name || "Member"}</span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-xs text-gray-500">No members yet.</p>
+              )}
+            </div>
+
             <div className="pt-2 flex gap-2 flex-wrap">
               {!isOwner ? (
                 <>
-                  <button className="border rounded px-3 py-2" onClick={() => void joinListing()}>Join</button>
+                  <button className="border rounded px-3 py-2" onClick={() => void toggleJoin()}>{hasJoined ? "Leave" : "Join"}</button>
                   <button className="border rounded px-3 py-2" onClick={() => void askQuestion()}>Ask question</button>
                   <button className="border rounded px-3 py-2" onClick={() => void toggleSave()}>{isSaved ? "★ Saved" : "☆ Save"}</button>
                 </>

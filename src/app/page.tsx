@@ -243,10 +243,22 @@ export default function Home() {
     setLoading(true);
     let q = supabase.from("quests").select("id,creator_id,title,description,city,skill_level,group_size,availability,hobby_id,media_video_url,media_source,media_items,hobbies(name),profiles:profiles!quests_creator_id_fkey(id,display_name,avatar_url)").order("created_at", { ascending: false }).limit(50);
     if (hobbyFilter !== "all") q = q.eq("hobby_id", hobbyFilter);
-    const { data, error } = await q;
+    const firstRes = await q;
+    let data: Quest[] | null = firstRes.data as Quest[] | null;
+    let error = firstRes.error;
+
+    // Backward compatibility if migration for media_items has not been applied yet
+    if (error?.message?.includes("column quests.media_items does not exist")) {
+      let fallback = supabase.from("quests").select("id,creator_id,title,description,city,skill_level,group_size,availability,hobby_id,media_video_url,media_source,hobbies(name),profiles:profiles!quests_creator_id_fkey(id,display_name,avatar_url)").order("created_at", { ascending: false }).limit(50);
+      if (hobbyFilter !== "all") fallback = fallback.eq("hobby_id", hobbyFilter);
+      const res = await fallback;
+      data = res.data as Quest[] | null;
+      error = res.error;
+    }
+
     setLoading(false);
     if (error) return setStatus(error.message);
-    setQuests((data as Quest[]) || []);
+    setQuests(data || []);
   }
 
   async function signInWithPassword(e: FormEvent) {
