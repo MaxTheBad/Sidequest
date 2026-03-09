@@ -70,6 +70,8 @@ export default function InboxPage() {
   const [messages, setMessages] = useState<InboxMessage[]>([]);
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
+  const [sending, setSending] = useState(false);
+  const [lastSendMs, setLastSendMs] = useState(0);
 
   const loadInbox = useCallback(async (uid: string) => {
     if (!supabase) return;
@@ -197,16 +199,31 @@ export default function InboxPage() {
   async function sendReply(e: FormEvent) {
     e.preventDefault();
     if (!supabase || !userId || !activeThread || !draft.trim()) return;
+    if (sending) return;
+    if (Date.now() - lastSendMs < 3000) return setStatus("Slow down a sec before sending again.");
+    const trimmed = draft.trim();
+    if (trimmed.length < 2) return setStatus("Message is too short.");
+    if (trimmed.length > 500) return setStatus("Message is too long (max 500 chars).");
 
+    const { count } = await supabase
+      .from("messages")
+      .select("id", { count: "exact", head: true })
+      .eq("sender_id", userId)
+      .gte("created_at", new Date(Date.now() - 60_000).toISOString());
+    if ((count || 0) >= 6) return setStatus("Rate limit: please wait a minute before sending more messages.");
+
+    setSending(true);
     const prefix = activeThread.kind === "private" ? "[PRIVATE] " : "[PUBLIC] ";
     const { error } = await supabase.from("messages").insert({
       quest_id: activeThread.questId,
       sender_id: userId,
-      body: `${prefix}${draft.trim()}`,
+      body: `${prefix}${trimmed}`,
     });
+    setSending(false);
     if (error) return setStatus(error.message);
 
     setDraft("");
+    setLastSendMs(Date.now());
     await loadInbox(userId);
   }
 
@@ -254,14 +271,16 @@ export default function InboxPage() {
                 >
                   View listing
                 </Link>
-                <div className="mt-1">
+                <div className="mt-1 flex items-center gap-2">
                   {t.mediaVideoUrl ? (
-                    <video src={t.mediaVideoUrl} className="w-full h-16 rounded object-cover bg-black" muted playsInline preload="metadata" />
+                    <video src={t.mediaVideoUrl} className="h-12 w-16 rounded object-cover bg-black shrink-0" muted playsInline preload="metadata" />
                   ) : t.mediaFallbackUrl ? (
-                    <img src={t.mediaFallbackUrl} className="w-full h-16 rounded object-cover" alt="Listing preview" />
-                  ) : null}
+                    <img src={t.mediaFallbackUrl} className="h-12 w-16 rounded object-cover shrink-0" alt="Listing preview" />
+                  ) : (
+                    <div className="h-12 w-16 rounded bg-gray-200 shrink-0" />
+                  )}
+                  <p className={`text-xs line-clamp-2 ${activeThreadId === t.id ? "text-white/80" : "text-gray-500"}`}>{t.preview}</p>
                 </div>
-                <p className={`text-xs truncate mt-1 ${activeThreadId === t.id ? "text-white/80" : "text-gray-500"}`}>{t.preview}</p>
               </button>
             ))}
           </aside>
@@ -282,24 +301,21 @@ export default function InboxPage() {
               ) : (
                 activeMessages.map((m) => {
                   const mine = m.sender_id === userId;
-                  const privacy = getMessagePrivacy(m.body);
                   return (
                     <div key={m.id} className={`max-w-[86%] rounded-xl px-3 py-2 text-sm ${mine ? "ml-auto bg-black text-white" : "bg-gray-100"}`}>
-                      {!mine && (
-                        <div className="flex items-center gap-2 mb-1">
-                          {m.profiles?.avatar_url ? (
-                            <img src={m.profiles.avatar_url} alt={m.profiles.display_name || "User"} className="h-5 w-5 rounded-full object-cover border" />
-                          ) : (
-                            <div className="h-5 w-5 rounded-full bg-white border" />
-                          )}
-                          <Link href={`/profile/${m.sender_id}`} className="text-[11px] underline text-gray-600">
-                            {(m.profiles?.display_name || "Member").trim().split(/\s+/)[0]}
-                          </Link>
-                          {m.quests?.creator_id === m.sender_id && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">Organizer</span>
-                          )}
-                        </div>
-                      )}
+                      <div className="flex items-center gap-2 mb-1">
+                        {m.profiles?.avatar_url ? (
+                          <img src={m.profiles.avatar_url} alt={m.profiles.display_name || "User"} className="h-5 w-5 rounded-full object-cover border" />
+                        ) : (
+                          <div className="h-5 w-5 rounded-full bg-white border" />
+                        )}
+                        <Link href={`/profile/${m.sender_id}`} className={`text-[11px] underline ${mine ? "text-white/80" : "text-gray-600"}`}>
+                          {mine ? "You" : (m.profiles?.display_name || "Member").trim().split(/\s+/)[0]}
+                        </Link>
+                        {m.quests?.creator_id === m.sender_id && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">Organizer</span>
+                        )}
+                      </div>
                       <p>{getMessageText(m.body)}</p>
                       <p className={`mt-1 text-[11px] ${mine ? "text-white/70" : "text-gray-500"}`}>{new Date(m.created_at).toLocaleString()}</p>
                     </div>
@@ -316,7 +332,7 @@ export default function InboxPage() {
                 onChange={(e) => setDraft(e.target.value)}
                 disabled={!activeThread}
               />
-              <button className="bg-black text-white rounded px-3 py-2 disabled:opacity-50" disabled={!activeThread || !draft.trim()}>Send</button>
+              <button className="bg-black text-white rounded px-3 py-2 disabled:opacity-50" disabled={!activeThread || !draft.trim() || sending}>{sending ? "Sending..." : "Send"}</button>
             </form>
           </section>
         </div>

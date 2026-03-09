@@ -68,6 +68,8 @@ export default function Home() {
   const [questionTarget, setQuestionTarget] = useState<Quest | null>(null);
   const [questionMode, setQuestionMode] = useState<"public" | "private">("public");
   const [questionText, setQuestionText] = useState("");
+  const [sendingQuestion, setSendingQuestion] = useState(false);
+  const [lastQuestionMs, setLastQuestionMs] = useState(0);
   const [authMode, setAuthMode] = useState<AuthMode>("login");
 
   const [email, setEmail] = useState("");
@@ -123,6 +125,7 @@ export default function Home() {
   const liveVideoInputRef = useRef<HTMLInputElement | null>(null);
   const uploadVideoInputRef = useRef<HTMLInputElement | null>(null);
   const [savingQuest, setSavingQuest] = useState(false);
+  const [lastQuestCreateMs, setLastQuestCreateMs] = useState(0);
   const [editingQuestId, setEditingQuestId] = useState<string | null>(null);
 
   const countryOptions = useMemo(() => {
@@ -739,6 +742,14 @@ export default function Home() {
       setShowAuthModal(true);
       return setStatus("Log in to create.");
     }
+    if (Date.now() - lastQuestCreateMs < 15000) return setStatus("Please wait a bit before posting another listing.");
+
+    const { count: recentQuestCount } = await supabase
+      .from("quests")
+      .select("id", { count: "exact", head: true })
+      .eq("creator_id", userId)
+      .gte("created_at", new Date(Date.now() - 60 * 60 * 1000).toISOString());
+    if ((recentQuestCount || 0) >= 5 && !editingQuestId) return setStatus("Rate limit: max 5 new listings per hour.");
 
     // Ensure profile row exists (required by quests.creator_id FK)
     const { error: profileErr } = await supabase.from("profiles").upsert({
@@ -820,11 +831,13 @@ ${description}`
         if (error) throw new Error(error.message);
 
         setStatus("Listing updated ✅");
+        setLastQuestCreateMs(Date.now());
       } else {
         const { data, error } = await supabase.from("quests").insert({ creator_id: userId, hobby_id: finalHobbyId, title, description: finalDescription, city, skill_level: skillLevel, availability: avail, group_size: groupSize, media_video_url: videoUrl, media_source: videoUrl ? questVideoSource : null, media_items: nextMediaItems }).select("id").single();
         if (error) throw new Error(error.message);
         if (data?.id) await supabase.from("quest_members").insert({ quest_id: data.id, user_id: userId, role: "creator" });
         setStatus("Quest posted ✅");
+        setLastQuestCreateMs(Date.now());
       }
 
       resetQuestForm();
@@ -907,19 +920,33 @@ ${description}`
 
   async function sendQuestionFromModal() {
     if (!supabase || !userId || !questionTarget) return;
-    if (!questionText.trim()) return setStatus("Please enter your question.");
+    if (sendingQuestion) return;
+    if (Date.now() - lastQuestionMs < 3000) return setStatus("Slow down a sec before sending again.");
+    const trimmed = questionText.trim();
+    if (!trimmed) return setStatus("Please enter your question.");
+    if (trimmed.length > 500) return setStatus("Question is too long (max 500 chars).");
 
+    const { count } = await supabase
+      .from("messages")
+      .select("id", { count: "exact", head: true })
+      .eq("sender_id", userId)
+      .gte("created_at", new Date(Date.now() - 60_000).toISOString());
+    if ((count || 0) >= 6) return setStatus("Rate limit: please wait a minute before sending more messages.");
+
+    setSendingQuestion(true);
     const prefix = questionMode === "private" ? "[PRIVATE] " : "[PUBLIC] ";
     const { error } = await supabase.from("messages").insert({
       quest_id: questionTarget.id,
       sender_id: userId,
-      body: `${prefix}${questionText.trim()}`,
+      body: `${prefix}${trimmed}`,
     });
+    setSendingQuestion(false);
     if (error) return setStatus(error.message);
 
     setShowQuestionModal(false);
     setQuestionTarget(null);
     setQuestionText("");
+    setLastQuestionMs(Date.now());
     setStatus(`${questionMode === "private" ? "Private" : "Public"} question sent ✅ Check Inbox for replies.`);
   }
 
@@ -1420,7 +1447,7 @@ ${description}`
             </div>
             <p className="text-xs text-gray-600">Please keep questions general and avoid sharing personal information.</p>
             <textarea className="border rounded px-3 py-2 w-full" placeholder="Type your question..." value={questionText} onChange={(e) => setQuestionText(e.target.value)} />
-            <button className="bg-black text-white rounded px-3 py-2" onClick={() => void sendQuestionFromModal()}>Send</button>
+            <button className="bg-black text-white rounded px-3 py-2 disabled:opacity-50" disabled={sendingQuestion || !questionText.trim()} onClick={() => void sendQuestionFromModal()}>{sendingQuestion ? "Sending..." : "Send"}</button>
           </div>
         </div>
       )}

@@ -45,6 +45,8 @@ export default function ListingPage() {
   const [showQuestionModal, setShowQuestionModal] = useState(false);
   const [questionMode, setQuestionMode] = useState<"public" | "private">("public");
   const [questionText, setQuestionText] = useState("");
+  const [sendingQuestion, setSendingQuestion] = useState(false);
+  const [lastQuestionMs, setLastQuestionMs] = useState(0);
 
   async function loadMembers(questId: string, uid: string | null) {
     if (!supabase) return;
@@ -159,18 +161,32 @@ export default function ListingPage() {
 
   async function sendQuestionFromModal() {
     if (!supabase || !userId || !listing) return;
-    if (!questionText.trim()) return setStatus("Please enter your question.");
+    if (sendingQuestion) return;
+    if (Date.now() - lastQuestionMs < 3000) return setStatus("Slow down a sec before sending again.");
+    const trimmed = questionText.trim();
+    if (!trimmed) return setStatus("Please enter your question.");
+    if (trimmed.length > 500) return setStatus("Question is too long (max 500 chars).");
 
+    const { count } = await supabase
+      .from("messages")
+      .select("id", { count: "exact", head: true })
+      .eq("sender_id", userId)
+      .gte("created_at", new Date(Date.now() - 60_000).toISOString());
+    if ((count || 0) >= 6) return setStatus("Rate limit: please wait a minute before sending more messages.");
+
+    setSendingQuestion(true);
     const prefix = questionMode === "private" ? "[PRIVATE] " : "[PUBLIC] ";
     const { error } = await supabase.from("messages").insert({
       quest_id: listing.id,
       sender_id: userId,
-      body: `${prefix}${questionText.trim()}`,
+      body: `${prefix}${trimmed}`,
     });
+    setSendingQuestion(false);
     if (error) return setStatus(error.message);
 
     setShowQuestionModal(false);
     setQuestionText("");
+    setLastQuestionMs(Date.now());
     setStatus(`${questionMode === "private" ? "Private" : "Public"} question sent ✅`);
   }
 
@@ -315,7 +331,7 @@ export default function ListingPage() {
               </div>
               <p className="text-xs text-gray-600">Please keep questions general and avoid sharing personal information.</p>
               <textarea className="border rounded px-3 py-2 w-full" placeholder="Type your question..." value={questionText} onChange={(e) => setQuestionText(e.target.value)} />
-              <button className="bg-black text-white rounded px-3 py-2" onClick={() => void sendQuestionFromModal()}>Send</button>
+              <button className="bg-black text-white rounded px-3 py-2 disabled:opacity-50" disabled={sendingQuestion || !questionText.trim()} onClick={() => void sendQuestionFromModal()}>{sendingQuestion ? "Sending..." : "Send"}</button>
             </div>
           </div>
         )}
