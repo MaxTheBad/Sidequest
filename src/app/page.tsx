@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase";
 
@@ -54,7 +53,6 @@ const FALLBACK_COUNTRIES = [
 
 export default function Home() {
   const supabase = getSupabaseClient();
-  const searchParams = useSearchParams();
   const redirectTo = typeof window !== "undefined" ? `${window.location.origin}/` : undefined;
 
   const [status, setStatus] = useState("");
@@ -515,7 +513,9 @@ export default function Home() {
 
   useEffect(() => {
     if (handledCreateParam) return;
-    if (searchParams.get("create") !== "1") return;
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("create") !== "1") return;
 
     if (userId) {
       openCreateModal();
@@ -524,7 +524,7 @@ export default function Home() {
       setStatus("Log in to create.");
     }
     setHandledCreateParam(true);
-  }, [handledCreateParam, searchParams, userId]);
+  }, [handledCreateParam, userId]);
 
   async function handleQuestVideoPicked(file: File | null) {
     setQuestVideoFile(null);
@@ -880,7 +880,7 @@ ${description}`
                 <div className="flex-1 space-y-3 min-w-0">
                   {q.media_video_url ? (
                     <div className="relative">
-                      <video className="w-full rounded-xl border bg-black" src={q.media_video_url} controls muted playsInline preload="metadata" />
+                      <video className="w-full max-h-64 rounded-xl border bg-black object-contain" src={q.media_video_url} controls muted playsInline preload="metadata" />
                       {q.media_source === "live" && <span className="absolute top-2 left-2 text-xs bg-emerald-600 text-white px-2 py-1 rounded-full">Live video</span>}
                     </div>
                   ) : null}
@@ -889,9 +889,9 @@ ${description}`
                       {q.media_items.map((m, i) => (
                         <div key={`${m.url}-${i}`} className="rounded-lg border p-2 bg-gray-50">
                           {m.type === "image" ? (
-                            <img src={m.url} alt={m.label || "Listing image"} className="w-full h-36 object-cover rounded" />
+                            <img src={m.url} alt={m.label || "Listing image"} className="w-full h-24 object-cover rounded" />
                           ) : (
-                            <video src={m.url} controls className="w-full h-36 object-cover rounded bg-black" preload="metadata" />
+                            <video src={m.url} controls className="w-full h-24 object-cover rounded bg-black" preload="metadata" />
                           )}
                           {m.label && <p className="text-xs mt-1 text-gray-600">{m.label}</p>}
                         </div>

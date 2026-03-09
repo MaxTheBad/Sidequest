@@ -230,7 +230,7 @@ export default function ListingPage() {
 
             {listing.media_video_url && (
               <div className="relative">
-                <video className="w-full rounded-xl border bg-black" src={listing.media_video_url} controls playsInline preload="metadata" />
+                <video className="w-full max-h-80 rounded-xl border bg-black object-contain" src={listing.media_video_url} controls playsInline preload="metadata" />
                 {listing.media_source === "live" && <span className="absolute top-2 left-2 text-xs bg-emerald-600 text-white px-2 py-1 rounded-full">Live video</span>}
               </div>
             )}
@@ -240,9 +240,9 @@ export default function ListingPage() {
                 {listing.media_items.map((m, i) => (
                   <div key={`${m.url}-${i}`} className="rounded-xl border p-2 bg-gray-50">
                     {m.type === "image" ? (
-                      <img src={m.url} alt={m.label || "Listing media"} className="w-full h-48 object-cover rounded" />
+                      <img src={m.url} alt={m.label || "Listing media"} className="w-full h-32 object-cover rounded" />
                     ) : (
-                      <video src={m.url} controls className="w-full h-48 object-cover rounded bg-black" preload="metadata" />
+                      <video src={m.url} controls className="w-full h-32 object-cover rounded bg-black" preload="metadata" />
                     )}
                     {m.label && <p className="text-xs mt-1 text-gray-600">{m.label}</p>}
                   </div>
