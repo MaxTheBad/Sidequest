@@ -285,6 +285,11 @@ export default function InboxPage() {
       .sort((a, b) => +new Date(a.created_at) - +new Date(b.created_at));
   }, [messages, activeThread, userId]);
 
+  useEffect(() => {
+    if (!activeThreadId) return;
+    if (!activeThread) setActiveThreadId(null);
+  }, [activeThreadId, activeThread]);
+
   async function sendReply(e: FormEvent) {
     e.preventDefault();
     if (!supabase || !userId || !activeThread || !draft.trim()) return;
@@ -344,7 +349,7 @@ export default function InboxPage() {
         {status && <div className="mb-3 rounded border bg-amber-50 px-3 py-2 text-sm">{status}</div>}
 
         <div className="grid md:grid-cols-[340px_1fr] gap-3">
-          <aside className={`rounded-2xl border bg-white p-2 max-h-[70vh] overflow-auto ${activeThreadId ? "hidden md:block" : "block"}`}>
+          <aside className={`rounded-2xl border bg-white p-2 max-h-[70vh] overflow-auto ${activeThread ? "hidden md:block" : "block"}`}>
             {loading ? <p className="p-3 text-sm">Loading...</p> : threads.length === 0 ? <p className="p-3 text-sm text-gray-500">No messages yet.</p> : threads.map((t) => (
               <button
                 key={t.id}
@@ -379,7 +384,7 @@ export default function InboxPage() {
             ))}
           </aside>
 
-          <section className={`rounded-2xl border bg-white p-3 flex flex-col h-[70vh] ${activeThreadId ? "block" : "hidden md:flex"}`}>
+          <section className={`rounded-2xl border bg-white p-3 flex flex-col h-[70vh] ${activeThread ? "block" : "hidden md:flex"}`}>
             {activeThread && (
               <div className="mb-2 pb-2 border-b text-sm flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
