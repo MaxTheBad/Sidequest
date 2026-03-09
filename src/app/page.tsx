@@ -815,15 +815,13 @@ ${description}`
     const hasJoined = joinedQuestIds.includes(id);
 
     if (hasJoined) {
-      const { data: removed, error } = await supabase
+      const { error } = await supabase
         .from("quest_members")
         .delete()
         .eq("quest_id", id)
-        .eq("user_id", userId)
-        .select("quest_id");
+        .eq("user_id", userId);
       if (error) return setStatus(error.message);
-      if (!removed?.length) return setStatus("Could not leave quest. Please try again.");
-      setJoinedQuestIds((prev) => prev.filter((qid) => qid !== id));
+      await loadMemberships(userId);
       setStatus("Left quest.");
       return;
     }

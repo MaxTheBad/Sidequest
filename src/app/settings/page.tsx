@@ -336,7 +336,18 @@ export default function SettingsPage() {
               <form onSubmit={saveProfile} className="grid gap-2">
                 <label className="text-sm font-medium">Profile photo</label>
                 <div className="grid gap-2 rounded-xl border p-3 bg-gray-50">
-                  {avatarUrl ? <img src={avatarUrl} alt="Profile" className="h-20 w-20 rounded-full object-cover border" /> : <p className="text-xs text-gray-500">No profile photo yet.</p>}
+                  <div className="flex items-center gap-3">
+                    <div>
+                      <p className="text-xs text-gray-600 mb-1">Current photo</p>
+                      {avatarUrl ? <img src={avatarUrl} alt="Profile" className="h-20 w-20 rounded-full object-cover border" /> : <div className="h-20 w-20 rounded-full border bg-white grid place-items-center text-[11px] text-gray-500">No photo</div>}
+                    </div>
+                    {photoPreviewUrl && (
+                      <div>
+                        <p className="text-xs text-gray-600 mb-1">New photo</p>
+                        <img src={photoPreviewUrl} alt="New selection" className="h-20 w-20 rounded-full object-cover border" />
+                      </div>
+                    )}
+                  </div>
                   <input
                     type="file"
                     accept="image/*"
