@@ -141,6 +141,20 @@ export default function InboxPage() {
     void init();
   }, [supabase, loadInbox]);
 
+  useEffect(() => {
+    if (!supabase || !userId) return;
+    const ch = supabase
+      .channel(`inbox-live-${userId}`)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, () => {
+        void loadInbox(userId);
+      })
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(ch);
+    };
+  }, [supabase, userId, loadInbox]);
+
   const threads = useMemo(() => {
     const map = new Map<string, Thread>();
     for (const m of messages) {

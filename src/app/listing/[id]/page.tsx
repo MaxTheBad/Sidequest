@@ -312,6 +312,7 @@ export default function ListingPage() {
                 <button type="button" className={`border rounded px-3 py-2 ${questionMode === "public" ? "bg-black text-white" : ""}`} onClick={() => setQuestionMode("public")}>Public</button>
                 <button type="button" className={`border rounded px-3 py-2 ${questionMode === "private" ? "bg-black text-white" : ""}`} onClick={() => setQuestionMode("private")}>Private</button>
               </div>
+              <p className="text-xs text-gray-600">Please keep questions general and avoid sharing personal information.</p>
               <textarea className="border rounded px-3 py-2 w-full" placeholder="Type your question..." value={questionText} onChange={(e) => setQuestionText(e.target.value)} />
               <button className="bg-black text-white rounded px-3 py-2" onClick={() => void sendQuestionFromModal()}>Send</button>
             </div>
