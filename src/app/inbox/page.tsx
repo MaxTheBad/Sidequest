@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase";
 
 type InboxMessage = {
@@ -65,6 +65,14 @@ function getMessageText(body: string) {
   return body;
 }
 
+function getTypingChannelKey(thread: Thread | null, currentUserId: string | null) {
+  if (!thread) return null;
+  if (thread.kind === "public") return `typing:${thread.questId}:public`;
+  if (!currentUserId || !thread.partnerId) return null;
+  const pair = [currentUserId, thread.partnerId].sort().join(":");
+  return `typing:${thread.questId}:private:${pair}`;
+}
+
 export default function InboxPage() {
   const supabase = getSupabaseClient();
   const [userId, setUserId] = useState<string | null>(null);
@@ -75,6 +83,11 @@ export default function InboxPage() {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [lastSendMs, setLastSendMs] = useState(0);
+  const [userName, setUserName] = useState("You");
+  const [typingNames, setTypingNames] = useState<string[]>([]);
+  const typingTimeoutRef = useRef<number | null>(null);
+  const typingChannelRef = useRef<any>(null);
+  const lastTypingSendRef = useRef(0);
 
   const loadInbox = useCallback(async (uid: string) => {
     if (!supabase) return;
@@ -147,7 +160,10 @@ export default function InboxPage() {
     const init = async () => {
       const { data } = await supabase.auth.getSession();
       const uid = data.session?.user?.id ?? null;
+      const u = data.session?.user;
       setUserId(uid);
+      const nm = (u?.user_metadata?.full_name as string | undefined) || (u?.user_metadata?.name as string | undefined) || u?.email || "You";
+      setUserName(nm.toString().split("@")[0]);
       if (uid) await loadInbox(uid);
       setLoading(false);
     };
@@ -169,7 +185,31 @@ export default function InboxPage() {
     };
   }, [supabase, userId, loadInbox]);
 
+  useEffect(() => {
+    if (!userId) return;
+    const id = window.setInterval(() => {
+      void loadInbox(userId);
+    }, 5000);
+    const onFocus = () => void loadInbox(userId);
+    window.addEventListener("focus", onFocus);
+    return () => {
+      clearInterval(id);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [userId, loadInbox]);
+
+  // typing channel effect is declared after activeThread
+
   const threads = useMemo(() => {
+    const profileBySender = new Map<string, { name: string; avatar: string | null }>();
+    for (const m of messages) {
+      if (!m.sender_id) continue;
+      profileBySender.set(m.sender_id, {
+        name: m.profiles?.display_name || "Member",
+        avatar: m.profiles?.avatar_url || null,
+      });
+    }
+
     const map = new Map<string, Thread>();
     for (const m of messages) {
       const kind = getMessagePrivacy(m.body);
@@ -178,11 +218,12 @@ export default function InboxPage() {
         : null;
       const id = kind === "private" ? `${m.quest_id}:${kind}:${partnerId || "unknown"}` : `${m.quest_id}:${kind}`;
       if (!map.has(id)) {
+        const partnerProfile = partnerId ? profileBySender.get(partnerId) : null;
         const partnerName = kind === "private"
-          ? (m.sender_id === userId ? "Listing owner" : (m.profiles?.display_name || "Member"))
+          ? (partnerProfile?.name || (m.sender_id === userId ? "Listing owner" : (m.profiles?.display_name || "Member")))
           : null;
         const partnerAvatar = kind === "private"
-          ? (m.sender_id === userId ? null : (m.profiles?.avatar_url || null))
+          ? (partnerProfile?.avatar || (m.sender_id === userId ? null : (m.profiles?.avatar_url || null)))
           : null;
         map.set(id, {
           id,
@@ -205,6 +246,31 @@ export default function InboxPage() {
   }, [messages, userId]);
 
   const activeThread = useMemo(() => threads.find((t) => t.id === activeThreadId) || null, [threads, activeThreadId]);
+
+  useEffect(() => {
+    if (!supabase || !userId || !activeThread) return;
+    const key = getTypingChannelKey(activeThread, userId);
+    if (!key) return;
+
+    const channel = supabase
+      .channel(`inbox-${key}`)
+      .on("broadcast", { event: "typing" }, ({ payload }) => {
+        const p = payload as { senderId?: string; name?: string };
+        if (!p?.senderId || p.senderId === userId) return;
+        setTypingNames((prev) => Array.from(new Set([...prev, p.name || "Someone"])));
+        if (typingTimeoutRef.current) window.clearTimeout(typingTimeoutRef.current);
+        typingTimeoutRef.current = window.setTimeout(() => setTypingNames([]), 2200);
+      })
+      .subscribe();
+    typingChannelRef.current = channel;
+
+    return () => {
+      setTypingNames([]);
+      if (typingTimeoutRef.current) window.clearTimeout(typingTimeoutRef.current);
+      typingChannelRef.current = null;
+      void supabase.removeChannel(channel);
+    };
+  }, [supabase, userId, activeThread]);
 
   const activeMessages = useMemo(() => {
     if (!activeThread) return [];
@@ -286,7 +352,12 @@ export default function InboxPage() {
                 onClick={() => setActiveThreadId(t.id)}
                 type="button"
               >
-                <p className="font-medium truncate">{t.title}</p>
+                <div className="flex items-center gap-2">
+                  {t.kind === "private" ? (
+                    t.partnerAvatar ? <img src={t.partnerAvatar} alt={t.partnerName || "Partner"} className="h-5 w-5 rounded-full object-cover border shrink-0" /> : <div className="h-5 w-5 rounded-full border bg-gray-200 shrink-0" />
+                  ) : null}
+                  <p className="font-medium truncate">{t.title}</p>
+                </div>
                 <Link
                   href={`/listing/${t.questId}`}
                   className={`text-[11px] underline ${activeThreadId === t.id ? "text-white/90" : "text-gray-500"}`}
@@ -347,12 +418,26 @@ export default function InboxPage() {
               )}
             </div>
 
+            {typingNames.length > 0 && (
+              <p className="text-xs text-gray-500 mb-1">{typingNames.join(", ")} typing…</p>
+            )}
             <form onSubmit={sendReply} className="mt-3 flex gap-2">
               <input
                 className="flex-1 border rounded px-3 py-2"
                 placeholder={activeThread ? `Reply in ${activeThread.kind} thread...` : "Select a thread to reply"}
                 value={draft}
-                onChange={(e) => setDraft(e.target.value)}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setDraft(next);
+                  if (!userId || !activeThread || !next.trim() || !typingChannelRef.current) return;
+                  if (Date.now() - lastTypingSendRef.current < 900) return;
+                  lastTypingSendRef.current = Date.now();
+                  void typingChannelRef.current.send({
+                    type: "broadcast",
+                    event: "typing",
+                    payload: { senderId: userId, name: userName },
+                  });
+                }}
                 disabled={!activeThread}
               />
               <button className="bg-black text-white rounded px-3 py-2 disabled:opacity-50" disabled={!activeThread || !draft.trim() || sending}>{sending ? "Sending..." : "Send"}</button>
