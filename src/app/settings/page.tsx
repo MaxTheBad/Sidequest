@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, PointerEvent, useEffect, useMemo, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase";
 
 type Tab = "profile" | "account" | "preferences";
@@ -26,9 +26,12 @@ export default function SettingsPage() {
   const [avatarUrl, setAvatarUrl] = useState("");
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreviewUrl, setPhotoPreviewUrl] = useState("");
+  const [showPhotoCropper, setShowPhotoCropper] = useState(false);
   const [cropZoom, setCropZoom] = useState(1.2);
-  const [cropX, setCropX] = useState(50);
-  const [cropY, setCropY] = useState(50);
+  const [cropOffsetX, setCropOffsetX] = useState(0);
+  const [cropOffsetY, setCropOffsetY] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const [lastPointer, setLastPointer] = useState<{ x: number; y: number } | null>(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   const [newEmail, setNewEmail] = useState("");
@@ -162,10 +165,8 @@ export default function SettingsPage() {
       const zoom = Math.max(1, cropZoom);
       const drawW = img.width * zoom;
       const drawH = img.height * zoom;
-      const minX = size - drawW;
-      const minY = size - drawH;
-      const dx = minX * (cropX / 100);
-      const dy = minY * (cropY / 100);
+      const dx = (size - drawW) / 2 + cropOffsetX;
+      const dy = (size - drawH) / 2 + cropOffsetY;
 
       ctx.clearRect(0, 0, size, size);
       ctx.drawImage(img, dx, dy, drawW, drawH);
@@ -205,9 +206,14 @@ export default function SettingsPage() {
     }
 
     const { data: publicData } = supabase.storage.from("profile-photos").getPublicUrl(filePath);
-    const { error: profileErr } = await supabase
+    let { error: profileErr } = await supabase
       .from("profiles")
       .upsert({ id: userId, avatar_url: publicData.publicUrl, avatar_capture_method: "camera", photo_onboarding_done: true });
+
+    if (profileErr?.message?.includes("column") && (profileErr.message.includes("avatar_capture_method") || profileErr.message.includes("photo_onboarding_done"))) {
+      const fallback = await supabase.from("profiles").upsert({ id: userId, avatar_url: publicData.publicUrl });
+      profileErr = fallback.error;
+    }
 
     setUploadingPhoto(false);
     if (profileErr) return setStatus(`Could not save photo: ${profileErr.message}`);
@@ -215,6 +221,7 @@ export default function SettingsPage() {
     setAvatarUrl(publicData.publicUrl);
     setPhotoFile(null);
     setPhotoPreviewUrl("");
+    setShowPhotoCropper(false);
     setStatus("Profile photo updated ✅");
   }
 
@@ -237,6 +244,26 @@ export default function SettingsPage() {
       if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl);
     };
   }, [photoPreviewUrl]);
+
+  function onCropPointerDown(e: PointerEvent<HTMLDivElement>) {
+    (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+    setDragging(true);
+    setLastPointer({ x: e.clientX, y: e.clientY });
+  }
+
+  function onCropPointerMove(e: PointerEvent<HTMLDivElement>) {
+    if (!dragging || !lastPointer) return;
+    const dx = e.clientX - lastPointer.x;
+    const dy = e.clientY - lastPointer.y;
+    setCropOffsetX((v) => v + dx);
+    setCropOffsetY((v) => v + dy);
+    setLastPointer({ x: e.clientX, y: e.clientY });
+  }
+
+  function onCropPointerUp() {
+    setDragging(false);
+    setLastPointer(null);
+  }
 
   async function changeEmail(e: FormEvent) {
     e.preventDefault();
@@ -309,32 +336,19 @@ export default function SettingsPage() {
                       const file = e.target.files?.[0] ?? null;
                       setPhotoFile(file);
                       setCropZoom(1.2);
-                      setCropX(50);
-                      setCropY(50);
+                      setCropOffsetX(0);
+                      setCropOffsetY(0);
                       if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl);
                       setPhotoPreviewUrl(file ? URL.createObjectURL(file) : "");
+                      setShowPhotoCropper(!!file);
                     }}
                   />
                   <p className="text-xs text-gray-500">Camera capture only in supported browsers/devices.</p>
 
                   {photoPreviewUrl && (
-                    <div className="rounded-lg border bg-white p-2 space-y-2">
-                      <p className="text-xs text-gray-600">Adjust crop before upload</p>
-                      <div className="h-56 w-56 rounded-full overflow-hidden border mx-auto bg-black/5">
-                        <img
-                          src={photoPreviewUrl}
-                          alt="Preview"
-                          className="h-full w-full object-cover"
-                          style={{ transform: `scale(${cropZoom})`, transformOrigin: `${cropX}% ${cropY}%` }}
-                        />
-                      </div>
-                      <label className="text-xs">Zoom</label>
-                      <input type="range" min={1} max={3} step={0.05} value={cropZoom} onChange={(e) => setCropZoom(Number(e.target.value))} />
-                      <label className="text-xs">Focus left/right</label>
-                      <input type="range" min={0} max={100} step={1} value={cropX} onChange={(e) => setCropX(Number(e.target.value))} />
-                      <label className="text-xs">Focus up/down</label>
-                      <input type="range" min={0} max={100} step={1} value={cropY} onChange={(e) => setCropY(Number(e.target.value))} />
-                    </div>
+                    <button type="button" className="border rounded px-3 py-2 w-fit" onClick={() => setShowPhotoCropper(true)}>
+                      Adjust photo
+                    </button>
                   )}
                   <div className="flex gap-2 flex-wrap">
                     <button
@@ -353,6 +367,7 @@ export default function SettingsPage() {
                           setPhotoFile(null);
                           if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl);
                           setPhotoPreviewUrl("");
+                          setShowPhotoCropper(false);
                         }}
                       >
                         Clear selected photo
@@ -432,6 +447,35 @@ export default function SettingsPage() {
           </>
         )}
       </section>
+
+      {showPhotoCropper && photoPreviewUrl && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white border p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold">Adjust profile photo</h3>
+              <button className="border rounded px-2 py-1" onClick={() => setShowPhotoCropper(false)}>Done</button>
+            </div>
+            <p className="text-xs text-gray-600">Drag photo with your finger to position it.</p>
+            <div
+              className="h-64 w-64 rounded-full overflow-hidden border mx-auto bg-black/5 touch-none"
+              onPointerDown={onCropPointerDown}
+              onPointerMove={onCropPointerMove}
+              onPointerUp={onCropPointerUp}
+              onPointerCancel={onCropPointerUp}
+            >
+              <img
+                src={photoPreviewUrl}
+                alt="Crop preview"
+                className="h-full w-full object-cover select-none"
+                draggable={false}
+                style={{ transform: `translate(${cropOffsetX}px, ${cropOffsetY}px) scale(${cropZoom})` }}
+              />
+            </div>
+            <label className="text-xs">Zoom</label>
+            <input type="range" min={1} max={3} step={0.05} value={cropZoom} onChange={(e) => setCropZoom(Number(e.target.value))} />
+          </div>
+        </div>
+      )}
     </main>
   );
 }
