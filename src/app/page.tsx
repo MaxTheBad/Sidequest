@@ -723,8 +723,6 @@ ${description}`
                       <video className="w-full rounded-xl border bg-black" src={q.media_video_url} controls muted playsInline preload="metadata" />
                       {q.media_source === "live" && <span className="absolute top-2 left-2 text-xs bg-emerald-600 text-white px-2 py-1 rounded-full">Live video</span>}
                     </div>
-                  ) : creatorProfile?.avatar_url ? (
-                    <img src={creatorProfile.avatar_url || ""} alt="Profile fallback" className="w-full max-h-72 object-cover rounded-xl border" />
                   ) : null}
 
                   <div className="flex items-start justify-between gap-3">
@@ -870,8 +868,8 @@ ${description}`
       )}
 
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center p-4">
-          <div className="w-full max-w-xl rounded-2xl bg-white border p-4 space-y-3">
+        <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="w-full max-w-xl rounded-2xl bg-white border p-4 space-y-3 max-h-[92vh] overflow-y-auto my-auto">
             <div className="flex justify-between items-center"><h3 className="font-semibold">{editingQuestId ? "Edit Listing" : "Create Quest"}</h3><button onClick={() => { setShowCreateModal(false); resetQuestForm(); }} className="border rounded px-2 py-1">Close</button></div>
             <form onSubmit={createQuest} className="grid gap-2">
               <label className="text-sm font-medium">Title</label>
