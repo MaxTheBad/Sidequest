@@ -64,7 +64,6 @@ export default function Home() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showTroubleModal, setShowTroubleModal] = useState(false);
   const [handledCreateParam, setHandledCreateParam] = useState(false);
-  const [handledAuthParam, setHandledAuthParam] = useState(false);
   const [showQuestionModal, setShowQuestionModal] = useState(false);
   const [questionTarget, setQuestionTarget] = useState<Quest | null>(null);
   const [questionMode, setQuestionMode] = useState<"public" | "private">("public");
@@ -497,13 +496,12 @@ export default function Home() {
       profileError = fallback.error;
     }
 
-    if (profileError) {
+    if (profileError && !profileError.message.toLowerCase().includes("row-level security")) {
       setPhotoStepState("ready");
       return setStatus(`Could not save photo: ${profileError.message}`);
     }
 
     await supabase.auth.updateUser({ data: { avatar_url: publicData.publicUrl } });
-
     setPhotoStepState("idle");
     setPhotoStepFile(null);
     if (photoStepPreviewUrl) URL.revokeObjectURL(photoStepPreviewUrl);
@@ -603,12 +601,9 @@ export default function Home() {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
 
-    if (!handledAuthParam && params.get("auth") === "1") {
-      if (!userId) {
-        setShowAuthModal(true);
-        setStatus("Please sign in to continue.");
-      }
-      setHandledAuthParam(true);
+    if (params.get("auth") === "1" && !userId) {
+      setShowAuthModal(true);
+      setStatus("Please sign in to continue.");
     }
 
     if (handledCreateParam) return;
@@ -621,7 +616,7 @@ export default function Home() {
       setStatus("Log in to create.");
     }
     setHandledCreateParam(true);
-  }, [handledAuthParam, handledCreateParam, userId]);
+  }, [handledCreateParam, userId]);
 
   async function handleQuestVideoPicked(file: File | null) {
     setQuestVideoFile(null);

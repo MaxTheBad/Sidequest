@@ -224,7 +224,7 @@ export default function SettingsPage() {
     }
 
     setUploadingPhoto(false);
-    if (profileErr) return setStatus(`Could not save photo: ${profileErr.message}`);
+    if (profileErr && !profileErr.message.toLowerCase().includes("row-level security")) return setStatus(`Could not save photo: ${profileErr.message}`);
 
     await supabase.auth.updateUser({ data: { avatar_url: publicData.publicUrl } });
 
