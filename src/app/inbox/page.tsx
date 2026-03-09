@@ -40,6 +40,8 @@ type Thread = {
   mediaFallbackUrl?: string | null;
 };
 
+type QuestOwnerLite = { creator_id: string | null; display_name: string | null; avatar_url: string | null };
+
 function normalizeMessageRow(row: RawInboxMessage): InboxMessage {
   const quest = Array.isArray(row.quests) ? (row.quests[0] ?? null) : (row.quests ?? null);
   const profile = Array.isArray(row.profiles) ? (row.profiles[0] ?? null) : (row.profiles ?? null);
@@ -88,6 +90,7 @@ export default function InboxPage() {
   const typingTimeoutRef = useRef<number | null>(null);
   const typingChannelRef = useRef<any>(null);
   const lastTypingSendRef = useRef(0);
+  const [questOwners, setQuestOwners] = useState<Record<string, QuestOwnerLite>>({});
 
   const loadInbox = useCallback(async (uid: string) => {
     if (!supabase) return;
@@ -145,6 +148,21 @@ export default function InboxPage() {
     const deduped = Array.from(dedupedMap.values()).sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at));
 
     setMessages(deduped);
+
+    const questIds = Array.from(new Set(deduped.map((m) => m.quest_id).filter(Boolean)));
+    if (questIds.length) {
+      const { data: ownerRows } = await supabase
+        .from("quests")
+        .select("id,creator_id,profiles:profiles!quests_creator_id_fkey(display_name,avatar_url)")
+        .in("id", questIds);
+
+      const ownerMap: Record<string, QuestOwnerLite> = {};
+      ((ownerRows as Array<{ id: string; creator_id: string | null; profiles?: { display_name: string | null; avatar_url: string | null }[] | { display_name: string | null; avatar_url: string | null } | null }> | null) || []).forEach((r) => {
+        const p = Array.isArray(r.profiles) ? (r.profiles[0] || null) : (r.profiles || null);
+        ownerMap[r.id] = { creator_id: r.creator_id, display_name: p?.display_name || null, avatar_url: p?.avatar_url || null };
+      });
+      setQuestOwners(ownerMap);
+    }
 
     if (!activeThreadId && deduped[0]) {
       const firstKind = getMessagePrivacy(deduped[0].body);
@@ -218,12 +236,14 @@ export default function InboxPage() {
         : null;
       const id = kind === "private" ? `${m.quest_id}:${kind}:${partnerId || "unknown"}` : `${m.quest_id}:${kind}`;
       if (!map.has(id)) {
+        const owner = questOwners[m.quest_id];
         const partnerProfile = partnerId ? profileBySender.get(partnerId) : null;
+        const ownerIsPartner = !!(partnerId && owner?.creator_id && partnerId === owner.creator_id);
         const partnerName = kind === "private"
-          ? (partnerProfile?.name || (m.sender_id === userId ? "Listing owner" : (m.profiles?.display_name || "Member")))
+          ? (partnerProfile?.name || (ownerIsPartner ? (owner?.display_name || "Listing owner") : (m.sender_id === userId ? "Listing owner" : (m.profiles?.display_name || "Member"))))
           : null;
         const partnerAvatar = kind === "private"
-          ? (partnerProfile?.avatar || (m.sender_id === userId ? null : (m.profiles?.avatar_url || null)))
+          ? (partnerProfile?.avatar || (ownerIsPartner ? (owner?.avatar_url || null) : (m.sender_id === userId ? null : (m.profiles?.avatar_url || null))))
           : null;
         map.set(id, {
           id,
@@ -243,7 +263,7 @@ export default function InboxPage() {
       }
     }
     return Array.from(map.values()).sort((a, b) => +new Date(b.lastMessageAt) - +new Date(a.lastMessageAt));
-  }, [messages, userId]);
+  }, [messages, userId, questOwners]);
 
   const activeThread = useMemo(() => threads.find((t) => t.id === activeThreadId) || null, [threads, activeThreadId]);
 
@@ -359,7 +379,7 @@ export default function InboxPage() {
               >
                 <div className="flex items-center gap-2">
                   {t.kind === "private" ? (
-                    t.partnerAvatar ? <img src={t.partnerAvatar} alt={t.partnerName || "Partner"} className="h-5 w-5 rounded-full object-cover border shrink-0" /> : <div className="h-5 w-5 rounded-full border bg-gray-200 shrink-0" />
+                    t.partnerAvatar ? <img src={t.partnerAvatar} alt={t.partnerName || "Partner"} className="h-7 w-7 rounded-full object-cover border shrink-0" /> : <div className="h-7 w-7 rounded-full border bg-gray-200 shrink-0" />
                   ) : null}
                   <p className="font-medium truncate">{t.title}</p>
                 </div>
