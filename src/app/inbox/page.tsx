@@ -30,6 +30,9 @@ type Thread = {
   id: string;
   questId: string;
   kind: ThreadKind;
+  partnerId?: string | null;
+  partnerName?: string | null;
+  partnerAvatar?: string | null;
   title: string;
   lastMessageAt: string;
   preview: string;
@@ -170,13 +173,27 @@ export default function InboxPage() {
     const map = new Map<string, Thread>();
     for (const m of messages) {
       const kind = getMessagePrivacy(m.body);
-      const id = `${m.quest_id}:${kind}`;
+      const partnerId = kind === "private"
+        ? (m.sender_id === userId ? (m.quests?.creator_id || null) : m.sender_id)
+        : null;
+      const id = kind === "private" ? `${m.quest_id}:${kind}:${partnerId || "unknown"}` : `${m.quest_id}:${kind}`;
       if (!map.has(id)) {
+        const partnerName = kind === "private"
+          ? (m.sender_id === userId ? "Listing owner" : (m.profiles?.display_name || "Member"))
+          : null;
+        const partnerAvatar = kind === "private"
+          ? (m.sender_id === userId ? null : (m.profiles?.avatar_url || null))
+          : null;
         map.set(id, {
           id,
           questId: m.quest_id,
           kind,
-          title: `${m.quests?.title || "Untitled listing"} · ${kind === "private" ? "Private" : "Public"}`,
+          partnerId,
+          partnerName,
+          partnerAvatar,
+          title: kind === "private"
+            ? `${m.quests?.title || "Untitled listing"} · Private · ${(partnerName || "Member").trim().split(/\s+/)[0]}`
+            : `${m.quests?.title || "Untitled listing"} · Public`,
           lastMessageAt: m.created_at,
           preview: getMessageText(m.body),
           mediaVideoUrl: m.quests?.media_video_url || null,
@@ -185,16 +202,22 @@ export default function InboxPage() {
       }
     }
     return Array.from(map.values()).sort((a, b) => +new Date(b.lastMessageAt) - +new Date(a.lastMessageAt));
-  }, [messages]);
+  }, [messages, userId]);
 
   const activeThread = useMemo(() => threads.find((t) => t.id === activeThreadId) || null, [threads, activeThreadId]);
 
   const activeMessages = useMemo(() => {
     if (!activeThread) return [];
     return messages
-      .filter((m) => m.quest_id === activeThread.questId && getMessagePrivacy(m.body) === activeThread.kind)
+      .filter((m) => {
+        if (m.quest_id !== activeThread.questId) return false;
+        if (getMessagePrivacy(m.body) !== activeThread.kind) return false;
+        if (activeThread.kind !== "private") return true;
+        const partnerId = m.sender_id === userId ? (m.quests?.creator_id || null) : m.sender_id;
+        return partnerId === activeThread.partnerId;
+      })
       .sort((a, b) => +new Date(a.created_at) - +new Date(b.created_at));
-  }, [messages, activeThread]);
+  }, [messages, activeThread, userId]);
 
   async function sendReply(e: FormEvent) {
     e.preventDefault();
@@ -289,7 +312,7 @@ export default function InboxPage() {
             {activeThread && (
               <div className="mb-2 pb-2 border-b text-sm flex items-center justify-between">
                 <span className={`px-2 py-1 rounded ${activeThread.kind === "private" ? "bg-purple-100 text-purple-700" : "bg-emerald-100 text-emerald-700"}`}>
-                  {activeThread.kind === "private" ? "Private conversation" : "Public conversation"}
+                  {activeThread.kind === "private" ? `Private with ${(activeThread.partnerName || "Member").trim().split(/\s+/)[0]}` : "Public conversation"}
                 </span>
                 <Link href={`/listing/${activeThread.questId}`} className="underline">Open listing</Link>
               </div>
