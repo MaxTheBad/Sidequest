@@ -599,23 +599,40 @@ export default function Home() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const params = new URLSearchParams(window.location.search);
 
-    if (params.get("auth") === "1" && !userId) {
-      setShowAuthModal(true);
-      setStatus("Please sign in to continue.");
-    }
+    const openAuthFromUrl = () => {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("auth") === "1" && !userId) {
+        setShowAuthModal(true);
+        setStatus("Please sign in to continue.");
+      }
 
-    if (handledCreateParam) return;
-    if (params.get("create") !== "1") return;
+      if (handledCreateParam) return;
+      if (params.get("create") !== "1") return;
+      if (userId) {
+        openCreateModal();
+      } else {
+        setShowAuthModal(true);
+        setStatus("Log in to create.");
+      }
+      setHandledCreateParam(true);
+    };
 
-    if (userId) {
-      openCreateModal();
-    } else {
-      setShowAuthModal(true);
-      setStatus("Log in to create.");
-    }
-    setHandledCreateParam(true);
+    openAuthFromUrl();
+
+    const onOpenAuth = () => {
+      if (!userId) {
+        setShowAuthModal(true);
+        setStatus("Please sign in to continue.");
+      }
+    };
+
+    window.addEventListener("sidequest:open-auth", onOpenAuth as EventListener);
+    window.addEventListener("popstate", openAuthFromUrl);
+    return () => {
+      window.removeEventListener("sidequest:open-auth", onOpenAuth as EventListener);
+      window.removeEventListener("popstate", openAuthFromUrl);
+    };
   }, [handledCreateParam, userId]);
 
   async function handleQuestVideoPicked(file: File | null) {

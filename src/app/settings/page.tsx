@@ -226,9 +226,14 @@ export default function SettingsPage() {
     setUploadingPhoto(false);
     if (profileErr && !profileErr.message.toLowerCase().includes("row-level security")) return setStatus(`Could not save photo: ${profileErr.message}`);
 
-    await supabase.auth.updateUser({ data: { avatar_url: publicData.publicUrl } });
+    const { error: metaErr } = await supabase.auth.updateUser({ data: { avatar_url: publicData.publicUrl } });
+    if (metaErr) return setStatus(`Could not save photo metadata: ${metaErr.message}`);
 
-    setAvatarUrl(publicData.publicUrl);
+    const { data: refreshedUser } = await supabase.auth.getUser();
+    const refreshedMeta = (refreshedUser.user?.user_metadata || {}) as Record<string, unknown>;
+    const avatarFromMeta = typeof refreshedMeta.avatar_url === "string" ? refreshedMeta.avatar_url : publicData.publicUrl;
+
+    setAvatarUrl(avatarFromMeta);
     setPhotoFile(null);
     setPhotoPreviewUrl("");
     setShowPhotoCropper(false);

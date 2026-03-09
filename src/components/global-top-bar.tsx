@@ -1,11 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase";
 
 export default function GlobalTopBar() {
   const supabase = getSupabaseClient();
+  const router = useRouter();
+  const pathname = usePathname();
   const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -23,6 +26,15 @@ export default function GlobalTopBar() {
     if (typeof window !== "undefined") window.location.href = "/";
   }
 
+  function openLogin() {
+    if (typeof window === "undefined") return;
+    if (pathname === "/") {
+      window.dispatchEvent(new CustomEvent("sidequest:open-auth"));
+      return;
+    }
+    router.push("/?auth=1");
+  }
+
   return (
     <header className="fixed top-0 inset-x-0 z-50 border-b bg-white/95 backdrop-blur">
       <div className="max-w-5xl mx-auto px-4 h-12 flex items-center justify-between">
@@ -30,7 +42,7 @@ export default function GlobalTopBar() {
         {userId ? (
           <button className="border rounded px-3 py-1.5 text-sm" onClick={() => void signOut()}>Sign out</button>
         ) : (
-          <Link href="/?auth=1" className="border rounded px-3 py-1.5 text-sm">Log in</Link>
+          <button className="border rounded px-3 py-1.5 text-sm" onClick={openLogin}>Log in</button>
         )}
       </div>
     </header>
