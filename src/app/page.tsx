@@ -31,6 +31,7 @@ type Quest = {
 type AuthMode = "login" | "signup";
 type ProfilePhotoStep = "idle" | "ready" | "uploading";
 type Bookmark = { quest_id: string };
+type Membership = { quest_id: string };
 
 const TITLE_SUGGESTIONS = [
   "Beginner tennis buddy this weekend",
@@ -81,6 +82,7 @@ export default function Home() {
   const [hobbies, setHobbies] = useState<Hobby[]>([]);
   const [quests, setQuests] = useState<Quest[]>([]);
   const [bookmarkedQuestIds, setBookmarkedQuestIds] = useState<string[]>([]);
+  const [joinedQuestIds, setJoinedQuestIds] = useState<string[]>([]);
   const [showSavedOnly, setShowSavedOnly] = useState(false);
   const [hobbyFilter, setHobbyFilter] = useState("all");
   const [loading, setLoading] = useState(false);
@@ -205,9 +207,10 @@ export default function Home() {
   useEffect(() => {
     if (!supabase || !userId) {
       setBookmarkedQuestIds([]);
+      setJoinedQuestIds([]);
       return;
     }
-    void loadBookmarks(userId);
+    void Promise.all([loadBookmarks(userId), loadMemberships(userId)]);
   }, [supabase, userId]);
 
   useEffect(() => {
@@ -671,6 +674,13 @@ ${description}`
     setBookmarkedQuestIds(((data as Bookmark[]) || []).map((b) => b.quest_id));
   }
 
+  async function loadMemberships(uid: string) {
+    if (!supabase) return;
+    const { data, error } = await supabase.from("quest_members").select("quest_id").eq("user_id", uid);
+    if (error) return;
+    setJoinedQuestIds(((data as Membership[]) || []).map((m) => m.quest_id));
+  }
+
   async function toggleBookmark(questId: string) {
     if (!supabase || !userId) {
       setShowAuthModal(true);
@@ -741,7 +751,7 @@ ${description}`
     await loadQuests();
   }
 
-  async function joinQuest(id: string) {
+  async function toggleJoinQuest(id: string) {
     if (!supabase || !userId) {
       setShowAuthModal(true);
       return setStatus("Log in to join.");
@@ -752,8 +762,24 @@ ${description}`
       return setStatus("You can’t join your own listing.");
     }
 
+    const hasJoined = joinedQuestIds.includes(id);
+
+    if (hasJoined) {
+      const { error } = await supabase
+        .from("quest_members")
+        .delete()
+        .eq("quest_id", id)
+        .eq("user_id", userId)
+        .neq("role", "creator");
+      if (error) return setStatus(error.message);
+      setJoinedQuestIds((prev) => prev.filter((qid) => qid !== id));
+      setStatus("Left quest.");
+      return;
+    }
+
     const { error } = await supabase.from("quest_members").insert({ quest_id: id, user_id: userId, role: "member" });
-    if (error && !error.message.includes("duplicate")) return setStatus(error.message);
+    if (error && !error.message.includes("duplicate") && !error.message.toLowerCase().includes("unique")) return setStatus(error.message);
+    setJoinedQuestIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
     setStatus("Joined quest ✅");
   }
 
@@ -801,7 +827,7 @@ ${description}`
             </div>
           </div>
           <div className="mt-3 rounded-lg bg-gray-50 p-3 text-sm">
-            <strong>Surprise me:</strong> {surprisePick ? <><span>{surprisePick.title} ({surprisePick.hobbies?.[0]?.name || "Hobby"})</span>{userId !== surprisePick.creator_id && <button className="ml-3 border rounded px-2 py-1" onClick={() => void joinQuest(surprisePick.id)}>Join</button>}</> : "No quests yet"}
+            <strong>Surprise me:</strong> {surprisePick ? <><span>{surprisePick.title} ({surprisePick.hobbies?.[0]?.name || "Hobby"})</span>{userId !== surprisePick.creator_id && <button className="ml-3 border rounded px-2 py-1" onClick={() => void toggleJoinQuest(surprisePick.id)}>{joinedQuestIds.includes(surprisePick.id) ? "Leave" : "Join"}</button>}</> : "No quests yet"}
           </div>
         </section>
 
@@ -858,7 +884,7 @@ ${description}`
                     <div className="flex gap-2 flex-wrap justify-end">
                       {userId !== q.creator_id && (
                         <>
-                          <button className="border rounded px-3 py-2" onClick={() => void joinQuest(q.id)}>Join</button>
+                          <button className="border rounded px-3 py-2" onClick={() => void toggleJoinQuest(q.id)}>{joinedQuestIds.includes(q.id) ? "Leave" : "Join"}</button>
                           <button className="border rounded px-3 py-2" onClick={() => void askQuestion(q)}>Ask question</button>
                         </>
                       )}
