@@ -64,6 +64,7 @@ export default function Home() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showTroubleModal, setShowTroubleModal] = useState(false);
   const [handledCreateParam, setHandledCreateParam] = useState(false);
+  const [handledAuthParam, setHandledAuthParam] = useState(false);
   const [authMode, setAuthMode] = useState<AuthMode>("login");
 
   const [email, setEmail] = useState("");
@@ -512,9 +513,18 @@ export default function Home() {
   }
 
   useEffect(() => {
-    if (handledCreateParam) return;
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
+
+    if (!handledAuthParam && params.get("auth") === "1") {
+      if (!userId) {
+        setShowAuthModal(true);
+        setStatus("Please sign in to continue.");
+      }
+      setHandledAuthParam(true);
+    }
+
+    if (handledCreateParam) return;
     if (params.get("create") !== "1") return;
 
     if (userId) {
@@ -524,7 +534,7 @@ export default function Home() {
       setStatus("Log in to create.");
     }
     setHandledCreateParam(true);
-  }, [handledCreateParam, userId]);
+  }, [handledAuthParam, handledCreateParam, userId]);
 
   async function handleQuestVideoPicked(file: File | null) {
     setQuestVideoFile(null);
@@ -547,18 +557,31 @@ export default function Home() {
 
   function handleQuestMediaPicked(files: FileList | null) {
     if (!files?.length) return;
-    const added = Array.from(files)
-      .filter((f) => f.type.startsWith("image/") || f.type.startsWith("video/"))
-      .map((file) => ({
-        id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-        file,
-        label: "",
-      }));
+
+    const existingImages = existingMediaItems.filter((m) => m.type === "image").length + questMediaFiles.filter((m) => m.file.type.startsWith("image/")).length;
+    const existingVideos = existingMediaItems.filter((m) => m.type === "video").length + questMediaFiles.filter((m) => m.file.type.startsWith("video/")).length;
+
+    let imgLeft = Math.max(0, 2 - existingImages);
+    let vidLeft = Math.max(0, 2 - existingVideos);
+
+    const added: Array<{ id: string; file: File; label: string }> = [];
+    for (const file of Array.from(files)) {
+      if (file.type.startsWith("image/") && imgLeft > 0) {
+        added.push({ id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, file, label: "" });
+        imgLeft -= 1;
+      } else if (file.type.startsWith("video/") && vidLeft > 0) {
+        added.push({ id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, file, label: "" });
+        vidLeft -= 1;
+      }
+    }
+
     if (!added.length) {
-      setStatus("Please choose image or video files.");
+      setStatus("Max reached: up to 2 photos and 2 videos per listing.");
       return;
     }
+
     setQuestMediaFiles((prev) => [...prev, ...added]);
+    if (added.length < files.length) setStatus("Only up to 2 photos and 2 videos are allowed.");
   }
 
   function openEditModal(q: Quest) {
@@ -830,8 +853,14 @@ ${description}`
           </div>
           <div className="flex gap-2">
             <button className="bg-black text-white rounded px-3 py-2" onClick={() => (userId ? openCreateModal() : setShowAuthModal(true))}>+ Create</button>
-            <a href="/inbox" className="border rounded px-3 py-2">Inbox</a>
-            {userId ? <><a href="/settings" className="border rounded px-3 py-2">Settings</a><button className="border rounded px-3 py-2" onClick={signOut}>Sign out</button></> : <button className="border rounded px-3 py-2" onClick={() => setShowAuthModal(true)}>Log in / Sign up</button>}
+            {userId ? (
+              <>
+                <a href="/settings" className="border rounded px-3 py-2">Settings</a>
+                <button className="border rounded px-3 py-2" onClick={signOut}>Sign out</button>
+              </>
+            ) : (
+              <button className="border rounded px-3 py-2" onClick={() => setShowAuthModal(true)}>Log in / Sign up</button>
+            )}
           </div>
         </div>
       </header>
@@ -880,22 +909,24 @@ ${description}`
                 <div className="flex-1 space-y-3 min-w-0">
                   {q.media_video_url ? (
                     <div className="relative">
-                      <video className="w-full max-h-64 rounded-xl border bg-black object-contain" src={q.media_video_url} controls muted playsInline preload="metadata" />
+                      <video className="w-full max-h-48 rounded-xl border bg-black object-contain" src={q.media_video_url} controls muted playsInline preload="metadata" />
                       {q.media_source === "live" && <span className="absolute top-2 left-2 text-xs bg-emerald-600 text-white px-2 py-1 rounded-full">Live video</span>}
                     </div>
                   ) : null}
                   {!!q.media_items?.length && (
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      {q.media_items.map((m, i) => (
-                        <div key={`${m.url}-${i}`} className="rounded-lg border p-2 bg-gray-50">
-                          {m.type === "image" ? (
-                            <img src={m.url} alt={m.label || "Listing image"} className="w-full h-24 object-cover rounded" />
-                          ) : (
-                            <video src={m.url} controls className="w-full h-24 object-cover rounded bg-black" preload="metadata" />
-                          )}
-                          {m.label && <p className="text-xs mt-1 text-gray-600">{m.label}</p>}
-                        </div>
-                      ))}
+                    <div className="overflow-x-auto">
+                      <div className="flex gap-2 min-w-max">
+                        {q.media_items.map((m, i) => (
+                          <div key={`${m.url}-${i}`} className="rounded-lg border p-2 bg-gray-50 w-40 shrink-0">
+                            {m.type === "image" ? (
+                              <img src={m.url} alt={m.label || "Listing image"} className="w-full h-20 object-cover rounded" />
+                            ) : (
+                              <video src={m.url} controls className="w-full h-20 object-cover rounded bg-black" preload="metadata" />
+                            )}
+                            {m.label && <p className="text-[11px] mt-1 text-gray-600 truncate">{m.label}</p>}
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
 
@@ -1180,7 +1211,7 @@ ${description}`
                   }}
                   className="border rounded px-3 py-2"
                 />
-                <p className="text-xs text-gray-500">Add photos/videos so visitors can quickly understand your listing.</p>
+                <p className="text-xs text-gray-500">Add up to 2 photos and 2 videos so visitors can quickly understand your listing.</p>
 
                 {[...existingMediaItems, ...questMediaFiles.map((m) => ({ url: m.file.name, type: (m.file.type.startsWith("image/") ? "image" : "video") as "image" | "video", label: m.label || null }))].map((item, idx) => {
                   const isPending = idx >= existingMediaItems.length;
