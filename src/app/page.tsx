@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, PointerEvent, useEffect, useMemo, useRef, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase";
 
 type Hobby = { id: string; name: string; category: string | null };
@@ -87,6 +87,8 @@ export default function Home() {
   const [photoStepZoom, setPhotoStepZoom] = useState(1.2);
   const [photoStepOffsetX, setPhotoStepOffsetX] = useState(0);
   const [photoStepOffsetY, setPhotoStepOffsetY] = useState(0);
+  const [photoStepDragging, setPhotoStepDragging] = useState(false);
+  const [photoStepLastPointer, setPhotoStepLastPointer] = useState<{ x: number; y: number } | null>(null);
   const [photoStepState, setPhotoStepState] = useState<ProfilePhotoStep>("idle");
 
   const [hobbies, setHobbies] = useState<Hobby[]>([]);
@@ -514,6 +516,26 @@ export default function Home() {
     setPhotoStepPreviewUrl("");
     setShowPhotoStepModal(false);
     setStatus("Profile photo saved ✅");
+  }
+
+  function onPhotoStepPointerDown(e: PointerEvent<HTMLDivElement>) {
+    (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+    setPhotoStepDragging(true);
+    setPhotoStepLastPointer({ x: e.clientX, y: e.clientY });
+  }
+
+  function onPhotoStepPointerMove(e: PointerEvent<HTMLDivElement>) {
+    if (!photoStepDragging || !photoStepLastPointer) return;
+    const dx = e.clientX - photoStepLastPointer.x;
+    const dy = e.clientY - photoStepLastPointer.y;
+    setPhotoStepOffsetX((v) => v + dx);
+    setPhotoStepOffsetY((v) => v + dy);
+    setPhotoStepLastPointer({ x: e.clientX, y: e.clientY });
+  }
+
+  function onPhotoStepPointerUp() {
+    setPhotoStepDragging(false);
+    setPhotoStepLastPointer(null);
   }
 
   async function getVideoDurationSeconds(file: File) {
@@ -1165,21 +1187,24 @@ ${description}`
             />
             {photoStepPreviewUrl && (
               <div className="rounded-lg border bg-white p-2 space-y-2">
-                <p className="text-xs text-gray-600">Adjust photo</p>
-                <div className="h-44 w-44 rounded-full overflow-hidden border mx-auto bg-black/5">
+                <p className="text-xs text-gray-600">Drag photo with your finger to position it</p>
+                <div
+                  className="h-44 w-44 rounded-full overflow-hidden border mx-auto bg-black/5 touch-none"
+                  onPointerDown={onPhotoStepPointerDown}
+                  onPointerMove={onPhotoStepPointerMove}
+                  onPointerUp={onPhotoStepPointerUp}
+                  onPointerCancel={onPhotoStepPointerUp}
+                >
                   <img
                     src={photoStepPreviewUrl}
                     alt="Preview"
                     className="h-full w-full object-cover"
+                    draggable={false}
                     style={{ transform: `translate(${photoStepOffsetX}px, ${photoStepOffsetY}px) scale(${photoStepZoom})` }}
                   />
                 </div>
                 <label className="text-xs">Zoom</label>
                 <input type="range" min={1} max={3} step={0.05} value={photoStepZoom} onChange={(e) => setPhotoStepZoom(Number(e.target.value))} />
-                <label className="text-xs">Move left/right</label>
-                <input type="range" min={-120} max={120} step={1} value={photoStepOffsetX} onChange={(e) => setPhotoStepOffsetX(Number(e.target.value))} />
-                <label className="text-xs">Move up/down</label>
-                <input type="range" min={-120} max={120} step={1} value={photoStepOffsetY} onChange={(e) => setPhotoStepOffsetY(Number(e.target.value))} />
               </div>
             )}
             <div className="flex gap-2">
