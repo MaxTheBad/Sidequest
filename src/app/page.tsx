@@ -90,6 +90,7 @@ export default function Home() {
   const [questVideoFile, setQuestVideoFile] = useState<File | null>(null);
   const [questVideoSource, setQuestVideoSource] = useState<"live" | "upload">("live");
   const [questVideoDurationSec, setQuestVideoDurationSec] = useState<number | null>(null);
+  const [removeExistingVideo, setRemoveExistingVideo] = useState(false);
   const liveVideoInputRef = useRef<HTMLInputElement | null>(null);
   const uploadVideoInputRef = useRef<HTMLInputElement | null>(null);
   const [savingQuest, setSavingQuest] = useState(false);
@@ -427,6 +428,7 @@ export default function Home() {
     setQuestVideoFile(null);
     setQuestVideoDurationSec(null);
     setQuestVideoSource("live");
+    setRemoveExistingVideo(false);
     setEditingQuestId(null);
   }
 
@@ -466,6 +468,7 @@ export default function Home() {
     setGroupSize(q.group_size || 4);
     setQuestVideoFile(null);
     setQuestVideoSource((q.media_source as "live" | "upload") || "upload");
+    setRemoveExistingVideo(false);
     setShowCreateModal(true);
   }
 
@@ -538,6 +541,10 @@ ${description}`
           availability: avail,
           group_size: groupSize,
         };
+        if (removeExistingVideo) {
+          payload.media_video_url = null;
+          payload.media_source = null;
+        }
         if (videoUrl) {
           payload.media_video_url = videoUrl;
           payload.media_source = questVideoSource;
@@ -639,6 +646,21 @@ ${description}`
     return Array.isArray(q.profiles) ? (q.profiles[0] ?? null) : q.profiles;
   }
 
+  async function deleteQuest(id: string) {
+    if (!supabase || !userId) return;
+    const ok = window.confirm("Delete this listing? This cannot be undone.");
+    if (!ok) return;
+
+    const { error } = await supabase.from("quests").delete().eq("id", id).eq("creator_id", userId);
+    if (error) return setStatus(error.message);
+    if (editingQuestId === id) {
+      setShowCreateModal(false);
+      resetQuestForm();
+    }
+    setStatus("Listing deleted 🗑️");
+    await loadQuests();
+  }
+
   async function joinQuest(id: string) {
     if (!supabase || !userId) {
       setShowAuthModal(true);
@@ -661,6 +683,7 @@ ${description}`
   }, [quests, showSavedOnly, bookmarkedQuestIds]);
 
   const surprisePick = useMemo(() => (filteredQuests.length ? filteredQuests[Math.floor(Math.random() * filteredQuests.length)] : null), [filteredQuests]);
+  const editingQuest = useMemo(() => quests.find((q) => q.id === editingQuestId) || null, [quests, editingQuestId]);
 
   return (
     <main className="min-h-screen bg-[#f6f7fb]">
@@ -948,10 +971,10 @@ ${description}`
                     />
                     <button
                       type="button"
-                      className="border rounded px-3 py-2 bg-white text-left"
+                      className="bg-black text-white rounded px-3 py-2 text-left font-medium"
                       onClick={() => liveVideoInputRef.current?.click()}
                     >
-                      Record live video
+                      🎥 Record live video
                     </button>
                   </>
                 ) : (
@@ -965,22 +988,44 @@ ${description}`
                     />
                     <button
                       type="button"
-                      className="border rounded px-3 py-2 bg-white text-left"
+                      className="bg-black text-white rounded px-3 py-2 text-left font-medium"
                       onClick={() => uploadVideoInputRef.current?.click()}
                     >
-                      Upload video file
+                      ⬆️ Upload video file
                     </button>
                   </>
                 )}
+                {questVideoFile && <p className="text-xs text-gray-600">Selected: {questVideoFile.name}</p>}
                 {questVideoDurationSec !== null && (
                   <p className={`text-xs ${questVideoDurationSec > 15.2 ? "text-red-600" : "text-emerald-700"}`}>
                     Selected video: {questVideoDurationSec.toFixed(1)}s {questVideoDurationSec > 15.2 ? "(too long — max 15s)" : "(within 15s limit)"}
                   </p>
                 )}
-                <p className="text-xs text-gray-500">If no video is added, we show profile photo fallback on the listing card.</p>
+                {editingQuest?.media_video_url && (
+                  <button
+                    type="button"
+                    className={`border rounded px-3 py-2 w-fit ${removeExistingVideo ? "bg-red-50 border-red-300 text-red-700" : ""}`}
+                    onClick={() => setRemoveExistingVideo((v) => !v)}
+                  >
+                    {removeExistingVideo ? "Undo remove existing video" : "Remove existing video"}
+                  </button>
+                )}
+                {questVideoFile && (
+                  <button type="button" className="border rounded px-3 py-2 w-fit" onClick={() => { setQuestVideoFile(null); setQuestVideoDurationSec(null); }}>
+                    Clear selected video
+                  </button>
+                )}
+                <p className="text-xs text-gray-500">Attach an optional listing video (max 15s).</p>
               </div>
 
-              <button className="bg-black text-white rounded px-3 py-2 disabled:opacity-50" disabled={savingQuest}>{savingQuest ? "Saving..." : (editingQuestId ? "Save changes" : "Post quest")}</button>
+              <div className="flex gap-2 flex-wrap">
+                <button className="bg-black text-white rounded px-3 py-2 disabled:opacity-50" disabled={savingQuest}>{savingQuest ? "Saving..." : (editingQuestId ? "Save changes" : "Post quest")}</button>
+                {editingQuestId && (
+                  <button type="button" className="border border-red-300 text-red-700 rounded px-3 py-2" onClick={() => void deleteQuest(editingQuestId)}>
+                    Delete listing
+                  </button>
+                )}
+              </div>
             </form>
           </div>
         </div>

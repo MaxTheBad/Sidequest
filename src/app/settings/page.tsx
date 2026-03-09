@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase";
 
@@ -158,6 +159,20 @@ export default function SettingsPage() {
     setStatus("Profile photo updated ✅");
   }
 
+  async function deleteProfilePhoto() {
+    if (!supabase || !userId) return;
+    const ok = window.confirm("Remove your profile photo?");
+    if (!ok) return;
+
+    const { error } = await supabase
+      .from("profiles")
+      .upsert({ id: userId, avatar_url: null });
+    if (error) return setStatus(error.message);
+    setAvatarUrl("");
+    setPhotoFile(null);
+    setStatus("Profile photo removed.");
+  }
+
   async function changeEmail(e: FormEvent) {
     e.preventDefault();
     if (!supabase) return;
@@ -200,10 +215,10 @@ export default function SettingsPage() {
       <section className="max-w-3xl mx-auto rounded-2xl border bg-white p-5 space-y-4">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold">Settings</h1>
-          <a href="/" className="border rounded px-3 py-2 text-sm">Back</a>
+          <Link href="/" className="border rounded px-3 py-2 text-sm">Back</Link>
         </div>
 
-        {status && <p className="text-sm rounded border bg-amber-50 px-3 py-2">{status}</p>}
+        {status && <p className="text-sm rounded border bg-amber-50 px-3 py-2 sticky top-2 z-30">{status}</p>}
 
         <div className="flex gap-2 flex-wrap">
           <button className={`px-3 py-2 rounded ${tab === "profile" ? "bg-black text-white" : "border"}`} onClick={() => setTab("profile")}>Profile</button>
@@ -228,14 +243,26 @@ export default function SettingsPage() {
                     onChange={(e) => setPhotoFile(e.target.files?.[0] ?? null)}
                   />
                   <p className="text-xs text-gray-500">Camera capture only in supported browsers/devices.</p>
-                  <button
-                    type="button"
-                    className="border rounded px-3 py-2 w-fit disabled:opacity-50"
-                    disabled={!photoFile || uploadingPhoto}
-                    onClick={() => void uploadProfilePhoto()}
-                  >
-                    {uploadingPhoto ? "Uploading..." : "Upload camera photo"}
-                  </button>
+                  <div className="flex gap-2 flex-wrap">
+                    <button
+                      type="button"
+                      className="border rounded px-3 py-2 w-fit disabled:opacity-50"
+                      disabled={!photoFile || uploadingPhoto}
+                      onClick={() => void uploadProfilePhoto()}
+                    >
+                      {uploadingPhoto ? "Uploading..." : "Upload camera photo"}
+                    </button>
+                    {!!photoFile && (
+                      <button type="button" className="border rounded px-3 py-2 w-fit" onClick={() => setPhotoFile(null)}>
+                        Clear selected photo
+                      </button>
+                    )}
+                    {!!avatarUrl && (
+                      <button type="button" className="border border-red-300 text-red-700 rounded px-3 py-2 w-fit" onClick={() => void deleteProfilePhoto()}>
+                        Delete profile photo
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 <label className="text-sm font-medium">Name</label>
