@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase";
 
@@ -53,6 +54,7 @@ const FALLBACK_COUNTRIES = [
 
 export default function Home() {
   const supabase = getSupabaseClient();
+  const searchParams = useSearchParams();
   const redirectTo = typeof window !== "undefined" ? `${window.location.origin}/` : undefined;
 
   const [status, setStatus] = useState("");
@@ -63,6 +65,7 @@ export default function Home() {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showTroubleModal, setShowTroubleModal] = useState(false);
+  const [handledCreateParam, setHandledCreateParam] = useState(false);
   const [authMode, setAuthMode] = useState<AuthMode>("login");
 
   const [email, setEmail] = useState("");
@@ -509,6 +512,19 @@ export default function Home() {
     resetQuestForm();
     setShowCreateModal(true);
   }
+
+  useEffect(() => {
+    if (handledCreateParam) return;
+    if (searchParams.get("create") !== "1") return;
+
+    if (userId) {
+      openCreateModal();
+    } else {
+      setShowAuthModal(true);
+      setStatus("Log in to create.");
+    }
+    setHandledCreateParam(true);
+  }, [handledCreateParam, searchParams, userId]);
 
   async function handleQuestVideoPicked(file: File | null) {
     setQuestVideoFile(null);
