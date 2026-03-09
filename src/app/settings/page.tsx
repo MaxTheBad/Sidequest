@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, PointerEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, PointerEvent, useEffect, useMemo, useRef, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase";
 
 type Tab = "profile" | "account" | "preferences";
@@ -33,6 +33,7 @@ export default function SettingsPage() {
   const [dragging, setDragging] = useState(false);
   const [lastPointer, setLastPointer] = useState<{ x: number; y: number } | null>(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement | null>(null);
 
   const [newEmail, setNewEmail] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -342,23 +343,12 @@ export default function SettingsPage() {
               <form onSubmit={saveProfile} className="grid gap-2">
                 <label className="text-sm font-medium">Profile photo</label>
                 <div className="grid gap-2 rounded-xl border p-3 bg-gray-50">
-                  <div className="flex items-center gap-3">
-                    <div>
-                      <p className="text-xs text-gray-600 mb-1">Current photo</p>
-                      {avatarUrl ? <img src={avatarUrl} alt="Profile" className="h-20 w-20 rounded-full object-cover border" /> : <div className="h-20 w-20 rounded-full border bg-white grid place-items-center text-[11px] text-gray-500">No photo</div>}
-                    </div>
-                    {photoPreviewUrl && (
-                      <div>
-                        <p className="text-xs text-gray-600 mb-1">New photo</p>
-                        <img src={photoPreviewUrl} alt="New selection" className="h-20 w-20 rounded-full object-cover border" />
-                      </div>
-                    )}
-                  </div>
                   <input
+                    ref={photoInputRef}
                     type="file"
                     accept="image/*"
                     capture="user"
-                    className="border rounded px-3 py-2 bg-white"
+                    className="hidden"
                     onChange={(e) => {
                       const file = e.target.files?.[0] ?? null;
                       setPhotoFile(file);
@@ -370,23 +360,35 @@ export default function SettingsPage() {
                       setShowPhotoCropper(!!file);
                     }}
                   />
-                  <p className="text-xs text-gray-500">Camera capture only in supported browsers/devices.</p>
+
+                  <button
+                    type="button"
+                    className="relative h-24 w-24 rounded-full border overflow-hidden bg-white group"
+                    onClick={() => photoInputRef.current?.click()}
+                  >
+                    {avatarUrl ? (
+                      <img src={avatarUrl} alt="Profile" className="h-full w-full object-cover" />
+                    ) : (
+                      <div className="h-full w-full grid place-items-center text-[11px] text-gray-500">Add photo</div>
+                    )}
+                    <div className="absolute inset-0 bg-black/40 text-white text-xs grid place-items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      {avatarUrl ? "Edit photo" : "Add photo"}
+                    </div>
+                  </button>
 
                   {photoPreviewUrl && (
-                    <button type="button" className="border rounded px-3 py-2 w-fit" onClick={() => setShowPhotoCropper(true)}>
-                      Adjust photo
-                    </button>
-                  )}
-                  <div className="flex gap-2 flex-wrap">
-                    <button
-                      type="button"
-                      className="border rounded px-3 py-2 w-fit disabled:opacity-50"
-                      disabled={!photoFile || uploadingPhoto}
-                      onClick={() => void uploadProfilePhoto()}
-                    >
-                      {uploadingPhoto ? "Uploading..." : "Upload camera photo"}
-                    </button>
-                    {!!photoFile && (
+                    <div className="flex gap-2 flex-wrap">
+                      <button type="button" className="border rounded px-3 py-2 w-fit" onClick={() => setShowPhotoCropper(true)}>
+                        Adjust photo
+                      </button>
+                      <button
+                        type="button"
+                        className="border rounded px-3 py-2 w-fit disabled:opacity-50"
+                        disabled={!photoFile || uploadingPhoto}
+                        onClick={() => void uploadProfilePhoto()}
+                      >
+                        {uploadingPhoto ? "Saving..." : "Save photo"}
+                      </button>
                       <button
                         type="button"
                         className="border rounded px-3 py-2 w-fit"
@@ -397,15 +399,16 @@ export default function SettingsPage() {
                           setShowPhotoCropper(false);
                         }}
                       >
-                        Clear selected photo
+                        Clear
                       </button>
-                    )}
-                    {!!avatarUrl && (
-                      <button type="button" className="border border-red-300 text-red-700 rounded px-3 py-2 w-fit" onClick={() => void deleteProfilePhoto()}>
-                        Delete profile photo
-                      </button>
-                    )}
-                  </div>
+                    </div>
+                  )}
+
+                  {!!avatarUrl && (
+                    <button type="button" className="border border-red-300 text-red-700 rounded px-3 py-2 w-fit" onClick={() => void deleteProfilePhoto()}>
+                      Delete profile photo
+                    </button>
+                  )}
                 </div>
 
                 <label className="text-sm font-medium">Name</label>
@@ -500,6 +503,10 @@ export default function SettingsPage() {
             </div>
             <label className="text-xs">Zoom</label>
             <input type="range" min={1} max={3} step={0.05} value={cropZoom} onChange={(e) => setCropZoom(Number(e.target.value))} />
+            <label className="text-xs">Move left/right</label>
+            <input type="range" min={-140} max={140} step={1} value={cropOffsetX} onChange={(e) => setCropOffsetX(Number(e.target.value))} />
+            <label className="text-xs">Move up/down</label>
+            <input type="range" min={-140} max={140} step={1} value={cropOffsetY} onChange={(e) => setCropOffsetY(Number(e.target.value))} />
           </div>
         </div>
       )}

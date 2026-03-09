@@ -297,11 +297,15 @@ export default function Home() {
 
   async function signInWithPassword(e: FormEvent) {
     e.preventDefault();
-    if (!supabase) return window.alert("Missing Supabase env vars.");
+    if (!supabase) return setStatus("Missing Supabase env vars.");
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
+      if (error.message.toLowerCase().includes("email not confirmed")) {
+        setPendingVerifyEmail(email);
+        setResendCooldown(0);
+      }
       setStatus(`Login failed: ${error.message}`);
-      return window.alert(`Login failed: ${error.message}`);
+      return;
     }
     const { data } = await supabase.auth.getSession();
     setUserId(data.session?.user?.id ?? null);
@@ -602,9 +606,11 @@ export default function Home() {
 
     const openAuthFromUrl = () => {
       const params = new URLSearchParams(window.location.search);
-      if (params.get("auth") === "1" && !userId) {
+      const pendingAuth = sessionStorage.getItem("sidequest_open_auth") === "1";
+      if ((params.get("auth") === "1" || pendingAuth) && !userId) {
         setShowAuthModal(true);
         setStatus("Please sign in to continue.");
+        if (pendingAuth) sessionStorage.removeItem("sidequest_open_auth");
       }
 
       if (handledCreateParam) return;

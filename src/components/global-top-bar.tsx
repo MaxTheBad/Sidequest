@@ -32,7 +32,8 @@ export default function GlobalTopBar() {
       window.dispatchEvent(new CustomEvent("sidequest:open-auth"));
       return;
     }
-    router.push("/?auth=1");
+    sessionStorage.setItem("sidequest_open_auth", "1");
+    router.push("/");
   }
 
   return (
