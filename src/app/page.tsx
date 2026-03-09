@@ -5,6 +5,12 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase";
 
 type Hobby = { id: string; name: string; category: string | null };
+type QuestMediaItem = {
+  url: string;
+  type: "image" | "video";
+  label?: string | null;
+};
+
 type Quest = {
   id: string;
   creator_id: string;
@@ -17,6 +23,7 @@ type Quest = {
   hobby_id: string;
   media_video_url: string | null;
   media_source: "live" | "upload" | null;
+  media_items?: QuestMediaItem[] | null;
   hobbies?: { name: string | null }[] | null;
   profiles?: { id: string; display_name: string | null; avatar_url: string | null }[] | { id: string; display_name: string | null; avatar_url: string | null } | null;
 };
@@ -33,6 +40,12 @@ const TITLE_SUGGESTIONS = [
   "Morning run partners (3x/week)",
 ];
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const MEDIA_LABEL_HINTS = [
+  "Photo of front of building",
+  "Video of last event",
+  "Photo of seating area",
+  "Video walkthrough",
+];
 const FALLBACK_COUNTRIES = [
   "United States", "Canada", "United Kingdom", "Australia", "Brazil", "India", "Mexico", "Germany", "France", "Spain", "Italy", "Portugal", "Japan", "South Korea", "Argentina", "Chile", "Colombia", "Netherlands", "Belgium", "Sweden", "Norway", "Denmark", "Finland", "Ireland", "New Zealand", "South Africa"
 ];
@@ -90,6 +103,8 @@ export default function Home() {
   const [questVideoFile, setQuestVideoFile] = useState<File | null>(null);
   const [questVideoSource, setQuestVideoSource] = useState<"live" | "upload">("live");
   const [questVideoDurationSec, setQuestVideoDurationSec] = useState<number | null>(null);
+  const [questMediaFiles, setQuestMediaFiles] = useState<Array<{ id: string; file: File; label: string }>>([]);
+  const [existingMediaItems, setExistingMediaItems] = useState<QuestMediaItem[]>([]);
   const [removeExistingVideo, setRemoveExistingVideo] = useState(false);
   const liveVideoInputRef = useRef<HTMLInputElement | null>(null);
   const uploadVideoInputRef = useRef<HTMLInputElement | null>(null);
@@ -226,7 +241,7 @@ export default function Home() {
   async function loadQuests() {
     if (!supabase) return;
     setLoading(true);
-    let q = supabase.from("quests").select("id,creator_id,title,description,city,skill_level,group_size,availability,hobby_id,media_video_url,media_source,hobbies(name),profiles:profiles!quests_creator_id_fkey(id,display_name,avatar_url)").order("created_at", { ascending: false }).limit(50);
+    let q = supabase.from("quests").select("id,creator_id,title,description,city,skill_level,group_size,availability,hobby_id,media_video_url,media_source,media_items,hobbies(name),profiles:profiles!quests_creator_id_fkey(id,display_name,avatar_url)").order("created_at", { ascending: false }).limit(50);
     if (hobbyFilter !== "all") q = q.eq("hobby_id", hobbyFilter);
     const { data, error } = await q;
     setLoading(false);
@@ -417,6 +432,36 @@ export default function Home() {
     return data.publicUrl;
   }
 
+  async function uploadQuestMediaFiles(items: Array<{ file: File; label: string }>) {
+    if (!supabase || !userId) throw new Error("Not signed in.");
+    const uploaded: QuestMediaItem[] = [];
+
+    for (const item of items) {
+      const file = item.file;
+      const isImage = file.type.startsWith("image/");
+      const isVideo = file.type.startsWith("video/");
+      if (!isImage && !isVideo) throw new Error("Media must be an image or video file.");
+      if (isImage && file.size > 15 * 1024 * 1024) throw new Error("Images must be under 15MB.");
+      if (isVideo && file.size > 60 * 1024 * 1024) throw new Error("Videos must be under 60MB.");
+
+      const ext = (file.name.split(".").pop() || (isImage ? "jpg" : "mp4")).toLowerCase();
+      const filePath = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+      const { error } = await supabase.storage
+        .from("quest-media")
+        .upload(filePath, file, { upsert: false, contentType: file.type });
+      if (error) throw new Error(error.message);
+
+      const { data } = supabase.storage.from("quest-media").getPublicUrl(filePath);
+      uploaded.push({
+        url: data.publicUrl,
+        type: isImage ? "image" : "video",
+        label: item.label.trim() || null,
+      });
+    }
+
+    return uploaded;
+  }
+
   function resetQuestForm() {
     setTitle("");
     setDescription("");
@@ -428,6 +473,8 @@ export default function Home() {
     setQuestVideoFile(null);
     setQuestVideoDurationSec(null);
     setQuestVideoSource("live");
+    setQuestMediaFiles([]);
+    setExistingMediaItems([]);
     setRemoveExistingVideo(false);
     setEditingQuestId(null);
   }
@@ -456,6 +503,22 @@ export default function Home() {
     }
   }
 
+  function handleQuestMediaPicked(files: FileList | null) {
+    if (!files?.length) return;
+    const added = Array.from(files)
+      .filter((f) => f.type.startsWith("image/") || f.type.startsWith("video/"))
+      .map((file) => ({
+        id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        file,
+        label: "",
+      }));
+    if (!added.length) {
+      setStatus("Please choose image or video files.");
+      return;
+    }
+    setQuestMediaFiles((prev) => [...prev, ...added]);
+  }
+
   function openEditModal(q: Quest) {
     setEditingQuestId(q.id);
     setTitle(q.title || "");
@@ -468,6 +531,8 @@ export default function Home() {
     setGroupSize(q.group_size || 4);
     setQuestVideoFile(null);
     setQuestVideoSource((q.media_source as "live" | "upload") || "upload");
+    setQuestMediaFiles([]);
+    setExistingMediaItems(q.media_items || []);
     setRemoveExistingVideo(false);
     setShowCreateModal(true);
   }
@@ -530,6 +595,8 @@ ${description}`
     let videoUrl: string | null = null;
     try {
       if (questVideoFile) videoUrl = await uploadQuestVideo(questVideoFile);
+      const uploadedMedia = questMediaFiles.length ? await uploadQuestMediaFiles(questMediaFiles.map((m) => ({ file: m.file, label: m.label }))) : [];
+      const nextMediaItems = [...existingMediaItems, ...uploadedMedia];
 
       if (editingQuestId) {
         const payload: Record<string, unknown> = {
@@ -540,6 +607,7 @@ ${description}`
           skill_level: skillLevel,
           availability: avail,
           group_size: groupSize,
+          media_items: nextMediaItems,
         };
         if (removeExistingVideo) {
           payload.media_video_url = null;
@@ -559,7 +627,7 @@ ${description}`
 
         setStatus("Listing updated ✅");
       } else {
-        const { data, error } = await supabase.from("quests").insert({ creator_id: userId, hobby_id: finalHobbyId, title, description: finalDescription, city, skill_level: skillLevel, availability: avail, group_size: groupSize, media_video_url: videoUrl, media_source: videoUrl ? questVideoSource : null }).select("id").single();
+        const { data, error } = await supabase.from("quests").insert({ creator_id: userId, hobby_id: finalHobbyId, title, description: finalDescription, city, skill_level: skillLevel, availability: avail, group_size: groupSize, media_video_url: videoUrl, media_source: videoUrl ? questVideoSource : null, media_items: nextMediaItems }).select("id").single();
         if (error) throw new Error(error.message);
         if (data?.id) await supabase.from("quest_members").insert({ quest_id: data.id, user_id: userId, role: "creator" });
         setStatus("Quest posted ✅");
@@ -749,18 +817,33 @@ ${description}`
                       {q.media_source === "live" && <span className="absolute top-2 left-2 text-xs bg-emerald-600 text-white px-2 py-1 rounded-full">Live video</span>}
                     </div>
                   ) : null}
+                  {!!q.media_items?.length && (
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {q.media_items.map((m, i) => (
+                        <div key={`${m.url}-${i}`} className="rounded-lg border p-2 bg-gray-50">
+                          {m.type === "image" ? (
+                            <img src={m.url} alt={m.label || "Listing image"} className="w-full h-36 object-cover rounded" />
+                          ) : (
+                            <video src={m.url} controls className="w-full h-36 object-cover rounded bg-black" preload="metadata" />
+                          )}
+                          {m.label && <p className="text-xs mt-1 text-gray-600">{m.label}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <h3 className="font-semibold text-lg">
-                        <Link href={`/listing/${q.id}`} className="underline">{q.title}</Link>
+                        <Link href={`/listing/${q.id}`} className="underline decoration-2 underline-offset-2" title="Open listing">
+                          {q.title} <span className="text-sm text-gray-500">↗ View listing</span>
+                        </Link>
                       </h3>
                       <p className="text-xs text-gray-500">{q.hobbies?.[0]?.name || "Hobby"} · {q.skill_level} · group {q.group_size}</p>
                       <p className="text-sm mt-2">{q.description}</p>
                       <p className="text-xs text-gray-500 mt-1">{q.city || "city tbd"} · {q.availability || "availability tbd"}</p>
                     </div>
                     <div className="flex gap-2 flex-wrap justify-end">
-                      <Link href={`/listing/${q.id}`} className="border rounded px-3 py-2">View</Link>
                       {userId !== q.creator_id && (
                         <>
                           <button className="border rounded px-3 py-2" onClick={() => void joinQuest(q.id)}>Join</button>
@@ -1016,6 +1099,51 @@ ${description}`
                   </button>
                 )}
                 <p className="text-xs text-gray-500">Attach an optional listing video (max 15s).</p>
+              </div>
+
+              <label className="text-sm font-medium">Photos & videos</label>
+              <div className="grid gap-2 rounded-xl border p-3 bg-gray-50">
+                <input
+                  type="file"
+                  accept="image/*,video/*"
+                  multiple
+                  onChange={(e) => {
+                    handleQuestMediaPicked(e.target.files);
+                    e.currentTarget.value = "";
+                  }}
+                  className="border rounded px-3 py-2"
+                />
+                <p className="text-xs text-gray-500">Add photos/videos so visitors can quickly understand your listing.</p>
+
+                {[...existingMediaItems, ...questMediaFiles.map((m) => ({ url: m.file.name, type: (m.file.type.startsWith("image/") ? "image" : "video") as "image" | "video", label: m.label || null }))].map((item, idx) => {
+                  const isPending = idx >= existingMediaItems.length;
+                  const pendingIndex = idx - existingMediaItems.length;
+                  return (
+                    <div key={`${item.url}-${idx}`} className="rounded border bg-white p-2 grid gap-2">
+                      <div className="text-xs text-gray-600">{item.type === "image" ? "📷 Photo" : "🎬 Video"} {isPending ? `(new) ${item.url}` : "(saved)"}</div>
+                      <input
+                        className="border rounded px-2 py-1 text-sm"
+                        placeholder={`e.g., ${MEDIA_LABEL_HINTS[idx % MEDIA_LABEL_HINTS.length]}`}
+                        value={item.label || ""}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          if (isPending) {
+                            setQuestMediaFiles((prev) => prev.map((m, i) => i === pendingIndex ? { ...m, label: value } : m));
+                          } else {
+                            setExistingMediaItems((prev) => prev.map((m, i) => i === idx ? { ...m, label: value } : m));
+                          }
+                        }}
+                      />
+                      <div className="flex gap-2 flex-wrap">
+                        {isPending ? (
+                          <button type="button" className="border rounded px-2 py-1 text-sm" onClick={() => setQuestMediaFiles((prev) => prev.filter((_, i) => i !== pendingIndex))}>Remove</button>
+                        ) : (
+                          <button type="button" className="border rounded px-2 py-1 text-sm" onClick={() => setExistingMediaItems((prev) => prev.filter((_, i) => i !== idx))}>Remove</button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
 
               <div className="flex gap-2 flex-wrap">
