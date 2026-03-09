@@ -10,7 +10,7 @@ type InboxMessage = {
   sender_id: string;
   body: string;
   created_at: string;
-  quests?: { title: string | null; creator_id: string | null } | null;
+  quests?: { title: string | null; creator_id: string | null; media_video_url?: string | null; media_items?: Array<{ url: string; type: "image" | "video"; label?: string | null }> | null } | null;
   profiles?: { id: string; display_name: string | null; avatar_url: string | null } | null;
 };
 
@@ -20,7 +20,7 @@ type RawInboxMessage = {
   sender_id: string;
   body: string;
   created_at: string;
-  quests?: { title: string | null; creator_id: string | null }[] | { title: string | null; creator_id: string | null } | null;
+  quests?: { title: string | null; creator_id: string | null; media_video_url?: string | null; media_items?: Array<{ url: string; type: "image" | "video"; label?: string | null }> | null }[] | { title: string | null; creator_id: string | null; media_video_url?: string | null; media_items?: Array<{ url: string; type: "image" | "video"; label?: string | null }> | null } | null;
   profiles?: { id: string; display_name: string | null; avatar_url: string | null }[] | { id: string; display_name: string | null; avatar_url: string | null } | null;
 };
 
@@ -33,6 +33,8 @@ type Thread = {
   title: string;
   lastMessageAt: string;
   preview: string;
+  mediaVideoUrl?: string | null;
+  mediaFallbackUrl?: string | null;
 };
 
 function normalizeMessageRow(row: RawInboxMessage): InboxMessage {
@@ -73,20 +75,32 @@ export default function InboxPage() {
     if (!supabase) return;
     setLoading(true);
 
-    const [sentRes, publicRes] = await Promise.all([
+    const [{ data: myListings }, sentRes, publicRes] = await Promise.all([
+      supabase.from("quests").select("id").eq("creator_id", uid),
       supabase
         .from("messages")
-        .select("id,quest_id,sender_id,body,created_at,quests(title,creator_id),profiles:profiles!messages_sender_id_fkey(id,display_name,avatar_url)")
+        .select("id,quest_id,sender_id,body,created_at,quests(title,creator_id,media_video_url,media_items),profiles:profiles!messages_sender_id_fkey(id,display_name,avatar_url)")
         .eq("sender_id", uid)
         .order("created_at", { ascending: false })
         .limit(300),
       supabase
         .from("messages")
-        .select("id,quest_id,sender_id,body,created_at,quests(title,creator_id),profiles:profiles!messages_sender_id_fkey(id,display_name,avatar_url)")
+        .select("id,quest_id,sender_id,body,created_at,quests(title,creator_id,media_video_url,media_items),profiles:profiles!messages_sender_id_fkey(id,display_name,avatar_url)")
         .or("body.like.[PUBLIC] %,and(body.not.like.[PRIVATE] %,body.not.like.[PUBLIC] %)")
         .order("created_at", { ascending: false })
         .limit(300),
     ]);
+
+    const ownerQuestIds = ((myListings || []) as Array<{ id: string }>).map((q) => q.id);
+    const privateRes = ownerQuestIds.length
+      ? await supabase
+          .from("messages")
+          .select("id,quest_id,sender_id,body,created_at,quests(title,creator_id,media_video_url,media_items),profiles:profiles!messages_sender_id_fkey(id,display_name,avatar_url)")
+          .in("quest_id", ownerQuestIds)
+          .like("body", "[PRIVATE] %")
+          .order("created_at", { ascending: false })
+          .limit(300)
+      : { data: [], error: null };
 
     if (sentRes.error) {
       setStatus(sentRes.error.message);
@@ -98,10 +112,16 @@ export default function InboxPage() {
       setLoading(false);
       return;
     }
+    if (privateRes.error) {
+      setStatus(privateRes.error.message);
+      setLoading(false);
+      return;
+    }
 
     const sentRows = ((sentRes.data || []) as RawInboxMessage[]).map(normalizeMessageRow);
     const publicRows = ((publicRes.data || []) as RawInboxMessage[]).map(normalizeMessageRow);
-    const merged = [...sentRows, ...publicRows];
+    const privateRows = ((privateRes.data || []) as RawInboxMessage[]).map(normalizeMessageRow);
+    const merged = [...sentRows, ...publicRows, ...privateRows];
     const dedupedMap = new Map<string, InboxMessage>();
     merged.forEach((m) => dedupedMap.set(m.id, m));
     const deduped = Array.from(dedupedMap.values()).sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at));
@@ -157,6 +177,8 @@ export default function InboxPage() {
           title: `${m.quests?.title || "Untitled listing"} · ${kind === "private" ? "Private" : "Public"}`,
           lastMessageAt: m.created_at,
           preview: getMessageText(m.body),
+          mediaVideoUrl: m.quests?.media_video_url || null,
+          mediaFallbackUrl: m.quests?.media_items?.find((mi) => mi.type === "image")?.url || null,
         });
       }
     }
@@ -232,7 +254,14 @@ export default function InboxPage() {
                 >
                   View listing
                 </Link>
-                <p className={`text-xs truncate ${activeThreadId === t.id ? "text-white/80" : "text-gray-500"}`}>{t.preview}</p>
+                <div className="mt-1">
+                  {t.mediaVideoUrl ? (
+                    <video src={t.mediaVideoUrl} className="w-full h-16 rounded object-cover bg-black" muted playsInline preload="metadata" />
+                  ) : t.mediaFallbackUrl ? (
+                    <img src={t.mediaFallbackUrl} className="w-full h-16 rounded object-cover" alt="Listing preview" />
+                  ) : null}
+                </div>
+                <p className={`text-xs truncate mt-1 ${activeThreadId === t.id ? "text-white/80" : "text-gray-500"}`}>{t.preview}</p>
               </button>
             ))}
           </aside>
@@ -256,7 +285,7 @@ export default function InboxPage() {
                   const privacy = getMessagePrivacy(m.body);
                   return (
                     <div key={m.id} className={`max-w-[86%] rounded-xl px-3 py-2 text-sm ${mine ? "ml-auto bg-black text-white" : "bg-gray-100"}`}>
-                      {!mine && privacy === "public" && (
+                      {!mine && (
                         <div className="flex items-center gap-2 mb-1">
                           {m.profiles?.avatar_url ? (
                             <img src={m.profiles.avatar_url} alt={m.profiles.display_name || "User"} className="h-5 w-5 rounded-full object-cover border" />
@@ -264,7 +293,7 @@ export default function InboxPage() {
                             <div className="h-5 w-5 rounded-full bg-white border" />
                           )}
                           <Link href={`/profile/${m.sender_id}`} className="text-[11px] underline text-gray-600">
-                            {m.profiles?.display_name || "Member"}
+                            {(m.profiles?.display_name || "Member").trim().split(/\s+/)[0]}
                           </Link>
                           {m.quests?.creator_id === m.sender_id && (
                             <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">Organizer</span>
