@@ -83,10 +83,16 @@ export default function SettingsPage() {
       setDisplayName(profile?.display_name ?? "");
       setCity(profile?.city ?? "");
       setBio(profile?.bio ?? "");
-      setAvatarUrl(profile?.avatar_url ?? "");
 
       const u = await supabase.auth.getUser();
       const meta = (u.data.user?.user_metadata || {}) as Record<string, unknown>;
+      const metaAvatar = typeof meta.avatar_url === "string" ? meta.avatar_url : "";
+      const resolvedAvatar = profile?.avatar_url || metaAvatar || "";
+      setAvatarUrl(resolvedAvatar);
+
+      if (!profile?.avatar_url && metaAvatar) {
+        await supabase.from("profiles").upsert({ id: uid, avatar_url: metaAvatar });
+      }
       setMarketingOptIn(Boolean(meta.marketing_opt_in));
       if (typeof meta.dob === "string") setDob(meta.dob);
       const metaCountry = typeof meta.country_code === "string" ? meta.country_code : "";
@@ -128,7 +134,7 @@ export default function SettingsPage() {
 
     const { error } = await supabase
       .from("profiles")
-      .upsert({ id: userId, display_name: displayName, city, bio });
+      .upsert({ id: userId, display_name: displayName, city, bio, avatar_url: avatarUrl || null });
 
     if (error) return setStatus(error.message);
 
@@ -137,6 +143,7 @@ export default function SettingsPage() {
         full_name: displayName,
         dob: dob || null,
         country_code: countryCode,
+        avatar_url: avatarUrl || null,
       },
     });
 
@@ -218,6 +225,8 @@ export default function SettingsPage() {
     setUploadingPhoto(false);
     if (profileErr) return setStatus(`Could not save photo: ${profileErr.message}`);
 
+    await supabase.auth.updateUser({ data: { avatar_url: publicData.publicUrl } });
+
     setAvatarUrl(publicData.publicUrl);
     setPhotoFile(null);
     setPhotoPreviewUrl("");
@@ -234,6 +243,7 @@ export default function SettingsPage() {
       .from("profiles")
       .upsert({ id: userId, avatar_url: null });
     if (error) return setStatus(error.message);
+    await supabase.auth.updateUser({ data: { avatar_url: null } });
     setAvatarUrl("");
     setPhotoFile(null);
     setStatus("Profile photo removed.");
