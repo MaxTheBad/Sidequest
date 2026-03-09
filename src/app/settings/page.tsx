@@ -190,6 +190,24 @@ export default function SettingsPage() {
     }
   }
 
+  async function startAdjustCurrentPhoto() {
+    if (!avatarUrl) return;
+    try {
+      const res = await fetch(avatarUrl);
+      const blob = await res.blob();
+      const file = new File([blob], "current-avatar.jpg", { type: blob.type || "image/jpeg" });
+      setPhotoFile(file);
+      setCropZoom(1.2);
+      setCropOffsetX(0);
+      setCropOffsetY(0);
+      if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl);
+      setPhotoPreviewUrl(URL.createObjectURL(file));
+      setShowPhotoCropper(true);
+    } catch {
+      setStatus("Could not load current photo for adjusting.");
+    }
+  }
+
   async function uploadProfilePhoto() {
     if (!supabase || !userId || !photoFile) return setStatus("Choose a photo first.");
     if (!photoFile.type.startsWith("image/")) return setStatus("Please choose an image file.");
@@ -380,11 +398,18 @@ export default function SettingsPage() {
                     </div>
                   </button>
 
-                  {photoPreviewUrl && (
-                    <div className="flex gap-2 flex-wrap">
+                  <div className="flex gap-2 flex-wrap">
+                    {avatarUrl && !photoPreviewUrl && (
+                      <button type="button" className="bg-blue-600 text-white rounded px-3 py-2 w-fit" onClick={() => void startAdjustCurrentPhoto()}>
+                        Adjust current photo
+                      </button>
+                    )}
+
+                    {photoPreviewUrl && (
                       <button type="button" className="bg-blue-600 text-white rounded px-3 py-2 w-fit" onClick={() => setShowPhotoCropper(true)}>
                         Adjust photo
                       </button>
+                    )}
                       <button
                         type="button"
                         className="bg-emerald-600 text-white rounded px-3 py-2 w-fit disabled:opacity-50"
@@ -406,7 +431,6 @@ export default function SettingsPage() {
                         Clear
                       </button>
                     </div>
-                  )}
 
                   {!!avatarUrl && (
                     <button type="button" className="border border-red-300 text-red-700 rounded px-3 py-2 w-fit" onClick={() => void deleteProfilePhoto()}>
