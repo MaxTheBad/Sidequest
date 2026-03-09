@@ -65,6 +65,10 @@ export default function Home() {
   const [showTroubleModal, setShowTroubleModal] = useState(false);
   const [handledCreateParam, setHandledCreateParam] = useState(false);
   const [handledAuthParam, setHandledAuthParam] = useState(false);
+  const [showQuestionModal, setShowQuestionModal] = useState(false);
+  const [questionTarget, setQuestionTarget] = useState<Quest | null>(null);
+  const [questionMode, setQuestionMode] = useState<"public" | "private">("public");
+  const [questionText, setQuestionText] = useState("");
   const [authMode, setAuthMode] = useState<AuthMode>("login");
 
   const [email, setEmail] = useState("");
@@ -752,33 +756,39 @@ ${description}`
     setStatus("Saved listing ✅");
   }
 
-  async function askQuestion(quest: Quest) {
+  function askQuestion(quest: Quest) {
     if (!supabase || !userId) {
       setShowAuthModal(true);
-      return setStatus("Log in to message listing owners.");
+      setStatus("Log in to message listing owners.");
+      return;
     }
     if (userId === quest.creator_id) {
-      return setStatus("You can’t ask a question on your own listing.");
+      setStatus("You can’t ask a question on your own listing.");
+      return;
     }
 
-    const privacyInput = window.prompt('Send as "public" or "private"?', "public");
-    if (!privacyInput) return;
-    const mode = privacyInput.trim().toLowerCase();
-    if (!["public", "private"].includes(mode)) {
-      return setStatus('Please type either "public" or "private".');
-    }
+    setQuestionTarget(quest);
+    setQuestionMode("public");
+    setQuestionText("");
+    setShowQuestionModal(true);
+  }
 
-    const text = window.prompt(`Ask a ${mode} question about "${quest.title}"`);
-    if (!text || !text.trim()) return;
+  async function sendQuestionFromModal() {
+    if (!supabase || !userId || !questionTarget) return;
+    if (!questionText.trim()) return setStatus("Please enter your question.");
 
-    const prefix = mode === "private" ? "[PRIVATE] " : "[PUBLIC] ";
+    const prefix = questionMode === "private" ? "[PRIVATE] " : "[PUBLIC] ";
     const { error } = await supabase.from("messages").insert({
-      quest_id: quest.id,
+      quest_id: questionTarget.id,
       sender_id: userId,
-      body: `${prefix}${text.trim()}`,
+      body: `${prefix}${questionText.trim()}`,
     });
     if (error) return setStatus(error.message);
-    setStatus(`${mode === "private" ? "Private" : "Public"} question sent ✅ Check Inbox for replies.`);
+
+    setShowQuestionModal(false);
+    setQuestionTarget(null);
+    setQuestionText("");
+    setStatus(`${questionMode === "private" ? "Private" : "Public"} question sent ✅ Check Inbox for replies.`);
   }
 
   function getCreatorProfile(q: Quest) {
@@ -842,7 +852,7 @@ ${description}`
 
   return (
     <main className="min-h-screen bg-[#f6f7fb]">
-      <header className="sticky top-0 z-30 bg-white/90 backdrop-blur border-b">
+      <header className="sticky top-12 z-30 bg-white/90 backdrop-blur border-b">
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold">Side Quest</h1>
@@ -851,14 +861,7 @@ ${description}`
           </div>
           <div className="flex gap-2">
             <button className="bg-black text-white rounded px-3 py-2" onClick={() => (userId ? openCreateModal() : setShowAuthModal(true))}>+ Create</button>
-            {userId ? (
-              <>
-                <a href="/settings" className="border rounded px-3 py-2">Settings</a>
-                <button className="border rounded px-3 py-2" onClick={signOut}>Sign out</button>
-              </>
-            ) : (
-              <button className="border rounded px-3 py-2" onClick={() => setShowAuthModal(true)}>Log in / Sign up</button>
-            )}
+            {!userId && <button className="border rounded px-3 py-2" onClick={() => setShowAuthModal(true)}>Log in / Sign up</button>}
           </div>
         </div>
       </header>
@@ -1251,6 +1254,24 @@ ${description}`
                 )}
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {showQuestionModal && questionTarget && (
+        <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-white border p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold">Ask question</h3>
+              <button className="border rounded px-2 py-1" onClick={() => setShowQuestionModal(false)}>Close</button>
+            </div>
+            <p className="text-sm text-gray-600">About: <b>{questionTarget.title}</b></p>
+            <div className="flex gap-2">
+              <button type="button" className={`border rounded px-3 py-2 ${questionMode === "public" ? "bg-black text-white" : ""}`} onClick={() => setQuestionMode("public")}>Public</button>
+              <button type="button" className={`border rounded px-3 py-2 ${questionMode === "private" ? "bg-black text-white" : ""}`} onClick={() => setQuestionMode("private")}>Private</button>
+            </div>
+            <textarea className="border rounded px-3 py-2 w-full" placeholder="Type your question..." value={questionText} onChange={(e) => setQuestionText(e.target.value)} />
+            <button className="bg-black text-white rounded px-3 py-2" onClick={() => void sendQuestionFromModal()}>Send</button>
           </div>
         </div>
       )}

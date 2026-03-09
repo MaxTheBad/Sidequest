@@ -29,7 +29,7 @@ export default function BottomNav() {
 
   return (
     <nav className="fixed bottom-0 inset-x-0 z-40 border-t bg-white/95 backdrop-blur">
-      <div className="max-w-5xl mx-auto px-4 py-2 grid grid-cols-4 items-end">
+      <div className="max-w-5xl mx-auto px-3 py-2 grid grid-cols-5 items-end">
         <Link href="/" className={`text-center text-xs py-2 ${isActive("/") ? "font-semibold" : "text-gray-600"}`}>
           <div>🏠</div>
           <div>Home</div>
@@ -48,6 +48,11 @@ export default function BottomNav() {
         <button type="button" onClick={() => requireAuthNavigate("/settings")} className={`text-center text-xs py-2 ${isActive("/settings") ? "font-semibold" : "text-gray-600"}`}>
           <div>⚙️</div>
           <div>Settings</div>
+        </button>
+
+        <button type="button" onClick={() => requireAuthNavigate("/profile")} className={`text-center text-xs py-2 ${isActive("/profile") ? "font-semibold" : "text-gray-600"}`}>
+          <div>👤</div>
+          <div>Profile</div>
         </button>
       </div>
     </nav>

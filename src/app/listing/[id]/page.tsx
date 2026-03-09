@@ -42,6 +42,9 @@ export default function ListingPage() {
   const [isSaved, setIsSaved] = useState(false);
   const [hasJoined, setHasJoined] = useState(false);
   const [members, setMembers] = useState<MemberRow[]>([]);
+  const [showQuestionModal, setShowQuestionModal] = useState(false);
+  const [questionMode, setQuestionMode] = useState<"public" | "private">("public");
+  const [questionText, setQuestionText] = useState("");
 
   async function loadMembers(questId: string, uid: string | null) {
     if (!supabase) return;
@@ -146,26 +149,29 @@ export default function ListingPage() {
     await loadMembers(listing.id, userId);
   }
 
-  async function askQuestion() {
+  function askQuestion() {
     if (!supabase || !userId || !listing) return setStatus("Log in to message listing owners.");
     if (listing.creator_id === userId) return setStatus("You can’t ask a question on your own listing.");
+    setQuestionMode("public");
+    setQuestionText("");
+    setShowQuestionModal(true);
+  }
 
-    const privacyInput = window.prompt('Send as "public" or "private"?', "public");
-    if (!privacyInput) return;
-    const mode = privacyInput.trim().toLowerCase();
-    if (!["public", "private"].includes(mode)) return setStatus('Please type either "public" or "private".');
+  async function sendQuestionFromModal() {
+    if (!supabase || !userId || !listing) return;
+    if (!questionText.trim()) return setStatus("Please enter your question.");
 
-    const text = window.prompt(`Ask a ${mode} question about "${listing.title}"`);
-    if (!text || !text.trim()) return;
-
-    const prefix = mode === "private" ? "[PRIVATE] " : "[PUBLIC] ";
+    const prefix = questionMode === "private" ? "[PRIVATE] " : "[PUBLIC] ";
     const { error } = await supabase.from("messages").insert({
       quest_id: listing.id,
       sender_id: userId,
-      body: `${prefix}${text.trim()}`,
+      body: `${prefix}${questionText.trim()}`,
     });
     if (error) return setStatus(error.message);
-    setStatus(`${mode === "private" ? "Private" : "Public"} question sent ✅`);
+
+    setShowQuestionModal(false);
+    setQuestionText("");
+    setStatus(`${questionMode === "private" ? "Private" : "Public"} question sent ✅`);
   }
 
   async function toggleSave() {
@@ -295,6 +301,22 @@ export default function ListingPage() {
             {status && <p className="text-xs text-gray-600">{status}</p>}
           </article>
         ) : null}
+        {showQuestionModal && listing && (
+          <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center p-4">
+            <div className="w-full max-w-lg rounded-2xl bg-white border p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold">Ask question</h3>
+                <button className="border rounded px-2 py-1" onClick={() => setShowQuestionModal(false)}>Close</button>
+              </div>
+              <div className="flex gap-2">
+                <button type="button" className={`border rounded px-3 py-2 ${questionMode === "public" ? "bg-black text-white" : ""}`} onClick={() => setQuestionMode("public")}>Public</button>
+                <button type="button" className={`border rounded px-3 py-2 ${questionMode === "private" ? "bg-black text-white" : ""}`} onClick={() => setQuestionMode("private")}>Private</button>
+              </div>
+              <textarea className="border rounded px-3 py-2 w-full" placeholder="Type your question..." value={questionText} onChange={(e) => setQuestionText(e.target.value)} />
+              <button className="bg-black text-white rounded px-3 py-2" onClick={() => void sendQuestionFromModal()}>Send</button>
+            </div>
+          </div>
+        )}
       </div>
     </main>
   );
