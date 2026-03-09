@@ -73,30 +73,19 @@ export default function InboxPage() {
     if (!supabase) return;
     setLoading(true);
 
-    const [{ data: createdQuests }, { data: joinedRows }] = await Promise.all([
-      supabase.from("quests").select("id").eq("creator_id", uid),
-      supabase.from("quest_members").select("quest_id").eq("user_id", uid),
-    ]);
-
-    const createdQuestIds = (createdQuests || []).map((q) => q.id);
-    const joinedQuestIds = ((joinedRows || []) as Array<{ quest_id: string }>).map((r) => r.quest_id);
-    const participantQuestIds = Array.from(new Set([...createdQuestIds, ...joinedQuestIds]));
-
-    const [sentRes, participantRes] = await Promise.all([
+    const [sentRes, publicRes] = await Promise.all([
       supabase
         .from("messages")
         .select("id,quest_id,sender_id,body,created_at,quests(title,creator_id),profiles:profiles!messages_sender_id_fkey(id,display_name,avatar_url)")
         .eq("sender_id", uid)
         .order("created_at", { ascending: false })
         .limit(300),
-      participantQuestIds.length
-        ? supabase
-            .from("messages")
-            .select("id,quest_id,sender_id,body,created_at,quests(title,creator_id),profiles:profiles!messages_sender_id_fkey(id,display_name,avatar_url)")
-            .in("quest_id", participantQuestIds)
-            .order("created_at", { ascending: false })
-            .limit(300)
-        : Promise.resolve({ data: [], error: null }),
+      supabase
+        .from("messages")
+        .select("id,quest_id,sender_id,body,created_at,quests(title,creator_id),profiles:profiles!messages_sender_id_fkey(id,display_name,avatar_url)")
+        .or("body.like.[PUBLIC] %,and(body.not.like.[PRIVATE] %,body.not.like.[PUBLIC] %)")
+        .order("created_at", { ascending: false })
+        .limit(300),
     ]);
 
     if (sentRes.error) {
@@ -104,15 +93,15 @@ export default function InboxPage() {
       setLoading(false);
       return;
     }
-    if (participantRes.error) {
-      setStatus(participantRes.error.message);
+    if (publicRes.error) {
+      setStatus(publicRes.error.message);
       setLoading(false);
       return;
     }
 
     const sentRows = ((sentRes.data || []) as RawInboxMessage[]).map(normalizeMessageRow);
-    const participantRows = ((participantRes.data || []) as RawInboxMessage[]).map(normalizeMessageRow);
-    const merged = [...sentRows, ...participantRows];
+    const publicRows = ((publicRes.data || []) as RawInboxMessage[]).map(normalizeMessageRow);
+    const merged = [...sentRows, ...publicRows];
     const dedupedMap = new Map<string, InboxMessage>();
     merged.forEach((m) => dedupedMap.set(m.id, m));
     const deduped = Array.from(dedupedMap.values()).sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at));

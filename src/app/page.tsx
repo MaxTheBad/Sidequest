@@ -942,20 +942,6 @@ ${description}`
 
   return (
     <main className="min-h-screen bg-[#f6f7fb]">
-      <header className="sticky top-12 z-30 bg-white/90 backdrop-blur border-b">
-        <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">Side Quest</h1>
-            <p className="text-xs text-gray-500">Find your hobby people</p>
-            {userId && <p className="text-xs text-emerald-700 mt-1">Signed in as {viewerName || userEmail || "member"}</p>}
-          </div>
-          <div className="flex gap-2">
-            <button className="bg-black text-white rounded px-3 py-2" onClick={() => (userId ? openCreateModal() : setShowAuthModal(true))}>+ Create</button>
-            {!userId && <button className="border rounded px-3 py-2" onClick={() => setShowAuthModal(true)}>Log in / Sign up</button>}
-          </div>
-        </div>
-      </header>
-
       <div className="max-w-5xl mx-auto px-4 py-4 space-y-4">
         {!!pendingVerifyEmail && (
           <div className="text-sm rounded bg-emerald-50 border p-2">Email sent to <b>{pendingVerifyEmail}</b>. <button className="underline" disabled={resendCooldown > 0} onClick={() => void resendVerification()}>{resendCooldown > 0 ? `Resend in ${resendCooldown}s` : "Resend"}</button></div>
