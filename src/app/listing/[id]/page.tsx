@@ -117,13 +117,14 @@ export default function ListingPage() {
     if (listing.creator_id === userId) return setStatus("You can’t join your own listing.");
 
     if (hasJoined) {
-      const { error } = await supabase
+      const { data: removed, error } = await supabase
         .from("quest_members")
         .delete()
         .eq("quest_id", listing.id)
         .eq("user_id", userId)
-        .neq("role", "creator");
+        .select("user_id");
       if (error) return setStatus(error.message);
+      if (!removed?.length) return setStatus("Could not leave listing. Please try again.");
       setStatus("Left listing.");
       setHasJoined(false);
       await loadMembers(listing.id, userId);

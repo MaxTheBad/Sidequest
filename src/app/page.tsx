@@ -792,13 +792,14 @@ ${description}`
     const hasJoined = joinedQuestIds.includes(id);
 
     if (hasJoined) {
-      const { error } = await supabase
+      const { data: removed, error } = await supabase
         .from("quest_members")
         .delete()
         .eq("quest_id", id)
         .eq("user_id", userId)
-        .neq("role", "creator");
+        .select("quest_id");
       if (error) return setStatus(error.message);
+      if (!removed?.length) return setStatus("Could not leave quest. Please try again.");
       setJoinedQuestIds((prev) => prev.filter((qid) => qid !== id));
       setStatus("Left quest.");
       return;
