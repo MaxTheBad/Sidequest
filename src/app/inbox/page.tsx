@@ -11,6 +11,7 @@ type InboxMessage = {
   body: string;
   created_at: string;
   quests?: { title: string | null; creator_id: string | null } | null;
+  profiles?: { id: string; display_name: string | null; avatar_url: string | null } | null;
 };
 
 type RawInboxMessage = {
@@ -20,10 +21,23 @@ type RawInboxMessage = {
   body: string;
   created_at: string;
   quests?: { title: string | null; creator_id: string | null }[] | { title: string | null; creator_id: string | null } | null;
+  profiles?: { id: string; display_name: string | null; avatar_url: string | null }[] | { id: string; display_name: string | null; avatar_url: string | null } | null;
+};
+
+type ThreadKind = "public" | "private";
+
+type Thread = {
+  id: string;
+  questId: string;
+  kind: ThreadKind;
+  title: string;
+  lastMessageAt: string;
+  preview: string;
 };
 
 function normalizeMessageRow(row: RawInboxMessage): InboxMessage {
   const quest = Array.isArray(row.quests) ? (row.quests[0] ?? null) : (row.quests ?? null);
+  const profile = Array.isArray(row.profiles) ? (row.profiles[0] ?? null) : (row.profiles ?? null);
   return {
     id: row.id,
     quest_id: row.quest_id,
@@ -31,13 +45,13 @@ function normalizeMessageRow(row: RawInboxMessage): InboxMessage {
     body: row.body,
     created_at: row.created_at,
     quests: quest,
+    profiles: profile,
   };
 }
 
-function getMessagePrivacy(body: string) {
+function getMessagePrivacy(body: string): ThreadKind {
   if (body.startsWith("[PRIVATE] ")) return "private";
-  if (body.startsWith("[PUBLIC] ")) return "public";
-  return null;
+  return "public";
 }
 
 function getMessageText(body: string) {
@@ -52,7 +66,7 @@ export default function InboxPage() {
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState("");
   const [messages, setMessages] = useState<InboxMessage[]>([]);
-  const [activeQuestId, setActiveQuestId] = useState<string | null>(null);
+  const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
 
   const loadInbox = useCallback(async (uid: string) => {
@@ -65,17 +79,17 @@ export default function InboxPage() {
     const [sentRes, receivedRes] = await Promise.all([
       supabase
         .from("messages")
-        .select("id,quest_id,sender_id,body,created_at,quests(title,creator_id)")
+        .select("id,quest_id,sender_id,body,created_at,quests(title,creator_id),profiles:profiles!messages_sender_id_fkey(id,display_name,avatar_url)")
         .eq("sender_id", uid)
         .order("created_at", { ascending: false })
-        .limit(200),
+        .limit(300),
       createdQuestIds.length
         ? supabase
             .from("messages")
-            .select("id,quest_id,sender_id,body,created_at,quests(title,creator_id)")
+            .select("id,quest_id,sender_id,body,created_at,quests(title,creator_id),profiles:profiles!messages_sender_id_fkey(id,display_name,avatar_url)")
             .in("quest_id", createdQuestIds)
             .order("created_at", { ascending: false })
-            .limit(200)
+            .limit(300)
         : Promise.resolve({ data: [], error: null }),
     ]);
 
@@ -98,9 +112,14 @@ export default function InboxPage() {
     const deduped = Array.from(dedupedMap.values()).sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at));
 
     setMessages(deduped);
-    setActiveQuestId((prev) => prev || deduped[0]?.quest_id || null);
+
+    if (!activeThreadId && deduped[0]) {
+      const firstKind = getMessagePrivacy(deduped[0].body);
+      setActiveThreadId(`${deduped[0].quest_id}:${firstKind}`);
+    }
+
     setLoading(false);
-  }, [supabase]);
+  }, [supabase, activeThreadId]);
 
   useEffect(() => {
     if (!supabase) return;
@@ -117,12 +136,16 @@ export default function InboxPage() {
   }, [supabase, loadInbox]);
 
   const threads = useMemo(() => {
-    const map = new Map<string, { questId: string; title: string; lastMessageAt: string; preview: string }>();
+    const map = new Map<string, Thread>();
     for (const m of messages) {
-      if (!map.has(m.quest_id)) {
-        map.set(m.quest_id, {
+      const kind = getMessagePrivacy(m.body);
+      const id = `${m.quest_id}:${kind}`;
+      if (!map.has(id)) {
+        map.set(id, {
+          id,
           questId: m.quest_id,
-          title: m.quests?.title || "Untitled listing",
+          kind,
+          title: `${m.quests?.title || "Untitled listing"} · ${kind === "private" ? "Private" : "Public"}`,
           lastMessageAt: m.created_at,
           preview: getMessageText(m.body),
         });
@@ -131,16 +154,24 @@ export default function InboxPage() {
     return Array.from(map.values()).sort((a, b) => +new Date(b.lastMessageAt) - +new Date(a.lastMessageAt));
   }, [messages]);
 
-  const activeMessages = useMemo(() => messages.filter((m) => m.quest_id === activeQuestId).sort((a, b) => +new Date(a.created_at) - +new Date(b.created_at)), [messages, activeQuestId]);
+  const activeThread = useMemo(() => threads.find((t) => t.id === activeThreadId) || null, [threads, activeThreadId]);
+
+  const activeMessages = useMemo(() => {
+    if (!activeThread) return [];
+    return messages
+      .filter((m) => m.quest_id === activeThread.questId && getMessagePrivacy(m.body) === activeThread.kind)
+      .sort((a, b) => +new Date(a.created_at) - +new Date(b.created_at));
+  }, [messages, activeThread]);
 
   async function sendReply(e: FormEvent) {
     e.preventDefault();
-    if (!supabase || !userId || !activeQuestId || !draft.trim()) return;
+    if (!supabase || !userId || !activeThread || !draft.trim()) return;
 
+    const prefix = activeThread.kind === "private" ? "[PRIVATE] " : "[PUBLIC] ";
     const { error } = await supabase.from("messages").insert({
-      quest_id: activeQuestId,
+      quest_id: activeThread.questId,
       sender_id: userId,
-      body: draft.trim(),
+      body: `${prefix}${draft.trim()}`,
     });
     if (error) return setStatus(error.message);
 
@@ -175,34 +206,38 @@ export default function InboxPage() {
 
         {status && <div className="mb-3 rounded border bg-amber-50 px-3 py-2 text-sm">{status}</div>}
 
-        <div className="grid md:grid-cols-[320px_1fr] gap-3">
+        <div className="grid md:grid-cols-[340px_1fr] gap-3">
           <aside className="rounded-2xl border bg-white p-2 max-h-[70vh] overflow-auto">
             {loading ? <p className="p-3 text-sm">Loading...</p> : threads.length === 0 ? <p className="p-3 text-sm text-gray-500">No messages yet.</p> : threads.map((t) => (
               <button
-                key={t.questId}
-                className={`w-full text-left rounded-xl px-3 py-2 border mb-2 ${activeQuestId === t.questId ? "bg-black text-white" : "bg-white"}`}
-                onClick={() => setActiveQuestId(t.questId)}
+                key={t.id}
+                className={`w-full text-left rounded-xl px-3 py-2 border mb-2 ${activeThreadId === t.id ? "bg-black text-white" : "bg-white"}`}
+                onClick={() => setActiveThreadId(t.id)}
                 type="button"
               >
                 <p className="font-medium truncate">{t.title}</p>
                 <Link
                   href={`/listing/${t.questId}`}
-                  className={`text-[11px] underline ${activeQuestId === t.questId ? "text-white/90" : "text-gray-500"}`}
+                  className={`text-[11px] underline ${activeThreadId === t.id ? "text-white/90" : "text-gray-500"}`}
                   onClick={(e) => e.stopPropagation()}
                 >
                   View listing
                 </Link>
-                <p className={`text-xs truncate ${activeQuestId === t.questId ? "text-white/80" : "text-gray-500"}`}>{t.preview}</p>
+                <p className={`text-xs truncate ${activeThreadId === t.id ? "text-white/80" : "text-gray-500"}`}>{t.preview}</p>
               </button>
             ))}
           </aside>
 
           <section className="rounded-2xl border bg-white p-3 flex flex-col h-[70vh]">
-            {activeQuestId && (
-              <div className="mb-2 pb-2 border-b">
-                <Link href={`/listing/${activeQuestId}`} className="text-sm underline">Open listing details</Link>
+            {activeThread && (
+              <div className="mb-2 pb-2 border-b text-sm flex items-center justify-between">
+                <span className={`px-2 py-1 rounded ${activeThread.kind === "private" ? "bg-purple-100 text-purple-700" : "bg-emerald-100 text-emerald-700"}`}>
+                  {activeThread.kind === "private" ? "Private conversation" : "Public conversation"}
+                </span>
+                <Link href={`/listing/${activeThread.questId}`} className="underline">Open listing</Link>
               </div>
             )}
+
             <div className="flex-1 overflow-auto space-y-2 pr-1">
               {activeMessages.length === 0 ? (
                 <p className="text-sm text-gray-500">Pick a thread to view messages.</p>
@@ -211,11 +246,18 @@ export default function InboxPage() {
                   const mine = m.sender_id === userId;
                   const privacy = getMessagePrivacy(m.body);
                   return (
-                    <div key={m.id} className={`max-w-[80%] rounded-xl px-3 py-2 text-sm ${mine ? "ml-auto bg-black text-white" : "bg-gray-100"}`}>
-                      {privacy && (
-                        <p className={`mb-1 text-[10px] uppercase tracking-wide ${mine ? "text-white/70" : "text-gray-500"}`}>
-                          {privacy}
-                        </p>
+                    <div key={m.id} className={`max-w-[86%] rounded-xl px-3 py-2 text-sm ${mine ? "ml-auto bg-black text-white" : "bg-gray-100"}`}>
+                      {!mine && privacy === "public" && (
+                        <div className="flex items-center gap-2 mb-1">
+                          {m.profiles?.avatar_url ? (
+                            <img src={m.profiles.avatar_url} alt={m.profiles.display_name || "User"} className="h-5 w-5 rounded-full object-cover border" />
+                          ) : (
+                            <div className="h-5 w-5 rounded-full bg-white border" />
+                          )}
+                          <Link href={`/profile/${m.sender_id}`} className="text-[11px] underline text-gray-600">
+                            {m.profiles?.display_name || "Member"}
+                          </Link>
+                        </div>
                       )}
                       <p>{getMessageText(m.body)}</p>
                       <p className={`mt-1 text-[11px] ${mine ? "text-white/70" : "text-gray-500"}`}>{new Date(m.created_at).toLocaleString()}</p>
@@ -228,12 +270,12 @@ export default function InboxPage() {
             <form onSubmit={sendReply} className="mt-3 flex gap-2">
               <input
                 className="flex-1 border rounded px-3 py-2"
-                placeholder={activeQuestId ? "Write a reply..." : "Select a thread to reply"}
+                placeholder={activeThread ? `Reply in ${activeThread.kind} thread...` : "Select a thread to reply"}
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
-                disabled={!activeQuestId}
+                disabled={!activeThread}
               />
-              <button className="bg-black text-white rounded px-3 py-2 disabled:opacity-50" disabled={!activeQuestId || !draft.trim()}>Send</button>
+              <button className="bg-black text-white rounded px-3 py-2 disabled:opacity-50" disabled={!activeThread || !draft.trim()}>Send</button>
             </form>
           </section>
         </div>
