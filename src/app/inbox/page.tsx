@@ -67,6 +67,11 @@ function getMessageText(body: string) {
   return body;
 }
 
+function getInitial(name?: string | null) {
+  const s = (name || "?").trim();
+  return s ? s[0]!.toUpperCase() : "?";
+}
+
 function getTypingChannelKey(thread: Thread | null, currentUserId: string | null) {
   if (!thread) return null;
   if (thread.kind === "public") return `typing:${thread.questId}:public`;
@@ -92,9 +97,9 @@ export default function InboxPage() {
   const lastTypingSendRef = useRef(0);
   const [questOwners, setQuestOwners] = useState<Record<string, QuestOwnerLite>>({});
 
-  const loadInbox = useCallback(async (uid: string) => {
+  const loadInbox = useCallback(async (uid: string, silent = false) => {
     if (!supabase) return;
-    setLoading(true);
+    if (!silent) setLoading(true);
 
     const [{ data: myListings }, sentRes, publicRes] = await Promise.all([
       supabase.from("quests").select("id").eq("creator_id", uid),
@@ -125,17 +130,17 @@ export default function InboxPage() {
 
     if (sentRes.error) {
       setStatus(sentRes.error.message);
-      setLoading(false);
+      if (!silent) setLoading(false);
       return;
     }
     if (publicRes.error) {
       setStatus(publicRes.error.message);
-      setLoading(false);
+      if (!silent) setLoading(false);
       return;
     }
     if (privateRes.error) {
       setStatus(privateRes.error.message);
-      setLoading(false);
+      if (!silent) setLoading(false);
       return;
     }
 
@@ -169,7 +174,7 @@ export default function InboxPage() {
       setActiveThreadId(`${deduped[0].quest_id}:${firstKind}`);
     }
 
-    setLoading(false);
+    if (!silent) setLoading(false);
   }, [supabase, activeThreadId]);
 
   useEffect(() => {
@@ -182,7 +187,7 @@ export default function InboxPage() {
       setUserId(uid);
       const nm = (u?.user_metadata?.full_name as string | undefined) || (u?.user_metadata?.name as string | undefined) || u?.email || "You";
       setUserName(nm.toString().split("@")[0]);
-      if (uid) await loadInbox(uid);
+      if (uid) await loadInbox(uid, false);
       setLoading(false);
     };
 
@@ -194,7 +199,7 @@ export default function InboxPage() {
     const ch = supabase
       .channel(`inbox-live-${userId}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, () => {
-        void loadInbox(userId);
+        void loadInbox(userId, true);
       })
       .subscribe();
 
@@ -206,9 +211,9 @@ export default function InboxPage() {
   useEffect(() => {
     if (!userId) return;
     const id = window.setInterval(() => {
-      void loadInbox(userId);
+      void loadInbox(userId, true);
     }, 5000);
-    const onFocus = () => void loadInbox(userId);
+    const onFocus = () => void loadInbox(userId, true);
     window.addEventListener("focus", onFocus);
     return () => {
       clearInterval(id);
@@ -338,7 +343,7 @@ export default function InboxPage() {
 
     setDraft("");
     setLastSendMs(Date.now());
-    await loadInbox(userId);
+    await loadInbox(userId, true);
   }
 
   if (!supabase) return <main className="min-h-screen bg-[#f6f7fb] p-4">Missing Supabase config.</main>;
@@ -379,7 +384,11 @@ export default function InboxPage() {
               >
                 <div className="flex items-center gap-2">
                   {t.kind === "private" ? (
-                    t.partnerAvatar ? <img src={t.partnerAvatar} alt={t.partnerName || "Partner"} className="h-7 w-7 rounded-full object-cover border shrink-0" /> : <div className="h-7 w-7 rounded-full border bg-gray-200 shrink-0" />
+                    t.partnerAvatar ? (
+                      <img src={t.partnerAvatar} alt={t.partnerName || "Partner"} className="h-7 w-7 rounded-full object-cover border shrink-0" />
+                    ) : (
+                      <div className="h-7 w-7 rounded-full border bg-gray-200 shrink-0 grid place-items-center text-[11px] font-semibold text-gray-700">{getInitial(t.partnerName)}</div>
+                    )
                   ) : null}
                   <p className="font-medium truncate">{t.title}</p>
                 </div>
@@ -429,7 +438,7 @@ export default function InboxPage() {
                         {m.profiles?.avatar_url ? (
                           <img src={m.profiles.avatar_url} alt={m.profiles.display_name || "User"} className="h-5 w-5 rounded-full object-cover border" />
                         ) : (
-                          <div className="h-5 w-5 rounded-full bg-white border" />
+                          <div className="h-5 w-5 rounded-full bg-white border grid place-items-center text-[9px] font-semibold text-gray-700">{getInitial(m.profiles?.display_name || (mine ? "You" : "Member"))}</div>
                         )}
                         <Link href={`/profile/${m.sender_id}`} className={`text-[11px] underline ${mine ? "text-white/80" : "text-gray-600"}`}>
                           {mine ? "You" : (m.profiles?.display_name || "Member").trim().split(/\s+/)[0]}
