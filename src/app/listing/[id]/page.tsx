@@ -100,13 +100,13 @@ export default function ListingPage() {
       setStatus("");
 
       if (uid) {
-        const { data: saved } = await supabase
+        const { data: saved, error: savedErr } = await supabase
           .from("quest_bookmarks")
           .select("quest_id")
           .eq("user_id", uid)
           .eq("quest_id", listingId)
           .maybeSingle();
-        setIsSaved(!!saved);
+        if (!savedErr) setIsSaved(!!saved);
       }
 
       await loadMembers(listingId, uid);
@@ -186,6 +186,7 @@ export default function ListingPage() {
     }
 
     const { error } = await supabase.from("quest_bookmarks").insert({ user_id: userId, quest_id: listing.id });
+    if (error?.message.includes("quest_bookmarks")) return setStatus("Bookmarks not set up yet. Run the bookmarks SQL migration.");
     if (error && !error.message.includes("duplicate")) return setStatus(error.message);
     setIsSaved(true);
     setStatus("Saved listing ✅");

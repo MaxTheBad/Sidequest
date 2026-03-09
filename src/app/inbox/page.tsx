@@ -277,6 +277,9 @@ export default function InboxPage() {
                           <Link href={`/profile/${m.sender_id}`} className="text-[11px] underline text-gray-600">
                             {m.profiles?.display_name || "Member"}
                           </Link>
+                          {m.quests?.creator_id === m.sender_id && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">Organizer</span>
+                          )}
                         </div>
                       )}
                       <p>{getMessageText(m.body)}</p>

@@ -724,7 +724,13 @@ ${description}`
   async function loadBookmarks(uid: string) {
     if (!supabase) return;
     const { data, error } = await supabase.from("quest_bookmarks").select("quest_id").eq("user_id", uid);
-    if (error) return;
+    if (error) {
+      if (error.message.includes("quest_bookmarks")) {
+        setBookmarkedQuestIds([]);
+        return;
+      }
+      return;
+    }
     setBookmarkedQuestIds(((data as Bookmark[]) || []).map((b) => b.quest_id));
   }
 
@@ -751,6 +757,7 @@ ${description}`
     }
 
     const { error } = await supabase.from("quest_bookmarks").insert({ user_id: userId, quest_id: questId });
+    if (error?.message.includes("quest_bookmarks")) return setStatus("Bookmarks not set up yet. Run the bookmarks SQL migration.");
     if (error && !error.message.includes("duplicate")) return setStatus(error.message);
     setBookmarkedQuestIds((prev) => [...prev, questId]);
     setStatus("Saved listing ✅");
