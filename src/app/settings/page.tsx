@@ -80,12 +80,13 @@ export default function SettingsPage() {
         .eq("id", uid)
         .maybeSingle();
 
-      setDisplayName(profile?.display_name ?? "");
       setCity(profile?.city ?? "");
       setBio(profile?.bio ?? "");
 
       const u = await supabase.auth.getUser();
       const meta = (u.data.user?.user_metadata || {}) as Record<string, unknown>;
+      const metaName = (typeof meta.full_name === "string" && meta.full_name) || (typeof meta.name === "string" && meta.name) || "";
+      setDisplayName(profile?.display_name || metaName || "");
       const metaAvatar = typeof meta.avatar_url === "string" ? meta.avatar_url : "";
       const resolvedAvatar = profile?.avatar_url || metaAvatar || "";
       setAvatarUrl(resolvedAvatar);

@@ -84,6 +84,10 @@ export default function Home() {
   const [resendCooldown, setResendCooldown] = useState(0);
   const [showPhotoStepModal, setShowPhotoStepModal] = useState(false);
   const [photoStepFile, setPhotoStepFile] = useState<File | null>(null);
+  const [photoStepPreviewUrl, setPhotoStepPreviewUrl] = useState("");
+  const [photoStepZoom, setPhotoStepZoom] = useState(1.2);
+  const [photoStepOffsetX, setPhotoStepOffsetX] = useState(0);
+  const [photoStepOffsetY, setPhotoStepOffsetY] = useState(0);
   const [photoStepState, setPhotoStepState] = useState<ProfilePhotoStep>("idle");
 
   const [hobbies, setHobbies] = useState<Hobby[]>([]);
@@ -157,6 +161,11 @@ export default function Home() {
         setViewerName((typeof md.full_name === "string" && md.full_name) || (typeof md.name === "string" && md.name) || "");
       }
 
+      if (data.session?.user) {
+        const md = (data.session.user.user_metadata || {}) as Record<string, unknown>;
+        await ensureProfileRow(data.session.user.id, data.session.user.email, md);
+      }
+
       if (!data.session) {
         const u = await supabase.auth.getUser();
         if (u.data.user) {
@@ -164,10 +173,12 @@ export default function Home() {
           setUserEmail(u.data.user.email ?? "");
           const md = (u.data.user.user_metadata || {}) as Record<string, unknown>;
           setViewerName((typeof md.full_name === "string" && md.full_name) || (typeof md.name === "string" && md.name) || "");
+          await ensureProfileRow(u.data.user.id, u.data.user.email, md);
         }
       }
 
       if (typeof window !== "undefined" && (window.location.search.includes("code=") || window.location.search.includes("state="))) {
+        setStatus("✅ Email confirmed. You can now continue.");
         window.history.replaceState({}, "", window.location.pathname);
       }
 
@@ -186,14 +197,19 @@ export default function Home() {
     };
     void init();
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
       setUserId(session?.user?.id ?? null);
       setUserEmail(session?.user?.email ?? "");
       const md = (session?.user?.user_metadata || {}) as Record<string, unknown>;
       setViewerName((typeof md.full_name === "string" && md.full_name) || (typeof md.name === "string" && md.name) || "");
       if (session?.user) {
+        void ensureProfileRow(session.user.id, session.user.email, md);
         setShowAuthModal(false);
-        setStatus("Signed in ✅");
+        if (event === "SIGNED_IN" && typeof window !== "undefined" && window.location.search.includes("code=")) {
+          setStatus("✅ Email confirmed. Welcome!");
+        } else {
+          setStatus("Signed in ✅");
+        }
         void maybeShowPhotoOnboarding(session.user.id);
       }
     });
@@ -306,7 +322,7 @@ export default function Home() {
     if (!acceptTerms) return setStatus("You must accept Terms.");
     if (!Object.values(passwordChecks).every(Boolean)) return setStatus("Password requirements not met.");
 
-    const { data, error } = await supabase.auth.signUp({
+    const { error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -315,10 +331,11 @@ export default function Home() {
       },
     });
     if (error) return setStatus(error.message);
-    if (data.user?.id) await supabase.from("profiles").upsert({ id: data.user.id, display_name: fullName });
+
     setPendingVerifyEmail(email);
     setResendCooldown(60);
-    setStatus("✅ Account created. Verify your email, then log in.");
+    setShowAuthModal(false);
+    setStatus("✅ Verification email sent. Please confirm your email.");
   }
 
   async function sendMagicLink() {
@@ -345,6 +362,18 @@ export default function Home() {
     setStatus("Verification email resent ✅");
   }
 
+  async function ensureProfileRow(uid: string, emailValue?: string | null, metadata?: Record<string, unknown> | null) {
+    if (!supabase || !uid) return;
+    const md = metadata || {};
+    const nameFromMeta = (typeof md.full_name === "string" && md.full_name) || (typeof md.name === "string" && md.name) || "";
+    const fallbackName = (emailValue || "").split("@")[0] || "SideQuest user";
+    await supabase.from("profiles").upsert({
+      id: uid,
+      display_name: nameFromMeta || fallbackName,
+      avatar_url: (typeof md.avatar_url === "string" && md.avatar_url) || null,
+    });
+  }
+
   async function socialLogin(provider: "google" | "facebook") {
     if (!supabase) return;
     const { error } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo } });
@@ -362,6 +391,8 @@ export default function Home() {
     setViewerName("");
     setShowPhotoStepModal(false);
     setPhotoStepFile(null);
+    if (photoStepPreviewUrl) URL.revokeObjectURL(photoStepPreviewUrl);
+    setPhotoStepPreviewUrl("");
     setPhotoStepState("idle");
     setStatus("Signed out");
   }
@@ -378,6 +409,8 @@ export default function Home() {
       setShowPhotoStepModal(true);
       setPhotoStepState("idle");
       setPhotoStepFile(null);
+      if (photoStepPreviewUrl) URL.revokeObjectURL(photoStepPreviewUrl);
+      setPhotoStepPreviewUrl("");
     }
   }
 
@@ -389,8 +422,41 @@ export default function Home() {
     if (error) return setStatus(error.message);
     setShowPhotoStepModal(false);
     setPhotoStepFile(null);
+    if (photoStepPreviewUrl) URL.revokeObjectURL(photoStepPreviewUrl);
+    setPhotoStepPreviewUrl("");
     setPhotoStepState("idle");
     setStatus("You can add a profile photo anytime in Settings.");
+  }
+
+  async function makePhotoStepCrop(file: File) {
+    const url = URL.createObjectURL(file);
+    try {
+      const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const i = new Image();
+        i.onload = () => resolve(i);
+        i.onerror = () => reject(new Error("Could not load image."));
+        i.src = url;
+      });
+
+      const size = 512;
+      const canvas = document.createElement("canvas");
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("Could not prepare crop.");
+
+      const drawW = img.width * photoStepZoom;
+      const drawH = img.height * photoStepZoom;
+      const dx = (size - drawW) / 2 + photoStepOffsetX;
+      const dy = (size - drawH) / 2 + photoStepOffsetY;
+      ctx.drawImage(img, dx, dy, drawW, drawH);
+
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.9));
+      if (!blob) throw new Error("Could not export image.");
+      return blob;
+    } finally {
+      URL.revokeObjectURL(url);
+    }
   }
 
   async function savePhotoStep() {
@@ -399,32 +465,49 @@ export default function Home() {
     if (photoStepFile.size > 8 * 1024 * 1024) return setStatus("Photo must be under 8MB.");
 
     setPhotoStepState("uploading");
-    const ext = (photoStepFile.name.split(".").pop() || "jpg").toLowerCase();
-    const filePath = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+
+    let cropped: Blob;
+    try {
+      cropped = await makePhotoStepCrop(photoStepFile);
+    } catch (err) {
+      setPhotoStepState("ready");
+      return setStatus(err instanceof Error ? err.message : "Could not crop image.");
+    }
+
+    const filePath = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
 
     const { error: uploadError } = await supabase.storage
       .from("profile-photos")
-      .upload(filePath, photoStepFile, { upsert: false, contentType: photoStepFile.type });
+      .upload(filePath, cropped, { upsert: false, contentType: "image/jpeg" });
     if (uploadError) {
       setPhotoStepState("ready");
       return setStatus(`Photo upload failed: ${uploadError.message}`);
     }
 
     const { data: publicData } = supabase.storage.from("profile-photos").getPublicUrl(filePath);
-    const { error: profileError } = await supabase.from("profiles").upsert({
+    let { error: profileError } = await supabase.from("profiles").upsert({
       id: userId,
       avatar_url: publicData.publicUrl,
       avatar_capture_method: "camera",
       photo_onboarding_done: true,
     });
 
+    if (profileError?.message?.includes("column")) {
+      const fallback = await supabase.from("profiles").upsert({ id: userId, avatar_url: publicData.publicUrl });
+      profileError = fallback.error;
+    }
+
     if (profileError) {
       setPhotoStepState("ready");
       return setStatus(`Could not save photo: ${profileError.message}`);
     }
 
+    await supabase.auth.updateUser({ data: { avatar_url: publicData.publicUrl } });
+
     setPhotoStepState("idle");
     setPhotoStepFile(null);
+    if (photoStepPreviewUrl) URL.revokeObjectURL(photoStepPreviewUrl);
+    setPhotoStepPreviewUrl("");
     setShowPhotoStepModal(false);
     setStatus("Profile photo saved ✅");
   }
@@ -874,6 +957,9 @@ ${description}`
       </header>
 
       <div className="max-w-5xl mx-auto px-4 py-4 space-y-4">
+        {!!pendingVerifyEmail && (
+          <div className="text-sm rounded bg-emerald-50 border p-2">Email sent to <b>{pendingVerifyEmail}</b>. <button className="underline" disabled={resendCooldown > 0} onClick={() => void resendVerification()}>{resendCooldown > 0 ? `Resend in ${resendCooldown}s` : "Resend"}</button></div>
+        )}
         <section className="rounded-2xl border bg-white p-4">
           <div className="flex flex-wrap gap-2 items-center justify-between">
             <h2 className="font-semibold">Explore quests</h2>
@@ -1063,9 +1149,33 @@ ${description}`
               onChange={(e) => {
                 const file = e.target.files?.[0] ?? null;
                 setPhotoStepFile(file);
+                setPhotoStepZoom(1.2);
+                setPhotoStepOffsetX(0);
+                setPhotoStepOffsetY(0);
+                if (photoStepPreviewUrl) URL.revokeObjectURL(photoStepPreviewUrl);
+                setPhotoStepPreviewUrl(file ? URL.createObjectURL(file) : "");
                 setPhotoStepState(file ? "ready" : "idle");
               }}
             />
+            {photoStepPreviewUrl && (
+              <div className="rounded-lg border bg-white p-2 space-y-2">
+                <p className="text-xs text-gray-600">Adjust photo</p>
+                <div className="h-44 w-44 rounded-full overflow-hidden border mx-auto bg-black/5">
+                  <img
+                    src={photoStepPreviewUrl}
+                    alt="Preview"
+                    className="h-full w-full object-cover"
+                    style={{ transform: `translate(${photoStepOffsetX}px, ${photoStepOffsetY}px) scale(${photoStepZoom})` }}
+                  />
+                </div>
+                <label className="text-xs">Zoom</label>
+                <input type="range" min={1} max={3} step={0.05} value={photoStepZoom} onChange={(e) => setPhotoStepZoom(Number(e.target.value))} />
+                <label className="text-xs">Move left/right</label>
+                <input type="range" min={-120} max={120} step={1} value={photoStepOffsetX} onChange={(e) => setPhotoStepOffsetX(Number(e.target.value))} />
+                <label className="text-xs">Move up/down</label>
+                <input type="range" min={-120} max={120} step={1} value={photoStepOffsetY} onChange={(e) => setPhotoStepOffsetY(Number(e.target.value))} />
+              </div>
+            )}
             <div className="flex gap-2">
               <button
                 type="button"
