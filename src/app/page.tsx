@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase";
 
 type Hobby = { id: string; name: string; category: string | null };
@@ -90,6 +90,8 @@ export default function Home() {
   const [questVideoFile, setQuestVideoFile] = useState<File | null>(null);
   const [questVideoSource, setQuestVideoSource] = useState<"live" | "upload">("live");
   const [questVideoDurationSec, setQuestVideoDurationSec] = useState<number | null>(null);
+  const liveVideoInputRef = useRef<HTMLInputElement | null>(null);
+  const uploadVideoInputRef = useRef<HTMLInputElement | null>(null);
   const [savingQuest, setSavingQuest] = useState(false);
   const [editingQuestId, setEditingQuestId] = useState<string | null>(null);
 
@@ -934,13 +936,42 @@ ${description}`
                     Live video tip: keep recording under <b>15 seconds max</b>.
                   </div>
                 )}
-                <input
-                  type="file"
-                  accept="video/*"
-                  capture={questVideoSource === "live" ? "environment" : undefined}
-                  className="border rounded px-3 py-2 bg-white"
-                  onChange={(e) => void handleQuestVideoPicked(e.target.files?.[0] ?? null)}
-                />
+                {questVideoSource === "live" ? (
+                  <>
+                    <input
+                      ref={liveVideoInputRef}
+                      type="file"
+                      accept="video/*"
+                      capture="environment"
+                      className="hidden"
+                      onChange={(e) => void handleQuestVideoPicked(e.target.files?.[0] ?? null)}
+                    />
+                    <button
+                      type="button"
+                      className="border rounded px-3 py-2 bg-white text-left"
+                      onClick={() => liveVideoInputRef.current?.click()}
+                    >
+                      Record live video
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <input
+                      ref={uploadVideoInputRef}
+                      type="file"
+                      accept="video/*"
+                      className="hidden"
+                      onChange={(e) => void handleQuestVideoPicked(e.target.files?.[0] ?? null)}
+                    />
+                    <button
+                      type="button"
+                      className="border rounded px-3 py-2 bg-white text-left"
+                      onClick={() => uploadVideoInputRef.current?.click()}
+                    >
+                      Upload video file
+                    </button>
+                  </>
+                )}
                 {questVideoDurationSec !== null && (
                   <p className={`text-xs ${questVideoDurationSec > 15.2 ? "text-red-600" : "text-emerald-700"}`}>
                     Selected video: {questVideoDurationSec.toFixed(1)}s {questVideoDurationSec > 15.2 ? "(too long — max 15s)" : "(within 15s limit)"}
