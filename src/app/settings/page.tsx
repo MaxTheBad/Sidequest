@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase";
 
 type Tab = "profile" | "account" | "preferences";
@@ -25,6 +25,10 @@ export default function SettingsPage() {
   const [citySuggestions, setCitySuggestions] = useState<string[]>([]);
   const [avatarUrl, setAvatarUrl] = useState("");
   const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreviewUrl, setPhotoPreviewUrl] = useState("");
+  const [cropZoom, setCropZoom] = useState(1.2);
+  const [cropX, setCropX] = useState(50);
+  const [cropY, setCropY] = useState(50);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   const [newEmail, setNewEmail] = useState("");
@@ -35,7 +39,7 @@ export default function SettingsPage() {
 
   const countryOptions = useState(() => {
     try {
-      // @ts-ignore
+      // @ts-expect-error supportedValuesOf may not exist in all TS lib targets
       const regions: string[] | undefined = typeof Intl !== "undefined" && Intl.supportedValuesOf ? Intl.supportedValuesOf("region") : undefined;
       const dn = new Intl.DisplayNames(["en"], { type: "region" });
       const names = (regions || []).map((code) => ({ code, name: dn.of(code) || code })).filter((x) => !!x.name).sort((a, b) => a.name.localeCompare(b.name));
@@ -48,6 +52,11 @@ export default function SettingsPage() {
     const found = countryOptions.find((c) => c.name.toLowerCase() === name.trim().toLowerCase());
     return found?.code || countryCode;
   }
+
+  const selectedCountryCode = useMemo(() => {
+    const found = countryOptions.find((c) => c.name.toLowerCase() === countryQuery.trim().toLowerCase());
+    return (found?.code || countryCode || "").toLowerCase();
+  }, [countryOptions, countryCode, countryQuery]);
 
   useEffect(() => {
     if (!supabase) return;
@@ -90,20 +99,25 @@ export default function SettingsPage() {
 
   useEffect(() => {
     const q = city.trim();
-    if (q.length < 2) return setCitySuggestions([]);
+    if (q.length < 2) {
+      setCitySuggestions([]);
+      return;
+    }
+
     const t = setTimeout(async () => {
       try {
-        const cc = resolveCountryCodeByName(countryQuery);
-        const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=5${cc ? `&countrycodes=${cc.toLowerCase()}` : ""}&q=${encodeURIComponent(q)}`;
+        const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=5&language=en&format=json${selectedCountryCode ? `&countryCode=${selectedCountryCode}` : ""}`;
         const res = await fetch(url);
-        const json = (await res.json()) as Array<{ display_name: string }>;
-        setCitySuggestions(json.map((x) => x.display_name).slice(0, 5));
+        const json = (await res.json()) as { results?: Array<{ name: string; admin1?: string; country?: string }> };
+        const suggestions = (json.results || []).map((r) => [r.name, r.admin1, r.country].filter(Boolean).join(", "));
+        setCitySuggestions(suggestions);
       } catch {
         setCitySuggestions([]);
       }
-    }, 300);
+    }, 250);
+
     return () => clearTimeout(t);
-  }, [city, countryQuery, countryCode]);
+  }, [city, selectedCountryCode]);
 
   async function saveProfile(e: FormEvent) {
     e.preventDefault();
@@ -128,18 +142,62 @@ export default function SettingsPage() {
   }
 
 
+  async function makeCroppedAvatar(file: File) {
+    const imgUrl = URL.createObjectURL(file);
+    try {
+      const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const i = new Image();
+        i.onload = () => resolve(i);
+        i.onerror = () => reject(new Error("Could not load image."));
+        i.src = imgUrl;
+      });
+
+      const size = 512;
+      const canvas = document.createElement("canvas");
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("Could not prepare image editor.");
+
+      const zoom = Math.max(1, cropZoom);
+      const drawW = img.width * zoom;
+      const drawH = img.height * zoom;
+      const minX = size - drawW;
+      const minY = size - drawH;
+      const dx = minX * (cropX / 100);
+      const dy = minY * (cropY / 100);
+
+      ctx.clearRect(0, 0, size, size);
+      ctx.drawImage(img, dx, dy, drawW, drawH);
+
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.9));
+      if (!blob) throw new Error("Could not export cropped photo.");
+      return blob;
+    } finally {
+      URL.revokeObjectURL(imgUrl);
+    }
+  }
+
   async function uploadProfilePhoto() {
     if (!supabase || !userId || !photoFile) return setStatus("Choose a photo first.");
     if (!photoFile.type.startsWith("image/")) return setStatus("Please choose an image file.");
     if (photoFile.size > 8 * 1024 * 1024) return setStatus("Photo must be under 8MB.");
 
     setUploadingPhoto(true);
-    const ext = (photoFile.name.split(".").pop() || "jpg").toLowerCase();
-    const filePath = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+
+    let cropped: Blob;
+    try {
+      cropped = await makeCroppedAvatar(photoFile);
+    } catch (err) {
+      setUploadingPhoto(false);
+      return setStatus(err instanceof Error ? err.message : "Could not crop image.");
+    }
+
+    const filePath = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
 
     const { error: uploadError } = await supabase.storage
       .from("profile-photos")
-      .upload(filePath, photoFile, { upsert: false, contentType: photoFile.type });
+      .upload(filePath, cropped, { upsert: false, contentType: "image/jpeg" });
 
     if (uploadError) {
       setUploadingPhoto(false);
@@ -156,6 +214,7 @@ export default function SettingsPage() {
 
     setAvatarUrl(publicData.publicUrl);
     setPhotoFile(null);
+    setPhotoPreviewUrl("");
     setStatus("Profile photo updated ✅");
   }
 
@@ -172,6 +231,12 @@ export default function SettingsPage() {
     setPhotoFile(null);
     setStatus("Profile photo removed.");
   }
+
+  useEffect(() => {
+    return () => {
+      if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl);
+    };
+  }, [photoPreviewUrl]);
 
   async function changeEmail(e: FormEvent) {
     e.preventDefault();
@@ -240,9 +305,37 @@ export default function SettingsPage() {
                     accept="image/*"
                     capture="user"
                     className="border rounded px-3 py-2 bg-white"
-                    onChange={(e) => setPhotoFile(e.target.files?.[0] ?? null)}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] ?? null;
+                      setPhotoFile(file);
+                      setCropZoom(1.2);
+                      setCropX(50);
+                      setCropY(50);
+                      if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl);
+                      setPhotoPreviewUrl(file ? URL.createObjectURL(file) : "");
+                    }}
                   />
                   <p className="text-xs text-gray-500">Camera capture only in supported browsers/devices.</p>
+
+                  {photoPreviewUrl && (
+                    <div className="rounded-lg border bg-white p-2 space-y-2">
+                      <p className="text-xs text-gray-600">Adjust crop before upload</p>
+                      <div className="h-56 w-56 rounded-full overflow-hidden border mx-auto bg-black/5">
+                        <img
+                          src={photoPreviewUrl}
+                          alt="Preview"
+                          className="h-full w-full object-cover"
+                          style={{ transform: `scale(${cropZoom})`, transformOrigin: `${cropX}% ${cropY}%` }}
+                        />
+                      </div>
+                      <label className="text-xs">Zoom</label>
+                      <input type="range" min={1} max={3} step={0.05} value={cropZoom} onChange={(e) => setCropZoom(Number(e.target.value))} />
+                      <label className="text-xs">Focus left/right</label>
+                      <input type="range" min={0} max={100} step={1} value={cropX} onChange={(e) => setCropX(Number(e.target.value))} />
+                      <label className="text-xs">Focus up/down</label>
+                      <input type="range" min={0} max={100} step={1} value={cropY} onChange={(e) => setCropY(Number(e.target.value))} />
+                    </div>
+                  )}
                   <div className="flex gap-2 flex-wrap">
                     <button
                       type="button"
@@ -253,7 +346,15 @@ export default function SettingsPage() {
                       {uploadingPhoto ? "Uploading..." : "Upload camera photo"}
                     </button>
                     {!!photoFile && (
-                      <button type="button" className="border rounded px-3 py-2 w-fit" onClick={() => setPhotoFile(null)}>
+                      <button
+                        type="button"
+                        className="border rounded px-3 py-2 w-fit"
+                        onClick={() => {
+                          setPhotoFile(null);
+                          if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl);
+                          setPhotoPreviewUrl("");
+                        }}
+                      >
                         Clear selected photo
                       </button>
                     )}

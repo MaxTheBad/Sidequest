@@ -58,6 +58,7 @@ export default function Home() {
   const [status, setStatus] = useState("");
   const [userId, setUserId] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState("");
+  const [viewerName, setViewerName] = useState("");
 
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -145,11 +146,18 @@ export default function Home() {
       const { data } = await supabase.auth.getSession();
       setUserId(data.session?.user?.id ?? null);
       setUserEmail(data.session?.user?.email ?? "");
+      if (data.session?.user) {
+        const md = (data.session.user.user_metadata || {}) as Record<string, unknown>;
+        setViewerName((typeof md.full_name === "string" && md.full_name) || (typeof md.name === "string" && md.name) || "");
+      }
+
       if (!data.session) {
         const u = await supabase.auth.getUser();
         if (u.data.user) {
           setUserId(u.data.user.id);
           setUserEmail(u.data.user.email ?? "");
+          const md = (u.data.user.user_metadata || {}) as Record<string, unknown>;
+          setViewerName((typeof md.full_name === "string" && md.full_name) || (typeof md.name === "string" && md.name) || "");
         }
       }
 
@@ -175,6 +183,8 @@ export default function Home() {
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
       setUserId(session?.user?.id ?? null);
       setUserEmail(session?.user?.email ?? "");
+      const md = (session?.user?.user_metadata || {}) as Record<string, unknown>;
+      setViewerName((typeof md.full_name === "string" && md.full_name) || (typeof md.name === "string" && md.name) || "");
       if (session?.user) {
         setShowAuthModal(false);
         setStatus("Signed in ✅");
@@ -343,6 +353,7 @@ export default function Home() {
     await supabase.auth.signOut();
     setUserId(null);
     setUserEmail("");
+    setViewerName("");
     setShowPhotoStepModal(false);
     setPhotoStepFile(null);
     setPhotoStepState("idle");
@@ -798,6 +809,7 @@ ${description}`
           <div>
             <h1 className="text-2xl font-bold">Side Quest</h1>
             <p className="text-xs text-gray-500">Find your hobby people</p>
+            {userId && <p className="text-xs text-emerald-700 mt-1">Signed in as {viewerName || userEmail || "member"}</p>}
           </div>
           <div className="flex gap-2">
             <button className="bg-black text-white rounded px-3 py-2" onClick={() => (userId ? openCreateModal() : setShowAuthModal(true))}>+ Create</button>

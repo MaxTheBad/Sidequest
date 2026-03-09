@@ -21,10 +21,12 @@ type Listing = {
   profiles?: { id: string; display_name: string | null; avatar_url: string | null }[] | null;
 };
 
+type MemberProfile = { id: string; display_name: string | null; avatar_url: string | null };
+
 type MemberRow = {
   user_id: string;
   role: "creator" | "member";
-  profiles?: { id: string; display_name: string | null; avatar_url: string | null }[] | null;
+  profiles?: MemberProfile[] | MemberProfile | null;
 };
 
 export const runtime = "edge";
@@ -49,8 +51,14 @@ export default function ListingPage() {
       .eq("quest_id", questId)
       .order("joined_at", { ascending: true });
 
-    if (error) return;
-    const rows = (data as MemberRow[]) || [];
+    if (error) {
+      setStatus(error.message);
+      return;
+    }
+    const rows = ((data as MemberRow[]) || []).reduce<MemberRow[]>((acc, row) => {
+      if (!acc.some((x) => x.user_id === row.user_id)) acc.push(row);
+      return acc;
+    }, []);
     setMembers(rows);
     setHasJoined(!!uid && rows.some((m) => m.user_id === uid));
   }
@@ -122,8 +130,18 @@ export default function ListingPage() {
       return;
     }
 
-    const { error } = await supabase.from("quest_members").insert({ quest_id: listing.id, user_id: userId, role: "member" });
-    if (error && !error.message.includes("duplicate")) return setStatus(error.message);
+    const { data: existing } = await supabase
+      .from("quest_members")
+      .select("user_id")
+      .eq("quest_id", listing.id)
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (!existing) {
+      const { error } = await supabase.from("quest_members").insert({ quest_id: listing.id, user_id: userId, role: "member" });
+      if (error && !error.message.includes("duplicate") && !error.message.toLowerCase().includes("unique")) return setStatus(error.message);
+    }
+
     setStatus("Joined listing ✅");
     setHasJoined(true);
     await loadMembers(listing.id, userId);
@@ -181,6 +199,11 @@ export default function ListingPage() {
 
   const isOwner = !!(userId && listing && userId === listing.creator_id);
 
+  function memberProfileOf(member: MemberRow): MemberProfile | null {
+    if (!member.profiles) return null;
+    return Array.isArray(member.profiles) ? (member.profiles[0] || null) : member.profiles;
+  }
+
   return (
     <main className="min-h-screen bg-[#f6f7fb] p-4">
       <div className="max-w-4xl mx-auto space-y-3">
@@ -235,15 +258,16 @@ export default function ListingPage() {
               {members.length ? (
                 <div className="flex flex-wrap gap-2">
                   {members.map((m) => {
-                    const p = m.profiles?.[0];
+                    const p = memberProfileOf(m);
+                    const firstName = (p?.display_name || "Member").trim().split(/\s+/)[0] || "Member";
                     return (
-                      <Link key={m.user_id} href={`/profile/${m.user_id}`} className="inline-flex items-center gap-2 border rounded-full bg-white px-2 py-1">
+                      <Link key={`${m.user_id}-${m.role}`} href={`/profile/${m.user_id}`} className="inline-flex items-center gap-2 border rounded-full bg-white px-2 py-1">
                         {p?.avatar_url ? (
                           <img src={p.avatar_url} alt={p?.display_name || "Member"} className="h-6 w-6 rounded-full object-cover border" />
                         ) : (
                           <div className="h-6 w-6 rounded-full bg-gray-100 border" />
                         )}
-                        <span className="text-xs">{p?.display_name || "Member"}</span>
+                        <span className="text-xs">{firstName}</span>
                       </Link>
                     );
                   })}
