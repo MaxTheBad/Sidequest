@@ -70,7 +70,7 @@ export default function GlobalTopBar() {
   }
 
   return (
-    <header className="fixed top-0 inset-x-0 z-50 border-b bg-white/95 backdrop-blur">
+    <header className="fixed top-0 inset-x-0 z-50 border-b nav-shell">
       <div className="max-w-5xl mx-auto px-4 h-12 flex items-center justify-between gap-3">
         <Link href="/" className="font-semibold text-sm">Side Quest</Link>
         <div className="ml-auto flex items-center gap-2">

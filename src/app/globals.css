@@ -36,3 +36,28 @@ html[data-theme="dark"] .bg-black {
   background-color: #e5e7eb !important;
   color: #0b0d12 !important;
 }
+
+.nav-shell {
+  background: color-mix(in srgb, var(--surface) 86%, transparent);
+  border-color: var(--border) !important;
+  backdrop-filter: blur(14px);
+}
+
+.nav-item {
+  color: color-mix(in srgb, var(--foreground) 62%, transparent);
+}
+
+.nav-item-active {
+  color: var(--foreground);
+  font-weight: 600;
+}
+
+.nav-create {
+  background: #111827;
+  color: #fff;
+}
+
+html[data-theme="dark"] .nav-create {
+  background: #e5e7eb;
+  color: #0b0d12;
+}
