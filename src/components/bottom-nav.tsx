@@ -22,8 +22,15 @@ export default function BottomNav() {
 
   const isActive = (path: string) => pathname === path;
 
-  function requireAuthNavigate(path: string) {
-    if (userId) return router.push(path);
+  async function requireAuthNavigate(path: string) {
+    let authedUserId = userId;
+    if (!authedUserId && supabase) {
+      const { data } = await supabase.auth.getSession();
+      authedUserId = data.session?.user?.id ?? null;
+      if (authedUserId) setUserId(authedUserId);
+    }
+
+    if (authedUserId) return router.push(path);
     if (typeof window === "undefined") return;
     if (pathname === "/") {
       window.dispatchEvent(new CustomEvent("sidequest:open-auth"));
