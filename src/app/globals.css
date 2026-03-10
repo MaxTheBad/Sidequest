@@ -1,11 +1,14 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f2f2f7;
+  --background: #f4f5fb;
   --foreground: #111827;
   --surface: #ffffff;
-  --muted: #f3f4f6;
-  --border: #d1d5db;
+  --muted: #eef1f8;
+  --border: #d4d9e6;
+  --accent-a: #6d5efc;
+  --accent-b: #00c2ff;
+  --accent-c: #ff4d8d;
 }
 
 html[data-theme="dark"] {
@@ -14,10 +17,16 @@ html[data-theme="dark"] {
   --surface: #151922;
   --muted: #1d2430;
   --border: #2a3345;
+  --accent-a: #8f82ff;
+  --accent-b: #34d6ff;
+  --accent-c: #ff72a8;
 }
 
 body {
-  background: var(--background);
+  background:
+    radial-gradient(1200px 500px at 10% -10%, color-mix(in srgb, var(--accent-a) 16%, transparent), transparent 60%),
+    radial-gradient(900px 420px at 90% -20%, color-mix(in srgb, var(--accent-b) 12%, transparent), transparent 62%),
+    var(--background);
   color: var(--foreground);
   font-family: Inter, Arial, Helvetica, sans-serif;
 }
@@ -32,9 +41,23 @@ body {
   border-radius: 16px;
 }
 
-html[data-theme="dark"] .bg-black {
-  background-color: #e5e7eb !important;
-  color: #0b0d12 !important;
+.bg-black.text-white {
+  background: linear-gradient(135deg, var(--accent-a), var(--accent-b)) !important;
+  color: #fff !important;
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--accent-a) 28%, transparent);
+}
+
+.bg-emerald-600.text-white {
+  background: linear-gradient(135deg, #11b981, #06d6a0) !important;
+}
+
+.bg-blue-600.text-white {
+  background: linear-gradient(135deg, #3b82f6, #06b6d4) !important;
+}
+
+html[data-theme="dark"] .bg-black.text-white {
+  background: linear-gradient(135deg, var(--accent-a), var(--accent-c)) !important;
+  color: #fff !important;
 }
 
 .nav-shell {
@@ -64,13 +87,13 @@ html[data-theme="dark"] .bg-black {
 }
 
 .nav-create {
-  background: linear-gradient(180deg, #1f2937, #0f172a);
+  background: linear-gradient(135deg, var(--accent-c), var(--accent-a));
   color: #fff;
-  box-shadow: 0 10px 20px rgba(17,24,39,0.28);
+  box-shadow: 0 12px 22px color-mix(in srgb, var(--accent-c) 32%, transparent);
 }
 
 html[data-theme="dark"] .nav-create {
-  background: linear-gradient(180deg, #f3f4f6, #d1d5db);
-  color: #0b0d12;
-  box-shadow: 0 10px 20px rgba(0,0,0,0.4);
+  background: linear-gradient(135deg, var(--accent-c), var(--accent-a));
+  color: #fff;
+  box-shadow: 0 12px 22px rgba(0,0,0,0.45);
 }
