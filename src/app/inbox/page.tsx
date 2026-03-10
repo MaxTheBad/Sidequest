@@ -125,7 +125,7 @@ export default function InboxPage() {
       supabase
         .from("messages")
         .select("id,quest_id,sender_id,body,created_at,quests(title,creator_id,media_video_url,media_items),profiles:profiles!messages_sender_id_fkey(id,display_name,avatar_url)")
-        .or("body.like.[PUBLIC] %,and(body.not.like.[PRIVATE] %,body.not.like.[PUBLIC] %)")
+        .or("body.like.[PUBLIC] %,and(body.not.like.[PRIVATE%,body.not.like.[PUBLIC] %)")
         .order("created_at", { ascending: false })
         .limit(300),
     ]);
@@ -136,10 +136,17 @@ export default function InboxPage() {
           .from("messages")
           .select("id,quest_id,sender_id,body,created_at,quests(title,creator_id,media_video_url,media_items),profiles:profiles!messages_sender_id_fkey(id,display_name,avatar_url)")
           .in("quest_id", ownerQuestIds)
-          .like("body", "[PRIVATE] %")
+          .like("body", "[PRIVATE%")
           .order("created_at", { ascending: false })
           .limit(300)
       : { data: [], error: null };
+
+    const privateForMeRes = await supabase
+      .from("messages")
+      .select("id,quest_id,sender_id,body,created_at,quests(title,creator_id,media_video_url,media_items),profiles:profiles!messages_sender_id_fkey(id,display_name,avatar_url)")
+      .like("body", `[PRIVATE to=${uid}] %`)
+      .order("created_at", { ascending: false })
+      .limit(300);
 
     if (sentRes.error) {
       setStatus(sentRes.error.message);
@@ -156,11 +163,17 @@ export default function InboxPage() {
       if (!silent) setLoading(false);
       return;
     }
+    if (privateForMeRes.error) {
+      setStatus(privateForMeRes.error.message);
+      if (!silent) setLoading(false);
+      return;
+    }
 
     const sentRows = ((sentRes.data || []) as RawInboxMessage[]).map(normalizeMessageRow);
     const publicRows = ((publicRes.data || []) as RawInboxMessage[]).map(normalizeMessageRow);
     const privateRows = ((privateRes.data || []) as RawInboxMessage[]).map(normalizeMessageRow);
-    const merged = [...sentRows, ...publicRows, ...privateRows];
+    const privateForMeRows = ((privateForMeRes.data || []) as RawInboxMessage[]).map(normalizeMessageRow);
+    const merged = [...sentRows, ...publicRows, ...privateRows, ...privateForMeRows];
     const dedupedMap = new Map<string, InboxMessage>();
     merged.forEach((m) => dedupedMap.set(m.id, m));
     const deduped = Array.from(dedupedMap.values()).sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at));
