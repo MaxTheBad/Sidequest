@@ -796,7 +796,13 @@ export default function Home() {
 
     e.preventDefault();
     if (!supabase) return;
-    if (!userId) {
+    let activeUserId = userId;
+    if (!activeUserId) {
+      const { data } = await supabase.auth.getSession();
+      activeUserId = data.session?.user?.id ?? null;
+      if (activeUserId) setUserId(activeUserId);
+    }
+    if (!activeUserId) {
       setShowAuthModal(true);
       return setStatus("Log in to create.");
     }
@@ -805,13 +811,13 @@ export default function Home() {
     const { count: recentQuestCount } = await supabase
       .from("quests")
       .select("id", { count: "exact", head: true })
-      .eq("creator_id", userId)
+      .eq("creator_id", activeUserId)
       .gte("created_at", new Date(Date.now() - 60 * 60 * 1000).toISOString());
     if ((recentQuestCount || 0) >= 5 && !editingQuestId) return setStatus("Rate limit: max 5 new listings per hour.");
 
     // Ensure profile row exists (required by quests.creator_id FK)
     const { error: profileErr } = await supabase.from("profiles").upsert({
-      id: userId,
+      id: activeUserId,
       display_name: fullName || userEmail.split("@")[0] || "SideQuest user",
       city,
       availability: availabilityMode === "specific" ? selectedDays.join(", ") : availability,
@@ -891,15 +897,15 @@ ${description}`
           .from("quests")
           .update(payload)
           .eq("id", editingQuestId)
-          .eq("creator_id", userId);
+          .eq("creator_id", activeUserId);
         if (error) throw new Error(error.message);
 
         setStatus("Listing updated ✅");
         setLastQuestCreateMs(Date.now());
       } else {
-        const { data, error } = await supabase.from("quests").insert({ creator_id: userId, hobby_id: finalHobbyId, title, description: finalDescription, city, exact_address: exactAddress || null, join_mode: joinMode, exact_location_visibility: exactLocationVisibility, skill_level: skillLevel, availability: avail, group_size: groupSize, media_video_url: null, media_source: null, media_items: nextMediaItems }).select("id").single();
+        const { data, error } = await supabase.from("quests").insert({ creator_id: activeUserId, hobby_id: finalHobbyId, title, description: finalDescription, city, exact_address: exactAddress || null, join_mode: joinMode, exact_location_visibility: exactLocationVisibility, skill_level: skillLevel, availability: avail, group_size: groupSize, media_video_url: null, media_source: null, media_items: nextMediaItems }).select("id").single();
         if (error) throw new Error(error.message);
-        if (data?.id) await supabase.from("quest_members").insert({ quest_id: data.id, user_id: userId, role: "creator" });
+        if (data?.id) await supabase.from("quest_members").insert({ quest_id: data.id, user_id: activeUserId, role: "creator" });
         setStatus("Quest posted ✅");
         setLastQuestCreateMs(Date.now());
       }
