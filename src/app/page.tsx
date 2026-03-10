@@ -211,8 +211,6 @@ export default function Home() {
         setShowAuthModal(false);
         if (event === "SIGNED_IN" && typeof window !== "undefined" && window.location.search.includes("code=")) {
           setStatus("✅ Email confirmed. Welcome!");
-        } else {
-          setStatus("Signed in ✅");
         }
         void maybeShowPhotoOnboarding(session.user.id);
       }
