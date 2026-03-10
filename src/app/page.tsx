@@ -800,6 +800,13 @@ export default function Home() {
     setShowCreateModal(true);
   }
 
+  function deriveCityFromLocation(input: string) {
+    const parts = input.split(",").map((p) => p.trim()).filter(Boolean);
+    if (!parts.length) return "";
+    if (parts.length === 1) return parts[0];
+    return parts[parts.length - 2] || parts[0];
+  }
+
   async function createQuest(e: FormEvent) {
 
     e.preventDefault();
@@ -823,17 +830,18 @@ export default function Home() {
       .gte("created_at", new Date(Date.now() - 60 * 60 * 1000).toISOString());
     if ((recentQuestCount || 0) >= 5 && !editingQuestId) return setStatus("Rate limit: max 5 new listings per hour.");
 
+    const derivedCity = deriveCityFromLocation(exactAddress) || city;
+    const avail = availabilityMode === "specific" ? selectedDays.join(", ") : availability;
+
     // Ensure profile row exists (required by quests.creator_id FK)
     const { error: profileErr } = await supabase.from("profiles").upsert({
       id: activeUserId,
       display_name: fullName || userEmail.split("@")[0] || "SideQuest user",
-      city,
+      city: derivedCity,
       availability: availabilityMode === "specific" ? selectedDays.join(", ") : availability,
       skill_level: skillLevel,
     });
     if (profileErr) return setStatus(`Profile setup failed: ${profileErr.message}`);
-
-    const avail = availabilityMode === "specific" ? selectedDays.join(", ") : availability;
 
     let finalHobbyId = hobbyId;
     if (useCustomCategory && customCategory.trim()) {
@@ -889,7 +897,7 @@ ${description}`
           hobby_id: finalHobbyId,
           title,
           description: finalDescription,
-          city,
+          city: derivedCity,
           exact_address: exactAddress || null,
           join_mode: joinMode,
           exact_location_visibility: exactLocationVisibility,
@@ -911,7 +919,7 @@ ${description}`
         setStatus("Listing updated ✅");
         setLastQuestCreateMs(Date.now());
       } else {
-        const { data, error } = await supabase.from("quests").insert({ creator_id: activeUserId, hobby_id: finalHobbyId, title, description: finalDescription, city, exact_address: exactAddress || null, join_mode: joinMode, exact_location_visibility: exactLocationVisibility, skill_level: skillLevel, availability: avail, group_size: groupSize, media_video_url: null, media_source: null, media_items: nextMediaItems }).select("id").single();
+        const { data, error } = await supabase.from("quests").insert({ creator_id: activeUserId, hobby_id: finalHobbyId, title, description: finalDescription, city: derivedCity, exact_address: exactAddress || null, join_mode: joinMode, exact_location_visibility: exactLocationVisibility, skill_level: skillLevel, availability: avail, group_size: groupSize, media_video_url: null, media_source: null, media_items: nextMediaItems }).select("id").single();
         if (error) throw new Error(error.message);
         if (data?.id) await supabase.from("quest_members").insert({ quest_id: data.id, user_id: activeUserId, role: "creator" });
         setStatus("Quest posted ✅");
@@ -1384,12 +1392,6 @@ ${description}`
               <label className="text-sm font-medium">Country</label>
               <input list="country-list" className="border rounded px-3 py-2" value={countryQuery} onChange={(e) => { setCountryQuery(e.target.value); setCountryCode(resolveCountryCodeByName(e.target.value)); }} placeholder="Start typing country..." />
 
-              <label className="text-sm font-medium">City</label>
-              <div className="relative">
-                <input className="border rounded px-3 py-2 w-full" placeholder={`Start typing a city in ${countryCode}...`} value={city} onChange={(e) => setCity(e.target.value)} />
-                {citySuggestions.length > 0 && <div className="absolute z-20 left-0 right-0 mt-1 border rounded bg-white shadow max-h-44 overflow-auto">{citySuggestions.map((c) => <button key={c} type="button" className="w-full text-left px-3 py-2 hover:bg-gray-100" onClick={() => { setCity(c); setCitySuggestions([]); }}>{c}</button>)}</div>}
-              </div>
-
               <label className="text-sm font-medium">Availability</label>
               <div className="flex gap-4 text-sm">
                 <label className="flex items-center gap-2"><input type="radio" checked={availabilityMode === "flexible"} onChange={() => setAvailabilityMode("flexible")} /> Flexible</label>
@@ -1413,10 +1415,10 @@ ${description}`
                 <option value="approval_required">Host must approve members</option>
               </select>
 
-              <label className="text-sm font-medium">Exact address (private by default)</label>
-              <input className="border rounded px-3 py-2" placeholder="Street address or meeting point" value={exactAddress} onChange={(e) => setExactAddress(e.target.value)} />
+              <label className="text-sm font-medium">Location</label>
+              <input className="border rounded px-3 py-2" placeholder="Address or location (city is okay too)" value={exactAddress} onChange={(e) => setExactAddress(e.target.value)} />
 
-              <label className="text-sm font-medium">Exact address visibility</label>
+              <label className="text-sm font-medium">Location visibility</label>
               <select className="border rounded px-3 py-2" value={exactLocationVisibility} onChange={(e) => setExactLocationVisibility(e.target.value as "private" | "public" | "approved_members")}>
                 <option value="private">Private (recommended)</option>
                 <option value="approved_members">Approved members only</option>
