@@ -175,7 +175,9 @@ export default function ListingPage() {
     if ((count || 0) >= 6) return setStatus("Rate limit: please wait a minute before sending more messages.");
 
     setSendingQuestion(true);
-    const prefix = questionMode === "private" ? "[PRIVATE] " : "[PUBLIC] ";
+    const prefix = questionMode === "private"
+      ? `[PRIVATE to=${listing.creator_id}] `
+      : "[PUBLIC] ";
     const { error } = await supabase.from("messages").insert({
       quest_id: listing.id,
       sender_id: userId,

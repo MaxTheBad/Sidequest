@@ -57,12 +57,17 @@ function normalizeMessageRow(row: RawInboxMessage): InboxMessage {
 }
 
 function getMessagePrivacy(body: string): ThreadKind {
-  if (body.startsWith("[PRIVATE] ")) return "private";
+  if (body.startsWith("[PRIVATE")) return "private";
   return "public";
 }
 
+function getPrivateRecipientId(body: string): string | null {
+  const match = body.match(/^\[PRIVATE(?:\s+to=([0-9a-fA-F-]{36}))?\]\s?/);
+  return match?.[1] || null;
+}
+
 function getMessageText(body: string) {
-  if (body.startsWith("[PRIVATE] ")) return body.replace("[PRIVATE] ", "");
+  if (body.startsWith("[PRIVATE")) return body.replace(/^\[PRIVATE(?:\s+to=[0-9a-fA-F-]{36})?\]\s?/, "");
   if (body.startsWith("[PUBLIC] ")) return body.replace("[PUBLIC] ", "");
   return body;
 }
@@ -253,8 +258,9 @@ export default function InboxPage() {
     const map = new Map<string, Thread>();
     for (const m of messages) {
       const kind = getMessagePrivacy(m.body);
+      const recipientId = getPrivateRecipientId(m.body);
       const partnerId = kind === "private"
-        ? (m.sender_id === userId ? (m.quests?.creator_id || null) : m.sender_id)
+        ? (m.sender_id === userId ? (recipientId || m.quests?.creator_id || null) : m.sender_id)
         : null;
       const id = kind === "private" ? `${m.quest_id}:${kind}:${partnerId || "unknown"}` : `${m.quest_id}:${kind}`;
       if (!map.has(id)) {
@@ -321,7 +327,8 @@ export default function InboxPage() {
         if (m.quest_id !== activeThread.questId) return false;
         if (getMessagePrivacy(m.body) !== activeThread.kind) return false;
         if (activeThread.kind !== "private") return true;
-        const partnerId = m.sender_id === userId ? (m.quests?.creator_id || null) : m.sender_id;
+        const recipientId = getPrivateRecipientId(m.body);
+        const partnerId = m.sender_id === userId ? (recipientId || m.quests?.creator_id || null) : m.sender_id;
         return partnerId === activeThread.partnerId;
       })
       .sort((a, b) => +new Date(a.created_at) - +new Date(b.created_at));
@@ -405,7 +412,9 @@ export default function InboxPage() {
     if ((count || 0) >= 6) return setStatus("Rate limit: please wait a minute before sending more messages.");
 
     setSending(true);
-    const prefix = activeThread.kind === "private" ? "[PRIVATE] " : "[PUBLIC] ";
+    const prefix = activeThread.kind === "private"
+      ? (activeThread.partnerId ? `[PRIVATE to=${activeThread.partnerId}] ` : "[PRIVATE] ")
+      : "[PUBLIC] ";
     const { error } = await supabase.from("messages").insert({
       quest_id: activeThread.questId,
       sender_id: userId,
