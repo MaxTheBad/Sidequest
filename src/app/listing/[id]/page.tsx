@@ -28,8 +28,8 @@ type MemberProfile = { id: string; display_name: string | null; avatar_url: stri
 
 type MemberRow = {
   user_id: string;
-  role: "creator" | "member";
-  status?: "pending" | "approved";
+  role: "creator" | "cohost" | "member";
+  status?: "pending" | "approved" | "declined";
   profiles?: MemberProfile[] | MemberProfile | null;
 };
 
@@ -45,7 +45,7 @@ export default function ListingPage() {
   const [userId, setUserId] = useState<string | null>(null);
   const [isSaved, setIsSaved] = useState(false);
   const [hasJoined, setHasJoined] = useState(false);
-  const [myMembershipStatus, setMyMembershipStatus] = useState<"pending" | "approved" | null>(null);
+  const [myMembershipStatus, setMyMembershipStatus] = useState<"pending" | "approved" | "declined" | null>(null);
   const [members, setMembers] = useState<MemberRow[]>([]);
   const [exactAccessUserIds, setExactAccessUserIds] = useState<string[]>([]);
   const [showQuestionModal, setShowQuestionModal] = useState(false);
@@ -74,7 +74,7 @@ export default function ListingPage() {
     }, []);
     setMembers(rows);
     const mine = uid ? rows.find((m) => m.user_id === uid) : null;
-    setMyMembershipStatus((mine?.status || (mine ? "approved" : null)) as "pending" | "approved" | null);
+    setMyMembershipStatus((mine?.status || (mine ? "approved" : null)) as "pending" | "approved" | "declined" | null);
     setHasJoined(!!mine && (mine.status || "approved") === "approved");
   }
 
@@ -122,7 +122,7 @@ export default function ListingPage() {
       }
 
       await loadMembers(listingId, uid);
-      if (uid && data?.creator_id === uid) {
+      if (uid) {
         const { data: accessRows } = await supabase
           .from("quest_exact_location_access")
           .select("user_id")
@@ -153,8 +153,17 @@ export default function ListingPage() {
     }
 
     const nextStatus = (listing.join_mode || "open") === "approval_required" ? "pending" : "approved";
-    const { error } = await supabase.from("quest_members").insert({ quest_id: listing.id, user_id: userId, role: "member", status: nextStatus });
-    if (error && !error.message.includes("duplicate") && !error.message.toLowerCase().includes("unique")) return setStatus(error.message);
+    if (myMembershipStatus === "declined") {
+      const { error } = await supabase
+        .from("quest_members")
+        .update({ status: nextStatus })
+        .eq("quest_id", listing.id)
+        .eq("user_id", userId);
+      if (error) return setStatus(error.message);
+    } else {
+      const { error } = await supabase.from("quest_members").insert({ quest_id: listing.id, user_id: userId, role: "member", status: nextStatus });
+      if (error && !error.message.includes("duplicate") && !error.message.toLowerCase().includes("unique")) return setStatus(error.message);
+    }
 
     setStatus(nextStatus === "pending" ? "Join request sent ⏳" : "Joined listing ✅");
     setHasJoined(nextStatus === "approved");
@@ -163,7 +172,7 @@ export default function ListingPage() {
   }
 
   async function setMemberApproval(targetUserId: string, next: "pending" | "approved") {
-    if (!supabase || !listing || !isOwner) return;
+    if (!supabase || !listing || !isManager) return;
     const { error } = await supabase
       .from("quest_members")
       .update({ status: next })
@@ -176,15 +185,34 @@ export default function ListingPage() {
   }
 
   async function declineMember(targetUserId: string) {
-    if (!supabase || !listing || !isOwner) return;
-    const { error } = await supabase.from("quest_members").delete().eq("quest_id", listing.id).eq("user_id", targetUserId).neq("role", "creator");
+    if (!supabase || !listing || !isManager) return;
+    const { error } = await supabase
+      .from("quest_members")
+      .update({ status: "declined" })
+      .eq("quest_id", listing.id)
+      .eq("user_id", targetUserId)
+      .neq("role", "creator");
     if (error) return setStatus(error.message);
     await loadMembers(listing.id, userId);
     setStatus("Request declined.");
   }
 
-  async function toggleExactAccess(targetUserId: string, allow: boolean) {
+  async function setMemberRole(targetUserId: string, nextRole: "member" | "cohost") {
     if (!supabase || !listing || !isOwner) return;
+    const { error } = await supabase
+      .from("quest_members")
+      .update({ role: nextRole })
+      .eq("quest_id", listing.id)
+      .eq("user_id", targetUserId)
+      .neq("role", "creator")
+      .eq("status", "approved");
+    if (error) return setStatus(error.message);
+    await loadMembers(listing.id, userId);
+    setStatus(nextRole === "cohost" ? "Promoted to co-host." : "Demoted to member.");
+  }
+
+  async function toggleExactAccess(targetUserId: string, allow: boolean) {
+    if (!supabase || !listing || !isManager) return;
     if (allow) {
       const { error } = await supabase.from("quest_exact_location_access").upsert({ quest_id: listing.id, user_id: targetUserId, granted_by: userId });
       if (error) return setStatus(error.message);
@@ -269,8 +297,10 @@ export default function ListingPage() {
   }
 
   const isOwner = !!(userId && listing && userId === listing.creator_id);
+  const myMemberRow = userId ? members.find((m) => m.user_id === userId) : null;
+  const isManager = !!(isOwner || (myMemberRow && myMemberRow.role === "cohost" && (myMemberRow.status || "approved") === "approved"));
   const canViewExactAddress = !!(listing && userId && (
-    isOwner ||
+    isManager ||
     listing.exact_location_visibility === "public" ||
     (listing.exact_location_visibility === "approved_members" && myMembershipStatus === "approved") ||
     exactAccessUserIds.includes(userId)
@@ -355,16 +385,22 @@ export default function ListingPage() {
                           )}
                           <span className="text-xs">{firstName}</span>
                         </Link>
-                        {isOwner && m.role !== "creator" && (
+                        {m.role === "cohost" && <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">Co-host</span>}
+                        {isManager && m.role !== "creator" && (
                           <button type="button" className={`text-[10px] border rounded px-2 py-0.5 ${hasExactAccess ? "bg-emerald-50 border-emerald-300" : ""}`} onClick={() => void toggleExactAccess(m.user_id, !hasExactAccess)}>
                             {hasExactAccess ? "Exact: on" : "Exact: off"}
+                          </button>
+                        )}
+                        {isOwner && m.role !== "creator" && (m.status || "approved") === "approved" && (
+                          <button type="button" className="text-[10px] border rounded px-2 py-0.5" onClick={() => void setMemberRole(m.user_id, m.role === "cohost" ? "member" : "cohost")}>
+                            {m.role === "cohost" ? "Demote" : "Promote"}
                           </button>
                         )}
                       </div>
                     );
                   })}
 
-                  {isOwner && members.some((m) => m.status === "pending") && (
+                  {isManager && members.some((m) => m.status === "pending") && (
                     <div className="pt-2 border-t">
                       <p className="text-xs font-medium mb-2">Pending join requests</p>
                       <div className="grid gap-2">
@@ -384,16 +420,48 @@ export default function ListingPage() {
                       </div>
                     </div>
                   )}
+
+                  {isManager && members.some((m) => m.status === "declined") && (
+                    <div className="pt-2 border-t">
+                      <p className="text-xs font-medium mb-2">Declined requests</p>
+                      <div className="flex flex-wrap gap-2">
+                        {members.filter((m) => m.status === "declined").map((m) => {
+                          const p = memberProfileOf(m);
+                          const firstName = (p?.display_name || "Member").trim().split(/\s+/)[0] || "Member";
+                          return <span key={`declined-${m.user_id}`} className="text-xs px-2 py-1 rounded border bg-white">{firstName}</span>;
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <p className="text-xs text-gray-500">No members yet.</p>
               )}
             </div>
 
+            {isManager && (
+              <div className="rounded-xl border bg-gray-50 p-3">
+                <p className="text-sm font-medium mb-2">Exact address access</p>
+                {members.filter((m) => exactAccessUserIds.includes(m.user_id)).length ? (
+                  <div className="flex flex-wrap gap-2">
+                    {members.filter((m) => exactAccessUserIds.includes(m.user_id)).map((m) => {
+                      const p = memberProfileOf(m);
+                      const firstName = (p?.display_name || "Member").trim().split(/\s+/)[0] || "Member";
+                      return (
+                        <button key={`exact-${m.user_id}`} type="button" className="text-xs border rounded-full bg-white px-2 py-1" onClick={() => void toggleExactAccess(m.user_id, false)}>
+                          {firstName} · Revoke
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : <p className="text-xs text-gray-500">No one has manual exact-address access.</p>}
+              </div>
+            )}
+
             <div className="pt-2 flex gap-2 flex-wrap">
               {!isOwner ? (
                 <>
-                  <button className="border rounded px-3 py-2" onClick={() => void toggleJoin()}>{myMembershipStatus === "pending" ? "Cancel request" : (hasJoined ? "Leave" : ((listing.join_mode || "open") === "approval_required" ? "Request to join" : "Join"))}</button>
+                  <button className="border rounded px-3 py-2" onClick={() => void toggleJoin()}>{myMembershipStatus === "pending" ? "Cancel request" : (myMembershipStatus === "declined" ? "Request again" : (hasJoined ? "Leave" : ((listing.join_mode || "open") === "approval_required" ? "Request to join" : "Join")))}</button>
                   <button className="border rounded px-3 py-2" onClick={() => void askQuestion()}>Ask question</button>
                   <button className="border rounded px-3 py-2" onClick={() => void toggleSave()}>{isSaved ? "★ Saved" : "☆ Save"}</button>
                 </>

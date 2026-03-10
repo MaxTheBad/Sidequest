@@ -43,7 +43,7 @@ type Quest = {
 type AuthMode = "login" | "signup";
 type ProfilePhotoStep = "idle" | "ready" | "uploading";
 type Bookmark = { quest_id: string };
-type Membership = { quest_id: string; status?: "pending" | "approved" };
+type Membership = { quest_id: string; status?: "pending" | "approved" | "declined" };
 
 const TITLE_SUGGESTIONS = [
   "Beginner tennis buddy this weekend",
@@ -111,7 +111,7 @@ export default function Home() {
   const [quests, setQuests] = useState<Quest[]>([]);
   const [bookmarkedQuestIds, setBookmarkedQuestIds] = useState<string[]>([]);
   const [joinedQuestIds, setJoinedQuestIds] = useState<string[]>([]);
-  const [membershipStatusByQuest, setMembershipStatusByQuest] = useState<Record<string, "pending" | "approved">>({});
+  const [membershipStatusByQuest, setMembershipStatusByQuest] = useState<Record<string, "pending" | "approved" | "declined">>({});
   const [showSavedOnly, setShowSavedOnly] = useState(false);
   const [hobbyFilter, setHobbyFilter] = useState("all");
   const [loading, setLoading] = useState(false);
@@ -942,7 +942,7 @@ ${description}`
     if (error) return;
     const rows = (data as Membership[]) || [];
     setJoinedQuestIds(rows.filter((m) => (m.status || "approved") === "approved").map((m) => m.quest_id));
-    setMembershipStatusByQuest(Object.fromEntries(rows.map((m) => [m.quest_id, (m.status || "approved") as "pending" | "approved"])));
+    setMembershipStatusByQuest(Object.fromEntries(rows.map((m) => [m.quest_id, (m.status || "approved") as "pending" | "approved" | "declined"])));
   }
 
   async function toggleBookmark(questId: string) {
@@ -1066,8 +1066,18 @@ ${description}`
     }
 
     const nextStatus = (quest?.join_mode || "open") === "approval_required" ? "pending" : "approved";
-    const { error } = await supabase.from("quest_members").insert({ quest_id: id, user_id: userId, role: "member", status: nextStatus });
-    if (error && !error.message.includes("duplicate") && !error.message.toLowerCase().includes("unique")) return setStatus(error.message);
+    const existingStatus = membershipStatusByQuest[id];
+    if (existingStatus === "declined") {
+      const { error } = await supabase
+        .from("quest_members")
+        .update({ status: nextStatus })
+        .eq("quest_id", id)
+        .eq("user_id", userId);
+      if (error) return setStatus(error.message);
+    } else {
+      const { error } = await supabase.from("quest_members").insert({ quest_id: id, user_id: userId, role: "member", status: nextStatus });
+      if (error && !error.message.includes("duplicate") && !error.message.toLowerCase().includes("unique")) return setStatus(error.message);
+    }
     await loadMemberships(userId);
     setStatus(nextStatus === "pending" ? "Join request sent ⏳" : "Joined quest ✅");
   }
@@ -1105,7 +1115,7 @@ ${description}`
             </div>
           </div>
           <div className="mt-3 rounded-lg bg-gray-50 p-3 text-sm">
-            <strong>Surprise me:</strong> {surprisePick ? <><span>{surprisePick.title} ({surprisePick.hobbies?.[0]?.name || "Hobby"})</span>{userId !== surprisePick.creator_id && <button className="ml-3 border rounded px-2 py-1" onClick={() => void toggleJoinQuest(surprisePick.id)}>{membershipStatusByQuest[surprisePick.id] === "pending" ? "Cancel request" : (joinedQuestIds.includes(surprisePick.id) ? "Leave" : ((surprisePick.join_mode || "open") === "approval_required" ? "Request to join" : "Join"))}</button>}</> : "No quests yet"}
+            <strong>Surprise me:</strong> {surprisePick ? <><span>{surprisePick.title} ({surprisePick.hobbies?.[0]?.name || "Hobby"})</span>{userId !== surprisePick.creator_id && <button className="ml-3 border rounded px-2 py-1" onClick={() => void toggleJoinQuest(surprisePick.id)}>{membershipStatusByQuest[surprisePick.id] === "pending" ? "Cancel request" : (membershipStatusByQuest[surprisePick.id] === "declined" ? "Request again" : (joinedQuestIds.includes(surprisePick.id) ? "Leave" : ((surprisePick.join_mode || "open") === "approval_required" ? "Request to join" : "Join")))}</button>}</> : "No quests yet"}
           </div>
         </section>
 
@@ -1174,7 +1184,7 @@ ${description}`
                     <div className="flex gap-2 flex-wrap justify-end">
                       {userId !== q.creator_id && (
                         <>
-                          <button className="border rounded px-3 py-2" onClick={() => void toggleJoinQuest(q.id)}>{membershipStatusByQuest[q.id] === "pending" ? "Cancel request" : (joinedQuestIds.includes(q.id) ? "Leave" : ((q.join_mode || "open") === "approval_required" ? "Request to join" : "Join"))}</button>
+                          <button className="border rounded px-3 py-2" onClick={() => void toggleJoinQuest(q.id)}>{membershipStatusByQuest[q.id] === "pending" ? "Cancel request" : (membershipStatusByQuest[q.id] === "declined" ? "Request again" : (joinedQuestIds.includes(q.id) ? "Leave" : ((q.join_mode || "open") === "approval_required" ? "Request to join" : "Join")))}</button>
                           <button className="border rounded px-3 py-2" onClick={() => void askQuestion(q)}>Ask question</button>
                         </>
                       )}
