@@ -98,6 +98,11 @@ export default function InboxPage() {
   const [questOwners, setQuestOwners] = useState<Record<string, QuestOwnerLite>>({});
   const messagesSigRef = useRef("");
   const ownersSigRef = useRef("");
+  const didAutoSelectRef = useRef(false);
+  const messagesPaneRef = useRef<HTMLDivElement | null>(null);
+  const [showJumpToLatest, setShowJumpToLatest] = useState(false);
+  const [newIncomingCount, setNewIncomingCount] = useState(0);
+  const lastMessageIdRef = useRef<string | null>(null);
 
   const loadInbox = useCallback(async (uid: string, silent = false) => {
     if (!supabase) return;
@@ -179,9 +184,10 @@ export default function InboxPage() {
       }
     }
 
-    if (!activeThreadId && deduped[0]) {
+    if (!didAutoSelectRef.current && !activeThreadId && deduped[0]) {
       const firstKind = getMessagePrivacy(deduped[0].body);
       setActiveThreadId(`${deduped[0].quest_id}:${firstKind}`);
+      didAutoSelectRef.current = true;
     }
 
     if (!silent) setLoading(false);
@@ -321,9 +327,58 @@ export default function InboxPage() {
   }, [messages, activeThread, userId]);
 
   useEffect(() => {
+    lastMessageIdRef.current = null;
+    setShowJumpToLatest(false);
+    setNewIncomingCount(0);
+  }, [activeThreadId]);
+
+  useEffect(() => {
     if (!activeThreadId) return;
     if (!activeThread) setActiveThreadId(null);
   }, [activeThreadId, activeThread]);
+
+  useEffect(() => {
+    const pane = messagesPaneRef.current;
+    if (!pane) return;
+    const onScroll = () => {
+      const nearBottom = pane.scrollHeight - pane.scrollTop - pane.clientHeight < 80;
+      if (nearBottom) {
+        setShowJumpToLatest(false);
+        setNewIncomingCount(0);
+      }
+    };
+    pane.addEventListener("scroll", onScroll);
+    return () => pane.removeEventListener("scroll", onScroll);
+  }, [activeThreadId]);
+
+  useEffect(() => {
+    const pane = messagesPaneRef.current;
+    if (!pane || activeMessages.length === 0) return;
+    const latestId = activeMessages[activeMessages.length - 1]?.id || null;
+    const nearBottom = pane.scrollHeight - pane.scrollTop - pane.clientHeight < 80;
+
+    if (!lastMessageIdRef.current) {
+      lastMessageIdRef.current = latestId;
+      requestAnimationFrame(() => {
+        pane.scrollTop = pane.scrollHeight;
+      });
+      return;
+    }
+
+    if (latestId && latestId !== lastMessageIdRef.current) {
+      lastMessageIdRef.current = latestId;
+      if (nearBottom) {
+        requestAnimationFrame(() => {
+          pane.scrollTop = pane.scrollHeight;
+        });
+        setShowJumpToLatest(false);
+        setNewIncomingCount(0);
+      } else {
+        setShowJumpToLatest(true);
+        setNewIncomingCount((n) => n + 1);
+      }
+    }
+  }, [activeMessages]);
 
   async function sendReply(e: FormEvent) {
     e.preventDefault();
@@ -436,7 +491,7 @@ export default function InboxPage() {
               </div>
             )}
 
-            <div className="flex-1 overflow-auto space-y-2 pr-1">
+            <div ref={messagesPaneRef} className="flex-1 overflow-auto space-y-2 pr-1">
               {activeMessages.length === 0 ? (
                 <p className="text-sm text-gray-500">Pick a thread to view messages.</p>
               ) : (
@@ -465,6 +520,23 @@ export default function InboxPage() {
               )}
             </div>
 
+            {showJumpToLatest && (
+              <div className="mt-2 mb-1">
+                <button
+                  type="button"
+                  className="text-xs px-3 py-1.5 rounded-full bg-blue-600 text-white"
+                  onClick={() => {
+                    const pane = messagesPaneRef.current;
+                    if (!pane) return;
+                    pane.scrollTop = pane.scrollHeight;
+                    setShowJumpToLatest(false);
+                    setNewIncomingCount(0);
+                  }}
+                >
+                  {newIncomingCount > 0 ? `${newIncomingCount} new message${newIncomingCount > 1 ? "s" : ""}` : "New messages"} · Jump to latest
+                </button>
+              </div>
+            )}
             {typingNames.length > 0 && (
               <p className="text-xs text-gray-500 mb-1">{typingNames.join(", ")} typing…</p>
             )}
