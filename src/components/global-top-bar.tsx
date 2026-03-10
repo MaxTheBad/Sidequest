@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase";
 
 export default function GlobalTopBar() {
@@ -11,6 +11,7 @@ export default function GlobalTopBar() {
   const pathname = usePathname();
   const [userId, setUserId] = useState<string | null>(null);
   const [userLabel, setUserLabel] = useState("");
+  const [themePref, setThemePref] = useState<"auto" | "light" | "dark">("auto");
 
   useEffect(() => {
     if (!supabase) return;
@@ -28,6 +29,29 @@ export default function GlobalTopBar() {
     });
     return () => sub.subscription.unsubscribe();
   }, [supabase]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const saved = window.localStorage.getItem("sidequest_theme_pref");
+    if (saved === "light" || saved === "dark" || saved === "auto") setThemePref(saved);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const apply = () => {
+      const hour = new Date().getHours();
+      const resolved = themePref === "auto" ? (hour >= 7 && hour < 19 ? "light" : "dark") : themePref;
+      document.documentElement.dataset.theme = resolved;
+      window.localStorage.setItem("sidequest_theme_pref", themePref);
+    };
+    apply();
+    const id = window.setInterval(() => {
+      if (themePref === "auto") apply();
+    }, 60_000);
+    return () => window.clearInterval(id);
+  }, [themePref]);
+
+  const themeLabel = useMemo(() => (themePref === "auto" ? "Auto" : themePref === "light" ? "Light" : "Dark"), [themePref]);
 
   async function signOut() {
     if (!supabase) return;
@@ -50,6 +74,13 @@ export default function GlobalTopBar() {
       <div className="max-w-5xl mx-auto px-4 h-12 flex items-center justify-between gap-3">
         <Link href="/" className="font-semibold text-sm">Side Quest</Link>
         <div className="ml-auto flex items-center gap-2">
+          <button
+            className="border rounded px-2 py-1 text-xs"
+            onClick={() => setThemePref((p) => (p === "auto" ? "light" : p === "light" ? "dark" : "auto"))}
+            title="Temporary theme toggle"
+          >
+            Theme: {themeLabel}
+          </button>
           {userId && userLabel ? <span className="text-xs text-gray-600 hidden sm:inline">Signed in as {userLabel.split("@")[0]}</span> : null}
           {userId ? (
             <button className="border rounded px-3 py-1.5 text-sm" onClick={() => void signOut()}>Sign out</button>

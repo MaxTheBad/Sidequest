@@ -1,12 +1,38 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
+  --background: #f2f2f7;
   --foreground: #111827;
+  --surface: #ffffff;
+  --muted: #f3f4f6;
+  --border: #d1d5db;
+}
+
+html[data-theme="dark"] {
+  --background: #0b0d12;
+  --foreground: #e5e7eb;
+  --surface: #151922;
+  --muted: #1d2430;
+  --border: #2a3345;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Inter, Arial, Helvetica, sans-serif;
+}
+
+/* iOS-clean surface tokens mapped over existing utility-heavy UI */
+.bg-white { background-color: var(--surface) !important; }
+.bg-gray-100, .bg-gray-50, .bg-\[\#f6f7fb\] { background-color: var(--muted) !important; }
+.border, .border-b { border-color: var(--border) !important; }
+.text-gray-500, .text-gray-600 { color: color-mix(in srgb, var(--foreground) 65%, transparent) !important; }
+
+.rounded-2xl, .rounded-xl {
+  border-radius: 16px;
+}
+
+html[data-theme="dark"] .bg-black {
+  background-color: #e5e7eb !important;
+  color: #0b0d12 !important;
 }
