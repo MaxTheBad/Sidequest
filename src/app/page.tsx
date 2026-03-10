@@ -23,6 +23,9 @@ type DraftMediaItem = {
 type Quest = {
   id: string;
   creator_id: string;
+  join_mode?: "open" | "approval_required";
+  exact_location_visibility?: "private" | "public" | "approved_members";
+  exact_address?: string | null;
   title: string;
   description: string | null;
   city: string | null;
@@ -40,7 +43,7 @@ type Quest = {
 type AuthMode = "login" | "signup";
 type ProfilePhotoStep = "idle" | "ready" | "uploading";
 type Bookmark = { quest_id: string };
-type Membership = { quest_id: string };
+type Membership = { quest_id: string; status?: "pending" | "approved" };
 
 const TITLE_SUGGESTIONS = [
   "Beginner tennis buddy this weekend",
@@ -108,6 +111,7 @@ export default function Home() {
   const [quests, setQuests] = useState<Quest[]>([]);
   const [bookmarkedQuestIds, setBookmarkedQuestIds] = useState<string[]>([]);
   const [joinedQuestIds, setJoinedQuestIds] = useState<string[]>([]);
+  const [membershipStatusByQuest, setMembershipStatusByQuest] = useState<Record<string, "pending" | "approved">>({});
   const [showSavedOnly, setShowSavedOnly] = useState(false);
   const [hobbyFilter, setHobbyFilter] = useState("all");
   const [loading, setLoading] = useState(false);
@@ -121,6 +125,9 @@ export default function Home() {
   const [countryCode, setCountryCode] = useState("US");
   const [countryQuery, setCountryQuery] = useState("United States");
   const [city, setCity] = useState("");
+  const [exactAddress, setExactAddress] = useState("");
+  const [joinMode, setJoinMode] = useState<"open" | "approval_required">("open");
+  const [exactLocationVisibility, setExactLocationVisibility] = useState<"private" | "public" | "approved_members">("private");
   const [citySuggestions, setCitySuggestions] = useState<string[]>([]);
   const [availabilityMode, setAvailabilityMode] = useState<"flexible" | "specific">("flexible");
   const [availability, setAvailability] = useState("weeknights");
@@ -292,7 +299,7 @@ export default function Home() {
   async function loadQuests() {
     if (!supabase) return;
     setLoading(true);
-    let q = supabase.from("quests").select("id,creator_id,title,description,city,skill_level,group_size,availability,hobby_id,media_video_url,media_source,media_items,hobbies(name),profiles:profiles!quests_creator_id_fkey(id,display_name,avatar_url)").order("created_at", { ascending: false }).limit(50);
+    let q = supabase.from("quests").select("id,creator_id,title,description,city,skill_level,group_size,availability,hobby_id,join_mode,exact_location_visibility,exact_address,media_video_url,media_source,media_items,hobbies(name),profiles:profiles!quests_creator_id_fkey(id,display_name,avatar_url)").order("created_at", { ascending: false }).limit(50);
     if (hobbyFilter !== "all") q = q.eq("hobby_id", hobbyFilter);
     const firstRes = await q;
     let data: Quest[] | null = firstRes.data as Quest[] | null;
@@ -300,7 +307,7 @@ export default function Home() {
 
     // Backward compatibility if migration for media_items has not been applied yet
     if (error?.message?.includes("column quests.media_items does not exist")) {
-      let fallback = supabase.from("quests").select("id,creator_id,title,description,city,skill_level,group_size,availability,hobby_id,media_video_url,media_source,hobbies(name),profiles:profiles!quests_creator_id_fkey(id,display_name,avatar_url)").order("created_at", { ascending: false }).limit(50);
+      let fallback = supabase.from("quests").select("id,creator_id,title,description,city,skill_level,group_size,availability,hobby_id,join_mode,exact_location_visibility,exact_address,media_video_url,media_source,hobbies(name),profiles:profiles!quests_creator_id_fkey(id,display_name,avatar_url)").order("created_at", { ascending: false }).limit(50);
       if (hobbyFilter !== "all") fallback = fallback.eq("hobby_id", hobbyFilter);
       const res = await fallback;
       data = res.data as Quest[] | null;
@@ -626,6 +633,9 @@ export default function Home() {
     setAvailability("weeknights");
     setUseCustomCategory(false);
     setCustomCategory("");
+    setExactAddress("");
+    setJoinMode("open");
+    setExactLocationVisibility("private");
     setQuestVideoFile(null);
     setQuestVideoDurationSec(null);
     setQuestVideoSource("live");
@@ -762,6 +772,9 @@ export default function Home() {
     setDescription(q.description || "");
     setHobbyId(q.hobby_id);
     setCity(q.city || "");
+    setExactAddress(q.exact_address || "");
+    setJoinMode(q.join_mode || "open");
+    setExactLocationVisibility(q.exact_location_visibility || "private");
     setAvailabilityMode("flexible");
     setAvailability(q.availability || "weeknights");
     setSkillLevel(q.skill_level || "beginner");
@@ -863,6 +876,9 @@ ${description}`
           title,
           description: finalDescription,
           city,
+          exact_address: exactAddress || null,
+          join_mode: joinMode,
+          exact_location_visibility: exactLocationVisibility,
           skill_level: skillLevel,
           availability: avail,
           group_size: groupSize,
@@ -881,7 +897,7 @@ ${description}`
         setStatus("Listing updated ✅");
         setLastQuestCreateMs(Date.now());
       } else {
-        const { data, error } = await supabase.from("quests").insert({ creator_id: userId, hobby_id: finalHobbyId, title, description: finalDescription, city, skill_level: skillLevel, availability: avail, group_size: groupSize, media_video_url: null, media_source: null, media_items: nextMediaItems }).select("id").single();
+        const { data, error } = await supabase.from("quests").insert({ creator_id: userId, hobby_id: finalHobbyId, title, description: finalDescription, city, exact_address: exactAddress || null, join_mode: joinMode, exact_location_visibility: exactLocationVisibility, skill_level: skillLevel, availability: avail, group_size: groupSize, media_video_url: null, media_source: null, media_items: nextMediaItems }).select("id").single();
         if (error) throw new Error(error.message);
         if (data?.id) await supabase.from("quest_members").insert({ quest_id: data.id, user_id: userId, role: "creator" });
         setStatus("Quest posted ✅");
@@ -922,9 +938,11 @@ ${description}`
 
   async function loadMemberships(uid: string) {
     if (!supabase) return;
-    const { data, error } = await supabase.from("quest_members").select("quest_id").eq("user_id", uid);
+    const { data, error } = await supabase.from("quest_members").select("quest_id,status").eq("user_id", uid);
     if (error) return;
-    setJoinedQuestIds(((data as Membership[]) || []).map((m) => m.quest_id));
+    const rows = (data as Membership[]) || [];
+    setJoinedQuestIds(rows.filter((m) => (m.status || "approved") === "approved").map((m) => m.quest_id));
+    setMembershipStatusByQuest(Object.fromEntries(rows.map((m) => [m.quest_id, (m.status || "approved") as "pending" | "approved"])));
   }
 
   async function toggleBookmark(questId: string) {
@@ -1031,9 +1049,11 @@ ${description}`
       return setStatus("You can’t join your own listing.");
     }
 
-    const hasJoined = joinedQuestIds.includes(id);
+    const membershipStatus = membershipStatusByQuest[id];
+    const hasJoined = membershipStatus === "approved";
+    const hasPending = membershipStatus === "pending";
 
-    if (hasJoined) {
+    if (hasJoined || hasPending) {
       const { error } = await supabase
         .from("quest_members")
         .delete()
@@ -1041,14 +1061,15 @@ ${description}`
         .eq("user_id", userId);
       if (error) return setStatus(error.message);
       await loadMemberships(userId);
-      setStatus("Left quest.");
+      setStatus(hasPending ? "Join request canceled." : "Left quest.");
       return;
     }
 
-    const { error } = await supabase.from("quest_members").insert({ quest_id: id, user_id: userId, role: "member" });
+    const nextStatus = (quest?.join_mode || "open") === "approval_required" ? "pending" : "approved";
+    const { error } = await supabase.from("quest_members").insert({ quest_id: id, user_id: userId, role: "member", status: nextStatus });
     if (error && !error.message.includes("duplicate") && !error.message.toLowerCase().includes("unique")) return setStatus(error.message);
-    setJoinedQuestIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
-    setStatus("Joined quest ✅");
+    await loadMemberships(userId);
+    setStatus(nextStatus === "pending" ? "Join request sent ⏳" : "Joined quest ✅");
   }
 
   const filteredQuests = useMemo(() => {
@@ -1084,7 +1105,7 @@ ${description}`
             </div>
           </div>
           <div className="mt-3 rounded-lg bg-gray-50 p-3 text-sm">
-            <strong>Surprise me:</strong> {surprisePick ? <><span>{surprisePick.title} ({surprisePick.hobbies?.[0]?.name || "Hobby"})</span>{userId !== surprisePick.creator_id && <button className="ml-3 border rounded px-2 py-1" onClick={() => void toggleJoinQuest(surprisePick.id)}>{joinedQuestIds.includes(surprisePick.id) ? "Leave" : "Join"}</button>}</> : "No quests yet"}
+            <strong>Surprise me:</strong> {surprisePick ? <><span>{surprisePick.title} ({surprisePick.hobbies?.[0]?.name || "Hobby"})</span>{userId !== surprisePick.creator_id && <button className="ml-3 border rounded px-2 py-1" onClick={() => void toggleJoinQuest(surprisePick.id)}>{membershipStatusByQuest[surprisePick.id] === "pending" ? "Cancel request" : (joinedQuestIds.includes(surprisePick.id) ? "Leave" : ((surprisePick.join_mode || "open") === "approval_required" ? "Request to join" : "Join"))}</button>}</> : "No quests yet"}
           </div>
         </section>
 
@@ -1153,7 +1174,7 @@ ${description}`
                     <div className="flex gap-2 flex-wrap justify-end">
                       {userId !== q.creator_id && (
                         <>
-                          <button className="border rounded px-3 py-2" onClick={() => void toggleJoinQuest(q.id)}>{joinedQuestIds.includes(q.id) ? "Leave" : "Join"}</button>
+                          <button className="border rounded px-3 py-2" onClick={() => void toggleJoinQuest(q.id)}>{membershipStatusByQuest[q.id] === "pending" ? "Cancel request" : (joinedQuestIds.includes(q.id) ? "Leave" : ((q.join_mode || "open") === "approval_required" ? "Request to join" : "Join"))}</button>
                           <button className="border rounded px-3 py-2" onClick={() => void askQuestion(q)}>Ask question</button>
                         </>
                       )}
@@ -1361,6 +1382,22 @@ ${description}`
 
               <label className="text-sm font-medium">Group size</label>
               <input type="number" min={2} max={20} className="border rounded px-3 py-2" value={groupSize} onChange={(e) => setGroupSize(Number(e.target.value))} />
+
+              <label className="text-sm font-medium">Join mode</label>
+              <select className="border rounded px-3 py-2" value={joinMode} onChange={(e) => setJoinMode(e.target.value as "open" | "approval_required")}>
+                <option value="open">Anyone can join instantly</option>
+                <option value="approval_required">Host must approve members</option>
+              </select>
+
+              <label className="text-sm font-medium">Exact address (private by default)</label>
+              <input className="border rounded px-3 py-2" placeholder="Street address or meeting point" value={exactAddress} onChange={(e) => setExactAddress(e.target.value)} />
+
+              <label className="text-sm font-medium">Exact address visibility</label>
+              <select className="border rounded px-3 py-2" value={exactLocationVisibility} onChange={(e) => setExactLocationVisibility(e.target.value as "private" | "public" | "approved_members")}>
+                <option value="private">Private (recommended)</option>
+                <option value="approved_members">Approved members only</option>
+                <option value="public">Public</option>
+              </select>
 
               <label className="text-sm font-medium">Description</label>
               <textarea className="border rounded px-3 py-2" placeholder="What are you trying to do?" value={description} onChange={(e) => setDescription(e.target.value)} />

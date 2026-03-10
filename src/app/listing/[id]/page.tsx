@@ -8,6 +8,9 @@ import { getSupabaseClient } from "@/lib/supabase";
 type Listing = {
   id: string;
   creator_id: string;
+  join_mode?: "open" | "approval_required";
+  exact_location_visibility?: "private" | "public" | "approved_members";
+  exact_address?: string | null;
   title: string;
   description: string | null;
   city: string | null;
@@ -26,6 +29,7 @@ type MemberProfile = { id: string; display_name: string | null; avatar_url: stri
 type MemberRow = {
   user_id: string;
   role: "creator" | "member";
+  status?: "pending" | "approved";
   profiles?: MemberProfile[] | MemberProfile | null;
 };
 
@@ -41,7 +45,9 @@ export default function ListingPage() {
   const [userId, setUserId] = useState<string | null>(null);
   const [isSaved, setIsSaved] = useState(false);
   const [hasJoined, setHasJoined] = useState(false);
+  const [myMembershipStatus, setMyMembershipStatus] = useState<"pending" | "approved" | null>(null);
   const [members, setMembers] = useState<MemberRow[]>([]);
+  const [exactAccessUserIds, setExactAccessUserIds] = useState<string[]>([]);
   const [showQuestionModal, setShowQuestionModal] = useState(false);
   const [questionMode, setQuestionMode] = useState<"public" | "private">("public");
   const [questionText, setQuestionText] = useState("");
@@ -54,7 +60,7 @@ export default function ListingPage() {
     if (!supabase) return;
     const { data, error } = await supabase
       .from("quest_members")
-      .select("user_id,role,profiles:profiles!quest_members_user_id_fkey(id,display_name,avatar_url)")
+      .select("user_id,role,status,profiles:profiles!quest_members_user_id_fkey(id,display_name,avatar_url)")
       .eq("quest_id", questId)
       .order("joined_at", { ascending: true });
 
@@ -67,7 +73,9 @@ export default function ListingPage() {
       return acc;
     }, []);
     setMembers(rows);
-    setHasJoined(!!uid && rows.some((m) => m.user_id === uid));
+    const mine = uid ? rows.find((m) => m.user_id === uid) : null;
+    setMyMembershipStatus((mine?.status || (mine ? "approved" : null)) as "pending" | "approved" | null);
+    setHasJoined(!!mine && (mine.status || "approved") === "approved");
   }
 
   useEffect(() => {
@@ -80,7 +88,7 @@ export default function ListingPage() {
 
       const withMedia = await supabase
         .from("quests")
-        .select("id,creator_id,title,description,city,skill_level,group_size,availability,media_video_url,media_source,media_items,hobbies(name),profiles:profiles!quests_creator_id_fkey(id,display_name,avatar_url)")
+        .select("id,creator_id,title,description,city,join_mode,exact_location_visibility,exact_address,skill_level,group_size,availability,media_video_url,media_source,media_items,hobbies(name),profiles:profiles!quests_creator_id_fkey(id,display_name,avatar_url)")
         .eq("id", listingId)
         .maybeSingle();
 
@@ -91,7 +99,7 @@ export default function ListingPage() {
       if (error?.message?.includes("column quests.media_items does not exist")) {
         const fallback = await supabase
           .from("quests")
-          .select("id,creator_id,title,description,city,skill_level,group_size,availability,media_video_url,media_source,hobbies(name),profiles:profiles!quests_creator_id_fkey(id,display_name,avatar_url)")
+          .select("id,creator_id,title,description,city,join_mode,exact_location_visibility,exact_address,skill_level,group_size,availability,media_video_url,media_source,hobbies(name),profiles:profiles!quests_creator_id_fkey(id,display_name,avatar_url)")
           .eq("id", listingId)
           .maybeSingle();
         data = fallback.data as Listing | null;
@@ -114,6 +122,13 @@ export default function ListingPage() {
       }
 
       await loadMembers(listingId, uid);
+      if (uid && data?.creator_id === uid) {
+        const { data: accessRows } = await supabase
+          .from("quest_exact_location_access")
+          .select("user_id")
+          .eq("quest_id", listingId);
+        setExactAccessUserIds((accessRows || []).map((r: { user_id: string }) => r.user_id));
+      }
     };
 
     void init();
@@ -123,34 +138,64 @@ export default function ListingPage() {
     if (!supabase || !userId || !listing) return setStatus("Log in to join.");
     if (listing.creator_id === userId) return setStatus("You can’t join your own listing.");
 
-    if (hasJoined) {
+    if (myMembershipStatus === "approved" || myMembershipStatus === "pending") {
       const { error } = await supabase
         .from("quest_members")
         .delete()
         .eq("quest_id", listing.id)
         .eq("user_id", userId);
       if (error) return setStatus(error.message);
-      setStatus("Left listing.");
+      setStatus(myMembershipStatus === "pending" ? "Join request canceled." : "Left listing.");
       setHasJoined(false);
+      setMyMembershipStatus(null);
       await loadMembers(listing.id, userId);
       return;
     }
 
-    const { data: existing } = await supabase
-      .from("quest_members")
-      .select("user_id")
-      .eq("quest_id", listing.id)
-      .eq("user_id", userId)
-      .maybeSingle();
+    const nextStatus = (listing.join_mode || "open") === "approval_required" ? "pending" : "approved";
+    const { error } = await supabase.from("quest_members").insert({ quest_id: listing.id, user_id: userId, role: "member", status: nextStatus });
+    if (error && !error.message.includes("duplicate") && !error.message.toLowerCase().includes("unique")) return setStatus(error.message);
 
-    if (!existing) {
-      const { error } = await supabase.from("quest_members").insert({ quest_id: listing.id, user_id: userId, role: "member" });
-      if (error && !error.message.includes("duplicate") && !error.message.toLowerCase().includes("unique")) return setStatus(error.message);
-    }
-
-    setStatus("Joined listing ✅");
-    setHasJoined(true);
+    setStatus(nextStatus === "pending" ? "Join request sent ⏳" : "Joined listing ✅");
+    setHasJoined(nextStatus === "approved");
+    setMyMembershipStatus(nextStatus);
     await loadMembers(listing.id, userId);
+  }
+
+  async function setMemberApproval(targetUserId: string, next: "pending" | "approved") {
+    if (!supabase || !listing || !isOwner) return;
+    const { error } = await supabase
+      .from("quest_members")
+      .update({ status: next })
+      .eq("quest_id", listing.id)
+      .eq("user_id", targetUserId)
+      .neq("role", "creator");
+    if (error) return setStatus(error.message);
+    await loadMembers(listing.id, userId);
+    setStatus(next === "approved" ? "Member approved ✅" : "Moved back to pending.");
+  }
+
+  async function declineMember(targetUserId: string) {
+    if (!supabase || !listing || !isOwner) return;
+    const { error } = await supabase.from("quest_members").delete().eq("quest_id", listing.id).eq("user_id", targetUserId).neq("role", "creator");
+    if (error) return setStatus(error.message);
+    await loadMembers(listing.id, userId);
+    setStatus("Request declined.");
+  }
+
+  async function toggleExactAccess(targetUserId: string, allow: boolean) {
+    if (!supabase || !listing || !isOwner) return;
+    if (allow) {
+      const { error } = await supabase.from("quest_exact_location_access").upsert({ quest_id: listing.id, user_id: targetUserId, granted_by: userId });
+      if (error) return setStatus(error.message);
+      setExactAccessUserIds((prev) => prev.includes(targetUserId) ? prev : [...prev, targetUserId]);
+      setStatus("Exact location access granted.");
+      return;
+    }
+    const { error } = await supabase.from("quest_exact_location_access").delete().eq("quest_id", listing.id).eq("user_id", targetUserId);
+    if (error) return setStatus(error.message);
+    setExactAccessUserIds((prev) => prev.filter((id) => id !== targetUserId));
+    setStatus("Exact location access revoked.");
   }
 
   function askQuestion() {
@@ -224,6 +269,12 @@ export default function ListingPage() {
   }
 
   const isOwner = !!(userId && listing && userId === listing.creator_id);
+  const canViewExactAddress = !!(listing && userId && (
+    isOwner ||
+    listing.exact_location_visibility === "public" ||
+    (listing.exact_location_visibility === "approved_members" && myMembershipStatus === "approved") ||
+    exactAccessUserIds.includes(userId)
+  ));
 
   function memberProfileOf(member: MemberRow): MemberProfile | null {
     if (!member.profiles) return null;
@@ -280,25 +331,59 @@ export default function ListingPage() {
             <p className="text-sm text-gray-600">{listing.hobbies?.[0]?.name || "Hobby"} · {listing.skill_level} · group {listing.group_size}</p>
             <p className="text-sm">{listing.description || "No description yet."}</p>
             <p className="text-xs text-gray-500">{listing.city || "city tbd"} · {listing.availability || "availability tbd"}</p>
+            {canViewExactAddress && listing.exact_address ? (
+              <p className="text-xs text-emerald-700">Exact address: {listing.exact_address}</p>
+            ) : (
+              <p className="text-xs text-gray-500">Exact address is hidden by host privacy settings.</p>
+            )}
 
             <div className="rounded-xl border bg-gray-50 p-3">
-              <p className="text-sm font-medium mb-2">Joined members ({members.length})</p>
+              <p className="text-sm font-medium mb-2">Joined members ({members.filter((m) => (m.status || "approved") === "approved").length})</p>
               {members.length ? (
-                <div className="flex flex-wrap gap-2">
-                  {members.map((m) => {
+                <div className="space-y-2">
+                  {members.filter((m) => (m.status || "approved") === "approved").map((m) => {
                     const p = memberProfileOf(m);
                     const firstName = (p?.display_name || "Member").trim().split(/\s+/)[0] || "Member";
+                    const hasExactAccess = exactAccessUserIds.includes(m.user_id);
                     return (
-                      <Link key={`${m.user_id}-${m.role}`} href={`/profile/${m.user_id}`} className="inline-flex items-center gap-2 border rounded-full bg-white px-2 py-1">
-                        {p?.avatar_url ? (
-                          <img src={p.avatar_url} alt={p?.display_name || "Member"} className="h-6 w-6 rounded-full object-cover border" />
-                        ) : (
-                          <div className="h-6 w-6 rounded-full bg-gray-100 border" />
+                      <div key={`${m.user_id}-${m.role}`} className="inline-flex items-center gap-2 border rounded-full bg-white px-2 py-1 mr-2 mb-2">
+                        <Link href={`/profile/${m.user_id}`} className="inline-flex items-center gap-2">
+                          {p?.avatar_url ? (
+                            <img src={p.avatar_url} alt={p?.display_name || "Member"} className="h-6 w-6 rounded-full object-cover border" />
+                          ) : (
+                            <div className="h-6 w-6 rounded-full bg-gray-100 border" />
+                          )}
+                          <span className="text-xs">{firstName}</span>
+                        </Link>
+                        {isOwner && m.role !== "creator" && (
+                          <button type="button" className={`text-[10px] border rounded px-2 py-0.5 ${hasExactAccess ? "bg-emerald-50 border-emerald-300" : ""}`} onClick={() => void toggleExactAccess(m.user_id, !hasExactAccess)}>
+                            {hasExactAccess ? "Exact: on" : "Exact: off"}
+                          </button>
                         )}
-                        <span className="text-xs">{firstName}</span>
-                      </Link>
+                      </div>
                     );
                   })}
+
+                  {isOwner && members.some((m) => m.status === "pending") && (
+                    <div className="pt-2 border-t">
+                      <p className="text-xs font-medium mb-2">Pending join requests</p>
+                      <div className="grid gap-2">
+                        {members.filter((m) => m.status === "pending").map((m) => {
+                          const p = memberProfileOf(m);
+                          const firstName = (p?.display_name || "Member").trim().split(/\s+/)[0] || "Member";
+                          return (
+                            <div key={`pending-${m.user_id}`} className="flex items-center justify-between rounded border bg-white px-2 py-1">
+                              <Link href={`/profile/${m.user_id}`} className="text-xs underline">{firstName}</Link>
+                              <div className="flex gap-1">
+                                <button type="button" className="text-xs border rounded px-2 py-1" onClick={() => void setMemberApproval(m.user_id, "approved")}>Approve</button>
+                                <button type="button" className="text-xs border rounded px-2 py-1" onClick={() => void declineMember(m.user_id)}>Decline</button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <p className="text-xs text-gray-500">No members yet.</p>
@@ -308,7 +393,7 @@ export default function ListingPage() {
             <div className="pt-2 flex gap-2 flex-wrap">
               {!isOwner ? (
                 <>
-                  <button className="border rounded px-3 py-2" onClick={() => void toggleJoin()}>{hasJoined ? "Leave" : "Join"}</button>
+                  <button className="border rounded px-3 py-2" onClick={() => void toggleJoin()}>{myMembershipStatus === "pending" ? "Cancel request" : (hasJoined ? "Leave" : ((listing.join_mode || "open") === "approval_required" ? "Request to join" : "Join"))}</button>
                   <button className="border rounded px-3 py-2" onClick={() => void askQuestion()}>Ask question</button>
                   <button className="border rounded px-3 py-2" onClick={() => void toggleSave()}>{isSaved ? "★ Saved" : "☆ Save"}</button>
                 </>
