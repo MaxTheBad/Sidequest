@@ -47,6 +47,7 @@ export default function ListingPage() {
   const [questionText, setQuestionText] = useState("");
   const [sendingQuestion, setSendingQuestion] = useState(false);
   const [lastQuestionMs, setLastQuestionMs] = useState(0);
+  const [expandedImageUrl, setExpandedImageUrl] = useState<string | null>(null);
 
   async function loadMembers(questId: string, uid: string | null) {
     if (!supabase) return;
@@ -259,17 +260,21 @@ export default function ListingPage() {
             )}
 
             {!!listing.media_items?.length && (
-              <div className="grid gap-3 sm:grid-cols-2">
-                {listing.media_items.map((m, i) => (
-                  <div key={`${m.url}-${i}`} className="rounded-xl border p-2 bg-gray-50">
-                    {m.type === "image" ? (
-                      <img src={m.url} alt={m.label || "Listing media"} className="w-full h-32 object-cover rounded" />
-                    ) : (
-                      <video src={m.url} controls className="w-full h-32 object-cover rounded bg-black" preload="metadata" />
-                    )}
-                    {m.label && <p className="text-xs mt-1 text-gray-600">{m.label}</p>}
-                  </div>
-                ))}
+              <div className="overflow-x-auto">
+                <div className="flex gap-3 min-w-max">
+                  {listing.media_items.map((m, i) => (
+                    <div key={`${m.url}-${i}`} className="rounded-xl border p-2 bg-gray-50 w-44 shrink-0">
+                      {m.type === "image" ? (
+                        <button type="button" className="block w-full" onClick={() => setExpandedImageUrl(m.url)}>
+                          <img src={m.url} alt={m.label || "Listing media"} className="w-full h-28 object-cover rounded" />
+                        </button>
+                      ) : (
+                        <video src={m.url} controls className="w-full h-28 object-cover rounded bg-black" preload="metadata" />
+                      )}
+                      {m.label && <p className="text-xs mt-1 text-gray-600 truncate">{m.label}</p>}
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 
@@ -320,6 +325,12 @@ export default function ListingPage() {
             {status && <p className="text-xs text-gray-600">{status}</p>}
           </article>
         ) : null}
+        {expandedImageUrl && (
+          <div className="fixed inset-0 z-[70] bg-black/80 flex items-center justify-center p-4" onClick={() => setExpandedImageUrl(null)}>
+            <img src={expandedImageUrl} alt="Expanded media" className="max-h-[88vh] max-w-[94vw] rounded-xl object-contain" onClick={(e) => e.stopPropagation()} />
+            <button type="button" className="absolute top-4 right-4 border rounded px-3 py-2 bg-white" onClick={() => setExpandedImageUrl(null)}>Close</button>
+          </div>
+        )}
         {showQuestionModal && listing && (
           <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center p-4">
             <div className="w-full max-w-lg rounded-2xl bg-white border p-4 space-y-3">

@@ -65,6 +65,7 @@ export default function Home() {
   const [showTroubleModal, setShowTroubleModal] = useState(false);
   const [handledCreateParam, setHandledCreateParam] = useState(false);
   const [showQuestionModal, setShowQuestionModal] = useState(false);
+  const [expandedImageUrl, setExpandedImageUrl] = useState<string | null>(null);
   const [questionTarget, setQuestionTarget] = useState<Quest | null>(null);
   const [questionMode, setQuestionMode] = useState<"public" | "private">("public");
   const [questionText, setQuestionText] = useState("");
@@ -1068,7 +1069,9 @@ ${description}`
                         {q.media_items.map((m, i) => (
                           <div key={`${m.url}-${i}`} className="rounded-lg border p-2 bg-gray-50 w-40 shrink-0">
                             {m.type === "image" ? (
-                              <img src={m.url} alt={m.label || "Listing image"} className="w-full h-20 object-cover rounded" />
+                              <button type="button" className="block w-full" onClick={() => setExpandedImageUrl(m.url)}>
+                                <img src={m.url} alt={m.label || "Listing image"} className="w-full h-20 object-cover rounded" />
+                              </button>
                             ) : (
                               <video src={m.url} controls className="w-full h-20 object-cover rounded bg-black" preload="metadata" />
                             )}
@@ -1430,6 +1433,13 @@ ${description}`
               </div>
             </form>
           </div>
+        </div>
+      )}
+
+      {expandedImageUrl && (
+        <div className="fixed inset-0 z-[70] bg-black/80 flex items-center justify-center p-4" onClick={() => setExpandedImageUrl(null)}>
+          <img src={expandedImageUrl} alt="Expanded media" className="max-h-[88vh] max-w-[94vw] rounded-xl object-contain" onClick={(e) => e.stopPropagation()} />
+          <button type="button" className="absolute top-4 right-4 border rounded px-3 py-2 bg-white" onClick={() => setExpandedImageUrl(null)}>Close</button>
         </div>
       )}
 
