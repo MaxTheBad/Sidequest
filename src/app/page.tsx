@@ -65,7 +65,8 @@ export default function Home() {
   const [showTroubleModal, setShowTroubleModal] = useState(false);
   const [handledCreateParam, setHandledCreateParam] = useState(false);
   const [showQuestionModal, setShowQuestionModal] = useState(false);
-  const [expandedImageUrl, setExpandedImageUrl] = useState<string | null>(null);
+  const [expandedMedia, setExpandedMedia] = useState<{ items: QuestMediaItem[]; index: number } | null>(null);
+  const [mediaTouchStartX, setMediaTouchStartX] = useState<number | null>(null);
   const [questionTarget, setQuestionTarget] = useState<Quest | null>(null);
   const [questionMode, setQuestionMode] = useState<"public" | "private">("public");
   const [questionText, setQuestionText] = useState("");
@@ -1067,14 +1068,14 @@ ${description}`
                     <div className="overflow-x-auto">
                       <div className="flex gap-2 min-w-max">
                         {q.media_items.map((m, i) => (
-                          <div key={`${m.url}-${i}`} className="rounded-lg border p-2 bg-gray-50 w-40 shrink-0">
-                            {m.type === "image" ? (
-                              <button type="button" className="block w-full" onClick={() => setExpandedImageUrl(m.url)}>
-                                <img src={m.url} alt={m.label || "Listing image"} className="w-full h-20 object-cover rounded" />
-                              </button>
-                            ) : (
-                              <video src={m.url} controls className="w-full h-20 object-cover rounded bg-black" preload="metadata" />
-                            )}
+                          <div key={`${m.url}-${i}`} className="rounded-lg border p-2 bg-gray-50 w-44 shrink-0">
+                            <button type="button" className="block w-full" onClick={() => setExpandedMedia({ items: q.media_items || [], index: i })}>
+                              {m.type === "image" ? (
+                                <img src={m.url} alt={m.label || "Listing image"} className="w-full h-28 object-cover rounded" />
+                              ) : (
+                                <video src={m.url} className="w-full h-28 object-cover rounded bg-black" preload="metadata" muted playsInline />
+                              )}
+                            </button>
                             {m.label && <p className="text-[11px] mt-1 text-gray-600 truncate">{m.label}</p>}
                           </div>
                         ))}
@@ -1436,10 +1437,31 @@ ${description}`
         </div>
       )}
 
-      {expandedImageUrl && (
-        <div className="fixed inset-0 z-[70] bg-black/80 flex items-center justify-center p-4" onClick={() => setExpandedImageUrl(null)}>
-          <img src={expandedImageUrl} alt="Expanded media" className="max-h-[88vh] max-w-[94vw] rounded-xl object-contain" onClick={(e) => e.stopPropagation()} />
-          <button type="button" className="absolute top-4 right-4 border rounded px-3 py-2 bg-white" onClick={() => setExpandedImageUrl(null)}>Close</button>
+      {expandedMedia && expandedMedia.items.length > 0 && (
+        <div
+          className="fixed inset-0 z-[70] bg-black/85 flex items-center justify-center p-4"
+          onClick={() => setExpandedMedia(null)}
+          onTouchStart={(e) => setMediaTouchStartX(e.changedTouches[0]?.clientX ?? null)}
+          onTouchEnd={(e) => {
+            const endX = e.changedTouches[0]?.clientX;
+            if (mediaTouchStartX === null || endX === undefined) return;
+            const delta = endX - mediaTouchStartX;
+            if (Math.abs(delta) < 40) return;
+            setExpandedMedia((s) => {
+              if (!s) return s;
+              const len = s.items.length;
+              return { ...s, index: delta < 0 ? (s.index + 1) % len : (s.index - 1 + len) % len };
+            });
+          }}
+        >
+          {expandedMedia.items[expandedMedia.index]?.type === "image" ? (
+            <img src={expandedMedia.items[expandedMedia.index].url} alt={expandedMedia.items[expandedMedia.index].label || "Expanded media"} className="max-h-[88vh] max-w-[94vw] rounded-xl object-contain" onClick={(e) => e.stopPropagation()} />
+          ) : (
+            <video src={expandedMedia.items[expandedMedia.index].url} controls autoPlay className="max-h-[88vh] max-w-[94vw] rounded-xl object-contain bg-black" onClick={(e) => e.stopPropagation()} />
+          )}
+          <button type="button" className="absolute top-4 right-4 border rounded px-3 py-2 bg-white" onClick={() => setExpandedMedia(null)}>Close</button>
+          <button type="button" className="absolute left-3 top-1/2 -translate-y-1/2 border rounded-full h-10 w-10 bg-white" onClick={(e) => { e.stopPropagation(); setExpandedMedia((s) => (!s ? s : { ...s, index: (s.index - 1 + s.items.length) % s.items.length })); }}>‹</button>
+          <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 border rounded-full h-10 w-10 bg-white" onClick={(e) => { e.stopPropagation(); setExpandedMedia((s) => (!s ? s : { ...s, index: (s.index + 1) % s.items.length })); }}>›</button>
         </div>
       )}
 

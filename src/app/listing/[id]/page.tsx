@@ -47,7 +47,8 @@ export default function ListingPage() {
   const [questionText, setQuestionText] = useState("");
   const [sendingQuestion, setSendingQuestion] = useState(false);
   const [lastQuestionMs, setLastQuestionMs] = useState(0);
-  const [expandedImageUrl, setExpandedImageUrl] = useState<string | null>(null);
+  const [expandedMediaIndex, setExpandedMediaIndex] = useState<number | null>(null);
+  const [touchStartX, setTouchStartX] = useState<number | null>(null);
 
   async function loadMembers(questId: string, uid: string | null) {
     if (!supabase) return;
@@ -263,16 +264,14 @@ export default function ListingPage() {
               <div className="overflow-x-auto">
                 <div className="flex gap-3 min-w-max">
                   {listing.media_items.map((m, i) => (
-                    <div key={`${m.url}-${i}`} className="rounded-xl border p-2 bg-gray-50 w-44 shrink-0">
+                    <button key={`${m.url}-${i}`} type="button" className="rounded-xl border p-2 bg-gray-50 w-44 shrink-0 text-left" onClick={() => setExpandedMediaIndex(i)}>
                       {m.type === "image" ? (
-                        <button type="button" className="block w-full" onClick={() => setExpandedImageUrl(m.url)}>
-                          <img src={m.url} alt={m.label || "Listing media"} className="w-full h-28 object-cover rounded" />
-                        </button>
+                        <img src={m.url} alt={m.label || "Listing media"} className="w-full h-28 object-cover rounded" />
                       ) : (
-                        <video src={m.url} controls className="w-full h-28 object-cover rounded bg-black" preload="metadata" />
+                        <video src={m.url} className="w-full h-28 object-cover rounded bg-black" preload="metadata" muted playsInline />
                       )}
-                      {m.label && <p className="text-xs mt-1 text-gray-600 truncate">{m.label}</p>}
-                    </div>
+                        {m.label && <p className="text-xs mt-1 text-gray-600 truncate">{m.label}</p>}
+                    </button>
                   ))}
                 </div>
               </div>
@@ -325,10 +324,36 @@ export default function ListingPage() {
             {status && <p className="text-xs text-gray-600">{status}</p>}
           </article>
         ) : null}
-        {expandedImageUrl && (
-          <div className="fixed inset-0 z-[70] bg-black/80 flex items-center justify-center p-4" onClick={() => setExpandedImageUrl(null)}>
-            <img src={expandedImageUrl} alt="Expanded media" className="max-h-[88vh] max-w-[94vw] rounded-xl object-contain" onClick={(e) => e.stopPropagation()} />
-            <button type="button" className="absolute top-4 right-4 border rounded px-3 py-2 bg-white" onClick={() => setExpandedImageUrl(null)}>Close</button>
+        {expandedMediaIndex !== null && !!listing?.media_items?.length && (
+          <div
+            className="fixed inset-0 z-[70] bg-black/85 flex items-center justify-center p-4"
+            onClick={() => setExpandedMediaIndex(null)}
+            onTouchStart={(e) => setTouchStartX(e.changedTouches[0]?.clientX ?? null)}
+            onTouchEnd={(e) => {
+              const endX = e.changedTouches[0]?.clientX;
+              if (touchStartX === null || endX === undefined) return;
+              const delta = endX - touchStartX;
+              if (Math.abs(delta) < 40) return;
+              setExpandedMediaIndex((idx) => {
+                if (idx === null || !listing.media_items?.length) return idx;
+                const len = listing.media_items.length;
+                return delta < 0 ? (idx + 1) % len : (idx - 1 + len) % len;
+              });
+            }}
+          >
+            {(() => {
+              const items = listing.media_items || [];
+              const item = items[expandedMediaIndex] || null;
+              if (!item) return null;
+              return item.type === "image" ? (
+                <img src={item.url} alt={item.label || "Expanded media"} className="max-h-[88vh] max-w-[94vw] rounded-xl object-contain" onClick={(e) => e.stopPropagation()} />
+              ) : (
+                <video src={item.url} controls autoPlay className="max-h-[88vh] max-w-[94vw] rounded-xl object-contain bg-black" onClick={(e) => e.stopPropagation()} />
+              );
+            })()}
+            <button type="button" className="absolute top-4 right-4 border rounded px-3 py-2 bg-white" onClick={() => setExpandedMediaIndex(null)}>Close</button>
+            <button type="button" className="absolute left-3 top-1/2 -translate-y-1/2 border rounded-full h-10 w-10 bg-white" onClick={(e) => { e.stopPropagation(); setExpandedMediaIndex((idx) => (idx === null || !listing.media_items?.length ? idx : (idx - 1 + listing.media_items.length) % listing.media_items.length)); }}>‹</button>
+            <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 border rounded-full h-10 w-10 bg-white" onClick={(e) => { e.stopPropagation(); setExpandedMediaIndex((idx) => (idx === null || !listing.media_items?.length ? idx : (idx + 1) % listing.media_items.length)); }}>›</button>
           </div>
         )}
         {showQuestionModal && listing && (
