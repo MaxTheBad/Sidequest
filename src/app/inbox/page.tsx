@@ -96,6 +96,8 @@ export default function InboxPage() {
   const typingChannelRef = useRef<any>(null);
   const lastTypingSendRef = useRef(0);
   const [questOwners, setQuestOwners] = useState<Record<string, QuestOwnerLite>>({});
+  const messagesSigRef = useRef("");
+  const ownersSigRef = useRef("");
 
   const loadInbox = useCallback(async (uid: string, silent = false) => {
     if (!supabase) return;
@@ -152,7 +154,11 @@ export default function InboxPage() {
     merged.forEach((m) => dedupedMap.set(m.id, m));
     const deduped = Array.from(dedupedMap.values()).sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at));
 
-    setMessages(deduped);
+    const nextMsgSig = deduped.map((m) => `${m.id}:${m.created_at}:${m.body}`).join("|");
+    if (nextMsgSig !== messagesSigRef.current) {
+      messagesSigRef.current = nextMsgSig;
+      setMessages(deduped);
+    }
 
     const questIds = Array.from(new Set(deduped.map((m) => m.quest_id).filter(Boolean)));
     if (questIds.length) {
@@ -166,7 +172,11 @@ export default function InboxPage() {
         const p = Array.isArray(r.profiles) ? (r.profiles[0] || null) : (r.profiles || null);
         ownerMap[r.id] = { creator_id: r.creator_id, display_name: p?.display_name || null, avatar_url: p?.avatar_url || null };
       });
-      setQuestOwners(ownerMap);
+      const nextOwnerSig = JSON.stringify(ownerMap);
+      if (nextOwnerSig !== ownersSigRef.current) {
+        ownersSigRef.current = nextOwnerSig;
+        setQuestOwners(ownerMap);
+      }
     }
 
     if (!activeThreadId && deduped[0]) {
