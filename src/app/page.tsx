@@ -1065,10 +1065,10 @@ ${description}`
                     </div>
                   ) : null}
                   {!!q.media_items?.length && (
-                    <div className="overflow-x-auto">
-                      <div className="flex gap-2 min-w-max">
+                    <div className="w-full overflow-x-auto pb-1 [scrollbar-width:thin] [-webkit-overflow-scrolling:touch]">
+                      <div className="flex gap-2 min-w-max snap-x snap-mandatory">
                         {q.media_items.map((m, i) => (
-                          <div key={`${m.url}-${i}`} className="rounded-lg border p-2 bg-gray-50 w-44 shrink-0">
+                          <div key={`${m.url}-${i}`} className="rounded-lg border p-2 bg-gray-50 w-44 shrink-0 snap-start">
                             <button type="button" className="block w-full" onClick={() => setExpandedMedia({ items: q.media_items || [], index: i })}>
                               {m.type === "image" ? (
                                 <img src={m.url} alt={m.label || "Listing image"} className="w-full h-28 object-cover rounded" />

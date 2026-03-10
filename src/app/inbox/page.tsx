@@ -542,10 +542,10 @@ export default function InboxPage() {
             )}
 
             {activeThread?.mediaItems?.length ? (
-              <div className="mb-2 overflow-x-auto">
-                <div className="flex gap-2 min-w-max">
+              <div className="mb-2 w-full overflow-x-auto pb-1 [scrollbar-width:thin] [-webkit-overflow-scrolling:touch]">
+                <div className="flex gap-2 min-w-max snap-x snap-mandatory">
                   {activeThread.mediaItems.map((m, i) => (
-                    <button key={`${m.url}-${i}`} type="button" className="rounded-lg border p-1.5 bg-gray-50 w-44 shrink-0 text-left" onClick={() => { setExpandedMediaItems(activeThread.mediaItems || []); setExpandedMediaIndex(i); }}>
+                    <button key={`${m.url}-${i}`} type="button" className="rounded-lg border p-1.5 bg-gray-50 w-44 shrink-0 text-left snap-start" onClick={() => { setExpandedMediaItems(activeThread.mediaItems || []); setExpandedMediaIndex(i); }}>
                       {m.type === "image" ? (
                         <img src={m.url} alt={m.label || "Media"} className="w-full h-28 object-cover rounded" />
                       ) : (

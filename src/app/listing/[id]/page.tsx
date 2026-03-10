@@ -261,10 +261,10 @@ export default function ListingPage() {
             )}
 
             {!!listing.media_items?.length && (
-              <div className="overflow-x-auto">
-                <div className="flex gap-3 min-w-max">
+              <div className="w-full overflow-x-auto pb-1 [scrollbar-width:thin] [-webkit-overflow-scrolling:touch]">
+                <div className="flex gap-3 min-w-max snap-x snap-mandatory">
                   {listing.media_items.map((m, i) => (
-                    <button key={`${m.url}-${i}`} type="button" className="rounded-xl border p-2 bg-gray-50 w-44 shrink-0 text-left" onClick={() => setExpandedMediaIndex(i)}>
+                    <button key={`${m.url}-${i}`} type="button" className="rounded-xl border p-2 bg-gray-50 w-44 shrink-0 text-left snap-start" onClick={() => setExpandedMediaIndex(i)}>
                       {m.type === "image" ? (
                         <img src={m.url} alt={m.label || "Listing media"} className="w-full h-28 object-cover rounded" />
                       ) : (
