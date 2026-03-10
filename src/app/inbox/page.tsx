@@ -110,9 +110,6 @@ export default function InboxPage() {
   const [newIncomingCount, setNewIncomingCount] = useState(0);
   const lastMessageIdRef = useRef<string | null>(null);
   const lastIncomingIdRef = useRef<string | null>(null);
-  const [expandedMediaIndex, setExpandedMediaIndex] = useState<number | null>(null);
-  const [expandedMediaItems, setExpandedMediaItems] = useState<Array<{ url: string; type: "image" | "video"; label?: string | null }>>([]);
-  const [touchStartX, setTouchStartX] = useState<number | null>(null);
 
   const loadInbox = useCallback(async (uid: string, silent = false) => {
     if (!supabase) return;
@@ -541,22 +538,6 @@ export default function InboxPage() {
               </div>
             )}
 
-            {activeThread?.mediaItems?.length ? (
-              <div className="mb-2 w-full overflow-x-auto pb-1 [scrollbar-width:thin] [-webkit-overflow-scrolling:touch]">
-                <div className="flex gap-2 min-w-max snap-x snap-mandatory">
-                  {activeThread.mediaItems.map((m, i) => (
-                    <button key={`${m.url}-${i}`} type="button" className="rounded-lg border p-1.5 bg-gray-50 w-44 shrink-0 text-left snap-start" onClick={() => { setExpandedMediaItems(activeThread.mediaItems || []); setExpandedMediaIndex(i); }}>
-                      {m.type === "image" ? (
-                        <img src={m.url} alt={m.label || "Media"} className="w-full h-28 object-cover rounded" />
-                      ) : (
-                        <video src={m.url} className="w-full h-28 object-cover rounded bg-black" muted playsInline preload="metadata" />
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-
             <div ref={messagesPaneRef} className="flex-1 overflow-auto space-y-2 pr-1">
               {activeMessages.length === 0 ? (
                 <p className="text-sm text-gray-500">Pick a thread to view messages.</p>
@@ -601,31 +582,6 @@ export default function InboxPage() {
                 >
                   {newIncomingCount > 0 ? `${newIncomingCount} new message${newIncomingCount > 1 ? "s" : ""}` : "New messages"} · Jump to latest
                 </button>
-              </div>
-            )}
-            {expandedMediaIndex !== null && expandedMediaItems.length > 0 && (
-              <div
-                className="fixed inset-0 z-[75] bg-black/85 flex items-center justify-center p-4"
-                onClick={() => setExpandedMediaIndex(null)}
-                onTouchStart={(e) => setTouchStartX(e.changedTouches[0]?.clientX ?? null)}
-                onTouchEnd={(e) => {
-                  const endX = e.changedTouches[0]?.clientX;
-                  if (touchStartX === null || endX === undefined) return;
-                  const delta = endX - touchStartX;
-                  if (Math.abs(delta) < 40) return;
-                  setExpandedMediaIndex((idx) => {
-                    if (idx === null || !expandedMediaItems.length) return idx;
-                    const len = expandedMediaItems.length;
-                    return delta < 0 ? (idx + 1) % len : (idx - 1 + len) % len;
-                  });
-                }}
-              >
-                {expandedMediaItems[expandedMediaIndex]?.type === "image" ? (
-                  <img src={expandedMediaItems[expandedMediaIndex].url} alt="Expanded media" className="max-h-[88vh] max-w-[94vw] rounded-xl object-contain" onClick={(e) => e.stopPropagation()} />
-                ) : (
-                  <video src={expandedMediaItems[expandedMediaIndex].url} controls autoPlay className="max-h-[88vh] max-w-[94vw] rounded-xl object-contain bg-black" onClick={(e) => e.stopPropagation()} />
-                )}
-                <button type="button" className="absolute top-4 right-4 border rounded px-3 py-2 bg-white" onClick={() => setExpandedMediaIndex(null)}>Close</button>
               </div>
             )}
             {typingNames.length > 0 && (
