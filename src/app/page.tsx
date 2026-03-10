@@ -1058,21 +1058,26 @@ ${description}`
                 </aside>
 
                 <div className="flex-1 space-y-3 min-w-0">
-                  {q.media_video_url ? (
-                    <div className="relative">
-                      <video className="w-full max-h-48 rounded-xl border bg-black object-contain" src={q.media_video_url} controls muted playsInline preload="metadata" />
-                      {q.media_source === "live" && <span className="absolute top-2 left-2 text-xs bg-emerald-600 text-white px-2 py-1 rounded-full">Live video</span>}
-                    </div>
-                  ) : null}
-                  {!!q.media_items?.length && (
+                  {(q.media_video_url || q.media_items?.length) ? (
                     <div
                       className="w-full overflow-x-auto overscroll-x-contain pb-1 snap-x snap-mandatory [scrollbar-width:thin] [-webkit-overflow-scrolling:touch]"
                       style={{ touchAction: "pan-x" }}
                     >
                       <div className="flex gap-2 pr-10 min-w-0">
-                        {q.media_items.map((m, i) => (
+                        {q.media_video_url ? (
+                          <div className="relative rounded-lg border p-2 bg-gray-50 shrink-0 snap-start basis-[78%] sm:basis-56">
+                            <video className="w-full h-28 rounded bg-black object-cover" src={q.media_video_url} controls muted playsInline preload="metadata" />
+                            {q.media_source === "live" && <span className="absolute top-3 left-3 text-xs bg-emerald-600 text-white px-2 py-1 rounded-full">Live video</span>}
+                          </div>
+                        ) : null}
+
+                        {q.media_items?.map((m, i) => (
                           <div key={`${m.url}-${i}`} className="rounded-lg border p-2 bg-gray-50 shrink-0 snap-start basis-[78%] sm:basis-56">
-                            <button type="button" className="block w-full" onClick={() => setExpandedMedia({ items: q.media_items || [], index: i })}>
+                            <button
+                              type="button"
+                              className="block w-full"
+                              onClick={() => setExpandedMedia({ items: q.media_items || [], index: i })}
+                            >
                               {m.type === "image" ? (
                                 <img src={m.url} alt={m.label || "Listing image"} className="w-full h-28 object-cover rounded" />
                               ) : (
@@ -1084,7 +1089,7 @@ ${description}`
                         ))}
                       </div>
                     </div>
-                  )}
+                  ) : null}
 
                   <div className="flex items-start justify-between gap-3">
                     <div>
