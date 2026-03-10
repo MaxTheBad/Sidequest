@@ -1420,9 +1420,9 @@ ${description}`
 
               <label className="text-sm font-medium">Location visibility</label>
               <select className="border rounded px-3 py-2" value={exactLocationVisibility} onChange={(e) => setExactLocationVisibility(e.target.value as "private" | "public" | "approved_members")}>
-                <option value="private">Private (recommended)</option>
-                <option value="approved_members">Approved members only</option>
-                <option value="public">Public</option>
+                <option value="private">Private (manual share)</option>
+                <option value="approved_members">Auto-share with approved members</option>
+                <option value="public">Public (everyone)</option>
               </select>
 
               <label className="text-sm font-medium">Description</label>
