@@ -103,6 +103,7 @@ export default function InboxPage() {
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
   const [newIncomingCount, setNewIncomingCount] = useState(0);
   const lastMessageIdRef = useRef<string | null>(null);
+  const lastIncomingIdRef = useRef<string | null>(null);
 
   const loadInbox = useCallback(async (uid: string, silent = false) => {
     if (!supabase) return;
@@ -328,6 +329,7 @@ export default function InboxPage() {
 
   useEffect(() => {
     lastMessageIdRef.current = null;
+    lastIncomingIdRef.current = null;
     setShowJumpToLatest(false);
     setNewIncomingCount(0);
   }, [activeThreadId]);
@@ -354,11 +356,13 @@ export default function InboxPage() {
   useEffect(() => {
     const pane = messagesPaneRef.current;
     if (!pane || activeMessages.length === 0) return;
-    const latestId = activeMessages[activeMessages.length - 1]?.id || null;
+    const latest = activeMessages[activeMessages.length - 1] || null;
+    const latestId = latest?.id || null;
     const nearBottom = pane.scrollHeight - pane.scrollTop - pane.clientHeight < 80;
 
     if (!lastMessageIdRef.current) {
       lastMessageIdRef.current = latestId;
+      lastIncomingIdRef.current = activeMessages.filter((m) => m.sender_id !== userId).at(-1)?.id || null;
       requestAnimationFrame(() => {
         pane.scrollTop = pane.scrollHeight;
       });
@@ -367,18 +371,22 @@ export default function InboxPage() {
 
     if (latestId && latestId !== lastMessageIdRef.current) {
       lastMessageIdRef.current = latestId;
+      const latestIncomingId = activeMessages.filter((m) => m.sender_id !== userId).at(-1)?.id || null;
+      const hasNewIncoming = !!latestIncomingId && latestIncomingId !== lastIncomingIdRef.current;
+      if (latestIncomingId) lastIncomingIdRef.current = latestIncomingId;
+
       if (nearBottom) {
         requestAnimationFrame(() => {
           pane.scrollTop = pane.scrollHeight;
         });
         setShowJumpToLatest(false);
         setNewIncomingCount(0);
-      } else {
+      } else if (hasNewIncoming) {
         setShowJumpToLatest(true);
         setNewIncomingCount((n) => n + 1);
       }
     }
-  }, [activeMessages]);
+  }, [activeMessages, userId]);
 
   async function sendReply(e: FormEvent) {
     e.preventDefault();
@@ -482,7 +490,12 @@ export default function InboxPage() {
             {activeThread && (
               <div className="mb-2 pb-2 border-b text-sm flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
-                  <button type="button" className="border rounded px-2 py-1 md:hidden" onClick={() => setActiveThreadId(null)}>Inbox</button>
+                  <button type="button" className="border rounded px-2 py-1 md:hidden" onClick={() => {
+                    didAutoSelectRef.current = true;
+                    setShowJumpToLatest(false);
+                    setNewIncomingCount(0);
+                    setActiveThreadId(null);
+                  }}>Inbox</button>
                   <span className={`px-2 py-1 rounded ${activeThread.kind === "private" ? "bg-purple-100 text-purple-700" : "bg-emerald-100 text-emerald-700"}`}>
                     {activeThread.kind === "private" ? `Private with ${(activeThread.partnerName || "Member").trim().split(/\s+/)[0]}` : "Public conversation"}
                   </span>
