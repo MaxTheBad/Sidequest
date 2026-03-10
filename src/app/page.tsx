@@ -11,6 +11,15 @@ type QuestMediaItem = {
   label?: string | null;
 };
 
+type DraftMediaItem = {
+  id: string;
+  type: "image" | "video";
+  label: string;
+  source: "existing" | "new";
+  url?: string;
+  file?: File;
+};
+
 type Quest = {
   id: string;
   creator_id: string;
@@ -123,6 +132,8 @@ export default function Home() {
   const [questVideoDurationSec, setQuestVideoDurationSec] = useState<number | null>(null);
   const [questMediaFiles, setQuestMediaFiles] = useState<Array<{ id: string; file: File; label: string }>>([]);
   const [existingMediaItems, setExistingMediaItems] = useState<QuestMediaItem[]>([]);
+  const [mediaDraftItems, setMediaDraftItems] = useState<DraftMediaItem[]>([]);
+  const [dragMediaId, setDragMediaId] = useState<string | null>(null);
   const [removeExistingVideo, setRemoveExistingVideo] = useState(false);
   const liveVideoInputRef = useRef<HTMLInputElement | null>(null);
   const uploadVideoInputRef = useRef<HTMLInputElement | null>(null);
@@ -619,6 +630,7 @@ export default function Home() {
     setQuestVideoSource("live");
     setQuestMediaFiles([]);
     setExistingMediaItems([]);
+    setMediaDraftItems([]);
     setRemoveExistingVideo(false);
     setEditingQuestId(null);
   }
@@ -690,19 +702,19 @@ export default function Home() {
   function handleQuestMediaPicked(files: FileList | null) {
     if (!files?.length) return;
 
-    const existingImages = existingMediaItems.filter((m) => m.type === "image").length + questMediaFiles.filter((m) => m.file.type.startsWith("image/")).length;
-    const existingVideos = existingMediaItems.filter((m) => m.type === "video").length + questMediaFiles.filter((m) => m.file.type.startsWith("video/")).length;
+    const existingImages = mediaDraftItems.filter((m) => m.type === "image").length;
+    const existingVideos = mediaDraftItems.filter((m) => m.type === "video").length;
 
     let imgLeft = Math.max(0, 2 - existingImages);
     let vidLeft = Math.max(0, 2 - existingVideos);
 
-    const added: Array<{ id: string; file: File; label: string }> = [];
+    const added: DraftMediaItem[] = [];
     for (const file of Array.from(files)) {
       if (file.type.startsWith("image/") && imgLeft > 0) {
-        added.push({ id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, file, label: "" });
+        added.push({ id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, file, label: "", type: "image", source: "new" });
         imgLeft -= 1;
       } else if (file.type.startsWith("video/") && vidLeft > 0) {
-        added.push({ id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, file, label: "" });
+        added.push({ id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, file, label: "", type: "video", source: "new" });
         vidLeft -= 1;
       }
     }
@@ -712,7 +724,7 @@ export default function Home() {
       return;
     }
 
-    setQuestMediaFiles((prev) => [...prev, ...added]);
+    setMediaDraftItems((prev) => [...prev, ...added]);
     if (added.length < files.length) setStatus("Only up to 2 photos and 2 videos are allowed.");
   }
 
@@ -729,6 +741,9 @@ export default function Home() {
     setQuestVideoFile(null);
     setQuestVideoSource((q.media_source as "live" | "upload") || "upload");
     setQuestMediaFiles([]);
+    const legacyVideo = q.media_video_url ? [{ id: `legacy-video-${q.id}`, type: "video" as const, label: "", source: "existing" as const, url: q.media_video_url }] : [];
+    const existingItems = (q.media_items || []).map((m, i) => ({ id: `existing-${q.id}-${i}`, type: m.type, label: m.label || "", source: "existing" as const, url: m.url }));
+    setMediaDraftItems([...legacyVideo, ...existingItems]);
     setExistingMediaItems(q.media_items || []);
     setRemoveExistingVideo(false);
     setShowCreateModal(true);
@@ -797,11 +812,20 @@ ${description}`
       : description;
 
     setSavingQuest(true);
-    let videoUrl: string | null = null;
     try {
-      if (questVideoFile) videoUrl = await uploadQuestVideo(questVideoFile);
-      const uploadedMedia = questMediaFiles.length ? await uploadQuestMediaFiles(questMediaFiles.map((m) => ({ file: m.file, label: m.label }))) : [];
-      const nextMediaItems = [...existingMediaItems, ...uploadedMedia];
+      const newDraftItems = mediaDraftItems.filter((m) => m.source === "new" && m.file);
+      const uploadedMedia = newDraftItems.length
+        ? await uploadQuestMediaFiles(newDraftItems.map((m) => ({ file: m.file as File, label: m.label })))
+        : [];
+
+      let uploadIdx = 0;
+      const nextMediaItems: QuestMediaItem[] = mediaDraftItems
+        .map((m) => {
+          if (m.source === "existing" && m.url) return { url: m.url, type: m.type, label: m.label || null };
+          const uploaded = uploadedMedia[uploadIdx++];
+          return uploaded || null;
+        })
+        .filter((m): m is QuestMediaItem => !!m);
 
       if (editingQuestId) {
         const payload: Record<string, unknown> = {
@@ -813,15 +837,9 @@ ${description}`
           availability: avail,
           group_size: groupSize,
           media_items: nextMediaItems,
+          media_video_url: null,
+          media_source: null,
         };
-        if (removeExistingVideo) {
-          payload.media_video_url = null;
-          payload.media_source = null;
-        }
-        if (videoUrl) {
-          payload.media_video_url = videoUrl;
-          payload.media_source = questVideoSource;
-        }
 
         const { error } = await supabase
           .from("quests")
@@ -833,7 +851,7 @@ ${description}`
         setStatus("Listing updated ✅");
         setLastQuestCreateMs(Date.now());
       } else {
-        const { data, error } = await supabase.from("quests").insert({ creator_id: userId, hobby_id: finalHobbyId, title, description: finalDescription, city, skill_level: skillLevel, availability: avail, group_size: groupSize, media_video_url: videoUrl, media_source: videoUrl ? questVideoSource : null, media_items: nextMediaItems }).select("id").single();
+        const { data, error } = await supabase.from("quests").insert({ creator_id: userId, hobby_id: finalHobbyId, title, description: finalDescription, city, skill_level: skillLevel, availability: avail, group_size: groupSize, media_video_url: null, media_source: null, media_items: nextMediaItems }).select("id").single();
         if (error) throw new Error(error.message);
         if (data?.id) await supabase.from("quest_members").insert({ quest_id: data.id, user_id: userId, role: "creator" });
         setStatus("Quest posted ✅");
@@ -1317,77 +1335,7 @@ ${description}`
               <label className="text-sm font-medium">Description</label>
               <textarea className="border rounded px-3 py-2" placeholder="What are you trying to do?" value={description} onChange={(e) => setDescription(e.target.value)} />
 
-              <label className="text-sm font-medium">Listing video (optional)</label>
-              <div className="grid gap-2 rounded-xl border p-3 bg-gray-50">
-                <div className="flex gap-4 text-sm">
-                  <label className="flex items-center gap-2"><input type="radio" checked={questVideoSource === "live"} onChange={() => setQuestVideoSource("live")} /> Record live video</label>
-                  <label className="flex items-center gap-2"><input type="radio" checked={questVideoSource === "upload"} onChange={() => setQuestVideoSource("upload")} /> Upload existing video</label>
-                </div>
-                {questVideoSource === "live" && (
-                  <div className="text-xs rounded border border-amber-300 bg-amber-50 px-2 py-1">
-                    Live video tip: keep recording under <b>15 seconds max</b>.
-                  </div>
-                )}
-                {questVideoSource === "live" ? (
-                  <>
-                    <input
-                      ref={liveVideoInputRef}
-                      type="file"
-                      accept="video/*"
-                      capture="environment"
-                      className="hidden"
-                      onChange={(e) => void handleQuestVideoPicked(e.target.files?.[0] ?? null)}
-                    />
-                    <button
-                      type="button"
-                      className="bg-black text-white rounded px-3 py-2 text-left font-medium"
-                      onClick={() => liveVideoInputRef.current?.click()}
-                    >
-                      🎥 Record live video
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <input
-                      ref={uploadVideoInputRef}
-                      type="file"
-                      accept="video/*"
-                      className="hidden"
-                      onChange={(e) => void handleQuestVideoPicked(e.target.files?.[0] ?? null)}
-                    />
-                    <button
-                      type="button"
-                      className="bg-black text-white rounded px-3 py-2 text-left font-medium"
-                      onClick={() => uploadVideoInputRef.current?.click()}
-                    >
-                      ⬆️ Upload video file
-                    </button>
-                  </>
-                )}
-                {questVideoFile && <p className="text-xs text-gray-600">Selected: {questVideoFile.name}</p>}
-                {questVideoDurationSec !== null && (
-                  <p className={`text-xs ${questVideoDurationSec > 15.2 ? "text-red-600" : "text-emerald-700"}`}>
-                    Selected video: {questVideoDurationSec.toFixed(1)}s {questVideoDurationSec > 15.2 ? "(too long — max 15s)" : "(within 15s limit)"}
-                  </p>
-                )}
-                {editingQuest?.media_video_url && (
-                  <button
-                    type="button"
-                    className={`border rounded px-3 py-2 w-fit ${removeExistingVideo ? "bg-red-50 border-red-300 text-red-700" : ""}`}
-                    onClick={() => setRemoveExistingVideo((v) => !v)}
-                  >
-                    {removeExistingVideo ? "Undo remove existing video" : "Remove existing video"}
-                  </button>
-                )}
-                {questVideoFile && (
-                  <button type="button" className="border rounded px-3 py-2 w-fit" onClick={() => { setQuestVideoFile(null); setQuestVideoDurationSec(null); }}>
-                    Clear selected video
-                  </button>
-                )}
-                <p className="text-xs text-gray-500">Attach an optional listing video (max 15s).</p>
-              </div>
-
-              <label className="text-sm font-medium">Photos & videos</label>
+              <label className="text-sm font-medium">Media (photos + videos)</label>
               <div className="grid gap-2 rounded-xl border p-3 bg-gray-50">
                 <input
                   type="file"
@@ -1399,37 +1347,59 @@ ${description}`
                   }}
                   className="border rounded px-3 py-2"
                 />
-                <p className="text-xs text-gray-500">Add up to 2 photos and 2 videos so visitors can quickly understand your listing.</p>
+                <p className="text-xs text-gray-500">One combined scroller. Add up to 2 photos + 2 videos. Drag (or use arrows) to set order. First item is Main.</p>
 
-                {[...existingMediaItems, ...questMediaFiles.map((m) => ({ url: m.file.name, type: (m.file.type.startsWith("image/") ? "image" : "video") as "image" | "video", label: m.label || null }))].map((item, idx) => {
-                  const isPending = idx >= existingMediaItems.length;
-                  const pendingIndex = idx - existingMediaItems.length;
-                  return (
-                    <div key={`${item.url}-${idx}`} className="rounded border bg-white p-2 grid gap-2">
-                      <div className="text-xs text-gray-600">{item.type === "image" ? "📷 Photo" : "🎬 Video"} {isPending ? `(new) ${item.url}` : "(saved)"}</div>
-                      <input
-                        className="border rounded px-2 py-1 text-sm"
-                        placeholder={`e.g., ${MEDIA_LABEL_HINTS[idx % MEDIA_LABEL_HINTS.length]}`}
-                        value={item.label || ""}
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          if (isPending) {
-                            setQuestMediaFiles((prev) => prev.map((m, i) => i === pendingIndex ? { ...m, label: value } : m));
-                          } else {
-                            setExistingMediaItems((prev) => prev.map((m, i) => i === idx ? { ...m, label: value } : m));
-                          }
-                        }}
-                      />
-                      <div className="flex gap-2 flex-wrap">
-                        {isPending ? (
-                          <button type="button" className="border rounded px-2 py-1 text-sm" onClick={() => setQuestMediaFiles((prev) => prev.filter((_, i) => i !== pendingIndex))}>Remove</button>
-                        ) : (
-                          <button type="button" className="border rounded px-2 py-1 text-sm" onClick={() => setExistingMediaItems((prev) => prev.filter((_, i) => i !== idx))}>Remove</button>
-                        )}
-                      </div>
+                {mediaDraftItems.map((item, idx) => (
+                  <div
+                    key={item.id}
+                    draggable
+                    onDragStart={() => setDragMediaId(item.id)}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={() => {
+                      if (!dragMediaId || dragMediaId === item.id) return;
+                      setMediaDraftItems((prev) => {
+                        const from = prev.findIndex((m) => m.id === dragMediaId);
+                        const to = prev.findIndex((m) => m.id === item.id);
+                        if (from < 0 || to < 0) return prev;
+                        const next = [...prev];
+                        const [moved] = next.splice(from, 1);
+                        next.splice(to, 0, moved);
+                        return next;
+                      });
+                      setDragMediaId(null);
+                    }}
+                    className="rounded border bg-white p-2 grid gap-2"
+                  >
+                    <div className="text-xs text-gray-600 flex items-center gap-2 flex-wrap">
+                      <span>{item.type === "image" ? "📷 Photo" : "🎬 Video"} {item.source === "new" ? "(new)" : "(saved)"}</span>
+                      {idx === 0 && <span className="px-2 py-0.5 rounded-full bg-black text-white text-[10px]">Main</span>}
                     </div>
-                  );
-                })}
+                    <input
+                      className="border rounded px-2 py-1 text-sm"
+                      placeholder={`e.g., ${MEDIA_LABEL_HINTS[idx % MEDIA_LABEL_HINTS.length]}`}
+                      value={item.label}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setMediaDraftItems((prev) => prev.map((m) => m.id === item.id ? { ...m, label: value } : m));
+                      }}
+                    />
+                    <div className="flex gap-2 flex-wrap">
+                      <button type="button" className="border rounded px-2 py-1 text-sm" disabled={idx === 0} onClick={() => setMediaDraftItems((prev) => {
+                        if (idx === 0) return prev;
+                        const next = [...prev];
+                        [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
+                        return next;
+                      })}>↑</button>
+                      <button type="button" className="border rounded px-2 py-1 text-sm" disabled={idx === mediaDraftItems.length - 1} onClick={() => setMediaDraftItems((prev) => {
+                        if (idx >= prev.length - 1) return prev;
+                        const next = [...prev];
+                        [next[idx + 1], next[idx]] = [next[idx], next[idx + 1]];
+                        return next;
+                      })}>↓</button>
+                      <button type="button" className="border rounded px-2 py-1 text-sm" onClick={() => setMediaDraftItems((prev) => prev.filter((m) => m.id !== item.id))}>Remove</button>
+                    </div>
+                  </div>
+                ))}
               </div>
 
               <div className="flex gap-2 flex-wrap">
