@@ -655,10 +655,18 @@ export default function Home() {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const openAuthFromUrl = () => {
+    const openAuthFromUrl = async () => {
       const params = new URLSearchParams(window.location.search);
       const pendingAuth = sessionStorage.getItem("sidequest_open_auth") === "1";
-      if ((params.get("auth") === "1" || pendingAuth) && !userId) {
+
+      let activeUserId = userId;
+      if (!activeUserId && supabase) {
+        const { data } = await supabase.auth.getSession();
+        activeUserId = data.session?.user?.id ?? null;
+        if (activeUserId) setUserId(activeUserId);
+      }
+
+      if ((params.get("auth") === "1" || pendingAuth) && !activeUserId) {
         setShowAuthModal(true);
         setStatus("Please sign in to continue.");
         if (pendingAuth) sessionStorage.removeItem("sidequest_open_auth");
@@ -666,7 +674,7 @@ export default function Home() {
 
       if (handledCreateParam) return;
       if (params.get("create") !== "1") return;
-      if (userId) {
+      if (activeUserId) {
         openCreateModal();
       } else {
         setShowAuthModal(true);
@@ -675,7 +683,7 @@ export default function Home() {
       setHandledCreateParam(true);
     };
 
-    openAuthFromUrl();
+    void openAuthFromUrl();
 
     const onOpenAuth = () => {
       if (!userId) {
