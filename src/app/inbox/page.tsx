@@ -38,6 +38,7 @@ type Thread = {
   preview: string;
   mediaVideoUrl?: string | null;
   mediaFallbackUrl?: string | null;
+  mediaItems?: Array<{ url: string; type: "image" | "video"; label?: string | null }>;
 };
 
 type QuestOwnerLite = { creator_id: string | null; display_name: string | null; avatar_url: string | null };
@@ -109,6 +110,9 @@ export default function InboxPage() {
   const [newIncomingCount, setNewIncomingCount] = useState(0);
   const lastMessageIdRef = useRef<string | null>(null);
   const lastIncomingIdRef = useRef<string | null>(null);
+  const [expandedMediaIndex, setExpandedMediaIndex] = useState<number | null>(null);
+  const [expandedMediaItems, setExpandedMediaItems] = useState<Array<{ url: string; type: "image" | "video"; label?: string | null }>>([]);
+  const [touchStartX, setTouchStartX] = useState<number | null>(null);
 
   const loadInbox = useCallback(async (uid: string, silent = false) => {
     if (!supabase) return;
@@ -286,6 +290,10 @@ export default function InboxPage() {
         const partnerAvatar = kind === "private"
           ? (partnerProfile?.avatar || (ownerIsPartner ? (owner?.avatar_url || null) : (m.sender_id === userId ? null : (m.profiles?.avatar_url || null))))
           : null;
+        const mediaItems = [
+          ...(m.quests?.media_video_url ? [{ url: m.quests.media_video_url, type: "video" as const, label: "Listing video" }] : []),
+          ...((m.quests?.media_items || []) as Array<{ url: string; type: "image" | "video"; label?: string | null }>),
+        ];
         map.set(id, {
           id,
           questId: m.quest_id,
@@ -300,6 +308,7 @@ export default function InboxPage() {
           preview: getMessageText(m.body),
           mediaVideoUrl: m.quests?.media_video_url || null,
           mediaFallbackUrl: m.quests?.media_items?.find((mi) => mi.type === "image")?.url || null,
+          mediaItems,
         });
       }
     }
@@ -532,6 +541,22 @@ export default function InboxPage() {
               </div>
             )}
 
+            {activeThread?.mediaItems?.length ? (
+              <div className="mb-2 overflow-x-auto">
+                <div className="flex gap-2 min-w-max">
+                  {activeThread.mediaItems.map((m, i) => (
+                    <button key={`${m.url}-${i}`} type="button" className="rounded-lg border p-1.5 bg-gray-50 w-44 shrink-0 text-left" onClick={() => { setExpandedMediaItems(activeThread.mediaItems || []); setExpandedMediaIndex(i); }}>
+                      {m.type === "image" ? (
+                        <img src={m.url} alt={m.label || "Media"} className="w-full h-28 object-cover rounded" />
+                      ) : (
+                        <video src={m.url} className="w-full h-28 object-cover rounded bg-black" muted playsInline preload="metadata" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
             <div ref={messagesPaneRef} className="flex-1 overflow-auto space-y-2 pr-1">
               {activeMessages.length === 0 ? (
                 <p className="text-sm text-gray-500">Pick a thread to view messages.</p>
@@ -576,6 +601,31 @@ export default function InboxPage() {
                 >
                   {newIncomingCount > 0 ? `${newIncomingCount} new message${newIncomingCount > 1 ? "s" : ""}` : "New messages"} · Jump to latest
                 </button>
+              </div>
+            )}
+            {expandedMediaIndex !== null && expandedMediaItems.length > 0 && (
+              <div
+                className="fixed inset-0 z-[75] bg-black/85 flex items-center justify-center p-4"
+                onClick={() => setExpandedMediaIndex(null)}
+                onTouchStart={(e) => setTouchStartX(e.changedTouches[0]?.clientX ?? null)}
+                onTouchEnd={(e) => {
+                  const endX = e.changedTouches[0]?.clientX;
+                  if (touchStartX === null || endX === undefined) return;
+                  const delta = endX - touchStartX;
+                  if (Math.abs(delta) < 40) return;
+                  setExpandedMediaIndex((idx) => {
+                    if (idx === null || !expandedMediaItems.length) return idx;
+                    const len = expandedMediaItems.length;
+                    return delta < 0 ? (idx + 1) % len : (idx - 1 + len) % len;
+                  });
+                }}
+              >
+                {expandedMediaItems[expandedMediaIndex]?.type === "image" ? (
+                  <img src={expandedMediaItems[expandedMediaIndex].url} alt="Expanded media" className="max-h-[88vh] max-w-[94vw] rounded-xl object-contain" onClick={(e) => e.stopPropagation()} />
+                ) : (
+                  <video src={expandedMediaItems[expandedMediaIndex].url} controls autoPlay className="max-h-[88vh] max-w-[94vw] rounded-xl object-contain bg-black" onClick={(e) => e.stopPropagation()} />
+                )}
+                <button type="button" className="absolute top-4 right-4 border rounded px-3 py-2 bg-white" onClick={() => setExpandedMediaIndex(null)}>Close</button>
               </div>
             )}
             {typingNames.length > 0 && (
