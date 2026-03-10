@@ -470,7 +470,13 @@ export default function InboxPage() {
 
         <div className="grid md:grid-cols-[340px_1fr] gap-3">
           <aside className={`rounded-2xl border bg-white p-2 max-h-[70vh] overflow-auto ${activeThread ? "hidden md:block" : "block"}`}>
-            {loading ? <p className="p-3 text-sm">Loading...</p> : threads.length === 0 ? <p className="p-3 text-sm text-gray-500">No messages yet.</p> : threads.map((t) => (
+            {loading ? (
+              <div className="space-y-2 p-1">
+                <div className="h-20 rounded-xl border sq-shimmer" />
+                <div className="h-20 rounded-xl border sq-shimmer" />
+                <div className="h-20 rounded-xl border sq-shimmer" />
+              </div>
+            ) : threads.length === 0 ? <p className="p-3 text-sm text-gray-500">No messages yet.</p> : threads.map((t) => (
               <button
                 key={t.id}
                 className={`w-full text-left rounded-xl px-3 py-2 border mb-2 ${activeThreadId === t.id ? "bg-black text-white" : "bg-white"}`}
@@ -559,7 +565,7 @@ export default function InboxPage() {
               <div className="mt-2 mb-1">
                 <button
                   type="button"
-                  className="text-xs px-3 py-1.5 rounded-full bg-blue-600 text-white"
+                  className="text-xs px-3 py-1.5 rounded-full bg-blue-600 text-white sq-badge-pulse"
                   onClick={() => {
                     const pane = messagesPaneRef.current;
                     if (!pane) return;

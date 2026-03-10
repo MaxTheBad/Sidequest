@@ -84,8 +84,39 @@ button:active, a:active {
   100% { background-position: 0% 50%; }
 }
 
+@keyframes sq-pulse {
+  0%, 100% { transform: scale(1); opacity: .85; }
+  50% { transform: scale(1.08); opacity: 1; }
+}
+
+@keyframes sq-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.create-halo {
+  position: relative;
+}
+.create-halo::before {
+  content: "";
+  position: absolute;
+  inset: -8px;
+  border-radius: 999px;
+  background: radial-gradient(circle, color-mix(in srgb, var(--accent-c) 36%, transparent) 0%, transparent 70%);
+  z-index: -1;
+  animation: sq-pulse 2.4s ease-in-out infinite;
+}
+
+.sq-shimmer {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--muted) 80%, transparent) 25%, color-mix(in srgb, #fff 40%, var(--muted)) 50%, color-mix(in srgb, var(--muted) 80%, transparent) 75%);
+  background-size: 200% 100%;
+  animation: sq-shimmer 1.3s linear infinite;
+}
+
+.sq-badge-pulse { animation: sq-pulse 1.7s ease-in-out infinite; }
+
 @media (prefers-reduced-motion: reduce) {
-  .bg-black.text-white { animation: none; }
+  .bg-black.text-white, .create-halo::before, .sq-badge-pulse, .sq-shimmer { animation: none; }
   button, a, .rounded-xl, .rounded-2xl { transition: none; }
 }
 

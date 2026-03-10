@@ -47,7 +47,7 @@ export default function BottomNav() {
         </button>
 
         <button type="button" onClick={() => requireAuthNavigate("/?create=1")} className="text-center -mt-6">
-          <div className="mx-auto h-12 w-12 rounded-full nav-create grid place-items-center text-2xl leading-none">+</div>
+          <div className="mx-auto h-12 w-12 rounded-full nav-create create-halo grid place-items-center text-2xl leading-none">+</div>
           <div className="text-[11px] mt-1 nav-item-active">Create</div>
         </button>
 
