@@ -1065,8 +1065,8 @@ ${description}`
                     </div>
                   ) : null}
                   {!!q.media_items?.length && (
-                    <div className="w-full overflow-x-auto pb-1 [scrollbar-width:thin] [-webkit-overflow-scrolling:touch]">
-                      <div className="flex gap-2 min-w-max snap-x snap-mandatory">
+                    <div className="w-full overflow-x-scroll overscroll-x-contain touch-pan-x pb-1 pr-2 [scrollbar-width:thin] [-webkit-overflow-scrolling:touch]" style={{ touchAction: "pan-x" }}>
+                      <div className="inline-flex gap-2 min-w-max snap-x snap-mandatory">
                         {q.media_items.map((m, i) => (
                           <div key={`${m.url}-${i}`} className="rounded-lg border p-2 bg-gray-50 w-44 shrink-0 snap-start">
                             <button type="button" className="block w-full" onClick={() => setExpandedMedia({ items: q.media_items || [], index: i })}>
