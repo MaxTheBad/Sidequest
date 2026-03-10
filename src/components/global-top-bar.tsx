@@ -71,21 +71,21 @@ export default function GlobalTopBar() {
 
   return (
     <header className="fixed top-0 inset-x-0 z-50 border-b nav-shell">
-      <div className="max-w-5xl mx-auto px-4 h-12 flex items-center justify-between gap-3">
-        <Link href="/" className="font-semibold text-sm">Side Quest</Link>
+      <div className="max-w-5xl mx-auto px-4 h-[52px] flex items-center justify-between gap-3">
+        <Link href="/" className="font-semibold text-[15px] tracking-tight">Side Quest</Link>
         <div className="ml-auto flex items-center gap-2">
           <button
-            className="border rounded px-2 py-1 text-xs"
+            className="nav-control"
             onClick={() => setThemePref((p) => (p === "auto" ? "light" : p === "light" ? "dark" : "auto"))}
             title="Temporary theme toggle"
           >
             Theme: {themeLabel}
           </button>
-          {userId && userLabel ? <span className="text-xs text-gray-600 hidden sm:inline">Signed in as {userLabel.split("@")[0]}</span> : null}
+          {userId && userLabel ? <span className="text-xs text-gray-600 hidden md:inline">Signed in as {userLabel.split("@")[0]}</span> : null}
           {userId ? (
-            <button className="border rounded px-3 py-1.5 text-sm" onClick={() => void signOut()}>Sign out</button>
+            <button className="nav-control" onClick={() => void signOut()}>Sign out</button>
           ) : (
-            <button className="border rounded px-3 py-1.5 text-sm" onClick={openLogin}>Log in</button>
+            <button className="nav-control" onClick={openLogin}>Log in</button>
           )}
         </div>
       </div>

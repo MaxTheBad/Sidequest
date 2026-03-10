@@ -35,15 +35,15 @@ export default function BottomNav() {
 
   return (
     <nav className="fixed bottom-0 inset-x-0 z-40 border-t nav-shell">
-      <div className="max-w-5xl mx-auto px-3 py-2 grid grid-cols-5 items-end">
-        <Link href="/" className={`text-center text-xs py-2 ${isActive("/") ? "nav-item-active" : "nav-item"}`}>
-          <div>🏠</div>
-          <div>Home</div>
+      <div className="max-w-5xl mx-auto px-3 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] grid grid-cols-5 items-end">
+        <Link href="/" className={`text-center text-xs py-2 transition ${isActive("/") ? "nav-item-active" : "nav-item"}`}>
+          <div className="text-[15px]">🏠</div>
+          <div className="text-[11px] mt-0.5">Home</div>
         </Link>
 
-        <button type="button" onClick={() => requireAuthNavigate("/inbox")} className={`text-center text-xs py-2 ${isActive("/inbox") ? "nav-item-active" : "nav-item"}`}>
-          <div>📥</div>
-          <div>Inbox</div>
+        <button type="button" onClick={() => requireAuthNavigate("/inbox")} className={`text-center text-xs py-2 transition ${isActive("/inbox") ? "nav-item-active" : "nav-item"}`}>
+          <div className="text-[15px]">📥</div>
+          <div className="text-[11px] mt-0.5">Inbox</div>
         </button>
 
         <button type="button" onClick={() => requireAuthNavigate("/?create=1")} className="text-center -mt-6">
@@ -51,14 +51,14 @@ export default function BottomNav() {
           <div className="text-[11px] mt-1 nav-item-active">Create</div>
         </button>
 
-        <button type="button" onClick={() => requireAuthNavigate("/settings")} className={`text-center text-xs py-2 ${isActive("/settings") ? "nav-item-active" : "nav-item"}`}>
-          <div>⚙️</div>
-          <div>Settings</div>
+        <button type="button" onClick={() => requireAuthNavigate("/settings")} className={`text-center text-xs py-2 transition ${isActive("/settings") ? "nav-item-active" : "nav-item"}`}>
+          <div className="text-[15px]">⚙️</div>
+          <div className="text-[11px] mt-0.5">Settings</div>
         </button>
 
-        <button type="button" onClick={() => requireAuthNavigate("/profile")} className={`text-center text-xs py-2 ${isActive("/profile") ? "nav-item-active" : "nav-item"}`}>
-          <div>👤</div>
-          <div>Profile</div>
+        <button type="button" onClick={() => requireAuthNavigate("/profile")} className={`text-center text-xs py-2 transition ${isActive("/profile") ? "nav-item-active" : "nav-item"}`}>
+          <div className="text-[15px]">👤</div>
+          <div className="text-[11px] mt-0.5">Profile</div>
         </button>
       </div>
     </nav>
