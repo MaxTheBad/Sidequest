@@ -24,15 +24,19 @@ html[data-theme="dark"] {
 
 body {
   background:
-    radial-gradient(1200px 500px at 10% -10%, color-mix(in srgb, var(--accent-a) 16%, transparent), transparent 60%),
-    radial-gradient(900px 420px at 90% -20%, color-mix(in srgb, var(--accent-b) 12%, transparent), transparent 62%),
+    radial-gradient(1200px 500px at 10% -10%, color-mix(in srgb, var(--accent-a) 18%, transparent), transparent 60%),
+    radial-gradient(900px 420px at 90% -20%, color-mix(in srgb, var(--accent-b) 15%, transparent), transparent 62%),
+    radial-gradient(700px 320px at 50% 110%, color-mix(in srgb, var(--accent-c) 10%, transparent), transparent 65%),
     var(--background);
   color: var(--foreground);
   font-family: Inter, Arial, Helvetica, sans-serif;
 }
 
 /* iOS-clean surface tokens mapped over existing utility-heavy UI */
-.bg-white { background-color: var(--surface) !important; }
+.bg-white { 
+  background-color: color-mix(in srgb, var(--surface) 92%, transparent) !important;
+  box-shadow: 0 8px 24px rgba(15,23,42,0.06);
+}
 .bg-gray-100, .bg-gray-50, .bg-\[\#f6f7fb\] { background-color: var(--muted) !important; }
 .border, .border-b { border-color: var(--border) !important; }
 .text-gray-500, .text-gray-600 { color: color-mix(in srgb, var(--foreground) 65%, transparent) !important; }
@@ -44,7 +48,9 @@ body {
 .bg-black.text-white {
   background: linear-gradient(135deg, var(--accent-a), var(--accent-b)) !important;
   color: #fff !important;
-  box-shadow: 0 8px 18px color-mix(in srgb, var(--accent-a) 28%, transparent);
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--accent-a) 34%, transparent);
+  background-size: 140% 140%;
+  animation: sq-shift 7s ease infinite;
 }
 
 .bg-emerald-600.text-white {
@@ -58,6 +64,29 @@ body {
 html[data-theme="dark"] .bg-black.text-white {
   background: linear-gradient(135deg, var(--accent-a), var(--accent-c)) !important;
   color: #fff !important;
+}
+
+button, a, .rounded-xl, .rounded-2xl {
+  transition: transform .18s ease, box-shadow .22s ease, background-color .2s ease, color .2s ease;
+}
+
+button:active, a:active {
+  transform: translateY(1px) scale(0.99);
+}
+
+.bg-white:hover {
+  box-shadow: 0 12px 28px rgba(15,23,42,0.09);
+}
+
+@keyframes sq-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bg-black.text-white { animation: none; }
+  button, a, .rounded-xl, .rounded-2xl { transition: none; }
 }
 
 .nav-shell {
