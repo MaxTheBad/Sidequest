@@ -4,19 +4,28 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase";
 
+type QuestInfo = {
+  id: string;
+  title: string | null;
+  city: string | null;
+  availability: string | null;
+  exact_address?: string | null;
+  hobby_id?: string | null;
+  hobbies?: { name: string | null }[] | null;
+};
+
 type JoinedQuest = {
   quest_id: string;
   status: "pending" | "approved" | "declined";
   joined_at?: string | null;
-  quests?: {
-    id: string;
-    title: string | null;
-    city: string | null;
-    availability: string | null;
-    exact_address?: string | null;
-    hobby_id?: string | null;
-    hobbies?: { name: string | null }[] | null;
-  } | null;
+  quests?: QuestInfo | null;
+};
+
+type JoinedQuestRow = {
+  quest_id: string;
+  status?: "pending" | "approved" | "declined" | null;
+  joined_at?: string | null;
+  quests?: QuestInfo | QuestInfo[] | null;
 };
 
 type SortMode = "closest" | "starting_soon" | "recent";
@@ -72,7 +81,15 @@ export default function JoinedPage() {
 
       setLoading(false);
       if (error) return setStatus(error.message);
-      setRows((data as JoinedQuest[]) || []);
+
+      const normalized = ((data || []) as JoinedQuestRow[]).map((row) => ({
+        quest_id: row.quest_id,
+        status: (row.status || "approved") as "pending" | "approved" | "declined",
+        joined_at: row.joined_at || null,
+        quests: Array.isArray(row.quests) ? (row.quests[0] || null) : (row.quests || null),
+      }));
+
+      setRows(normalized);
     };
     void run();
   }, [supabase]);
