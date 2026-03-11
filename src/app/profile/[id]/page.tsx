@@ -40,6 +40,8 @@ export default function ProfilePage() {
   const [friendship, setFriendship] = useState<FriendEdge | null>(null);
   const [incomingRequests, setIncomingRequests] = useState<FriendEdge[]>([]);
   const [outgoingRequests, setOutgoingRequests] = useState<FriendEdge[]>([]);
+  const [incomingRequestProfiles, setIncomingRequestProfiles] = useState<Record<string, Profile>>({});
+  const [outgoingRequestProfiles, setOutgoingRequestProfiles] = useState<Record<string, Profile>>({});
   const [status, setStatus] = useState("Loading...");
   const [reloadTick, setReloadTick] = useState(0);
 
@@ -121,11 +123,33 @@ export default function ProfilePage() {
       }
 
       if (uid && uid === profileId) {
-        setIncomingRequests(allEdges.filter((f) => f.addressee_id === uid && f.status === "pending"));
-        setOutgoingRequests(allEdges.filter((f) => f.requester_id === uid && f.status === "pending"));
+        const incoming = allEdges.filter((f) => f.addressee_id === uid && f.status === "pending");
+        const outgoing = allEdges.filter((f) => f.requester_id === uid && f.status === "pending");
+        setIncomingRequests(incoming);
+        setOutgoingRequests(outgoing);
+
+        const requestProfileIds = Array.from(new Set([
+          ...incoming.map((r) => r.requester_id),
+          ...outgoing.map((r) => r.addressee_id),
+        ]));
+
+        if (requestProfileIds.length) {
+          const { data: requestProfiles } = await supabase
+            .from("profiles")
+            .select("id,display_name,city,bio,friends_visibility,avatar_url")
+            .in("id", requestProfileIds);
+          const map = Object.fromEntries(((requestProfiles as Profile[]) || []).map((rp) => [rp.id, rp]));
+          setIncomingRequestProfiles(map);
+          setOutgoingRequestProfiles(map);
+        } else {
+          setIncomingRequestProfiles({});
+          setOutgoingRequestProfiles({});
+        }
       } else {
         setIncomingRequests([]);
         setOutgoingRequests([]);
+        setIncomingRequestProfiles({});
+        setOutgoingRequestProfiles({});
       }
 
       setStatus("");
@@ -187,8 +211,19 @@ export default function ProfilePage() {
     setReloadTick((x) => x + 1);
   }
 
+  async function cancelOutgoingRequest(targetId: string) {
+    if (!supabase || !viewerId) return;
+    const { error } = await supabase.from("friends").delete().eq("requester_id", viewerId).eq("addressee_id", targetId).eq("status", "pending");
+    if (error) return setStatus(error.message);
+    setStatus("Friend request canceled.");
+    setReloadTick((x) => x + 1);
+  }
+
   async function removeFriend(targetId: string) {
     if (!supabase || !viewerId) return;
+    const targetName = targetId === profileId ? (profile?.display_name || "this person") : "this person";
+    const ok = window.confirm(`Remove ${targetName} as a friend?`);
+    if (!ok) return;
     const { error } = await supabase
       .from("friends")
       .delete()
@@ -253,15 +288,23 @@ export default function ProfilePage() {
                 <div>
                   <p className="text-xs font-medium mb-2">Incoming requests</p>
                   <div className="grid gap-2">
-                    {incomingRequests.map((r) => (
-                      <div key={`in-${r.requester_id}`} className="flex items-center justify-between rounded border px-2 py-1">
-                        <Link href={`/profile/${r.requester_id}`} className="text-sm underline">View profile</Link>
-                        <div className="flex gap-2">
-                          <button type="button" className="text-xs border rounded px-2 py-1" onClick={() => void acceptRequest(r.requester_id)}>Accept</button>
-                          <button type="button" className="text-xs border rounded px-2 py-1" onClick={() => void declineRequest(r.requester_id)}>Decline</button>
+                    {incomingRequests.map((r) => {
+                      const rp = incomingRequestProfiles[r.requester_id];
+                      return (
+                        <div key={`in-${r.requester_id}`} className="flex items-center justify-between rounded border px-2 py-1 gap-2">
+                          <Link href={`/profile/${r.requester_id}`} className="inline-flex items-center gap-2 min-w-0">
+                            {rp?.avatar_url ? (
+                              <img src={rp.avatar_url} alt={rp.display_name || "Profile"} className="h-7 w-7 rounded-full object-cover border" />
+                            ) : <div className="h-7 w-7 rounded-full bg-gray-100 border" />}
+                            <span className="text-sm truncate">{rp?.display_name || "View profile"}</span>
+                          </Link>
+                          <div className="flex gap-2 shrink-0">
+                            <button type="button" className="text-xs border rounded px-2 py-1" onClick={() => void acceptRequest(r.requester_id)}>Accept</button>
+                            <button type="button" className="text-xs border rounded px-2 py-1" onClick={() => void declineRequest(r.requester_id)}>Decline</button>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -270,11 +313,14 @@ export default function ProfilePage() {
                 <div>
                   <p className="text-xs font-medium mb-2">Sent requests</p>
                   <div className="flex flex-wrap gap-2">
-                    {outgoingRequests.map((r) => (
-                      <button key={`out-${r.addressee_id}`} type="button" className="text-xs border rounded-full px-2 py-1" onClick={() => void removeFriend(r.addressee_id)}>
-                        Cancel request
-                      </button>
-                    ))}
+                    {outgoingRequests.map((r) => {
+                      const rp = outgoingRequestProfiles[r.addressee_id];
+                      return (
+                        <button key={`out-${r.addressee_id}`} type="button" className="text-xs border rounded-full px-2 py-1" onClick={() => void cancelOutgoingRequest(r.addressee_id)}>
+                          Cancel {rp?.display_name || "request"}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               )}
