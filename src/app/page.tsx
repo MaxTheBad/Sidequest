@@ -1125,6 +1125,13 @@ ${description}`
         .eq("quest_id", id)
         .eq("user_id", userId);
       if (error) return setStatus(error.message);
+
+      await supabase
+        .from("quest_exact_location_access")
+        .delete()
+        .eq("quest_id", id)
+        .eq("user_id", userId);
+
       await loadMemberships(userId);
       setStatus(hasPending ? "Join request canceled." : "Left quest.");
       return;

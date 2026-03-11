@@ -145,6 +145,13 @@ export default function ListingPage() {
         .eq("quest_id", listing.id)
         .eq("user_id", userId);
       if (error) return setStatus(error.message);
+
+      await supabase
+        .from("quest_exact_location_access")
+        .delete()
+        .eq("quest_id", listing.id)
+        .eq("user_id", userId);
+
       setStatus(myMembershipStatus === "pending" ? "Join request canceled." : "Left listing.");
       setHasJoined(false);
       setMyMembershipStatus(null);
@@ -409,7 +416,7 @@ export default function ListingPage() {
                         {isManager && m.role !== "creator" && (
                           <button
                             type="button"
-                            className={`text-xs border rounded px-2 py-0.5 font-semibold leading-none ${hasExactAccess ? "bg-emerald-200 border-emerald-500 text-emerald-950" : "bg-white border-slate-300 text-slate-800"}`}
+                            className={`text-xs border rounded px-2 py-0.5 font-semibold leading-none ${hasExactAccess ? "bg-emerald-200 border-emerald-500 text-emerald-950" : "bg-red-200 border-red-500 text-red-950"}`}
                             onClick={() => void toggleExactAccess(m.user_id, !hasExactAccess)}
                           >
                             {hasExactAccess ? "Exact: on" : "Exact: off"}
