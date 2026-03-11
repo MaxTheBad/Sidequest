@@ -307,6 +307,25 @@ export default function ListingPage() {
     exactAccessUserIds.includes(userId)
   ));
 
+  function locationSummary(input?: string | null) {
+    const raw = (input || "").trim();
+    if (!raw) return "";
+    const parts = raw.split(",").map((p) => p.trim()).filter(Boolean);
+    if (!parts.length) return "";
+
+    const country = parts[parts.length - 1] || "";
+    const postal = [...parts].reverse().find((p) => /\d{4,}/.test(p)) || "";
+    const city = parts.find((p, i) => {
+      if (i === 0 || i >= parts.length - 1) return false;
+      if (!/[A-Za-z]/.test(p)) return false;
+      if (/county/i.test(p)) return false;
+      if (/(street|st\.?|road|rd\.?|avenue|ave\.?|boulevard|blvd\.?|drive|dr\.?|lane|ln\.?|way|court|ct\.?|place|pl\.?|trail|trl\.?|circle|cir\.?)/i.test(p)) return false;
+      return true;
+    }) || "";
+
+    return [city, postal, country].filter(Boolean).join(", ");
+  }
+
   function memberProfileOf(member: MemberRow): MemberProfile | null {
     if (!member.profiles) return null;
     return Array.isArray(member.profiles) ? (member.profiles[0] || null) : member.profiles;
@@ -361,7 +380,7 @@ export default function ListingPage() {
 
             <p className="text-sm text-gray-600">{listing.hobbies?.[0]?.name || "Hobby"} · {listing.skill_level} · group {listing.group_size}</p>
             <p className="text-sm">{listing.description || "No description yet."}</p>
-            <p className="text-xs text-gray-500">{listing.city || "city tbd"} · {listing.availability || "availability tbd"}</p>
+            <p className="text-xs text-gray-500">{listing.city || locationSummary(listing.exact_address) || "city tbd"} · {listing.availability || "availability tbd"}</p>
             {canViewExactAddress && listing.exact_address ? (
               <p className="text-xs text-emerald-700">Exact address: {listing.exact_address}</p>
             ) : (
@@ -388,7 +407,11 @@ export default function ListingPage() {
                         </Link>
                         {m.role === "cohost" && <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">Co-host</span>}
                         {isManager && m.role !== "creator" && (
-                          <button type="button" className={`text-[10px] border rounded px-2 py-0.5 ${hasExactAccess ? "bg-emerald-50 border-emerald-300" : ""}`} onClick={() => void toggleExactAccess(m.user_id, !hasExactAccess)}>
+                          <button
+                            type="button"
+                            className={`text-[10px] border rounded px-2 py-0.5 font-medium ${hasExactAccess ? "bg-emerald-100 border-emerald-400 text-emerald-900" : "bg-white text-gray-700"}`}
+                            onClick={() => void toggleExactAccess(m.user_id, !hasExactAccess)}
+                          >
                             {hasExactAccess ? "Exact: on" : "Exact: off"}
                           </button>
                         )}

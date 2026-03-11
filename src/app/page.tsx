@@ -833,8 +833,20 @@ export default function Home() {
   function deriveCityFromLocation(input: string) {
     const parts = input.split(",").map((p) => p.trim()).filter(Boolean);
     if (!parts.length) return "";
-    if (parts.length === 1) return parts[0];
-    return parts[parts.length - 2] || parts[0];
+
+    const country = parts[parts.length - 1] || "";
+    const postal = [...parts].reverse().find((p) => /\d{4,}/.test(p)) || "";
+
+    const city = parts.find((p, i) => {
+      if (i === 0 || i >= parts.length - 1) return false;
+      if (!/[A-Za-z]/.test(p)) return false;
+      if (/county/i.test(p)) return false;
+      if (/(street|st\.?|road|rd\.?|avenue|ave\.?|boulevard|blvd\.?|drive|dr\.?|lane|ln\.?|way|court|ct\.?|place|pl\.?|trail|trl\.?|circle|cir\.?)/i.test(p)) return false;
+      return true;
+    }) || "";
+
+    const summary = [city, postal, country].filter(Boolean).join(", ");
+    return summary || parts[0];
   }
 
   async function createQuest(e: FormEvent) {
@@ -1233,7 +1245,7 @@ ${description}`
                       </h3>
                       <p className="text-xs text-gray-500">{q.hobbies?.[0]?.name || "Hobby"} · {q.skill_level} · group {q.group_size}</p>
                       <p className="text-sm mt-2">{q.description}</p>
-                      <p className="text-xs text-gray-500 mt-1">{q.city || "city tbd"} · {q.availability || "availability tbd"}</p>
+                      <p className="text-xs text-gray-500 mt-1">{q.city || deriveCityFromLocation(q.exact_address || "") || "city tbd"} · {q.availability || "availability tbd"}</p>
                     </div>
                     <div className="flex gap-2 flex-wrap justify-end">
                       {userId !== q.creator_id && (
