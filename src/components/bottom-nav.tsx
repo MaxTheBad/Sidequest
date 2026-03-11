@@ -64,10 +64,10 @@ export default function BottomNav() {
             sessionStorage.setItem("sidequest_open_create", "1");
             void requireAuthNavigate("/");
           }}
-          className="text-center -mt-6"
+          className="text-center -mt-6 bg-transparent border-0 shadow-none appearance-none p-0"
         >
           <div className="mx-auto h-12 w-12 rounded-full nav-create create-halo grid place-items-center text-2xl leading-none">+</div>
-          <div className="text-[11px] mt-1 font-semibold text-[color:var(--foreground)]">Create</div>
+          <div className="text-[11px] mt-1 font-semibold text-[color:var(--foreground)] bg-transparent">Create</div>
         </button>
 
         <button type="button" onClick={() => requireAuthNavigate("/joined")} className={`text-center text-xs py-2 transition ${isActive("/joined") ? "nav-item-active" : "nav-item"}`}>
