@@ -399,6 +399,14 @@ export default function ListingPage() {
 
             <div className="rounded-xl border bg-gray-50 p-3">
               <p className="text-sm font-medium mb-2">Joined members ({members.filter((m) => (m.status || "approved") === "approved").length})</p>
+              {members.some((m) => (m.status || "approved") === "approved" && (m.role === "creator" || m.role === "cohost")) && (
+                <div className="mb-2 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-800">
+                  ⭐ Hosts: {members
+                    .filter((m) => (m.status || "approved") === "approved" && (m.role === "creator" || m.role === "cohost"))
+                    .map((m) => (memberProfileOf(m)?.display_name || "Host").trim().split(/\s+/)[0] || "Host")
+                    .join(", ")}
+                </div>
+              )}
               {members.length ? (
                 <div className="space-y-2">
                   {members.filter((m) => (m.status || "approved") === "approved").map((m) => {
@@ -415,7 +423,8 @@ export default function ListingPage() {
                           )}
                           <span className="text-xs">{firstName}</span>
                         </Link>
-                        {m.role === "cohost" && <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">Co-host</span>}
+                        {m.role === "creator" && <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">⭐ Organizer</span>}
+                        {m.role === "cohost" && <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">⭐ Co-host</span>}
                         {isManager && m.role !== "creator" && (
                           <button
                             type="button"
@@ -505,7 +514,7 @@ export default function ListingPage() {
                 </>
               ) : (
                 <>
-                  <Link href="/" className="border rounded px-3 py-2 inline-block">Edit on home</Link>
+                  <Link href={`/listing/${listing.id}/edit`} className="border rounded px-3 py-2 inline-block">Edit listing</Link>
                   <Link href="/inbox" className="border rounded px-3 py-2 inline-block">Open inbox</Link>
                   <button className="border border-red-300 text-red-700 rounded px-3 py-2" onClick={() => void deleteListing()}>Delete listing</button>
                 </>

@@ -70,9 +70,9 @@ export default function BottomNav() {
           <div className="text-[11px] mt-1 nav-item-active">Create</div>
         </button>
 
-        <button type="button" onClick={() => requireAuthNavigate("/settings")} className={`text-center text-xs py-2 transition ${isActive("/settings") ? "nav-item-active" : "nav-item"}`}>
-          <div className="text-[15px]">⚙️</div>
-          <div className="text-[11px] mt-0.5">Settings</div>
+        <button type="button" onClick={() => requireAuthNavigate("/joined")} className={`text-center text-xs py-2 transition ${isActive("/joined") ? "nav-item-active" : "nav-item"}`}>
+          <div className="text-[15px]">✅</div>
+          <div className="text-[11px] mt-0.5">Joined</div>
         </button>
 
         <button type="button" onClick={() => requireAuthNavigate("/profile")} className={`text-center text-xs py-2 transition ${isActive("/profile") ? "nav-item-active" : "nav-item"}`}>

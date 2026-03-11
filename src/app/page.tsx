@@ -1286,7 +1286,7 @@ ${description}`
               <button className={`px-3 py-2 rounded ${authMode === "signup" ? "bg-black text-white" : "border"}`} onClick={() => setAuthMode("signup")}>Sign up</button>
               <button className={`px-3 py-2 rounded ${authMode === "login" ? "bg-black text-white" : "border"}`} onClick={() => setAuthMode("login")}>Log in</button>
             </div>
-            {status && <div className="text-sm rounded border bg-amber-50 px-3 py-2">{status}</div>}
+            {status && <div className="text-sm rounded border bg-amber-100 text-amber-950 border-amber-300 px-3 py-2">{status}</div>}
 
             <form onSubmit={authMode === "signup" ? signUpWithPassword : signInWithPassword} className="grid gap-2">
               <label className="text-xs font-medium text-gray-600">Email</label>
