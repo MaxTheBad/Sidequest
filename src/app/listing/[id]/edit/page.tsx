@@ -5,6 +5,8 @@ import { FormEvent, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { getSupabaseClient } from "@/lib/supabase";
 
+export const runtime = "edge";
+
 export default function EditListingPage() {
   const supabase = getSupabaseClient();
   const router = useRouter();
