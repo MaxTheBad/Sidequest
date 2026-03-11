@@ -154,13 +154,14 @@ export default function ListingPage() {
 
     const nextStatus = (listing.join_mode || "open") === "approval_required" ? "pending" : "approved";
     if (myMembershipStatus === "declined") {
-      const { error } = await supabase
+      const { error: delErr } = await supabase
         .from("quest_members")
-        .update({ status: nextStatus })
+        .delete()
         .eq("quest_id", listing.id)
         .eq("user_id", userId);
-      if (error) return setStatus(error.message);
-    } else {
+      if (delErr) return setStatus(delErr.message);
+    }
+    {
       const { error } = await supabase.from("quest_members").insert({ quest_id: listing.id, user_id: userId, role: "member", status: nextStatus });
       if (error && !error.message.includes("duplicate") && !error.message.toLowerCase().includes("unique")) return setStatus(error.message);
     }

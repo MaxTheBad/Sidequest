@@ -1090,13 +1090,14 @@ ${description}`
     const nextStatus = (quest?.join_mode || "open") === "approval_required" ? "pending" : "approved";
     const existingStatus = membershipStatusByQuest[id];
     if (existingStatus === "declined") {
-      const { error } = await supabase
+      const { error: delErr } = await supabase
         .from("quest_members")
-        .update({ status: nextStatus })
+        .delete()
         .eq("quest_id", id)
         .eq("user_id", userId);
-      if (error) return setStatus(error.message);
-    } else {
+      if (delErr) return setStatus(delErr.message);
+    }
+    {
       const { error } = await supabase.from("quest_members").insert({ quest_id: id, user_id: userId, role: "member", status: nextStatus });
       if (error && !error.message.includes("duplicate") && !error.message.toLowerCase().includes("unique")) return setStatus(error.message);
     }
