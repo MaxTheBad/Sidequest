@@ -409,14 +409,18 @@ export default function ListingPage() {
                         {isManager && m.role !== "creator" && (
                           <button
                             type="button"
-                            className={`text-[10px] border rounded px-2 py-0.5 font-medium ${hasExactAccess ? "bg-emerald-100 border-emerald-400 text-emerald-900" : "bg-white text-gray-700"}`}
+                            className={`text-xs border rounded px-2 py-0.5 font-semibold leading-none ${hasExactAccess ? "bg-emerald-200 border-emerald-500 text-emerald-950" : "bg-white border-slate-300 text-slate-800"}`}
                             onClick={() => void toggleExactAccess(m.user_id, !hasExactAccess)}
                           >
                             {hasExactAccess ? "Exact: on" : "Exact: off"}
                           </button>
                         )}
                         {isOwner && m.role !== "creator" && (m.status || "approved") === "approved" && (
-                          <button type="button" className="text-[10px] border rounded px-2 py-0.5" onClick={() => void setMemberRole(m.user_id, m.role === "cohost" ? "member" : "cohost")}>
+                          <button
+                            type="button"
+                            className="text-xs border rounded px-2 py-0.5 font-semibold leading-none bg-white border-slate-300 text-slate-800"
+                            onClick={() => void setMemberRole(m.user_id, m.role === "cohost" ? "member" : "cohost")}
+                          >
                             {m.role === "cohost" ? "Demote" : "Promote"}
                           </button>
                         )}
