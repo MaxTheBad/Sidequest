@@ -230,6 +230,10 @@ export default function Home() {
       if (session?.user) {
         void ensureProfileRow(session.user.id, session.user.email, md);
         setShowAuthModal(false);
+        if (typeof window !== "undefined" && sessionStorage.getItem("sidequest_open_create") === "1") {
+          sessionStorage.removeItem("sidequest_open_create");
+          openCreateModal();
+        }
         if (event === "SIGNED_IN" && typeof window !== "undefined" && window.location.search.includes("code=")) {
           setStatus("✅ Email confirmed. Welcome!");
         }
@@ -676,7 +680,13 @@ export default function Home() {
       if (params.get("create") !== "1") return;
       if (activeUserId) {
         openCreateModal();
+        if (typeof window !== "undefined") {
+          const next = new URL(window.location.href);
+          next.searchParams.delete("create");
+          window.history.replaceState({}, "", next.pathname + (next.search ? `?${next.searchParams.toString()}` : ""));
+        }
       } else {
+        if (typeof window !== "undefined") sessionStorage.setItem("sidequest_open_create", "1");
         setShowAuthModal(true);
         setStatus("Log in to create.");
       }
@@ -877,6 +887,7 @@ ${description}`
       : description;
 
     setSavingQuest(true);
+    setStatus(editingQuestId ? "Updating listing…" : "Posting listing…");
     try {
       const newDraftItems = mediaDraftItems.filter((m) => m.source === "new" && m.file);
       const uploadedMedia = newDraftItems.length
@@ -1366,7 +1377,7 @@ ${description}`
       {showCreateModal && (
         <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center p-4 overflow-y-auto">
           <div className="w-full max-w-xl rounded-2xl bg-white border p-4 space-y-3 max-h-[92vh] overflow-y-auto my-auto">
-            <div className="flex justify-between items-center"><h3 className="font-semibold">{editingQuestId ? "Edit Listing" : "Create Quest"}</h3><button onClick={() => { setShowCreateModal(false); resetQuestForm(); }} className="border rounded px-2 py-1">Close</button></div>
+            <div className="flex justify-between items-center"><h3 className="font-semibold">{editingQuestId ? "Edit Listing" : "Create Quest"}</h3><button disabled={savingQuest} onClick={() => { setShowCreateModal(false); resetQuestForm(); }} className="border rounded px-2 py-1 disabled:opacity-50">Close</button></div>
             <form onSubmit={createQuest} className="grid gap-2">
               <label className="text-sm font-medium">Title</label>
               <input className="border rounded px-3 py-2" placeholder={titlePlaceholder} value={title} onChange={(e) => setTitle(e.target.value)} />
@@ -1527,6 +1538,7 @@ ${description}`
                 ) : null}
               </div>
 
+              {savingQuest && <div className="text-sm rounded border bg-blue-50 px-3 py-2">Working on it… uploading media and saving listing.</div>}
               <div className="flex gap-2 flex-wrap">
                 <button className="bg-black text-white rounded px-3 py-2 disabled:opacity-50" disabled={savingQuest}>{savingQuest ? "Saving..." : (editingQuestId ? "Save changes" : "Post quest")}</button>
                 {editingQuestId && (
