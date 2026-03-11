@@ -445,21 +445,25 @@ export default function SettingsPage() {
                 <label className="text-sm font-medium">Date of birth</label>
                 <input type="date" className="border rounded px-3 py-2" value={dob} onChange={(e) => setDob(e.target.value)} />
 
-                <label className="text-sm font-medium">Country</label>
-                <input list="country-list" className="border rounded px-3 py-2" value={countryQuery} onChange={(e) => { setCountryQuery(e.target.value); setCountryCode(resolveCountryCodeByName(e.target.value)); }} placeholder="Start typing country..." />
+                <div className="grid gap-2 sm:grid-cols-2 sm:items-end">
+                  <div className="grid gap-1">
+                    <label className="text-sm font-medium">Country</label>
+                    <input list="country-list" className="border rounded px-3 py-2" value={countryQuery} onChange={(e) => { setCountryQuery(e.target.value); setCountryCode(resolveCountryCodeByName(e.target.value)); }} placeholder="Start typing country..." />
+                  </div>
 
-                <label className="text-sm font-medium">City</label>
-                <div className="relative">
-                  <input className="border rounded px-3 py-2 w-full" value={city} onChange={(e) => setCity(e.target.value)} placeholder={`Start typing city in ${countryCode}...`} />
-                  {citySuggestions.length > 0 && (
-                    <div className="absolute z-20 left-0 right-0 mt-1 border rounded bg-white shadow max-h-44 overflow-auto text-sm">
-                      {citySuggestions.map((c) => (
-                        <button key={c} type="button" className="block w-full text-left px-3 py-2 hover:bg-gray-100" onClick={() => { setCity(c); setCitySuggestions([]); }}>
-                          {c}
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                  <div className="relative grid gap-1">
+                    <label className="text-sm font-medium">City</label>
+                    <input className="border rounded px-3 py-2 w-full" value={city} onChange={(e) => setCity(e.target.value)} placeholder={`Start typing city in ${countryCode}...`} />
+                    {citySuggestions.length > 0 && (
+                      <div className="absolute z-20 left-0 right-0 top-full mt-1 border rounded bg-white shadow max-h-44 overflow-auto text-sm">
+                        {citySuggestions.map((c) => (
+                          <button key={c} type="button" className="block w-full text-left px-3 py-2 hover:bg-gray-100" onClick={() => { setCity(c); setCitySuggestions([]); }}>
+                            {c}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <label className="text-sm font-medium">Bio</label>

@@ -281,7 +281,7 @@ export default function Home() {
   }, [status]);
 
   useEffect(() => {
-    const q = city.trim();
+    const q = exactAddress.trim();
     if (q.length < 2) return setCitySuggestions([]);
     const t = setTimeout(async () => {
       try {
@@ -294,7 +294,7 @@ export default function Home() {
       }
     }, 300);
     return () => clearTimeout(t);
-  }, [city, countryCode]);
+  }, [exactAddress, countryCode]);
 
   async function loadQuests() {
     if (!supabase) return;
@@ -1390,8 +1390,27 @@ ${description}`
                 )}
               </div>
 
-              <label className="text-sm font-medium">Country</label>
-              <input list="country-list" className="border rounded px-3 py-2" value={countryQuery} onChange={(e) => { setCountryQuery(e.target.value); setCountryCode(resolveCountryCodeByName(e.target.value)); }} placeholder="Start typing country..." />
+              <div className="grid gap-2 sm:grid-cols-2 sm:items-end">
+                <div className="grid gap-1">
+                  <label className="text-sm font-medium">Country</label>
+                  <input list="country-list" className="border rounded px-3 py-2" value={countryQuery} onChange={(e) => { setCountryQuery(e.target.value); setCountryCode(resolveCountryCodeByName(e.target.value)); }} placeholder="Start typing country..." />
+                </div>
+                <div className="grid gap-1">
+                  <label className="text-sm font-medium">Location</label>
+                  <div className="relative">
+                    <input className="border rounded px-3 py-2 w-full" placeholder="Address or location (city is okay too)" value={exactAddress} onChange={(e) => setExactAddress(e.target.value)} />
+                    {citySuggestions.length > 0 && (
+                      <div className="absolute z-20 left-0 right-0 mt-1 border rounded bg-white shadow max-h-44 overflow-auto text-sm">
+                        {citySuggestions.map((c) => (
+                          <button key={c} type="button" className="block w-full text-left px-3 py-2 hover:bg-gray-100" onClick={() => { setExactAddress(c); setCitySuggestions([]); }}>
+                            {c}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
 
               <label className="text-sm font-medium">Availability</label>
               <div className="flex gap-4 text-sm">
@@ -1415,9 +1434,6 @@ ${description}`
                 <option value="open">Anyone can join instantly</option>
                 <option value="approval_required">Host must approve members</option>
               </select>
-
-              <label className="text-sm font-medium">Location</label>
-              <input className="border rounded px-3 py-2" placeholder="Address or location (city is okay too)" value={exactAddress} onChange={(e) => setExactAddress(e.target.value)} />
 
               <label className="text-sm font-medium">Location visibility</label>
               <select className="border rounded px-3 py-2" value={exactLocationVisibility} onChange={(e) => setExactLocationVisibility(e.target.value as "private" | "public" | "approved_members")}>
