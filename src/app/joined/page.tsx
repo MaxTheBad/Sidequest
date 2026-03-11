@@ -16,6 +16,7 @@ type QuestInfo = {
 
 type JoinedQuest = {
   quest_id: string;
+  role: "creator" | "cohost" | "member";
   status: "pending" | "approved" | "declined";
   joined_at?: string | null;
   quests?: QuestInfo | null;
@@ -23,6 +24,7 @@ type JoinedQuest = {
 
 type JoinedQuestRow = {
   quest_id: string;
+  role?: "creator" | "cohost" | "member" | null;
   status?: "pending" | "approved" | "declined" | null;
   joined_at?: string | null;
   quests?: QuestInfo | QuestInfo[] | null;
@@ -74,7 +76,7 @@ export default function JoinedPage() {
 
       const { data, error } = await supabase
         .from("quest_members")
-        .select("quest_id,status,joined_at,quests(id,title,city,availability,exact_address,hobbies(name))")
+        .select("quest_id,role,status,joined_at,quests(id,title,city,availability,exact_address,hobbies(name))")
         .eq("user_id", uid)
         .in("status", ["approved", "pending"])
         .order("joined_at", { ascending: false });
@@ -84,6 +86,7 @@ export default function JoinedPage() {
 
       const normalized = ((data || []) as JoinedQuestRow[]).map((row) => ({
         quest_id: row.quest_id,
+        role: (row.role || "member") as "creator" | "cohost" | "member",
         status: (row.status || "approved") as "pending" | "approved" | "declined",
         joined_at: row.joined_at || null,
         quests: Array.isArray(row.quests) ? (row.quests[0] || null) : (row.quests || null),
@@ -94,10 +97,11 @@ export default function JoinedPage() {
     void run();
   }, [supabase]);
 
-  const pending = useMemo(() => rows.filter((r) => (r.status || "approved") === "pending"), [rows]);
+  const hosting = useMemo(() => rows.filter((r) => (r.status || "approved") === "approved" && (r.role === "creator" || r.role === "cohost")), [rows]);
+  const pending = useMemo(() => rows.filter((r) => (r.status || "approved") === "pending" && r.role === "member"), [rows]);
 
   const approved = useMemo(() => {
-    const list = rows.filter((r) => (r.status || "approved") === "approved");
+    const list = rows.filter((r) => (r.status || "approved") === "approved" && r.role === "member");
     return [...list].sort((a, b) => {
       if (sort === "recent") return new Date(b.joined_at || 0).getTime() - new Date(a.joined_at || 0).getTime();
       if (sort === "starting_soon") {
@@ -132,6 +136,16 @@ export default function JoinedPage() {
         {status && <p className="text-sm rounded border bg-amber-100 text-amber-900 border-amber-300 px-3 py-2">{status}</p>}
 
         <div className="space-y-2">
+          <h2 className="font-semibold">Hosting ({hosting.length})</h2>
+          {hosting.length === 0 ? <p className="text-sm text-gray-500">You’re not hosting any active listings.</p> : hosting.map((r) => (
+            <Link key={`h-${r.quest_id}`} href={`/listing/${r.quest_id}`} className="block rounded-xl border bg-emerald-50 px-3 py-2">
+              <p className="font-medium">⭐ {r.quests?.title || "Untitled listing"}</p>
+              <p className="text-xs text-gray-600">{r.role === "creator" ? "Organizer" : "Co-host"} · {r.quests?.city || locationSummary(r.quests?.exact_address) || "city tbd"} · {r.quests?.availability || "availability tbd"}</p>
+            </Link>
+          ))}
+        </div>
+
+        <div className="space-y-2">
           <h2 className="font-semibold">Waiting on approval ({pending.length})</h2>
           {pending.length === 0 ? <p className="text-sm text-gray-500">No pending requests.</p> : pending.map((r) => (
             <Link key={`p-${r.quest_id}`} href={`/listing/${r.quest_id}`} className="block rounded-xl border bg-amber-50 px-3 py-2">
@@ -142,7 +156,7 @@ export default function JoinedPage() {
         </div>
 
         <div className="space-y-2">
-          <h2 className="font-semibold">Approved ({approved.length})</h2>
+          <h2 className="font-semibold">Joined ({approved.length})</h2>
           {loading ? <p>Loading...</p> : approved.length === 0 ? <p className="text-sm text-gray-500">You haven’t joined any approved quests yet.</p> : approved.map((r) => (
             <Link key={r.quest_id} href={`/listing/${r.quest_id}`} className="block rounded-xl border px-3 py-2 hover:bg-gray-50">
               <p className="font-medium">{r.quests?.title || "Untitled listing"}</p>
