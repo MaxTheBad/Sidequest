@@ -37,6 +37,7 @@ export default function SettingsPage() {
   const photoInputRef = useRef<HTMLInputElement | null>(null);
 
   const [newEmail, setNewEmail] = useState("");
+  const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
@@ -316,11 +317,17 @@ export default function SettingsPage() {
   async function changePassword(e: FormEvent) {
     e.preventDefault();
     if (!supabase) return;
+    if (!email) return setStatus("Missing account email.");
+    if (!oldPassword) return setStatus("Enter your current password.");
     if (newPassword.length < 8) return setStatus("Password must be at least 8 characters.");
     if (newPassword !== confirmPassword) return setStatus("Passwords do not match.");
 
+    const { error: verifyError } = await supabase.auth.signInWithPassword({ email, password: oldPassword });
+    if (verifyError) return setStatus("Current password is incorrect.");
+
     const { error } = await supabase.auth.updateUser({ password: newPassword });
     if (error) return setStatus(error.message);
+    setOldPassword("");
     setNewPassword("");
     setConfirmPassword("");
     setStatus("Password updated ✅");
@@ -494,6 +501,9 @@ export default function SettingsPage() {
                 </form>
 
                 <form onSubmit={changePassword} className="grid gap-2">
+                  <label className="text-sm font-medium">Current password</label>
+                  <input type="password" className="border rounded px-3 py-2" value={oldPassword} onChange={(e) => setOldPassword(e.target.value)} required />
+
                   <label className="text-sm font-medium">New password</label>
                   <input type="password" className="border rounded px-3 py-2" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required />
 
