@@ -511,9 +511,7 @@ export default function InboxPage() {
                     <video src={t.mediaVideoUrl} className="h-12 w-16 rounded object-cover bg-black shrink-0" muted playsInline preload="metadata" />
                   ) : t.mediaFallbackUrl ? (
                     <img src={t.mediaFallbackUrl} className="h-12 w-16 rounded object-cover shrink-0" alt="Listing preview" />
-                  ) : (
-                    <div className="h-12 w-16 rounded bg-gray-200 shrink-0" />
-                  )}
+                  ) : null}
                   <p className={`text-xs line-clamp-2 ${activeThreadId === t.id ? "text-white/80" : "text-gray-500"}`}>{t.preview}</p>
                 </div>
               </button>
