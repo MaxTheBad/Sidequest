@@ -662,6 +662,7 @@ export default function Home() {
     const openAuthFromUrl = async () => {
       const params = new URLSearchParams(window.location.search);
       const pendingAuth = sessionStorage.getItem("sidequest_open_auth") === "1";
+      const pendingCreate = sessionStorage.getItem("sidequest_open_create") === "1";
 
       let activeUserId = userId;
       if (!activeUserId && supabase) {
@@ -677,16 +678,20 @@ export default function Home() {
       }
 
       if (handledCreateParam) return;
-      if (params.get("create") !== "1") return;
+      if (params.get("create") !== "1" && !pendingCreate) return;
       if (activeUserId) {
+        if (pendingCreate) sessionStorage.removeItem("sidequest_open_create");
         openCreateModal();
-        if (typeof window !== "undefined") {
+        if (typeof window !== "undefined" && params.get("create") === "1") {
           const next = new URL(window.location.href);
           next.searchParams.delete("create");
           window.history.replaceState({}, "", next.pathname + (next.search ? `?${next.searchParams.toString()}` : ""));
         }
       } else {
-        if (typeof window !== "undefined") sessionStorage.setItem("sidequest_open_create", "1");
+        if (typeof window !== "undefined") {
+          sessionStorage.setItem("sidequest_open_create", "1");
+          sessionStorage.setItem("sidequest_open_auth", "1");
+        }
         setShowAuthModal(true);
         setStatus("Log in to create.");
       }
@@ -702,10 +707,25 @@ export default function Home() {
       }
     };
 
+    const onOpenCreate = () => {
+      if (userId) {
+        openCreateModal();
+      } else {
+        if (typeof window !== "undefined") {
+          sessionStorage.setItem("sidequest_open_create", "1");
+          sessionStorage.setItem("sidequest_open_auth", "1");
+        }
+        setShowAuthModal(true);
+        setStatus("Log in to create.");
+      }
+    };
+
     window.addEventListener("sidequest:open-auth", onOpenAuth as EventListener);
+    window.addEventListener("sidequest:open-create", onOpenCreate as EventListener);
     window.addEventListener("popstate", openAuthFromUrl);
     return () => {
       window.removeEventListener("sidequest:open-auth", onOpenAuth as EventListener);
+      window.removeEventListener("sidequest:open-create", onOpenCreate as EventListener);
       window.removeEventListener("popstate", openAuthFromUrl);
     };
   }, [handledCreateParam, userId]);

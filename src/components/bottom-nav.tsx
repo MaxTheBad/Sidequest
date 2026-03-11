@@ -53,7 +53,19 @@ export default function BottomNav() {
           <div className="text-[11px] mt-0.5">Inbox</div>
         </button>
 
-        <button type="button" onClick={() => requireAuthNavigate("/?create=1")} className="text-center -mt-6">
+        <button
+          type="button"
+          onClick={() => {
+            if (typeof window === "undefined") return;
+            if (pathname === "/") {
+              window.dispatchEvent(new CustomEvent("sidequest:open-create"));
+              return;
+            }
+            sessionStorage.setItem("sidequest_open_create", "1");
+            void requireAuthNavigate("/");
+          }}
+          className="text-center -mt-6"
+        >
           <div className="mx-auto h-12 w-12 rounded-full nav-create create-halo grid place-items-center text-2xl leading-none">+</div>
           <div className="text-[11px] mt-1 nav-item-active">Create</div>
         </button>
