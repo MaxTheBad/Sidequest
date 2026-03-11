@@ -21,6 +21,7 @@ export default function SettingsPage() {
   const [countryQuery, setCountryQuery] = useState("United States");
   const [city, setCity] = useState("");
   const [bio, setBio] = useState("");
+  const [friendsVisibility, setFriendsVisibility] = useState<"public" | "private">("public");
   const [dob, setDob] = useState("");
   const [citySuggestions, setCitySuggestions] = useState<string[]>([]);
   const [avatarUrl, setAvatarUrl] = useState("");
@@ -77,12 +78,13 @@ export default function SettingsPage() {
 
       const { data: profile } = await supabase
         .from("profiles")
-        .select("display_name,city,bio,avatar_url")
+        .select("display_name,city,bio,friends_visibility,avatar_url")
         .eq("id", uid)
         .maybeSingle();
 
       setCity(profile?.city ?? "");
       setBio(profile?.bio ?? "");
+      setFriendsVisibility(((profile?.friends_visibility as "public" | "private") || "public"));
 
       const u = await supabase.auth.getUser();
       const meta = (u.data.user?.user_metadata || {}) as Record<string, unknown>;
@@ -136,7 +138,7 @@ export default function SettingsPage() {
 
     const { error } = await supabase
       .from("profiles")
-      .upsert({ id: userId, display_name: displayName, city, bio, avatar_url: avatarUrl || null });
+      .upsert({ id: userId, display_name: displayName, city, bio, friends_visibility: friendsVisibility, avatar_url: avatarUrl || null });
 
     if (error) return setStatus(error.message);
 
@@ -468,6 +470,12 @@ export default function SettingsPage() {
 
                 <label className="text-sm font-medium">Bio</label>
                 <textarea className="border rounded px-3 py-2" value={bio} onChange={(e) => setBio(e.target.value)} />
+
+                <label className="text-sm font-medium">Friends list visibility</label>
+                <select className="border rounded px-3 py-2" value={friendsVisibility} onChange={(e) => setFriendsVisibility(e.target.value as "public" | "private")}>
+                  <option value="public">Public</option>
+                  <option value="private">Private (friends only)</option>
+                </select>
 
                 <button className="bg-black text-white rounded px-3 py-2 mt-1">Save profile</button>
               </form>

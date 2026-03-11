@@ -10,6 +10,7 @@ type Profile = {
   display_name: string | null;
   city: string | null;
   bio: string | null;
+  friends_visibility?: "public" | "private";
   avatar_url?: string | null;
 };
 
@@ -37,9 +38,18 @@ export default function ProfilePage() {
   const [quests, setQuests] = useState<Quest[]>([]);
   const [friends, setFriends] = useState<Profile[]>([]);
   const [friendship, setFriendship] = useState<FriendEdge | null>(null);
+  const [incomingRequests, setIncomingRequests] = useState<FriendEdge[]>([]);
+  const [outgoingRequests, setOutgoingRequests] = useState<FriendEdge[]>([]);
   const [status, setStatus] = useState("Loading...");
+  const [reloadTick, setReloadTick] = useState(0);
 
   const isOwnProfile = useMemo(() => !!(viewerId && profileId && viewerId === profileId), [viewerId, profileId]);
+  const canViewFriends = useMemo(() => {
+    if (isOwnProfile) return true;
+    if (!profile) return false;
+    if ((profile.friends_visibility || "public") === "public") return true;
+    return friendship?.status === "accepted";
+  }, [isOwnProfile, profile, friendship]);
 
   useEffect(() => {
     if (!supabase) return;
@@ -59,7 +69,7 @@ export default function ProfilePage() {
 
       const { data: p, error: pErr } = await supabase
         .from("profiles")
-        .select("id,display_name,city,bio,avatar_url")
+        .select("id,display_name,city,bio,friends_visibility,avatar_url")
         .eq("id", profileId)
         .maybeSingle();
       if (pErr) return setStatus(pErr.message);
@@ -76,49 +86,116 @@ export default function ProfilePage() {
       if (qErr) return setStatus(qErr.message);
       setQuests((q as Quest[]) || []);
 
-      const { data: friendEdges } = await supabase
+      const { data: allFriendEdges } = await supabase
         .from("friends")
         .select("requester_id,addressee_id,status")
-        .or(`requester_id.eq.${profileId},addressee_id.eq.${profileId}`)
-        .eq("status", "accepted");
+        .or(`requester_id.eq.${profileId},addressee_id.eq.${profileId}`);
 
-      const edges = (friendEdges || []) as FriendEdge[];
-      const friendIds = edges
+      const allEdges = (allFriendEdges || []) as FriendEdge[];
+      const acceptedEdges = allEdges.filter((f) => f.status === "accepted");
+      const friendIds = acceptedEdges
         .map((f) => (f.requester_id === profileId ? f.addressee_id : f.requester_id))
         .filter((id) => id && id !== profileId);
 
-      if (friendIds.length) {
+      let edgeWithViewer: FriendEdge | null = null;
+      if (uid && uid !== profileId) {
+        edgeWithViewer = allEdges.find((f) =>
+          (f.requester_id === uid && f.addressee_id === profileId) ||
+          (f.requester_id === profileId && f.addressee_id === uid)
+        ) || null;
+        setFriendship(edgeWithViewer);
+      } else {
+        setFriendship(null);
+      }
+
+      const canSeeFriends = !!(uid && uid === profileId) || (p as Profile).friends_visibility !== "private" || edgeWithViewer?.status === "accepted";
+
+      if (canSeeFriends && friendIds.length) {
         const { data: friendProfiles } = await supabase
           .from("profiles")
-          .select("id,display_name,city,bio,avatar_url")
+          .select("id,display_name,city,bio,friends_visibility,avatar_url")
           .in("id", friendIds);
         setFriends((friendProfiles as Profile[]) || []);
       } else {
         setFriends([]);
       }
 
-      if (uid && uid !== profileId) {
-        const { data: edge } = await supabase
-          .from("friends")
-          .select("requester_id,addressee_id,status")
-          .or(`and(requester_id.eq.${uid},addressee_id.eq.${profileId}),and(requester_id.eq.${profileId},addressee_id.eq.${uid})`)
-          .maybeSingle();
-        setFriendship((edge as FriendEdge) || null);
+      if (uid && uid === profileId) {
+        setIncomingRequests(allEdges.filter((f) => f.addressee_id === uid && f.status === "pending"));
+        setOutgoingRequests(allEdges.filter((f) => f.requester_id === uid && f.status === "pending"));
       } else {
-        setFriendship(null);
+        setIncomingRequests([]);
+        setOutgoingRequests([]);
       }
 
       setStatus("");
     };
 
     void load();
-  }, [supabase, profileId]);
+  }, [supabase, profileId, reloadTick]);
 
   async function addFriend() {
     if (!supabase || !viewerId || !profileId || viewerId === profileId) return;
+
+    // If they already requested me, accept that request instead of creating a duplicate reverse row.
+    const { data: reverse } = await supabase
+      .from("friends")
+      .select("requester_id,addressee_id,status")
+      .eq("requester_id", profileId)
+      .eq("addressee_id", viewerId)
+      .maybeSingle();
+
+    if ((reverse as FriendEdge | null)?.status === "pending") {
+      const { error: acceptErr } = await supabase
+        .from("friends")
+        .update({ status: "accepted" })
+        .eq("requester_id", profileId)
+        .eq("addressee_id", viewerId);
+      if (acceptErr) return setStatus(acceptErr.message);
+      setStatus("Friend request accepted ✅");
+      setReloadTick((x) => x + 1);
+      return;
+    }
+
     const { error } = await supabase.from("friends").insert({ requester_id: viewerId, addressee_id: profileId, status: "pending" });
     if (error && !error.message.toLowerCase().includes("duplicate") && !error.message.toLowerCase().includes("unique")) return setStatus(error.message);
     setStatus("Friend request sent ✅");
+    setReloadTick((x) => x + 1);
+  }
+
+  async function acceptRequest(requesterId: string) {
+    if (!supabase || !viewerId) return;
+    const { error } = await supabase.from("friends").update({ status: "accepted" }).eq("requester_id", requesterId).eq("addressee_id", viewerId);
+    if (error) return setStatus(error.message);
+    setStatus("Friend request accepted ✅");
+    setReloadTick((x) => x + 1);
+  }
+
+  async function declineRequest(requesterId: string) {
+    if (!supabase || !viewerId) return;
+    const { error } = await supabase.from("friends").delete().eq("requester_id", requesterId).eq("addressee_id", viewerId);
+    if (error) return setStatus(error.message);
+    setStatus("Request declined.");
+    setReloadTick((x) => x + 1);
+  }
+
+  async function cancelRequest() {
+    if (!supabase || !viewerId || !profileId) return;
+    const { error } = await supabase.from("friends").delete().eq("requester_id", viewerId).eq("addressee_id", profileId).eq("status", "pending");
+    if (error) return setStatus(error.message);
+    setStatus("Friend request canceled.");
+    setReloadTick((x) => x + 1);
+  }
+
+  async function removeFriend(targetId: string) {
+    if (!supabase || !viewerId) return;
+    const { error } = await supabase
+      .from("friends")
+      .delete()
+      .or(`and(requester_id.eq.${viewerId},addressee_id.eq.${targetId}),and(requester_id.eq.${targetId},addressee_id.eq.${viewerId})`);
+    if (error) return setStatus(error.message);
+    setStatus("Friend removed.");
+    setReloadTick((x) => x + 1);
   }
 
   return (
@@ -148,16 +225,63 @@ export default function ProfilePage() {
                 {isOwnProfile ? (
                   <Link href="/settings" className="border rounded px-3 py-2">Edit profile</Link>
                 ) : (
-                  <button className="border rounded px-3 py-2" onClick={() => void addFriend()}>
-                    {friendship?.status === "accepted" ? "Friends" : friendship?.status === "pending" ? "Request sent" : "Add friend"}
+                  <button
+                    className="border rounded px-3 py-2"
+                    onClick={() => {
+                      if (friendship?.status === "accepted") return void removeFriend(profileId as string);
+                      if (friendship?.status === "pending" && friendship.requester_id === viewerId) return void cancelRequest();
+                      if (friendship?.status === "pending" && friendship.addressee_id === viewerId) return void acceptRequest(friendship.requester_id);
+                      void addFriend();
+                    }}
+                  >
+                    {friendship?.status === "accepted"
+                      ? "Unfriend"
+                      : friendship?.status === "pending" && friendship.requester_id === viewerId
+                        ? "Cancel request"
+                        : friendship?.status === "pending" && friendship.addressee_id === viewerId
+                          ? "Accept friend request"
+                          : "Add friend"}
                   </button>
                 )}
               </div>
             </section>
 
-            <section className="rounded-2xl border bg-white p-4">
-              <h2 className="font-semibold mb-2">Friends</h2>
-              {friends.length === 0 ? (
+            <section className="rounded-2xl border bg-white p-4 space-y-3">
+              <h2 className="font-semibold">Friends</h2>
+
+              {isOwnProfile && incomingRequests.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium mb-2">Incoming requests</p>
+                  <div className="grid gap-2">
+                    {incomingRequests.map((r) => (
+                      <div key={`in-${r.requester_id}`} className="flex items-center justify-between rounded border px-2 py-1">
+                        <Link href={`/profile/${r.requester_id}`} className="text-sm underline">View profile</Link>
+                        <div className="flex gap-2">
+                          <button type="button" className="text-xs border rounded px-2 py-1" onClick={() => void acceptRequest(r.requester_id)}>Accept</button>
+                          <button type="button" className="text-xs border rounded px-2 py-1" onClick={() => void declineRequest(r.requester_id)}>Decline</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {isOwnProfile && outgoingRequests.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium mb-2">Sent requests</p>
+                  <div className="flex flex-wrap gap-2">
+                    {outgoingRequests.map((r) => (
+                      <button key={`out-${r.addressee_id}`} type="button" className="text-xs border rounded-full px-2 py-1" onClick={() => void removeFriend(r.addressee_id)}>
+                        Cancel request
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {!canViewFriends ? (
+                <p className="text-sm text-gray-500">Friends list is private.</p>
+              ) : friends.length === 0 ? (
                 <p className="text-sm text-gray-500">No friends yet.</p>
               ) : (
                 <div className="flex flex-wrap gap-2">
