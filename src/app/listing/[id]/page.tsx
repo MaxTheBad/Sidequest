@@ -151,6 +151,7 @@ export default function ListingPage() {
         .delete()
         .eq("quest_id", listing.id)
         .eq("user_id", userId);
+      setExactAccessUserIds((prev) => prev.filter((id) => id !== userId));
 
       setStatus(myMembershipStatus === "pending" ? "Join request canceled." : "Left listing.");
       setHasJoined(false);
@@ -307,12 +308,14 @@ export default function ListingPage() {
   const isOwner = !!(userId && listing && userId === listing.creator_id);
   const myMemberRow = userId ? members.find((m) => m.user_id === userId) : null;
   const isManager = !!(isOwner || (myMemberRow && myMemberRow.role === "cohost" && (myMemberRow.status || "approved") === "approved"));
-  const canViewExactAddress = !!(listing && userId && (
-    isManager ||
-    listing.exact_location_visibility === "public" ||
-    (listing.exact_location_visibility === "approved_members" && myMembershipStatus === "approved") ||
-    exactAccessUserIds.includes(userId)
-  ));
+  const canViewExactAddress = !!(listing && userId && (() => {
+    if (isManager) return true;
+    if (listing.exact_location_visibility === "public") return true;
+    if (listing.exact_location_visibility === "approved_members") {
+      return myMembershipStatus === "approved" && exactAccessUserIds.includes(userId);
+    }
+    return exactAccessUserIds.includes(userId);
+  })());
 
   function locationSummary(input?: string | null) {
     const raw = (input || "").trim();
