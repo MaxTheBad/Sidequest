@@ -67,7 +67,7 @@ export default function BottomNav() {
           className="text-center -mt-6"
         >
           <div className="mx-auto h-12 w-12 rounded-full nav-create create-halo grid place-items-center text-2xl leading-none">+</div>
-          <div className="text-[11px] mt-1 nav-item-active">Create</div>
+          <div className="text-[11px] mt-1 font-semibold text-[color:var(--foreground)]">Create</div>
         </button>
 
         <button type="button" onClick={() => requireAuthNavigate("/joined")} className={`text-center text-xs py-2 transition ${isActive("/joined") ? "nav-item-active" : "nav-item"}`}>
