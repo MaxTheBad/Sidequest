@@ -955,8 +955,8 @@ export default function Home() {
       city: derivedCity,
       availability: avail,
     };
-    // Only include skill_level if it's a valid non-empty value
-    if (skillLevel && skillLevel.trim()) {
+    // Only include skill_level if it's a specific level (not "any" or empty)
+    if (skillLevel && skillLevel.trim() && skillLevel !== "any") {
       profileUpdate.skill_level = skillLevel;
     }
     const { error: profileErr } = await supabase.from("profiles").upsert(profileUpdate);
@@ -1056,8 +1056,8 @@ ${description}`
           media_video_url: null,
           media_source: null,
         };
-        // Only include skill_level if it's a valid non-empty value
-        if (skillLevel && skillLevel.trim()) {
+        // Only include skill_level if it's a specific level (not "any" or empty)
+        if (skillLevel && skillLevel.trim() && skillLevel !== "any") {
           payload.skill_level = skillLevel;
         }
 
@@ -1086,8 +1086,8 @@ ${description}`
           media_source: null,
           media_items: nextMediaItems,
         };
-        // Only include skill_level if it's a valid non-empty value
-        if (skillLevel && skillLevel.trim()) {
+        // Only include skill_level if it's a specific level (not "any" or empty)
+        if (skillLevel && skillLevel.trim() && skillLevel !== "any") {
           insertPayload.skill_level = skillLevel;
         }
         const { data, error } = await supabase.from("quests").insert(insertPayload).select("id").single();
