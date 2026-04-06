@@ -2,58 +2,58 @@
 
 /* ============================================
    SYDEQUEST 2026 THEME
-   Modern Social Media Aesthetic
+   Inspired by Ditto.com - Clean, Minimal, High-Contrast
    ============================================ */
 
 :root {
-  /* Core Colors - Light Mode */
-  --background: #fafafa;
-  --foreground: #0f0f0f;
-  --surface: #ffffff;
+  /* Core - Light Mode (Ditto-inspired) */
+  --background: #ffffff;
+  --foreground: #0a0a0a;
+  --surface: #fafafa;
   --surface-elevated: #ffffff;
-  --muted: #f4f4f5;
-  --border: #e4e4e7;
+  --muted: #f5f5f5;
+  --border: #e5e5e5;
   
-  /* Brand Gradients */
-  --accent-primary: #8b5cf6;
-  --accent-secondary: #ec4899;
-  --accent-tertiary: #06b6d4;
+  /* Brand - Purple-focused like Ditto */
+  --accent-primary: #7c3aed;
+  --accent-secondary: #a855f7;
+  --accent-tertiary: #6366f1;
   
-  /* Status Colors */
+  /* Status */
   --success: #10b981;
   --warning: #f59e0b;
   --error: #ef4444;
   
-  /* Shadows */
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.04);
-  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.08);
-  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.12);
-  --shadow-glow: 0 8px 32px rgba(139, 92, 246, 0.3);
+  /* Shadows - Subtle */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 12px 24px rgba(0, 0, 0, 0.12);
+  --shadow-glow: 0 0 40px rgba(124, 58, 237, 0.25);
 }
 
 html[data-theme="dark"] {
-  /* Core Colors - Dark Mode */
-  --background: #0f0f0f;
+  /* Core - Dark Mode */
+  --background: #0a0a0a;
   --foreground: #fafafa;
   --surface: #1a1a1a;
   --surface-elevated: #262626;
   --muted: #171717;
   --border: #2a2a2a;
   
-  /* Brighter accents for dark mode */
+  /* Brighter accents */
   --accent-primary: #a78bfa;
-  --accent-secondary: #f472b6;
-  --accent-tertiary: #22d3ee;
+  --accent-secondary: #c084fc;
+  --accent-tertiary: #818cf8;
   
-  /* Adjusted shadows for dark */
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.5);
-  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.7);
-  --shadow-glow: 0 8px 32px rgba(167, 139, 250, 0.4);
+  /* Adjusted shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.6);
+  --shadow-lg: 0 12px 24px rgba(0, 0, 0, 0.8);
+  --shadow-glow: 0 0 40px rgba(167, 139, 250, 0.3);
 }
 
 /* ============================================
-   BASE STYLES
+   BASE - MINIMAL & CLEAN
    ============================================ */
 
 * {
@@ -65,42 +65,22 @@ html {
 }
 
 body {
-  background: 
-    radial-gradient(circle at 20% 10%, color-mix(in srgb, var(--accent-primary) 12%, transparent), transparent 50%),
-    radial-gradient(circle at 80% 20%, color-mix(in srgb, var(--accent-secondary) 10%, transparent), transparent 50%),
-    radial-gradient(circle at 50% 90%, color-mix(in srgb, var(--accent-tertiary) 8%, transparent), transparent 50%),
-    var(--background);
-  background-attachment: fixed;
+  background: var(--background);
   color: var(--foreground);
-  font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'SF Pro Display', 'Segoe UI', sans-serif;
   font-feature-settings: 'ss01', 'ss02', 'cv05', 'cv10';
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  line-height: 1.6;
 }
 
 /* ============================================
-   GLASSMORPHISM COMPONENTS
+   SURFACES - MINIMAL ELEVATION
    ============================================ */
 
-.glass {
-  background: color-mix(in srgb, var(--surface) 70%, transparent);
-  backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
-  box-shadow: var(--shadow-md);
-}
-
-.glass-elevated {
-  background: color-mix(in srgb, var(--surface-elevated) 80%, transparent);
-  backdrop-filter: blur(24px) saturate(200%);
-  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
-  box-shadow: var(--shadow-lg);
-}
-
-/* Surface overrides for existing classes */
 .bg-white {
   background-color: var(--surface) !important;
   border: 1px solid var(--border);
-  box-shadow: var(--shadow-sm);
 }
 
 .bg-gray-50, .bg-gray-100, .bg-\[\#f6f7fb\] {
@@ -112,58 +92,39 @@ body {
 }
 
 .text-gray-500, .text-gray-600 {
-  color: color-mix(in srgb, var(--foreground) 60%, transparent) !important;
+  color: color-mix(in srgb, var(--foreground) 55%, transparent) !important;
 }
 
 .text-gray-700 {
-  color: color-mix(in srgb, var(--foreground) 80%, transparent) !important;
+  color: color-mix(in srgb, var(--foreground) 75%, transparent) !important;
 }
 
 /* ============================================
-   MODERN BUTTONS & CTAs
+   BUTTONS - DITTO STYLE (BOLD & CLEAN)
    ============================================ */
 
 button, a {
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 button:active, a:active {
-  transform: translateY(1px) scale(0.98);
+  transform: scale(0.98);
 }
 
-/* Primary gradient button */
+/* Primary CTA - Bold purple */
 .bg-black.text-white,
 .btn-primary {
-  background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary)) !important;
+  background: var(--accent-primary) !important;
   color: #ffffff !important;
-  box-shadow: var(--shadow-glow);
   border: none;
   font-weight: 600;
-  position: relative;
-  overflow: hidden;
-}
-
-.bg-black.text-white::before,
-.btn-primary::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
-  transition: left 0.5s;
-}
-
-.bg-black.text-white:hover::before,
-.btn-primary:hover::before {
-  left: 100%;
+  box-shadow: var(--shadow-md);
 }
 
 .bg-black.text-white:hover,
 .btn-primary:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 12px 40px rgba(139, 92, 246, 0.4);
+  background: var(--accent-secondary) !important;
+  box-shadow: var(--shadow-lg);
 }
 
 /* Secondary button */
@@ -175,61 +136,49 @@ button:active, a:active {
 }
 
 .btn-secondary:hover {
-  background: var(--muted);
   border-color: var(--accent-primary);
+  background: var(--muted);
 }
 
-/* Success/Error buttons */
+/* Success/Warning buttons */
 .bg-emerald-600.text-white {
-  background: linear-gradient(135deg, var(--success), #059669) !important;
-  box-shadow: 0 4px 16px rgba(16, 185, 129, 0.3);
+  background: var(--success) !important;
 }
 
 .bg-blue-600.text-white {
-  background: linear-gradient(135deg, var(--accent-tertiary), #0891b2) !important;
-  box-shadow: 0 4px 16px rgba(6, 182, 212, 0.3);
+  background: var(--accent-tertiary) !important;
 }
 
 /* ============================================
-   ROUNDED CORNERS - 2026 STYLE
+   ROUNDED CORNERS - CONSISTENT
    ============================================ */
 
 .rounded-xl {
-  border-radius: 16px;
+  border-radius: 12px;
 }
 
 .rounded-2xl {
-  border-radius: 20px;
+  border-radius: 16px;
 }
 
 .rounded-3xl {
-  border-radius: 24px;
+  border-radius: 20px;
 }
 
 /* ============================================
-   CARDS & SURFACES
+   CARDS - MINIMAL ELEVATION
    ============================================ */
 
 .card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 20px;
+  border-radius: 16px;
   padding: 1.5rem;
-  box-shadow: var(--shadow-sm);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.2s ease;
 }
 
 .card:hover {
-  box-shadow: var(--shadow-md);
-  transform: translateY(-2px);
-  border-color: color-mix(in srgb, var(--accent-primary) 30%, var(--border));
-}
-
-.card-glass {
-  background: color-mix(in srgb, var(--surface) 60%, transparent);
-  backdrop-filter: blur(16px) saturate(180%);
-  border: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
-  border-radius: 20px;
+  border-color: var(--accent-primary);
   box-shadow: var(--shadow-md);
 }
 
@@ -238,17 +187,17 @@ button:active, a:active {
    ============================================ */
 
 .nav-shell {
-  background: color-mix(in srgb, var(--surface) 85%, transparent);
-  backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
-  box-shadow: var(--shadow-md);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
 }
 
 .nav-item {
   color: color-mix(in srgb, var(--foreground) 60%, transparent);
-  border-radius: 12px;
+  border-radius: 8px;
   padding: 0.5rem 1rem;
-  transition: all 0.2s ease;
+  font-weight: 500;
+  transition: all 0.15s ease;
 }
 
 .nav-item:hover {
@@ -257,45 +206,61 @@ button:active, a:active {
 }
 
 .nav-item-active {
-  color: var(--foreground);
+  color: var(--accent-primary);
   font-weight: 600;
-  background: var(--muted);
-  position: relative;
-}
-
-.nav-item-active::after {
-  content: '';
-  position: absolute;
-  bottom: -2px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 60%;
-  height: 3px;
-  background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary));
-  border-radius: 2px;
+  background: color-mix(in srgb, var(--accent-primary) 8%, transparent);
 }
 
 .nav-create {
-  background: linear-gradient(135deg, var(--accent-secondary), var(--accent-primary)) !important;
+  background: var(--accent-primary) !important;
   color: #ffffff !important;
-  box-shadow: 0 8px 24px color-mix(in srgb, var(--accent-secondary) 35%, transparent);
-  border: none;
   font-weight: 600;
+  box-shadow: var(--shadow-md);
 }
 
 .nav-create:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 12px 32px color-mix(in srgb, var(--accent-secondary) 45%, transparent);
+  background: var(--accent-secondary) !important;
+  box-shadow: var(--shadow-lg);
 }
 
 /* ============================================
-   ANIMATIONS
+   FORM ELEMENTS - CLEAN & MINIMAL
+   ============================================ */
+
+input, textarea, select {
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  color: var(--foreground);
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+  transition: all 0.2s ease;
+  font-size: 0.9375rem;
+}
+
+input:focus, textarea:focus, select:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-primary) 10%, transparent);
+}
+
+input::placeholder, textarea::placeholder {
+  color: color-mix(in srgb, var(--foreground) 40%, transparent);
+}
+
+input[type="checkbox"], input[type="radio"] {
+  width: 1.125rem;
+  height: 1.125rem;
+  accent-color: var(--accent-primary);
+}
+
+/* ============================================
+   ANIMATIONS - SUBTLE
    ============================================ */
 
 @keyframes fadeIn {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
@@ -306,22 +271,11 @@ button:active, a:active {
 @keyframes slideIn {
   from {
     opacity: 0;
-    transform: translateX(-20px);
+    transform: translateX(-12px);
   }
   to {
     opacity: 1;
     transform: translateX(0);
-  }
-}
-
-@keyframes pulse {
-  0%, 100% {
-    transform: scale(1);
-    opacity: 1;
-  }
-  50% {
-    transform: scale(1.05);
-    opacity: 0.9;
   }
 }
 
@@ -334,91 +288,19 @@ button:active, a:active {
   }
 }
 
-@keyframes gradientShift {
-  0%, 100% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-}
-
-/* Animation classes */
 .animate-fade-in {
-  animation: fadeIn 0.5s ease-out;
+  animation: fadeIn 0.4s ease-out;
 }
 
 .animate-slide-in {
-  animation: slideIn 0.4s ease-out;
+  animation: slideIn 0.3s ease-out;
 }
 
-.animate-pulse {
-  animation: pulse 2s ease-in-out infinite;
-}
-
-.animate-shimmer {
-  background: linear-gradient(
-    90deg,
-    var(--muted) 25%,
-    color-mix(in srgb, var(--accent-primary) 15%, var(--muted)) 50%,
-    var(--muted) 75%
-  );
-  background-size: 200% 100%;
-  animation: shimmer 2s linear infinite;
-}
-
-/* Gradient animation */
-.gradient-animated {
-  background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary), var(--accent-tertiary));
-  background-size: 200% 200%;
-  animation: gradientShift 6s ease infinite;
-}
-
-/* ============================================
-   SPECIAL EFFECTS
-   ============================================ */
-
-/* Floating effect for create button */
-.create-float {
-  animation: float 3s ease-in-out infinite;
-}
-
-@keyframes float {
-  0%, 100% {
-    transform: translateY(0px);
-  }
-  50% {
-    transform: translateY(-8px);
-  }
-}
-
-/* Glow effect */
-.glow {
-  position: relative;
-}
-
-.glow::before {
-  content: '';
-  position: absolute;
-  inset: -4px;
-  background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
-  border-radius: inherit;
-  opacity: 0;
-  z-index: -1;
-  filter: blur(20px);
-  transition: opacity 0.3s;
-}
-
-.glow:hover::before {
-  opacity: 0.6;
-}
-
-/* Skeleton loader */
 .skeleton {
   background: linear-gradient(
     90deg,
     var(--muted) 25%,
-    color-mix(in srgb, var(--surface) 80%, var(--muted)) 50%,
+    color-mix(in srgb, var(--accent-primary) 5%, var(--muted)) 50%,
     var(--muted) 75%
   );
   background-size: 200% 100%;
@@ -426,44 +308,8 @@ button:active, a:active {
   border-radius: 8px;
 }
 
-/* Badge with pulse */
-.badge-pulse {
-  animation: pulse 2s ease-in-out infinite;
-}
-
 /* ============================================
-   FORM ELEMENTS
-   ============================================ */
-
-input, textarea, select {
-  background: var(--surface);
-  border: 1.5px solid var(--border);
-  color: var(--foreground);
-  border-radius: 12px;
-  padding: 0.75rem 1rem;
-  transition: all 0.2s ease;
-  font-size: 0.9375rem;
-}
-
-input:focus, textarea:focus, select:focus {
-  outline: none;
-  border-color: var(--accent-primary);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-primary) 15%, transparent);
-}
-
-input::placeholder, textarea::placeholder {
-  color: color-mix(in srgb, var(--foreground) 40%, transparent);
-}
-
-/* Checkbox & Radio */
-input[type="checkbox"], input[type="radio"] {
-  width: 1.25rem;
-  height: 1.25rem;
-  accent-color: var(--accent-primary);
-}
-
-/* ============================================
-   SCROLLBAR
+   SCROLLBAR - MINIMAL
    ============================================ */
 
 ::-webkit-scrollbar {
@@ -482,6 +328,52 @@ input[type="checkbox"], input[type="radio"] {
 
 ::-webkit-scrollbar-thumb:hover {
   background: color-mix(in srgb, var(--foreground) 30%, transparent);
+}
+
+/* ============================================
+   UTILITY CLASSES
+   ============================================ */
+
+.text-gradient {
+  background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  font-weight: 700;
+}
+
+.bg-gradient {
+  background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+}
+
+.glow {
+  box-shadow: var(--shadow-glow);
+}
+
+/* ============================================
+   TYPOGRAPHY - DITTO STYLE
+   ============================================ */
+
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+h1 {
+  font-size: 2.5rem;
+}
+
+h2 {
+  font-size: 2rem;
+}
+
+h3 {
+  font-size: 1.5rem;
+}
+
+strong {
+  font-weight: 600;
 }
 
 /* ============================================
@@ -509,32 +401,57 @@ input[type="checkbox"], input[type="radio"] {
   
   .card {
     padding: 1rem;
-    border-radius: 16px;
+    border-radius: 12px;
   }
   
-  .glass, .glass-elevated {
-    backdrop-filter: blur(16px) saturate(160%);
+  h1 {
+    font-size: 2rem;
+  }
+  
+  h2 {
+    font-size: 1.5rem;
   }
 }
 
 /* ============================================
-   UTILITY CLASSES
+   STATUS BADGES
    ============================================ */
 
-.text-gradient {
-  background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.875rem;
+  font-weight: 600;
 }
 
-.bg-gradient {
-  background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+.badge-primary {
+  background: color-mix(in srgb, var(--accent-primary) 15%, transparent);
+  color: var(--accent-primary);
 }
 
-.border-gradient {
-  border: 2px solid transparent;
-  background: 
-    linear-gradient(var(--surface), var(--surface)) padding-box,
-    linear-gradient(135deg, var(--accent-primary), var(--accent-secondary)) border-box;
+.badge-success {
+  background: color-mix(in srgb, var(--success) 15%, transparent);
+  color: var(--success);
+}
+
+.badge-warning {
+  background: color-mix(in srgb, var(--warning) 15%, transparent);
+  color: var(--warning);
+}
+
+/* ============================================
+   MODALS - CLEAN OVERLAY
+   ============================================ */
+
+.modal-overlay {
+  background: color-mix(in srgb, var(--foreground) 60%, transparent);
+  backdrop-filter: blur(4px);
+}
+
+.modal-content {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
 }
