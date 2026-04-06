@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Side Quest",
+  title: "Sydequest",
   description: "Find people to start or restart hobbies together.",
 };
 
