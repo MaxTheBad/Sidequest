@@ -146,7 +146,7 @@ export default function Home() {
   const [city, setCity] = useState("");
   const [exactAddress, setExactAddress] = useState("");
   const [joinMode, setJoinMode] = useState<"open" | "approval_required">("open");
-  const [exactLocationVisibility, setExactLocationVisibility] = useState<"private" | "public" | "approved_members">("private");
+  const [exactLocationVisibility, setExactLocationVisibility] = useState<"private" | "public" | "approved_members">("approved_members");
   const [citySuggestions, setCitySuggestions] = useState<string[]>([]);
   const [availabilityMode, setAvailabilityMode] = useState<"specific_time" | "find_best_time">("find_best_time");
   const [availability, setAvailability] = useState("");
@@ -155,7 +155,7 @@ export default function Home() {
   const [recurringFrequency, setRecurringFrequency] = useState<"daily" | "weekly" | "monthly">("weekly");
   const [recurringStartDate, setRecurringStartDate] = useState("");
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
-  const [skillLevel, setSkillLevel] = useState("");
+  const [skillLevel, setSkillLevel] = useState("any");
   const [groupSizeChoice, setGroupSizeChoice] = useState("any");
   const [groupSizeCustom, setGroupSizeCustom] = useState("");
   const [questVideoFile, setQuestVideoFile] = useState<File | null>(null);
@@ -677,8 +677,8 @@ export default function Home() {
     setCustomCategory("");
     setExactAddress("");
     setJoinMode("open");
-    setExactLocationVisibility("private");
-    setSkillLevel("");
+    setExactLocationVisibility("approved_members");
+    setSkillLevel("any");
     setGroupSizeChoice("any");
     setGroupSizeCustom("");
     setQuestVideoFile(null);
@@ -931,8 +931,8 @@ export default function Home() {
 
     if (!title.trim()) return setStatus("Title is required.");
     if (!exactAddress.trim()) return setStatus("Location is required.");
-    if (!useCustomCategory && !hobbyId) return setStatus("Please select a category from the list.");
-    if (useCustomCategory && !customCategory.trim()) return setStatus("Please enter your custom category suggestion.");
+    if (!hobbyId && !customCategory.trim()) return setStatus("Please enter a category.");
+    if (useCustomCategory && !customCategory.trim()) return setStatus("Please enter your custom category.");
     if (!groupSizeChoice) return setStatus("Group size is required.");
     if (groupSizeChoice === "custom" && (!Number.isFinite(selectedGroupSize) || selectedGroupSize < 2 || selectedGroupSize > 50)) {
       return setStatus("Custom group size must be between 2 and 50.");
@@ -1728,7 +1728,7 @@ ${description}`
 
                   <label className="text-sm font-medium">Skill level (optional)</label>
                   <select className="border rounded px-3 py-2" value={skillLevel} onChange={(e) => setSkillLevel(e.target.value)}>
-                    <option value="">Select skill level...</option>
+                    <option value="any">Any</option>
                     <option value="beginner">Beginner</option>
                     <option value="returning">Returning</option>
                     <option value="intermediate">Intermediate</option>
