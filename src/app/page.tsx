@@ -985,8 +985,12 @@ export default function Home() {
           .insert({ slug: slugify(suggestedFromDropdown), name: suggestedFromDropdown, category: "Custom" })
           .select("id")
           .single();
-        if (!createSuggestedErr && createdSuggested?.id) finalHobbyId = createdSuggested.id;
-        else finalHobbyId = "";
+        if (!createSuggestedErr && createdSuggested?.id) {
+          finalHobbyId = createdSuggested.id;
+        } else {
+          setSavingQuest(false);
+          return setStatus(`Could not create category "${suggestedFromDropdown}": ${createSuggestedErr?.message || "Unknown error"}`);
+        }
       }
     }
 
@@ -1010,14 +1014,18 @@ export default function Home() {
           .single();
 
         if (hobbyErr) {
-          setStatus(`Could not create category automatically. Posting under selected category for now.`);
+          setSavingQuest(false);
+          return setStatus(`Could not create custom category "${custom}": ${hobbyErr.message}`);
         } else if (created?.id) {
           finalHobbyId = created.id;
         }
       }
     }
 
-    if (!finalHobbyId) return setStatus("Category is required. Please try selecting or entering a category again.");
+    if (!finalHobbyId) {
+      setSavingQuest(false);
+      return setStatus("Category is required. Please try selecting or entering a category again.");
+    }
 
     const finalDescription = useCustomCategory && customCategory.trim() && finalHobbyId === hobbyId
       ? `[Custom category suggestion: ${customCategory.trim()}]
