@@ -52,7 +52,6 @@ const TITLE_SUGGESTIONS = [
   "Pickleball for total beginners",
   "Morning run partners (3x/week)",
 ];
-const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const MEDIA_LABEL_HINTS = [
   "Photo of front of building",
   "Video of last event",
@@ -62,6 +61,24 @@ const MEDIA_LABEL_HINTS = [
 const FALLBACK_COUNTRIES = [
   "United States", "Canada", "United Kingdom", "Australia", "Brazil", "India", "Mexico", "Germany", "France", "Spain", "Italy", "Portugal", "Japan", "South Korea", "Argentina", "Chile", "Colombia", "Netherlands", "Belgium", "Sweden", "Norway", "Denmark", "Finland", "Ireland", "New Zealand", "South Africa"
 ];
+const CATEGORY_SUGGESTIONS = [
+  "Gym",
+  "Jogging",
+  "Biking",
+  "Coding",
+  "Team building",
+  "Studying",
+  "Yoga",
+  "Hiking",
+  "Basketball",
+  "Soccer",
+  "Tennis",
+  "Pickleball",
+  "Board games",
+  "Language exchange",
+  "Photography",
+];
+const GROUP_SIZE_OPTIONS = ["any", "2", "3", "4", "5", "6", "8", "10", "12"];
 
 export default function Home() {
   const supabase = getSupabaseClient();
@@ -120,6 +137,7 @@ export default function Home() {
   const [titlePlaceholder, setTitlePlaceholder] = useState(TITLE_SUGGESTIONS[0]);
   const [description, setDescription] = useState("");
   const [hobbyId, setHobbyId] = useState("");
+  const [categoryInput, setCategoryInput] = useState("");
   const [useCustomCategory, setUseCustomCategory] = useState(false);
   const [customCategory, setCustomCategory] = useState("");
   const [countryCode, setCountryCode] = useState("US");
@@ -129,11 +147,14 @@ export default function Home() {
   const [joinMode, setJoinMode] = useState<"open" | "approval_required">("open");
   const [exactLocationVisibility, setExactLocationVisibility] = useState<"private" | "public" | "approved_members">("private");
   const [citySuggestions, setCitySuggestions] = useState<string[]>([]);
-  const [availabilityMode, setAvailabilityMode] = useState<"flexible" | "specific">("flexible");
-  const [availability, setAvailability] = useState("weeknights");
-  const [selectedDays, setSelectedDays] = useState<string[]>([]);
-  const [skillLevel, setSkillLevel] = useState("beginner");
-  const [groupSize, setGroupSize] = useState(4);
+  const [availabilityMode, setAvailabilityMode] = useState<"specific_time" | "find_best_time">("find_best_time");
+  const [availability, setAvailability] = useState("");
+  const [startAt, setStartAt] = useState("");
+  const [isRecurring, setIsRecurring] = useState(false);
+  const [recurringStartDate, setRecurringStartDate] = useState("");
+  const [skillLevel, setSkillLevel] = useState("");
+  const [groupSizeChoice, setGroupSizeChoice] = useState("");
+  const [groupSizeCustom, setGroupSizeCustom] = useState("");
   const [questVideoFile, setQuestVideoFile] = useState<File | null>(null);
   const [questVideoSource, setQuestVideoSource] = useState<"live" | "upload">("live");
   const [questVideoDurationSec, setQuestVideoDurationSec] = useState<number | null>(null);
@@ -159,6 +180,15 @@ export default function Home() {
     } catch {}
     return FALLBACK_COUNTRIES.map((name) => ({ code: name.slice(0,2).toUpperCase(), name }));
   }, []);
+
+  const categoryOptions = useMemo(() => {
+    const existingNames = new Set(hobbies.map((h) => h.name.toLowerCase()));
+    const suggestionOnly = CATEGORY_SUGGESTIONS
+      .filter((name) => !existingNames.has(name.toLowerCase()))
+      .map((name) => ({ id: `suggestion:${name}`, name, isSuggestion: true as const }));
+    const dbOptions = hobbies.map((h) => ({ id: h.id, name: h.name, isSuggestion: false as const }));
+    return [...dbOptions, ...suggestionOnly].sort((a, b) => a.name.localeCompare(b.name));
+  }, [hobbies]);
 
   function resolveCountryCodeByName(name: string) {
     const found = countryOptions.find((c) => c.name.toLowerCase() === name.trim().toLowerCase());
@@ -218,7 +248,6 @@ export default function Home() {
       }
       const { data: hobbyData } = await supabase.from("hobbies").select("id,name,category").order("name");
       setHobbies(hobbyData || []);
-      if (hobbyData?.length) setHobbyId((x) => x || hobbyData[0].id);
     };
     void init();
 
@@ -632,14 +661,21 @@ export default function Home() {
   function resetQuestForm() {
     setTitle("");
     setDescription("");
-    setSelectedDays([]);
-    setAvailabilityMode("flexible");
-    setAvailability("weeknights");
+    setAvailabilityMode("find_best_time");
+    setAvailability("");
+    setStartAt("");
+    setIsRecurring(false);
+    setRecurringStartDate("");
+    setHobbyId("");
+    setCategoryInput("");
     setUseCustomCategory(false);
     setCustomCategory("");
     setExactAddress("");
     setJoinMode("open");
     setExactLocationVisibility("private");
+    setSkillLevel("");
+    setGroupSizeChoice("");
+    setGroupSizeCustom("");
     setQuestVideoFile(null);
     setQuestVideoDurationSec(null);
     setQuestVideoSource("live");
@@ -809,14 +845,28 @@ export default function Home() {
     setTitle(q.title || "");
     setDescription(q.description || "");
     setHobbyId(q.hobby_id);
+    const hobby = hobbies.find((h) => h.id === q.hobby_id);
+    setCategoryInput(hobby?.name || "");
     setCity(q.city || "");
     setExactAddress(q.exact_address || "");
     setJoinMode(q.join_mode || "open");
     setExactLocationVisibility(q.exact_location_visibility || "private");
-    setAvailabilityMode("flexible");
-    setAvailability(q.availability || "weeknights");
-    setSkillLevel(q.skill_level || "beginner");
-    setGroupSize(q.group_size || 4);
+    setAvailabilityMode("find_best_time");
+    setAvailability(q.availability || "");
+    setStartAt("");
+    setIsRecurring(false);
+    setRecurringStartDate("");
+    setSkillLevel(q.skill_level || "");
+    if (!q.group_size || q.group_size <= 0) {
+      setGroupSizeChoice("any");
+      setGroupSizeCustom("");
+    } else if (GROUP_SIZE_OPTIONS.includes(String(q.group_size))) {
+      setGroupSizeChoice(String(q.group_size));
+      setGroupSizeCustom("");
+    } else {
+      setGroupSizeChoice("custom");
+      setGroupSizeCustom(String(q.group_size));
+    }
     setQuestVideoFile(null);
     setQuestVideoSource((q.media_source as "live" | "upload") || "upload");
     setQuestMediaFiles([]);
@@ -872,20 +922,65 @@ export default function Home() {
       .gte("created_at", new Date(Date.now() - 60 * 60 * 1000).toISOString());
     if ((recentQuestCount || 0) >= 5 && !editingQuestId) return setStatus("Rate limit: max 5 new listings per hour.");
 
+    const selectedGroupSize = groupSizeChoice === "custom" ? Number(groupSizeCustom) : (groupSizeChoice === "any" ? 0 : Number(groupSizeChoice));
+
+    if (!title.trim()) return setStatus("Title is required.");
+    if (!exactAddress.trim()) return setStatus("Location is required.");
+    if (!useCustomCategory && !categoryInput.trim()) return setStatus("Category is required.");
+    if (useCustomCategory && !customCategory.trim()) return setStatus("Please enter your custom category suggestion.");
+    if (!groupSizeChoice) return setStatus("Group size is required.");
+    if (groupSizeChoice === "custom" && (!Number.isFinite(selectedGroupSize) || selectedGroupSize < 2 || selectedGroupSize > 50)) {
+      return setStatus("Custom group size must be between 2 and 50.");
+    }
+    if (availabilityMode === "specific_time" && !startAt) return setStatus("Pick a specific start time.");
+    if (isRecurring && !recurringStartDate) return setStatus("Pick a recurring start date.");
+
     const derivedCity = deriveCityFromLocation(exactAddress) || city;
-    const avail = availabilityMode === "specific" ? selectedDays.join(", ") : availability;
+    const availabilityParts = [
+      availabilityMode === "specific_time" ? `Start at: ${new Date(startAt).toLocaleString()}` : "Let’s find the best time",
+      isRecurring ? `Recurring from ${recurringStartDate}` : null,
+      availability.trim() ? `Notes: ${availability.trim()}` : null,
+    ].filter(Boolean);
+    const avail = availabilityParts.join(" · ");
 
     // Ensure profile row exists (required by quests.creator_id FK)
     const { error: profileErr } = await supabase.from("profiles").upsert({
       id: activeUserId,
       display_name: fullName || userEmail.split("@")[0] || "SideQuest user",
       city: derivedCity,
-      availability: availabilityMode === "specific" ? selectedDays.join(", ") : availability,
+      availability: avail,
       skill_level: skillLevel,
     });
     if (profileErr) return setStatus(`Profile setup failed: ${profileErr.message}`);
 
     let finalHobbyId = hobbyId;
+    if (!finalHobbyId && categoryInput.trim()) {
+      const picked = categoryOptions.find((o) => o.name.toLowerCase() === categoryInput.trim().toLowerCase());
+      if (picked?.id) finalHobbyId = picked.id;
+    }
+
+    const suggestedFromDropdown = finalHobbyId.startsWith("suggestion:") ? finalHobbyId.replace("suggestion:", "").trim() : "";
+
+    if (suggestedFromDropdown) {
+      const { data: existingSuggested } = await supabase
+        .from("hobbies")
+        .select("id,name")
+        .ilike("name", suggestedFromDropdown)
+        .limit(1)
+        .maybeSingle();
+      if (existingSuggested?.id) {
+        finalHobbyId = existingSuggested.id;
+      } else {
+        const { data: createdSuggested, error: createSuggestedErr } = await supabase
+          .from("hobbies")
+          .insert({ slug: slugify(suggestedFromDropdown), name: suggestedFromDropdown, category: "Custom" })
+          .select("id")
+          .single();
+        if (!createSuggestedErr && createdSuggested?.id) finalHobbyId = createdSuggested.id;
+        else finalHobbyId = "";
+      }
+    }
+
     if (useCustomCategory && customCategory.trim()) {
       const custom = customCategory.trim();
       const { data: existing } = await supabase
@@ -912,6 +1007,8 @@ export default function Home() {
         }
       }
     }
+
+    if (!finalHobbyId) return setStatus("Please select a category or use a custom category suggestion.");
 
     const finalDescription = useCustomCategory && customCategory.trim() && finalHobbyId === hobbyId
       ? `[Custom category suggestion: ${customCategory.trim()}]
@@ -946,7 +1043,7 @@ ${description}`
           exact_location_visibility: exactLocationVisibility,
           skill_level: skillLevel,
           availability: avail,
-          group_size: groupSize,
+          group_size: selectedGroupSize,
           media_items: nextMediaItems,
           media_video_url: null,
           media_source: null,
@@ -962,7 +1059,7 @@ ${description}`
         setStatus("Listing updated ✅");
         setLastQuestCreateMs(Date.now());
       } else {
-        const { data, error } = await supabase.from("quests").insert({ creator_id: activeUserId, hobby_id: finalHobbyId, title, description: finalDescription, city: derivedCity, exact_address: exactAddress || null, join_mode: joinMode, exact_location_visibility: exactLocationVisibility, skill_level: skillLevel, availability: avail, group_size: groupSize, media_video_url: null, media_source: null, media_items: nextMediaItems }).select("id").single();
+        const { data, error } = await supabase.from("quests").insert({ creator_id: activeUserId, hobby_id: finalHobbyId, title, description: finalDescription, city: derivedCity, exact_address: exactAddress || null, join_mode: joinMode, exact_location_visibility: exactLocationVisibility, skill_level: skillLevel, availability: avail, group_size: selectedGroupSize, media_video_url: null, media_source: null, media_items: nextMediaItems }).select("id").single();
         if (error) throw new Error(error.message);
         if (data?.id) await supabase.from("quest_members").insert({ quest_id: data.id, user_id: activeUserId, role: "creator" });
         setStatus("Quest posted ✅");
@@ -1250,7 +1347,7 @@ ${description}`
                           {q.title} <span className="text-sm text-gray-500">↗ View listing</span>
                         </Link>
                       </h3>
-                      <p className="text-xs text-gray-500">{q.hobbies?.[0]?.name || "Hobby"} · {q.skill_level} · group {q.group_size}</p>
+                      <p className="text-xs text-gray-500">{q.hobbies?.[0]?.name || "Hobby"} · {(q.skill_level || "all levels")} · group {q.group_size > 0 ? q.group_size : "any"}</p>
                       <p className="text-sm mt-2">{q.description}</p>
                       <p className="text-xs text-gray-500 mt-1">{q.city || deriveCityFromLocation(q.exact_address || "") || "city tbd"} · {q.availability || "availability tbd"}</p>
                     </div>
@@ -1418,14 +1515,24 @@ ${description}`
           <div className="w-full max-w-xl rounded-2xl bg-white border p-4 space-y-3 max-h-[92vh] overflow-y-auto my-auto">
             <div className="flex justify-between items-center"><h3 className="font-semibold">{editingQuestId ? "Edit Listing" : "Create Quest"}</h3><button disabled={savingQuest} onClick={() => { setShowCreateModal(false); resetQuestForm(); }} className="border rounded px-2 py-1 disabled:opacity-50">Close</button></div>
             <form onSubmit={createQuest} className="grid gap-2">
-              <label className="text-sm font-medium">Title</label>
-              <input className="border rounded px-3 py-2" placeholder={titlePlaceholder} value={title} onChange={(e) => setTitle(e.target.value)} />
+              <label className="text-sm font-medium">Title *</label>
+              <input className="border rounded px-3 py-2" placeholder={titlePlaceholder} value={title} onChange={(e) => setTitle(e.target.value)} required />
 
-              <label className="text-sm font-medium">Category</label>
+              <label className="text-sm font-medium">Category *</label>
               <div className="space-y-2">
-                <select className="border rounded px-3 py-2 w-full" value={hobbyId} onChange={(e) => setHobbyId(e.target.value)}>
-                  {hobbies.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
-                </select>
+                <input
+                  list="category-list"
+                  className={`border rounded px-3 py-2 w-full transition ${useCustomCategory ? "opacity-50 blur-[1px] pointer-events-none" : ""}`}
+                  value={categoryInput}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setCategoryInput(value);
+                    const matched = categoryOptions.find((o) => o.name.toLowerCase() === value.trim().toLowerCase());
+                    setHobbyId(matched?.id || "");
+                  }}
+                  placeholder="Select category"
+                  disabled={useCustomCategory}
+                />
                 <label className="flex items-center gap-2 text-sm">
                   <input type="checkbox" checked={useCustomCategory} onChange={(e) => setUseCustomCategory(e.target.checked)} />
                   Suggest / use a custom category
@@ -1440,44 +1547,40 @@ ${description}`
                 )}
               </div>
 
-              <div className="grid gap-2 sm:grid-cols-2 sm:items-end">
-                <div className="grid gap-1">
-                  <label className="text-sm font-medium">Country</label>
-                  <input list="country-list" className="border rounded px-3 py-2" value={countryQuery} onChange={(e) => { setCountryQuery(e.target.value); setCountryCode(resolveCountryCodeByName(e.target.value)); }} placeholder="Start typing country..." />
-                </div>
-                <div className="grid gap-1">
-                  <label className="text-sm font-medium">Location</label>
-                  <div className="relative">
-                    <input className="border rounded px-3 py-2 w-full" placeholder="Address or location (city is okay too)" value={exactAddress} onChange={(e) => setExactAddress(e.target.value)} />
-                    {citySuggestions.length > 0 && (
-                      <div className="absolute z-20 left-0 right-0 mt-1 border rounded bg-white shadow max-h-44 overflow-auto text-sm">
-                        {citySuggestions.map((c) => (
-                          <button key={c} type="button" className="block w-full text-left px-3 py-2 hover:bg-gray-100" onClick={() => { setExactAddress(c); setCitySuggestions([]); }}>
-                            {c}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <label className="text-sm font-medium">Availability</label>
-              <div className="flex gap-4 text-sm">
-                <label className="flex items-center gap-2"><input type="radio" checked={availabilityMode === "flexible"} onChange={() => setAvailabilityMode("flexible")} /> Flexible</label>
-                <label className="flex items-center gap-2"><input type="radio" checked={availabilityMode === "specific"} onChange={() => setAvailabilityMode("specific")} /> Specific days</label>
-              </div>
-              {availabilityMode === "flexible" ? (
-                <input className="border rounded px-3 py-2" placeholder="e.g. weeknights" value={availability} onChange={(e) => setAvailability(e.target.value)} />
-              ) : (
-                <div className="flex flex-wrap gap-2">{DAYS.map((d) => <button key={d} type="button" className={`border rounded-full px-3 py-1 text-sm ${selectedDays.includes(d) ? "bg-black text-white" : "bg-white"}`} onClick={() => setSelectedDays((prev) => prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d])}>{d}</button>)}</div>
-              )}
-
               <label className="text-sm font-medium">Skill level</label>
-              <select className="border rounded px-3 py-2" value={skillLevel} onChange={(e) => setSkillLevel(e.target.value)}><option value="beginner">Beginner</option><option value="returning">Returning</option><option value="intermediate">Intermediate</option><option value="advanced">Advanced</option></select>
+              <select className="border rounded px-3 py-2" value={skillLevel} onChange={(e) => setSkillLevel(e.target.value)}>
+                <option value="">Select skill level...</option>
+                <option value="beginner">Beginner</option>
+                <option value="returning">Returning</option>
+                <option value="intermediate">Intermediate</option>
+                <option value="advanced">Advanced</option>
+              </select>
 
-              <label className="text-sm font-medium">Group size</label>
-              <input type="number" min={2} max={20} className="border rounded px-3 py-2" value={groupSize} onChange={(e) => setGroupSize(Number(e.target.value))} />
+              <label className="text-sm font-medium">Availability (optional)</label>
+              <div className="grid gap-2 text-sm">
+                <label className="flex items-center gap-2"><input type="radio" checked={availabilityMode === "specific_time"} onChange={() => setAvailabilityMode("specific_time")} /> Start at a specific time</label>
+                <label className="flex items-center gap-2"><input type="radio" checked={availabilityMode === "find_best_time"} onChange={() => setAvailabilityMode("find_best_time")} /> Let’s see which time works best</label>
+              </div>
+              {availabilityMode === "specific_time" && (
+                <input type="datetime-local" className="border rounded px-3 py-2" value={startAt} onChange={(e) => setStartAt(e.target.value)} />
+              )}
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={isRecurring} onChange={(e) => setIsRecurring(e.target.checked)} /> Recurring
+              </label>
+              {isRecurring && (
+                <input type="date" className="border rounded px-3 py-2" value={recurringStartDate} onChange={(e) => setRecurringStartDate(e.target.value)} />
+              )}
+              <input className="border rounded px-3 py-2" placeholder="Optional availability notes" value={availability} onChange={(e) => setAvailability(e.target.value)} />
+
+              <label className="text-sm font-medium">Group size *</label>
+              <select className="border rounded px-3 py-2" value={groupSizeChoice} onChange={(e) => setGroupSizeChoice(e.target.value)} required>
+                <option value="">Select group size...</option>
+                {GROUP_SIZE_OPTIONS.map((v) => <option key={v} value={v}>{v === "any" ? "Any" : v}</option>)}
+                <option value="custom">Custom number...</option>
+              </select>
+              {groupSizeChoice === "custom" && (
+                <input type="number" min={2} max={50} className="border rounded px-3 py-2" value={groupSizeCustom} onChange={(e) => setGroupSizeCustom(e.target.value)} placeholder="Enter custom group size" />
+              )}
 
               <label className="text-sm font-medium">Join mode</label>
               <select className="border rounded px-3 py-2" value={joinMode} onChange={(e) => setJoinMode(e.target.value as "open" | "approval_required")}>
@@ -1491,6 +1594,28 @@ ${description}`
                 <option value="approved_members">Auto-share with approved members</option>
                 <option value="public">Public (everyone)</option>
               </select>
+
+              <div className="grid gap-2 sm:grid-cols-2 sm:items-end">
+                <div className="grid gap-1">
+                  <label className="text-sm font-medium">Country</label>
+                  <input list="country-list" className="border rounded px-3 py-2" value={countryQuery} onChange={(e) => { setCountryQuery(e.target.value); setCountryCode(resolveCountryCodeByName(e.target.value)); }} placeholder="Start typing country..." />
+                </div>
+                <div className="grid gap-1">
+                  <label className="text-sm font-medium">Location *</label>
+                  <div className="relative">
+                    <input className="border rounded px-3 py-2 w-full" placeholder="Address or location (city is okay too)" value={exactAddress} onChange={(e) => setExactAddress(e.target.value)} required />
+                    {citySuggestions.length > 0 && (
+                      <div className="absolute z-20 left-0 right-0 mt-1 border rounded bg-white shadow max-h-44 overflow-auto text-sm">
+                        {citySuggestions.map((c) => (
+                          <button key={c} type="button" className="block w-full text-left px-3 py-2 hover:bg-gray-100" onClick={() => { setExactAddress(c); setCitySuggestions([]); }}>
+                            {c}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
 
               <label className="text-sm font-medium">Description</label>
               <textarea className="border rounded px-3 py-2" placeholder="What are you trying to do?" value={description} onChange={(e) => setDescription(e.target.value)} />
@@ -1639,6 +1764,7 @@ ${description}`
       )}
 
       <datalist id="country-list">{countryOptions.map((c) => <option key={c.code} value={c.name} />)}</datalist>
+      <datalist id="category-list">{categoryOptions.map((c) => <option key={c.id} value={c.name} />)}</datalist>
 
       {status && (
         <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-[60] max-w-[92vw]">
