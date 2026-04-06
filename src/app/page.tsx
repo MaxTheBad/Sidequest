@@ -152,9 +152,11 @@ export default function Home() {
   const [availability, setAvailability] = useState("");
   const [startAt, setStartAt] = useState("");
   const [isRecurring, setIsRecurring] = useState(false);
+  const [recurringFrequency, setRecurringFrequency] = useState<"daily" | "weekly" | "monthly">("weekly");
   const [recurringStartDate, setRecurringStartDate] = useState("");
+  const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   const [skillLevel, setSkillLevel] = useState("");
-  const [groupSizeChoice, setGroupSizeChoice] = useState("");
+  const [groupSizeChoice, setGroupSizeChoice] = useState("any");
   const [groupSizeCustom, setGroupSizeCustom] = useState("");
   const [questVideoFile, setQuestVideoFile] = useState<File | null>(null);
   const [questVideoSource, setQuestVideoSource] = useState<"live" | "upload">("live");
@@ -666,7 +668,9 @@ export default function Home() {
     setAvailability("");
     setStartAt("");
     setIsRecurring(false);
+    setRecurringFrequency("weekly");
     setRecurringStartDate("");
+    setShowAdvancedSettings(false);
     setHobbyId("");
     setCategoryInput("");
     setUseCustomCategory(false);
@@ -675,7 +679,7 @@ export default function Home() {
     setJoinMode("open");
     setExactLocationVisibility("private");
     setSkillLevel("");
-    setGroupSizeChoice("");
+    setGroupSizeChoice("any");
     setGroupSizeCustom("");
     setQuestVideoFile(null);
     setQuestVideoDurationSec(null);
@@ -927,7 +931,7 @@ export default function Home() {
 
     if (!title.trim()) return setStatus("Title is required.");
     if (!exactAddress.trim()) return setStatus("Location is required.");
-    if (!useCustomCategory && !categoryInput.trim()) return setStatus("Category is required.");
+    if (!useCustomCategory && !hobbyId) return setStatus("Please select a category from the list.");
     if (useCustomCategory && !customCategory.trim()) return setStatus("Please enter your custom category suggestion.");
     if (!groupSizeChoice) return setStatus("Group size is required.");
     if (groupSizeChoice === "custom" && (!Number.isFinite(selectedGroupSize) || selectedGroupSize < 2 || selectedGroupSize > 50)) {
@@ -938,20 +942,24 @@ export default function Home() {
 
     const derivedCity = deriveCityFromLocation(exactAddress) || city;
     const availabilityParts = [
-      availabilityMode === "specific_time" ? `Start at: ${new Date(startAt).toLocaleString()}` : "Let’s find the best time",
-      isRecurring ? `Recurring from ${recurringStartDate}` : null,
+      availabilityMode === "specific_time" ? `Start at: ${new Date(startAt).toLocaleString()}` : "Let's find the best time",
+      isRecurring ? `Recurring ${recurringFrequency} from ${recurringStartDate}` : null,
       availability.trim() ? `Notes: ${availability.trim()}` : null,
     ].filter(Boolean);
     const avail = availabilityParts.join(" · ");
 
     // Ensure profile row exists (required by quests.creator_id FK)
-    const { error: profileErr } = await supabase.from("profiles").upsert({
+    const profileUpdate: any = {
       id: activeUserId,
       display_name: fullName || userEmail.split("@")[0] || "SideQuest user",
       city: derivedCity,
       availability: avail,
-      skill_level: skillLevel,
-    });
+    };
+    // Only include skill_level if it's a valid non-empty value
+    if (skillLevel && skillLevel.trim()) {
+      profileUpdate.skill_level = skillLevel;
+    }
+    const { error: profileErr } = await supabase.from("profiles").upsert(profileUpdate);
     if (profileErr) return setStatus(`Profile setup failed: ${profileErr.message}`);
 
     let finalHobbyId = hobbyId;
@@ -1137,7 +1145,7 @@ ${description}`
       return;
     }
     if (userId === quest.creator_id) {
-      setStatus("You can’t ask a question on your own listing.");
+      setStatus("You can't ask a question on your own listing.");
       return;
     }
 
@@ -1209,7 +1217,7 @@ ${description}`
 
     const quest = quests.find((q) => q.id === id);
     if (quest && quest.creator_id === userId) {
-      return setStatus("You can’t join your own listing.");
+      return setStatus("You can't join your own listing.");
     }
 
     const membershipStatus = membershipStatusByQuest[id];
@@ -1372,7 +1380,7 @@ ${description}`
             </article>
           );
           })}
-          {!loading && filteredQuests.length === 0 && <p className="text-sm text-gray-500">{showSavedOnly ? "No saved listings yet." : "No quests yet — create the first one."}</p>}
+          {!loading && filteredQuests.length === 0 && <p className="text-sm text-gray-500">{showSavedOnly ? "No saved listings yet." : "No quests yet - create the first one."}</p>}
         </section>
       </div>
 
@@ -1515,7 +1523,8 @@ ${description}`
         <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center p-4 overflow-y-auto">
           <div className="w-full max-w-xl rounded-2xl bg-white border p-4 space-y-3 max-h-[92vh] overflow-y-auto my-auto">
             <div className="flex justify-between items-center"><h3 className="font-semibold">{editingQuestId ? "Edit Listing" : "Create Quest"}</h3><button disabled={savingQuest} onClick={() => { setShowCreateModal(false); resetQuestForm(); }} className="border rounded px-2 py-1 disabled:opacity-50">Close</button></div>
-            <form onSubmit={createQuest} className="grid gap-2">
+            <form onSubmit={createQuest} className="grid gap-3">
+              {/* Core Fields */}
               <label className="text-sm font-medium">Title *</label>
               <input className="border rounded px-3 py-2" placeholder={titlePlaceholder} value={title} onChange={(e) => setTitle(e.target.value)} required />
 
@@ -1548,22 +1557,13 @@ ${description}`
                 )}
               </div>
 
-              <label className="text-sm font-medium">Description</label>
-              <textarea className="border rounded px-3 py-2" placeholder="What are you trying to do?" value={description} onChange={(e) => setDescription(e.target.value)} />
+              <label className="text-sm font-medium">Description *</label>
+              <textarea className="border rounded px-3 py-2" placeholder="What are you trying to do?" value={description} onChange={(e) => setDescription(e.target.value)} required />
 
-              <label className="text-sm font-medium">Skill level</label>
-              <select className="border rounded px-3 py-2" value={skillLevel} onChange={(e) => setSkillLevel(e.target.value)}>
-                <option value="">Select skill level...</option>
-                <option value="beginner">Beginner</option>
-                <option value="returning">Returning</option>
-                <option value="intermediate">Intermediate</option>
-                <option value="advanced">Advanced</option>
-              </select>
-
-              <label className="text-sm font-medium">Availability (optional)</label>
+              <label className="text-sm font-medium">Availability *</label>
               <div className="grid gap-2 text-sm">
                 <label className="flex items-center gap-2"><input type="radio" checked={availabilityMode === "specific_time"} onChange={() => setAvailabilityMode("specific_time")} /> Start at a specific time</label>
-                <label className="flex items-center gap-2"><input type="radio" checked={availabilityMode === "find_best_time"} onChange={() => setAvailabilityMode("find_best_time")} /> Let’s see which time works best</label>
+                <label className="flex items-center gap-2"><input type="radio" checked={availabilityMode === "find_best_time"} onChange={() => setAvailabilityMode("find_best_time")} /> Let's see which time works best</label>
               </div>
               {availabilityMode === "specific_time" && (
                 <input type="datetime-local" className="border rounded px-3 py-2" value={startAt} onChange={(e) => setStartAt(e.target.value)} />
@@ -1572,27 +1572,24 @@ ${description}`
                 <input type="checkbox" checked={isRecurring} onChange={(e) => setIsRecurring(e.target.checked)} /> Recurring
               </label>
               {isRecurring && (
-                <input type="date" className="border rounded px-3 py-2" value={recurringStartDate} onChange={(e) => setRecurringStartDate(e.target.value)} />
+                <div className="grid gap-2">
+                  <select className="border rounded px-3 py-2" value={recurringFrequency} onChange={(e) => setRecurringFrequency(e.target.value as "daily" | "weekly" | "monthly")}>
+                    <option value="daily">Daily</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="monthly">Monthly</option>
+                  </select>
+                  <input type="date" className="border rounded px-3 py-2" value={recurringStartDate} onChange={(e) => setRecurringStartDate(e.target.value)} placeholder="Start date" />
+                </div>
               )}
               <input className="border rounded px-3 py-2" placeholder="Optional availability notes" value={availability} onChange={(e) => setAvailability(e.target.value)} />
 
-              <label className="text-sm font-medium">Group size *</label>
-              <select className="border rounded px-3 py-2" value={groupSizeChoice} onChange={(e) => setGroupSizeChoice(e.target.value)} required>
-                <option value="">Select group size...</option>
-                {GROUP_SIZE_OPTIONS.map((v) => <option key={v} value={v}>{v === "any" ? "Any" : v}</option>)}
-                <option value="custom">Custom number...</option>
-              </select>
-              {groupSizeChoice === "custom" && (
-                <input type="number" min={2} max={50} className="border rounded px-3 py-2" value={groupSizeCustom} onChange={(e) => setGroupSizeCustom(e.target.value)} placeholder="Enter custom group size" />
-              )}
-
-              <label className="text-sm font-medium">Join mode</label>
+              <label className="text-sm font-medium">Join Mode *</label>
               <select className="border rounded px-3 py-2" value={joinMode} onChange={(e) => setJoinMode(e.target.value as "open" | "approval_required")}>
                 <option value="open">Anyone can join instantly</option>
                 <option value="approval_required">Host must approve members</option>
               </select>
 
-              <label className="text-sm font-medium">Location visibility</label>
+              <label className="text-sm font-medium">Location Visibility *</label>
               <select className="border rounded px-3 py-2" value={exactLocationVisibility} onChange={(e) => setExactLocationVisibility(e.target.value as "private" | "public" | "approved_members")}>
                 <option value="private">Private (manual share)</option>
                 <option value="approved_members">Auto-share with approved members</option>
@@ -1601,13 +1598,13 @@ ${description}`
 
               <div className="grid gap-2 sm:grid-cols-2 sm:items-end">
                 <div className="grid gap-1">
-                  <label className="text-sm font-medium">Country</label>
-                  <input list="country-list" className="border rounded px-3 py-2" value={countryQuery} onChange={(e) => { setCountryQuery(e.target.value); setCountryCode(resolveCountryCodeByName(e.target.value)); }} placeholder="Start typing country..." />
+                  <label className="text-sm font-medium">Country *</label>
+                  <input list="country-list" className="border rounded px-3 py-2" value={countryQuery} onChange={(e) => { setCountryQuery(e.target.value); setCountryCode(resolveCountryCodeByName(e.target.value)); }} placeholder="Start typing country..." required />
                 </div>
                 <div className="grid gap-1">
                   <label className="text-sm font-medium">Location *</label>
                   <div className="relative">
-                    <input className="border rounded px-3 py-2 w-full" placeholder="Address or location (city is okay too)" value={exactAddress} onChange={(e) => setExactAddress(e.target.value)} required />
+                    <input className="border rounded px-3 py-2 w-full" placeholder="We recommend a public place" value={exactAddress} onChange={(e) => setExactAddress(e.target.value)} required />
                     {citySuggestions.length > 0 && (
                       <div className="absolute z-20 left-0 right-0 mt-1 border rounded bg-white shadow max-h-44 overflow-auto text-sm">
                         {citySuggestions.map((c) => (
@@ -1621,7 +1618,37 @@ ${description}`
                 </div>
               </div>
 
-              <label className="text-sm font-medium">Media (photos + videos)</label>
+              {/* Advanced Settings - Collapsible */}
+              <button
+                type="button"
+                onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
+                className="flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-gray-900 mt-2"
+              >
+                <span>{showAdvancedSettings ? "▼" : "▶"}</span>
+                <span>⚙️ Advanced settings (optional)</span>
+              </button>
+
+              {showAdvancedSettings && (
+                <div className="grid gap-3 border-l-2 border-gray-200 pl-3">
+                  <label className="text-sm font-medium">Skill level (optional)</label>
+                  <select className="border rounded px-3 py-2" value={skillLevel} onChange={(e) => setSkillLevel(e.target.value)}>
+                    <option value="">Select skill level...</option>
+                    <option value="beginner">Beginner</option>
+                    <option value="returning">Returning</option>
+                    <option value="intermediate">Intermediate</option>
+                    <option value="advanced">Advanced</option>
+                  </select>
+
+                  <label className="text-sm font-medium">Group size (optional)</label>
+                  <select className="border rounded px-3 py-2" value={groupSizeChoice} onChange={(e) => setGroupSizeChoice(e.target.value)}>
+                    {GROUP_SIZE_OPTIONS.map((v) => <option key={v} value={v}>{v === "any" ? "Any" : v}</option>)}
+                    <option value="custom">Custom number...</option>
+                  </select>
+                  {groupSizeChoice === "custom" && (
+                    <input type="number" min={2} max={50} className="border rounded px-3 py-2" value={groupSizeCustom} onChange={(e) => setGroupSizeCustom(e.target.value)} placeholder="Enter custom group size" />
+                  )}
+
+                  <label className="text-sm font-medium">Media (photos + videos - optional but recommended)</label>
               <div className="grid gap-3 rounded-xl border p-3 bg-gray-50">
                 <input
                   type="file"
@@ -1701,7 +1728,9 @@ ${description}`
                     />
                   </div>
                 ) : null}
+                </div>
               </div>
+              )}
 
               {savingQuest && <div className="text-sm rounded border bg-blue-50 px-3 py-2">Working on it… uploading media and saving listing.</div>}
               <div className="flex gap-2 flex-wrap">
