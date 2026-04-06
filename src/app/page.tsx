@@ -1017,7 +1017,7 @@ export default function Home() {
       }
     }
 
-    if (!finalHobbyId) return setStatus("Please select a category or use a custom category suggestion.");
+    if (!finalHobbyId) return setStatus("Category is required. Please try selecting or entering a category again.");
 
     const finalDescription = useCustomCategory && customCategory.trim() && finalHobbyId === hobbyId
       ? `[Custom category suggestion: ${customCategory.trim()}]
