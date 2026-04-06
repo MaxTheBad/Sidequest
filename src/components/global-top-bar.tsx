@@ -72,7 +72,7 @@ export default function GlobalTopBar() {
   return (
     <header className="fixed top-0 inset-x-0 z-50 border-b nav-shell">
       <div className="max-w-5xl mx-auto px-4 h-[52px] flex items-center justify-between gap-3">
-        <Link href="/" className="font-semibold text-[15px] tracking-tight">Sydequest</Link>
+        <Link href="/" className="nav-brand text-[15px] tracking-tight">Sydequest</Link>
         <div className="ml-auto flex items-center gap-2">
           <button
             className="nav-control"
@@ -81,7 +81,7 @@ export default function GlobalTopBar() {
           >
             Theme: {themeLabel}
           </button>
-          {userId && userLabel ? <span className="text-xs text-gray-600 hidden md:inline">Signed in as {userLabel.split("@")[0]}</span> : null}
+          {userId && userLabel ? <span className="text-xs text-white/70 hidden md:inline">Signed in as {userLabel.split("@")[0]}</span> : null}
           {userId ? (
             <button className="nav-control" onClick={() => void signOut()}>Sign out</button>
           ) : (

@@ -185,12 +185,9 @@ export default function Home() {
   }, []);
 
   const categoryOptions = useMemo(() => {
-    const existingNames = new Set(hobbies.map((h) => h.name.toLowerCase()));
-    const suggestionOnly = CATEGORY_SUGGESTIONS
-      .filter((name) => !existingNames.has(name.toLowerCase()))
-      .map((name) => ({ id: `suggestion:${name}`, name, isSuggestion: true as const }));
-    const dbOptions = hobbies.map((h) => ({ id: h.id, name: h.name, isSuggestion: false as const }));
-    return [...dbOptions, ...suggestionOnly].sort((a, b) => a.name.localeCompare(b.name));
+    return hobbies
+      .map((h) => ({ id: h.id, name: h.name, isSuggestion: false as const }))
+      .sort((a, b) => a.name.localeCompare(b.name));
   }, [hobbies]);
 
   function resolveCountryCodeByName(name: string) {
