@@ -66,6 +66,7 @@ const CATEGORY_SUGGESTIONS = [
   "Jogging",
   "Biking",
   "Coding",
+  "Content creation",
   "Team building",
   "Studying",
   "Yoga",
@@ -1547,6 +1548,9 @@ ${description}`
                 )}
               </div>
 
+              <label className="text-sm font-medium">Description</label>
+              <textarea className="border rounded px-3 py-2" placeholder="What are you trying to do?" value={description} onChange={(e) => setDescription(e.target.value)} />
+
               <label className="text-sm font-medium">Skill level</label>
               <select className="border rounded px-3 py-2" value={skillLevel} onChange={(e) => setSkillLevel(e.target.value)}>
                 <option value="">Select skill level...</option>
@@ -1616,9 +1620,6 @@ ${description}`
                   </div>
                 </div>
               </div>
-
-              <label className="text-sm font-medium">Description</label>
-              <textarea className="border rounded px-3 py-2" placeholder="What are you trying to do?" value={description} onChange={(e) => setDescription(e.target.value)} />
 
               <label className="text-sm font-medium">Media (photos + videos)</label>
               <div className="grid gap-3 rounded-xl border p-3 bg-gray-50">
