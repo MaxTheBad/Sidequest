@@ -38,17 +38,20 @@ export default function GlobalTopBar() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
     const apply = () => {
-      const hour = new Date().getHours();
-      const resolved = themePref === "auto" ? (hour >= 7 && hour < 19 ? "light" : "dark") : themePref;
+      const resolved = themePref === "auto" ? (mq.matches ? "dark" : "light") : themePref;
       document.documentElement.dataset.theme = resolved;
       window.localStorage.setItem("sidequest_theme_pref", themePref);
     };
+
     apply();
-    const id = window.setInterval(() => {
+    const listener = () => {
       if (themePref === "auto") apply();
-    }, 60_000);
-    return () => window.clearInterval(id);
+    };
+    mq.addEventListener?.("change", listener);
+    return () => mq.removeEventListener?.("change", listener);
   }, [themePref]);
 
   const themeLabel = useMemo(() => (themePref === "auto" ? "Auto" : themePref === "light" ? "Light" : "Dark"), [themePref]);

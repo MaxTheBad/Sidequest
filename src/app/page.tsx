@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, PointerEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, PointerEvent, UIEvent, useEffect, useMemo, useRef, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase";
 
 type Hobby = { id: string; name: string; category: string | null };
@@ -96,7 +96,7 @@ export default function Home() {
   const [handledCreateParam, setHandledCreateParam] = useState(false);
   const [showQuestionModal, setShowQuestionModal] = useState(false);
   const [expandedMedia, setExpandedMedia] = useState<{ items: QuestMediaItem[]; index: number } | null>(null);
-  const [mediaTouchStartX, setMediaTouchStartX] = useState<number | null>(null);
+  const expandedMediaStripRef = useRef<HTMLDivElement | null>(null);
   const [questionTarget, setQuestionTarget] = useState<Quest | null>(null);
   const [questionMode, setQuestionMode] = useState<"public" | "private">("public");
   const [questionText, setQuestionText] = useState("");
@@ -1302,7 +1302,7 @@ ${description}`
         {!!pendingVerifyEmail && (
           <div className="text-sm rounded bg-emerald-50 border p-2">Email sent to <b>{pendingVerifyEmail}</b>. <button className="underline" disabled={resendCooldown > 0} onClick={() => void resendVerification()}>{resendCooldown > 0 ? `Resend in ${resendCooldown}s` : "Resend"}</button></div>
         )}
-        <section className="rounded-2xl border bg-white p-4 ditto-pixel-hover">
+        <section className="rounded-2xl border bg-white p-4">
           <div className="flex flex-wrap gap-2 items-center justify-between">
             <h2 className="font-semibold">Explore quests</h2>
             <div className="flex items-center gap-2">
@@ -1329,7 +1329,7 @@ ${description}`
           {loading ? <p>Loading...</p> : filteredQuests.map((q) => {
             const creatorProfile = getCreatorProfile(q);
             return (
-            <article key={q.id} className="rounded-2xl border bg-white p-4 ditto-pixel-hover">
+            <article key={q.id} className="rounded-2xl border bg-white p-4">
               <div className="flex gap-4 items-start">
                 <aside className="w-24 shrink-0 text-center">
                   {creatorProfile?.avatar_url ? (
@@ -1766,45 +1766,62 @@ ${description}`
       )}
 
       {expandedMedia && expandedMedia.items.length > 0 && (
-        <div
-          className="fixed inset-0 z-[70] bg-black flex items-center justify-center"
-          onClick={() => setExpandedMedia(null)}
-          onTouchStart={(e) => setMediaTouchStartX(e.changedTouches[0]?.clientX ?? null)}
-          onTouchEnd={(e) => {
-            const endX = e.changedTouches[0]?.clientX;
-            if (mediaTouchStartX === null || endX === undefined) return;
-            const delta = endX - mediaTouchStartX;
-            if (Math.abs(delta) < 40) return;
-            setExpandedMedia((s) => {
-              if (!s) return s;
-              const len = s.items.length;
-              return { ...s, index: delta < 0 ? (s.index + 1) % len : (s.index - 1 + len) % len };
-            });
-          }}
-        >
+        <div className="fixed inset-0 z-[70] bg-black" onClick={() => setExpandedMedia(null)}>
           <div className="relative h-screen w-screen" onClick={(e) => e.stopPropagation()}>
-            {expandedMedia.items[expandedMedia.index]?.type === "image" ? (
-              <img
-                src={expandedMedia.items[expandedMedia.index].url}
-                alt={expandedMedia.items[expandedMedia.index].label || "Expanded media"}
-                className="h-full w-full object-contain"
-              />
-            ) : (
-              <video
-                src={expandedMedia.items[expandedMedia.index].url}
-                controls
-                autoPlay
-                className="h-full w-full object-contain bg-black"
-              />
-            )}
+            <div
+              ref={expandedMediaStripRef}
+              className="h-screen w-screen overflow-x-auto overflow-y-hidden flex snap-x snap-mandatory"
+              onScroll={(e: UIEvent<HTMLDivElement>) => {
+                const el = e.currentTarget;
+                const idx = Math.round(el.scrollLeft / Math.max(1, el.clientWidth));
+                setExpandedMedia((s) => (s ? { ...s, index: Math.min(s.items.length - 1, Math.max(0, idx)) } : s));
+              }}
+            >
+              {expandedMedia.items.map((item, i) => (
+                <div key={`${item.url}-${i}`} className="h-screen w-screen shrink-0 snap-start flex items-center justify-center bg-black">
+                  {item.type === "image" ? (
+                    <img src={item.url} alt={item.label || "Expanded media"} className="h-full w-full object-contain" />
+                  ) : (
+                    <video src={item.url} controls autoPlay={i === expandedMedia.index} className="h-full w-full object-contain bg-black" />
+                  )}
+                </div>
+              ))}
+            </div>
 
             <button type="button" className="absolute top-4 right-4 border rounded px-3 py-2 bg-white/90" onClick={() => setExpandedMedia(null)}>Close</button>
 
             {expandedMedia.items.length > 1 && (
               <>
-                <button type="button" className="absolute left-3 top-1/2 -translate-y-1/2 border rounded-full h-10 w-10 bg-white/90" onClick={(e) => { e.stopPropagation(); setExpandedMedia((s) => (!s ? s : { ...s, index: (s.index - 1 + s.items.length) % s.items.length })); }}>‹</button>
-                <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 border rounded-full h-10 w-10 bg-white/90" onClick={(e) => { e.stopPropagation(); setExpandedMedia((s) => (!s ? s : { ...s, index: (s.index + 1) % s.items.length })); }}>›</button>
-
+                <button
+                  type="button"
+                  className="absolute left-3 top-1/2 -translate-y-1/2 border rounded-full h-10 w-10 bg-white/90"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setExpandedMedia((s) => {
+                      if (!s) return s;
+                      const next = (s.index - 1 + s.items.length) % s.items.length;
+                      expandedMediaStripRef.current?.scrollTo({ left: next * window.innerWidth, behavior: "smooth" });
+                      return { ...s, index: next };
+                    });
+                  }}
+                >
+                  ‹
+                </button>
+                <button
+                  type="button"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 border rounded-full h-10 w-10 bg-white/90"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setExpandedMedia((s) => {
+                      if (!s) return s;
+                      const next = (s.index + 1) % s.items.length;
+                      expandedMediaStripRef.current?.scrollTo({ left: next * window.innerWidth, behavior: "smooth" });
+                      return { ...s, index: next };
+                    });
+                  }}
+                >
+                  ›
+                </button>
                 <div className="absolute bottom-5 left-1/2 -translate-x-1/2 flex items-center gap-2">
                   {expandedMedia.items.map((_, i) => (
                     <span key={i} className={`h-2.5 w-2.5 rounded-full ${i === expandedMedia.index ? "bg-white" : "bg-white/45"}`} />

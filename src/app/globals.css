@@ -72,6 +72,24 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   line-height: 1.6;
+  position: relative;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.12;
+  background-image: radial-gradient(circle at 1px 1px, rgba(124,58,237,0.55) 1px, transparent 0);
+  background-size: 18px 18px;
+  animation: syde-dots 14s linear infinite;
+}
+
+main, header, nav {
+  position: relative;
+  z-index: 1;
 }
 
 /* ============================================
@@ -306,6 +324,11 @@ input[type="checkbox"], input[type="radio"] {
   100% {
     background-position: 200% center;
   }
+}
+
+@keyframes syde-dots {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(-18px, -18px, 0); }
 }
 
 .animate-fade-in {

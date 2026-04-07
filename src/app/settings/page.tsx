@@ -42,6 +42,7 @@ export default function SettingsPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
 
   const [marketingOptIn, setMarketingOptIn] = useState(false);
+  const [themePref, setThemePref] = useState<"auto" | "light" | "dark">("auto");
 
   const countryOptions = useState(() => {
     try {
@@ -110,6 +111,14 @@ export default function SettingsPage() {
 
     void run();
   }, [supabase, countryOptions]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const saved = window.localStorage.getItem("sidequest_theme_pref");
+    if (saved === "auto" || saved === "light" || saved === "dark") {
+      setThemePref(saved);
+    }
+  }, []);
 
   useEffect(() => {
     const q = city.trim();
@@ -344,6 +353,14 @@ export default function SettingsPage() {
     });
 
     if (error) return setStatus(error.message);
+
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("sidequest_theme_pref", themePref);
+      const mq = window.matchMedia("(prefers-color-scheme: dark)");
+      const resolved = themePref === "auto" ? (mq.matches ? "dark" : "light") : themePref;
+      document.documentElement.dataset.theme = resolved;
+    }
+
     setStatus("Preferences saved ✅");
   }
 
@@ -517,6 +534,14 @@ export default function SettingsPage() {
 
             {tab === "preferences" && (
               <form onSubmit={savePreferences} className="grid gap-3">
+                <label className="text-sm font-medium">Theme</label>
+                <select className="border rounded px-3 py-2 w-fit min-w-[180px]" value={themePref} onChange={(e) => setThemePref(e.target.value as "auto" | "light" | "dark")}>
+                  <option value="auto">Auto (follow system)</option>
+                  <option value="light">Light</option>
+                  <option value="dark">Dark</option>
+                </select>
+                <p className="text-xs text-gray-600">Auto follows your device theme.</p>
+
                 <label className="flex items-start gap-2 text-sm">
                   <input type="checkbox" checked={marketingOptIn} onChange={(e) => setMarketingOptIn(e.target.checked)} />
                   <span>Send me product updates, promotions, and announcements.</span>
