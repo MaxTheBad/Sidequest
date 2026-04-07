@@ -130,6 +130,7 @@ export default function Home() {
   const [bookmarkedQuestIds, setBookmarkedQuestIds] = useState<string[]>([]);
   const [joinedQuestIds, setJoinedQuestIds] = useState<string[]>([]);
   const [membershipStatusByQuest, setMembershipStatusByQuest] = useState<Record<string, "pending" | "approved" | "declined">>({});
+  const [feedMediaIndexByQuest, setFeedMediaIndexByQuest] = useState<Record<string, number>>({});
   const [showSavedOnly, setShowSavedOnly] = useState(false);
   const [hobbyFilter, setHobbyFilter] = useState("all");
   const [loading, setLoading] = useState(false);
@@ -1328,81 +1329,79 @@ ${description}`
         <section className="grid gap-3">
           {loading ? <p>Loading...</p> : filteredQuests.map((q) => {
             const creatorProfile = getCreatorProfile(q);
+            const feedMediaItems: QuestMediaItem[] = [
+              ...(q.media_video_url ? [{ url: q.media_video_url, type: "video" as const, label: q.media_source === "live" ? "Live video" : "Video" }] : []),
+              ...((q.media_items || []).map((m) => ({ url: m.url, type: m.type, label: m.label || undefined }))),
+            ];
+            const feedIndex = feedMediaIndexByQuest[q.id] || 0;
+
             return (
-            <article key={q.id} className="rounded-2xl border bg-white p-4">
-              <div className="flex gap-4 items-start">
-                <aside className="w-24 shrink-0 text-center">
+            <article key={q.id} className="rounded-2xl border bg-white p-0 overflow-hidden">
+              <div className="p-3 flex items-center justify-between gap-2">
+                <Link href={`/profile/${q.creator_id}`} className="flex items-center gap-2 min-w-0">
                   {creatorProfile?.avatar_url ? (
-                    <img src={creatorProfile.avatar_url} alt="Creator" className="h-16 w-16 rounded-full object-cover border mx-auto" />
+                    <img src={creatorProfile.avatar_url} alt="Creator" className="h-9 w-9 rounded-full object-cover border" />
                   ) : (
-                    <div className="h-16 w-16 rounded-full border bg-gray-100 mx-auto" />
+                    <div className="h-9 w-9 rounded-full border bg-gray-100" />
                   )}
-                  <Link href={`/profile/${q.creator_id}`} className="mt-2 block text-xs underline text-gray-700 truncate">
-                    {creatorProfile?.display_name || "View profile"}
-                  </Link>
-                </aside>
+                  <span className="text-sm font-semibold truncate">{creatorProfile?.display_name || "View profile"}</span>
+                </Link>
+                <button className="border rounded px-2 py-1 text-xs" onClick={() => openEditModal(q)}>{userId === q.creator_id ? "Edit" : "⋯"}</button>
+              </div>
 
-                <div className="flex-1 space-y-3 min-w-0">
-                  {(q.media_video_url || q.media_items?.length) ? (
-                    <div
-                      className="w-full overflow-x-auto overscroll-x-contain pb-1 snap-x snap-mandatory [scrollbar-width:thin] [-webkit-overflow-scrolling:touch]"
-                      style={{ touchAction: "pan-x" }}
-                    >
-                      <div className="flex gap-2 pr-10 min-w-0">
-                        {q.media_video_url ? (
-                          <div className="relative rounded-lg border p-2 bg-gray-50 shrink-0 snap-start basis-[78%] sm:basis-56">
-                            <video className="w-full h-28 rounded bg-black object-cover" src={q.media_video_url} controls muted playsInline preload="metadata" />
-                            {q.media_source === "live" && <span className="absolute top-3 left-3 text-xs bg-emerald-600 text-white px-2 py-1 rounded-full">Live video</span>}
-                          </div>
-                        ) : null}
-
-                        {q.media_items?.map((m, i) => (
-                          <div key={`${m.url}-${i}`} className="rounded-lg border p-2 bg-gray-50 shrink-0 snap-start basis-[78%] sm:basis-56">
-                            <button
-                              type="button"
-                              className="block w-full"
-                              onClick={() => setExpandedMedia({ items: q.media_items || [], index: i })}
-                            >
-                              {m.type === "image" ? (
-                                <img src={m.url} alt={m.label || "Listing image"} className="w-full h-28 object-cover rounded" />
-                              ) : (
-                                <video src={m.url} className="w-full h-28 object-cover rounded bg-black" preload="metadata" muted playsInline />
-                              )}
-                            </button>
-                            {m.label && <p className="text-[11px] mt-1 text-gray-600 truncate">{m.label}</p>}
-                          </div>
-                        ))}
+              {feedMediaItems.length > 0 && (
+                <div>
+                  <div
+                    className="w-full overflow-x-auto snap-x snap-mandatory flex"
+                    onScroll={(e) => {
+                      const el = e.currentTarget;
+                      const idx = Math.round(el.scrollLeft / Math.max(1, el.clientWidth));
+                      setFeedMediaIndexByQuest((prev) => ({ ...prev, [q.id]: Math.min(feedMediaItems.length - 1, Math.max(0, idx)) }));
+                    }}
+                  >
+                    {feedMediaItems.map((m, i) => (
+                      <div key={`${m.url}-${i}`} className="w-full shrink-0 snap-start bg-black">
+                        <button type="button" className="w-full block" onClick={() => setExpandedMedia({ items: feedMediaItems, index: i })}>
+                          {m.type === "image" ? (
+                            <img src={m.url} alt={m.label || "Listing media"} className="w-full h-[52vh] sm:h-[60vh] object-cover" />
+                          ) : (
+                            <video src={m.url} className="w-full h-[52vh] sm:h-[60vh] object-cover" preload="metadata" muted playsInline />
+                          )}
+                        </button>
                       </div>
-                    </div>
-                  ) : null}
-
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <h3 className="font-semibold text-lg">
-                        <Link href={`/listing/${q.id}`} className="underline decoration-2 underline-offset-2" title="Open listing">
-                          {q.title} <span className="text-sm text-gray-500">↗ View listing</span>
-                        </Link>
-                      </h3>
-                      <p className="text-xs text-gray-500">{q.hobbies?.[0]?.name || "Hobby"} · {(q.skill_level || "all levels")} · group {q.group_size > 0 ? q.group_size : "any"}</p>
-                      <p className="text-sm mt-2">{q.description}</p>
-                      <p className="text-xs text-gray-500 mt-1">{q.city || deriveCityFromLocation(q.exact_address || "") || "city tbd"} · {q.availability || "availability tbd"}</p>
-                    </div>
-                    <div className="flex gap-2 flex-wrap justify-end">
-                      {userId !== q.creator_id && (
-                        <>
-                          <button className="border rounded px-3 py-2" onClick={() => void toggleJoinQuest(q.id)}>{membershipStatusByQuest[q.id] === "pending" ? "Cancel request" : (membershipStatusByQuest[q.id] === "declined" ? "Request again" : (joinedQuestIds.includes(q.id) ? "Leave" : ((q.join_mode || "open") === "approval_required" ? "Request to join" : "Join")))}</button>
-                          <button className="border rounded px-3 py-2" onClick={() => void askQuestion(q)}>Ask question</button>
-                        </>
-                      )}
-                      <button className="border rounded px-3 py-2" onClick={() => void toggleBookmark(q.id)}>
-                        {bookmarkedQuestIds.includes(q.id) ? "★ Saved" : "☆ Save"}
-                      </button>
-                      {userId === q.creator_id && (
-                        <button className="border rounded px-3 py-2" onClick={() => openEditModal(q)}>Edit</button>
-                      )}
-                    </div>
+                    ))}
                   </div>
+                  {feedMediaItems.length > 1 && (
+                    <div className="py-2 flex items-center justify-center gap-1.5">
+                      {feedMediaItems.map((_, i) => (
+                        <span key={i} className={`h-1.5 w-1.5 rounded-full ${i === feedIndex ? "bg-black" : "bg-gray-300"}`} />
+                      ))}
+                    </div>
+                  )}
                 </div>
+              )}
+
+              <div className="p-3 space-y-2">
+                <div className="flex gap-2 flex-wrap">
+                  {userId !== q.creator_id && (
+                    <>
+                      <button className="border rounded px-3 py-2" onClick={() => void toggleJoinQuest(q.id)}>{membershipStatusByQuest[q.id] === "pending" ? "Cancel request" : (membershipStatusByQuest[q.id] === "declined" ? "Request again" : (joinedQuestIds.includes(q.id) ? "Leave" : ((q.join_mode || "open") === "approval_required" ? "Request to join" : "Join")))}</button>
+                      <button className="border rounded px-3 py-2" onClick={() => void askQuestion(q)}>Comment / DM</button>
+                    </>
+                  )}
+                  <button className="border rounded px-3 py-2" onClick={() => void toggleBookmark(q.id)}>
+                    {bookmarkedQuestIds.includes(q.id) ? "★ Saved" : "☆ Save"}
+                  </button>
+                </div>
+
+                <h3 className="font-semibold text-lg leading-tight">
+                  <Link href={`/listing/${q.id}`} className="underline decoration-2 underline-offset-2" title="Open listing">
+                    {q.title} <span className="text-sm text-gray-500">↗ View listing</span>
+                  </Link>
+                </h3>
+                <p className="text-xs text-gray-500">{q.hobbies?.[0]?.name || "Hobby"} · {(q.skill_level || "all levels")} · group {q.group_size > 0 ? q.group_size : "any"}</p>
+                {q.description ? <p className="text-sm">{q.description}</p> : null}
+                <p className="text-xs text-gray-500">{q.city || deriveCityFromLocation(q.exact_address || "") || "city tbd"} · {q.availability || "availability tbd"}</p>
               </div>
             </article>
           );
@@ -1837,16 +1836,16 @@ ${description}`
         <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center p-4">
           <div className="w-full max-w-lg rounded-2xl bg-white border p-4 space-y-3">
             <div className="flex items-center justify-between">
-              <h3 className="font-semibold">Ask question</h3>
+              <h3 className="font-semibold">Comment or message</h3>
               <button className="border rounded px-2 py-1" onClick={() => setShowQuestionModal(false)}>Close</button>
             </div>
             <p className="text-sm text-gray-600">About: <b>{questionTarget.title}</b></p>
             <div className="flex gap-2">
-              <button type="button" className={`border rounded px-3 py-2 ${questionMode === "public" ? "bg-black text-white" : ""}`} onClick={() => setQuestionMode("public")}>Public</button>
-              <button type="button" className={`border rounded px-3 py-2 ${questionMode === "private" ? "bg-black text-white" : ""}`} onClick={() => setQuestionMode("private")}>Private</button>
+              <button type="button" className={`border rounded px-3 py-2 ${questionMode === "public" ? "bg-black text-white" : ""}`} onClick={() => setQuestionMode("public")}>Comment (public)</button>
+              <button type="button" className={`border rounded px-3 py-2 ${questionMode === "private" ? "bg-black text-white" : ""}`} onClick={() => setQuestionMode("private")}>Direct message</button>
             </div>
-            <p className="text-xs text-gray-600">Please keep questions general and avoid sharing personal information.</p>
-            <textarea className="border rounded px-3 py-2 w-full" placeholder="Type your question..." value={questionText} onChange={(e) => setQuestionText(e.target.value)} />
+            <p className="text-xs text-gray-600">Comments are visible to everyone. Direct messages are private.</p>
+            <textarea className="border rounded px-3 py-2 w-full" placeholder="Write your comment or message..." value={questionText} onChange={(e) => setQuestionText(e.target.value)} />
             <button className="bg-black text-white rounded px-3 py-2 disabled:opacity-50" disabled={sendingQuestion || !questionText.trim()} onClick={() => void sendQuestionFromModal()}>{sendingQuestion ? "Sending..." : "Send"}</button>
           </div>
         </div>
