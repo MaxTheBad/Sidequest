@@ -1302,7 +1302,7 @@ ${description}`
         {!!pendingVerifyEmail && (
           <div className="text-sm rounded bg-emerald-50 border p-2">Email sent to <b>{pendingVerifyEmail}</b>. <button className="underline" disabled={resendCooldown > 0} onClick={() => void resendVerification()}>{resendCooldown > 0 ? `Resend in ${resendCooldown}s` : "Resend"}</button></div>
         )}
-        <section className="rounded-2xl border bg-white p-4">
+        <section className="rounded-2xl border bg-white p-4 ditto-pixel-hover">
           <div className="flex flex-wrap gap-2 items-center justify-between">
             <h2 className="font-semibold">Explore quests</h2>
             <div className="flex items-center gap-2">
@@ -1329,7 +1329,7 @@ ${description}`
           {loading ? <p>Loading...</p> : filteredQuests.map((q) => {
             const creatorProfile = getCreatorProfile(q);
             return (
-            <article key={q.id} className="rounded-2xl border bg-white p-4">
+            <article key={q.id} className="rounded-2xl border bg-white p-4 ditto-pixel-hover">
               <div className="flex gap-4 items-start">
                 <aside className="w-24 shrink-0 text-center">
                   {creatorProfile?.avatar_url ? (
@@ -1767,7 +1767,7 @@ ${description}`
 
       {expandedMedia && expandedMedia.items.length > 0 && (
         <div
-          className="fixed inset-0 z-[70] bg-black/85 flex items-center justify-center p-4"
+          className="fixed inset-0 z-[70] bg-black flex items-center justify-center"
           onClick={() => setExpandedMedia(null)}
           onTouchStart={(e) => setMediaTouchStartX(e.changedTouches[0]?.clientX ?? null)}
           onTouchEnd={(e) => {
@@ -1782,14 +1782,37 @@ ${description}`
             });
           }}
         >
-          {expandedMedia.items[expandedMedia.index]?.type === "image" ? (
-            <img src={expandedMedia.items[expandedMedia.index].url} alt={expandedMedia.items[expandedMedia.index].label || "Expanded media"} className="max-h-[88vh] max-w-[94vw] rounded-xl object-contain" onClick={(e) => e.stopPropagation()} />
-          ) : (
-            <video src={expandedMedia.items[expandedMedia.index].url} controls autoPlay className="max-h-[88vh] max-w-[94vw] rounded-xl object-contain bg-black" onClick={(e) => e.stopPropagation()} />
-          )}
-          <button type="button" className="absolute top-4 right-4 border rounded px-3 py-2 bg-white" onClick={() => setExpandedMedia(null)}>Close</button>
-          <button type="button" className="absolute left-3 top-1/2 -translate-y-1/2 border rounded-full h-10 w-10 bg-white" onClick={(e) => { e.stopPropagation(); setExpandedMedia((s) => (!s ? s : { ...s, index: (s.index - 1 + s.items.length) % s.items.length })); }}>‹</button>
-          <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 border rounded-full h-10 w-10 bg-white" onClick={(e) => { e.stopPropagation(); setExpandedMedia((s) => (!s ? s : { ...s, index: (s.index + 1) % s.items.length })); }}>›</button>
+          <div className="relative h-screen w-screen" onClick={(e) => e.stopPropagation()}>
+            {expandedMedia.items[expandedMedia.index]?.type === "image" ? (
+              <img
+                src={expandedMedia.items[expandedMedia.index].url}
+                alt={expandedMedia.items[expandedMedia.index].label || "Expanded media"}
+                className="h-full w-full object-contain"
+              />
+            ) : (
+              <video
+                src={expandedMedia.items[expandedMedia.index].url}
+                controls
+                autoPlay
+                className="h-full w-full object-contain bg-black"
+              />
+            )}
+
+            <button type="button" className="absolute top-4 right-4 border rounded px-3 py-2 bg-white/90" onClick={() => setExpandedMedia(null)}>Close</button>
+
+            {expandedMedia.items.length > 1 && (
+              <>
+                <button type="button" className="absolute left-3 top-1/2 -translate-y-1/2 border rounded-full h-10 w-10 bg-white/90" onClick={(e) => { e.stopPropagation(); setExpandedMedia((s) => (!s ? s : { ...s, index: (s.index - 1 + s.items.length) % s.items.length })); }}>‹</button>
+                <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 border rounded-full h-10 w-10 bg-white/90" onClick={(e) => { e.stopPropagation(); setExpandedMedia((s) => (!s ? s : { ...s, index: (s.index + 1) % s.items.length })); }}>›</button>
+
+                <div className="absolute bottom-5 left-1/2 -translate-x-1/2 flex items-center gap-2">
+                  {expandedMedia.items.map((_, i) => (
+                    <span key={i} className={`h-2.5 w-2.5 rounded-full ${i === expandedMedia.index ? "bg-white" : "bg-white/45"}`} />
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
         </div>
       )}
 

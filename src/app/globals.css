@@ -434,6 +434,33 @@ strong {
 }
 
 /* ============================================
+   DITTO-STYLE PIXEL HOVER
+   ============================================ */
+
+.ditto-pixel-hover {
+  position: relative;
+  overflow: hidden;
+}
+
+.ditto-pixel-hover::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  background-image:
+    radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--accent-primary) 50%, transparent) 1px, transparent 0);
+  background-size: 12px 12px;
+  transform: translateX(-8px);
+  transition: opacity .25s ease, transform .35s ease;
+}
+
+.ditto-pixel-hover:hover::after {
+  opacity: .18;
+  transform: translateX(0);
+}
+
+/* ============================================
    STATUS BADGES
    ============================================ */
 
