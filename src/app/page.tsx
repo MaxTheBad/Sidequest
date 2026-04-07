@@ -131,6 +131,7 @@ export default function Home() {
   const [joinedQuestIds, setJoinedQuestIds] = useState<string[]>([]);
   const [membershipStatusByQuest, setMembershipStatusByQuest] = useState<Record<string, "pending" | "approved" | "declined">>({});
   const [feedMediaIndexByQuest, setFeedMediaIndexByQuest] = useState<Record<string, number>>({});
+  const [openCardMenuQuestId, setOpenCardMenuQuestId] = useState<string | null>(null);
   const [showSavedOnly, setShowSavedOnly] = useState(false);
   const [hobbyFilter, setHobbyFilter] = useState("all");
   const [loading, setLoading] = useState(false);
@@ -1346,10 +1347,31 @@ ${description}`
                   )}
                   <span className="text-sm font-semibold truncate">{creatorProfile?.display_name || "View profile"}</span>
                 </Link>
-                <button className="border rounded px-2 py-1 text-xs" onClick={() => openEditModal(q)}>{userId === q.creator_id ? "Edit" : "⋯"}</button>
+                <div className="relative">
+                  <button
+                    className="border rounded px-2 py-1 text-xs"
+                    onClick={() => setOpenCardMenuQuestId((v) => (v === q.id ? null : q.id))}
+                  >
+                    ⋯
+                  </button>
+                  {openCardMenuQuestId === q.id && (
+                    <div className="absolute right-0 mt-1 w-36 rounded-xl border bg-white shadow-md z-20 overflow-hidden">
+                      {userId === q.creator_id && (
+                        <button className="block w-full text-left px-3 py-2 text-sm hover:bg-gray-50" onClick={() => { setOpenCardMenuQuestId(null); openEditModal(q); }}>
+                          Edit listing
+                        </button>
+                      )}
+                      {userId !== q.creator_id && (
+                        <button className="block w-full text-left px-3 py-2 text-sm hover:bg-gray-50" onClick={() => { setOpenCardMenuQuestId(null); setStatus("Report submitted. We’ll review it."); }}>
+                          Report listing
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
 
-              {feedMediaItems.length > 0 && (
+              {feedMediaItems.length > 0 ? (
                 <div>
                   <div
                     className="w-full overflow-x-auto snap-x snap-mandatory flex"
@@ -1378,6 +1400,14 @@ ${description}`
                       ))}
                     </div>
                   )}
+                </div>
+              ) : (
+                <div className="h-[40vh] sm:h-[46vh] bg-gradient-to-br from-violet-50 to-indigo-50 border-y grid place-items-center">
+                  <div className="text-center px-6">
+                    <div className="mx-auto h-14 w-14 rounded-full border bg-white grid place-items-center text-xl">🖼️</div>
+                    <p className="mt-3 text-sm font-semibold">No media yet</p>
+                    <p className="text-xs text-gray-500">This quest has details below — ask for photos in comments/DM.</p>
+                  </div>
                 </div>
               )}
 

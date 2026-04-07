@@ -236,8 +236,8 @@ export default function ListingPage() {
   }
 
   function askQuestion() {
-    if (!supabase || !userId || !listing) return setStatus("Log in to message listing owners.");
-    if (listing.creator_id === userId) return setStatus("You can’t ask a question on your own listing.");
+    if (!supabase || !userId || !listing) return setStatus("Log in to comment or message listing owners.");
+    if (listing.creator_id === userId) return setStatus("You can’t comment on your own listing from this button.");
     setQuestionMode("public");
     setQuestionText("");
     setShowQuestionModal(true);
@@ -248,8 +248,8 @@ export default function ListingPage() {
     if (sendingQuestion) return;
     if (Date.now() - lastQuestionMs < 3000) return setStatus("Slow down a sec before sending again.");
     const trimmed = questionText.trim();
-    if (!trimmed) return setStatus("Please enter your question.");
-    if (trimmed.length > 500) return setStatus("Question is too long (max 500 chars).");
+    if (!trimmed) return setStatus("Please enter your message.");
+    if (trimmed.length > 500) return setStatus("Message is too long (max 500 chars).");
 
     const { count } = await supabase
       .from("messages")
@@ -273,7 +273,7 @@ export default function ListingPage() {
     setShowQuestionModal(false);
     setQuestionText("");
     setLastQuestionMs(Date.now());
-    setStatus(`${questionMode === "private" ? "Private" : "Public"} question sent ✅`);
+    setStatus(`${questionMode === "private" ? "Direct" : "Public"} message sent ✅`);
   }
 
   async function toggleSave() {
@@ -509,7 +509,7 @@ export default function ListingPage() {
               {!isOwner ? (
                 <>
                   <button className="border rounded px-3 py-2" onClick={() => void toggleJoin()}>{myMembershipStatus === "pending" ? "Cancel request" : (myMembershipStatus === "declined" ? "Request again" : (hasJoined ? "Leave" : ((listing.join_mode || "open") === "approval_required" ? "Request to join" : "Join")))}</button>
-                  <button className="border rounded px-3 py-2" onClick={() => void askQuestion()}>Ask question</button>
+                  <button className="border rounded px-3 py-2" onClick={() => void askQuestion()}>Comment / DM</button>
                   <button className="border rounded px-3 py-2" onClick={() => void toggleSave()}>{isSaved ? "★ Saved" : "☆ Save"}</button>
                 </>
               ) : (
@@ -560,15 +560,15 @@ export default function ListingPage() {
           <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center p-4">
             <div className="w-full max-w-lg rounded-2xl bg-white border p-4 space-y-3">
               <div className="flex items-center justify-between">
-                <h3 className="font-semibold">Ask question</h3>
+                <h3 className="font-semibold">Comment or message</h3>
                 <button className="border rounded px-2 py-1" onClick={() => setShowQuestionModal(false)}>Close</button>
               </div>
               <div className="flex gap-2">
-                <button type="button" className={`border rounded px-3 py-2 ${questionMode === "public" ? "bg-black text-white" : ""}`} onClick={() => setQuestionMode("public")}>Public</button>
-                <button type="button" className={`border rounded px-3 py-2 ${questionMode === "private" ? "bg-black text-white" : ""}`} onClick={() => setQuestionMode("private")}>Private</button>
+                <button type="button" className={`border rounded px-3 py-2 ${questionMode === "public" ? "bg-black text-white" : ""}`} onClick={() => setQuestionMode("public")}>Comment (public)</button>
+                <button type="button" className={`border rounded px-3 py-2 ${questionMode === "private" ? "bg-black text-white" : ""}`} onClick={() => setQuestionMode("private")}>Direct message</button>
               </div>
-              <p className="text-xs text-gray-600">Please keep questions general and avoid sharing personal information.</p>
-              <textarea className="border rounded px-3 py-2 w-full" placeholder="Type your question..." value={questionText} onChange={(e) => setQuestionText(e.target.value)} />
+              <p className="text-xs text-gray-600">Comments are visible to everyone. Direct messages are private.</p>
+              <textarea className="border rounded px-3 py-2 w-full" placeholder="Write your comment or message..." value={questionText} onChange={(e) => setQuestionText(e.target.value)} />
               <button className="bg-black text-white rounded px-3 py-2 disabled:opacity-50" disabled={sendingQuestion || !questionText.trim()} onClick={() => void sendQuestionFromModal()}>{sendingQuestion ? "Sending..." : "Send"}</button>
             </div>
           </div>
