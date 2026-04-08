@@ -1380,7 +1380,7 @@ ${description}`
         {!!pendingVerifyEmail && (
           <div className="text-sm rounded bg-emerald-50 border p-2">Email sent to <b>{pendingVerifyEmail}</b>. <button className="underline" disabled={resendCooldown > 0} onClick={() => void resendVerification()}>{resendCooldown > 0 ? `Resend in ${resendCooldown}s` : "Resend"}</button></div>
         )}
-        <section className="rounded-2xl border bg-white p-4">
+        <section className="sticky top-14 z-30 rounded-2xl border bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/85 p-4">
           <div className="flex flex-wrap gap-2 items-center justify-between">
             <h2 className="font-semibold">Explore quests</h2>
             <div className="flex items-center gap-2">
