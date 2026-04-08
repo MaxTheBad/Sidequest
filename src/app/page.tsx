@@ -1363,7 +1363,7 @@ export default function Home() {
         {!!pendingVerifyEmail && (
           <div className="text-sm rounded bg-emerald-50 border p-2">Email sent to <b>{pendingVerifyEmail}</b>. <button className="underline" disabled={resendCooldown > 0} onClick={() => void resendVerification()}>{resendCooldown > 0 ? `Resend in ${resendCooldown}s` : "Resend"}</button></div>
         )}
-        <section className="rounded-2xl border bg-white p-4">
+        <section className="rounded-2xl bg-white p-4">
           <div className="flex flex-wrap gap-2 items-center justify-between">
             <h2 className="font-semibold">Explore quests</h2>
             <div className="flex items-center gap-2">
@@ -1381,7 +1381,7 @@ export default function Home() {
               <button className="border rounded px-3 py-1" onClick={() => void loadQuests()}>Refresh</button>
             </div>
           </div>
-          <div className="mt-3 rounded-lg bg-gray-50 p-3 text-sm">
+          <div className="mt-3 rounded-lg bg-gray-50 p-3 text-sm border-0">
             <strong>Surprise me:</strong> {surprisePick ? <><span>{surprisePick.title} ({surprisePick.hobbies?.[0]?.name || "Hobby"})</span>{userId !== surprisePick.creator_id && <button className="ml-3 border rounded px-2 py-1" onClick={() => void toggleJoinQuest(surprisePick.id)}>{membershipStatusByQuest[surprisePick.id] === "pending" ? "Cancel request" : (membershipStatusByQuest[surprisePick.id] === "declined" ? "Request again" : (joinedQuestIds.includes(surprisePick.id) ? "Leave" : ((surprisePick.join_mode || "open") === "approval_required" ? "Request to join" : "Join")))}</button>}</> : "No quests yet"}
           </div>
         </section>
