@@ -101,6 +101,17 @@ main, header, nav {
   box-shadow: 0 10px 30px rgba(17,17,17,0.05);
 }
 
+.quest-card {
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+.quest-card .border-t,
+.quest-card .border-b,
+.quest-card .border {
+  border-width: 0 !important;
+}
+
 .bg-gray-50, .bg-gray-100, .bg-\[\#f6f7fb\] {
   background-color: var(--muted) !important;
 }

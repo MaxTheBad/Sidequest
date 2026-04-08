@@ -1396,7 +1396,7 @@ export default function Home() {
             const feedIndex = feedMediaIndexByQuest[q.id] || 0;
 
             return (
-            <article key={q.id} className="rounded-2xl bg-white p-0 overflow-hidden">
+            <article key={q.id} className="quest-card rounded-2xl bg-white p-0 overflow-hidden">
               <div className="p-3 flex items-center justify-between gap-2">
                 <Link href={`/profile/${q.creator_id}`} className="flex items-center gap-2 min-w-0">
                   {creatorProfile?.avatar_url ? (
