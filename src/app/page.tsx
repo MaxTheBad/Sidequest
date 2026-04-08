@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { FormEvent, PointerEvent, UIEvent, useEffect, useMemo, useRef, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase";
+import { CANONICAL_CATEGORIES, resolveCanonicalCategory, suggestCanonicalCategories } from "@/lib/category-suggestions";
 
 type Hobby = { id: string; name: string; category: string | null };
 type QuestMediaItem = {
@@ -68,7 +69,7 @@ const TITLE_SUGGESTIONS_BY_CATEGORY: Record<string, string[]> = {
     "Resume review + job hunt sprint",
     "LinkedIn networking accountability",
   ],
-  health: [
+  "healthy lifestyle": [
     "Morning workout accountability group",
     "Meal prep + healthy habits challenge",
     "Daily meditation streak check-in",
@@ -239,13 +240,25 @@ export default function Home() {
   }, []);
 
   const categoryOptions = useMemo(() => {
-    return hobbies
-      .map((h) => ({ id: h.id, name: h.name, isSuggestion: false as const }))
-      .sort((a, b) => a.name.localeCompare(b.name));
+    const fromDb = hobbies.map((h) => ({ id: h.id, name: h.name, isSuggestion: false as const }));
+    const existing = new Set(fromDb.map((x) => x.name.toLowerCase()));
+    const canonical = CANONICAL_CATEGORIES
+      .filter((name) => !existing.has(name.toLowerCase()))
+      .map((name) => ({ id: `canonical:${name.toLowerCase()}`, name, isSuggestion: true as const }));
+
+    return [...fromDb, ...canonical].sort((a, b) => a.name.localeCompare(b.name));
   }, [hobbies]);
 
   const categoryTitleHint = useMemo(
     () => pickTitleSuggestionByCategory(categoryInput || ""),
+    [categoryInput]
+  );
+  const canonicalCategoryMatch = useMemo(
+    () => resolveCanonicalCategory(categoryInput),
+    [categoryInput]
+  );
+  const canonicalCategorySuggestions = useMemo(
+    () => suggestCanonicalCategories(categoryInput),
     [categoryInput]
   );
 
@@ -1006,8 +1019,7 @@ export default function Home() {
 
     if (!title.trim()) return setStatus("Title is required.");
     if (!exactAddress.trim()) return setStatus("Location is required.");
-    if (!hobbyId && !customCategory.trim()) return setStatus("Please enter a category.");
-    if (useCustomCategory && !customCategory.trim()) return setStatus("Please enter your custom category.");
+    if (!categoryInput.trim()) return setStatus("Please enter a category.");
     if (!groupSizeChoice) return setStatus("Group size is required.");
     if (groupSizeChoice === "custom" && (!Number.isFinite(selectedGroupSize) || selectedGroupSize < 2 || selectedGroupSize > 50)) {
       return setStatus("Custom group size must be between 2 and 50.");
@@ -1038,59 +1050,33 @@ export default function Home() {
     if (profileErr) return setStatus(`Profile setup failed: ${profileErr.message}`);
 
     let finalHobbyId = hobbyId;
-    if (!finalHobbyId && categoryInput.trim()) {
-      const picked = categoryOptions.find((o) => o.name.toLowerCase() === categoryInput.trim().toLowerCase());
-      if (picked?.id) finalHobbyId = picked.id;
+    const canonicalOrTyped = resolveCanonicalCategory(categoryInput) || categoryInput.trim();
+
+    if (!finalHobbyId && canonicalOrTyped) {
+      const picked = categoryOptions.find((o) => o.name.toLowerCase() === canonicalOrTyped.toLowerCase());
+      if (picked?.id && !picked.id.startsWith("canonical:")) finalHobbyId = picked.id;
     }
 
-    const suggestedFromDropdown = finalHobbyId.startsWith("suggestion:") ? finalHobbyId.replace("suggestion:", "").trim() : "";
-
-    if (suggestedFromDropdown) {
-      const { data: existingSuggested } = await supabase
-        .from("hobbies")
-        .select("id,name")
-        .ilike("name", suggestedFromDropdown)
-        .limit(1)
-        .maybeSingle();
-      if (existingSuggested?.id) {
-        finalHobbyId = existingSuggested.id;
-      } else {
-        const { data: createdSuggested, error: createSuggestedErr } = await supabase
-          .from("hobbies")
-          .insert({ slug: slugify(suggestedFromDropdown), name: suggestedFromDropdown, category: "Custom" })
-          .select("id")
-          .single();
-        if (!createSuggestedErr && createdSuggested?.id) {
-          finalHobbyId = createdSuggested.id;
-        } else {
-          setSavingQuest(false);
-          return setStatus(`Could not create category "${suggestedFromDropdown}": ${createSuggestedErr?.message || "Unknown error"}`);
-        }
-      }
-    }
-
-    if (useCustomCategory && customCategory.trim()) {
-      const custom = customCategory.trim();
+    if (!finalHobbyId && canonicalOrTyped) {
       const { data: existing } = await supabase
         .from("hobbies")
         .select("id,name")
-        .ilike("name", custom)
+        .ilike("name", canonicalOrTyped)
         .limit(1)
         .maybeSingle();
 
       if (existing?.id) {
         finalHobbyId = existing.id;
       } else {
-        const slug = slugify(custom);
         const { data: created, error: hobbyErr } = await supabase
           .from("hobbies")
-          .insert({ slug, name: custom, category: "Custom" })
+          .insert({ slug: slugify(canonicalOrTyped), name: canonicalOrTyped, category: "Custom" })
           .select("id")
           .single();
 
         if (hobbyErr) {
           setSavingQuest(false);
-          return setStatus(`Could not create custom category "${custom}": ${hobbyErr.message}`);
+          return setStatus(`Could not create category "${canonicalOrTyped}": ${hobbyErr.message}`);
         } else if (created?.id) {
           finalHobbyId = created.id;
         }
@@ -1102,10 +1088,7 @@ export default function Home() {
       return setStatus("Category is required. Please try selecting or entering a category again.");
     }
 
-    const finalDescription = useCustomCategory && customCategory.trim() && finalHobbyId === hobbyId
-      ? `[Custom category suggestion: ${customCategory.trim()}]
-${description}`
-      : description;
+    const finalDescription = description;
 
     setSavingQuest(true);
     setStatus(editingQuestId ? "Updating listing…" : "Posting listing…");
@@ -1380,7 +1363,7 @@ ${description}`
         {!!pendingVerifyEmail && (
           <div className="text-sm rounded bg-emerald-50 border p-2">Email sent to <b>{pendingVerifyEmail}</b>. <button className="underline" disabled={resendCooldown > 0} onClick={() => void resendVerification()}>{resendCooldown > 0 ? `Resend in ${resendCooldown}s` : "Resend"}</button></div>
         )}
-        <section className="sticky top-14 z-30 rounded-2xl border bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/85 p-4">
+        <section className="rounded-2xl border bg-white p-4">
           <div className="flex flex-wrap gap-2 items-center justify-between">
             <h2 className="font-semibold">Explore quests</h2>
             <div className="flex items-center gap-2">
@@ -1663,11 +1646,12 @@ ${description}`
                 className="border rounded px-3 py-2 w-full"
                 value={categoryInput}
                 onChange={(e) => {
-                  const value = e.target.value;
+                  const rawValue = e.target.value;
+                  const canonical = resolveCanonicalCategory(rawValue);
+                  const value = canonical || rawValue;
                   setCategoryInput(value);
                   const matched = categoryOptions.find((o) => o.name.toLowerCase() === value.trim().toLowerCase());
                   setHobbyId(matched?.id || "");
-                  // If no match and user typed something, treat as custom
                   if (!matched && value.trim()) {
                     setUseCustomCategory(true);
                     setCustomCategory(value.trim());
@@ -1679,7 +1663,12 @@ ${description}`
                 placeholder="Select from list or enter a custom category"
               />
               <p className="text-xs text-gray-500">
-                Suggestions for {categoryInput.trim() || "this category"}: <span className="italic">{categoryTitleHint}</span>
+                {canonicalCategoryMatch && categoryInput.trim() && categoryInput.trim().toLowerCase() !== canonicalCategoryMatch.toLowerCase()
+                  ? <>Mapped to: <span className="font-medium">{canonicalCategoryMatch}</span> · </>
+                  : null}
+                Category suggestions: <span className="italic">{canonicalCategorySuggestions.join(", ")}</span>
+                <br />
+                Title suggestion: <span className="italic">{categoryTitleHint}</span>
               </p>
 
               <label className="text-sm font-medium">Title *</label>

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { getSupabaseClient } from "@/lib/supabase";
+import { CANONICAL_CATEGORIES, resolveCanonicalCategory, suggestCanonicalCategories } from "@/lib/category-suggestions";
 
 export const runtime = "edge";
 
@@ -19,7 +20,7 @@ const TITLE_SUGGESTIONS_BY_CATEGORY: Record<string, string[]> = {
   build: ["Ship my app MVP in 14 days", "Validate a startup idea this week", "Find a co-builder for a side project"],
   learn: ["Study session for final exam prep", "Learn SQL basics together", "Daily language practice partner"],
   career: ["Mock interview prep this weekend", "Resume review + job hunt sprint", "LinkedIn networking accountability"],
-  health: ["Morning workout accountability group", "Meal prep + healthy habits challenge", "Daily meditation streak check-in"],
+  "healthy lifestyle": ["Morning workout accountability group", "Meal prep + healthy habits challenge", "Daily meditation streak check-in"],
   outdoors: ["Sunrise hike this Saturday", "Beginner-friendly trail meetup", "Weekend camping prep crew"],
   social: ["Meet new friends over coffee", "Practice better communication this week", "Community hangout in the park"],
   money: ["Budget reset challenge for this month", "Side hustle brainstorming session", "Weekly savings accountability group"],
@@ -73,10 +74,19 @@ export default function EditListingPage() {
   const [joinMode, setJoinMode] = useState<"open" | "approval_required">("open");
   const [exactLocationVisibility, setExactLocationVisibility] = useState<"private" | "public" | "approved_members">("private");
 
+  const categoryOptions = useMemo(() => {
+    const existing = new Set(hobbies.map((h) => h.name.toLowerCase()));
+    return [
+      ...hobbies,
+      ...CANONICAL_CATEGORIES.filter((name) => !existing.has(name.toLowerCase())).map((name) => ({ id: `canonical:${name.toLowerCase()}`, name })),
+    ].sort((a, b) => a.name.localeCompare(b.name));
+  }, [hobbies]);
+
   const categoryTitleHint = useMemo(
     () => pickTitleSuggestionByCategory(categoryInput || ""),
     [categoryInput]
   );
+  const canonicalCategorySuggestions = useMemo(() => suggestCanonicalCategories(categoryInput), [categoryInput]);
 
   useEffect(() => {
     if (!categoryInput.trim()) return;
@@ -144,16 +154,16 @@ export default function EditListingPage() {
     }
 
     let finalHobbyId = hobbyId;
-    if (!finalHobbyId && categoryInput.trim()) {
-      const matched = hobbies.find((h) => h.name.toLowerCase() === categoryInput.trim().toLowerCase());
-      if (matched) {
+    const canonicalOrTyped = resolveCanonicalCategory(categoryInput) || categoryInput.trim();
+    if (!finalHobbyId && canonicalOrTyped) {
+      const matched = categoryOptions.find((h) => h.name.toLowerCase() === canonicalOrTyped.toLowerCase());
+      if (matched && !matched.id.startsWith("canonical:")) {
         finalHobbyId = matched.id;
       } else {
-        const name = categoryInput.trim();
-        const slug = slugify(name);
+        const slug = slugify(canonicalOrTyped);
         const { data: inserted, error: insertErr } = await supabase
           .from("hobbies")
-          .insert({ slug, name, category: "Custom" })
+          .insert({ slug, name: canonicalOrTyped, category: "Custom" })
           .select("id")
           .single();
         if (insertErr || !inserted?.id) {
@@ -204,17 +214,23 @@ export default function EditListingPage() {
               className="border rounded px-3 py-2"
               value={categoryInput}
               onChange={(e) => {
-                const value = e.target.value;
+                const rawValue = e.target.value;
+                const canonical = resolveCanonicalCategory(rawValue);
+                const value = canonical || rawValue;
                 setCategoryInput(value);
-                const matched = hobbies.find((h) => h.name.toLowerCase() === value.trim().toLowerCase());
+                const matched = categoryOptions.find((h) => h.name.toLowerCase() === value.trim().toLowerCase());
                 setHobbyId(matched?.id || "");
               }}
               placeholder="Select from list or enter a custom category"
               required
             />
-            <p className="text-xs text-gray-500">Suggestions: <span className="italic">{categoryTitleHint}</span></p>
+            <p className="text-xs text-gray-500">
+              Category suggestions: <span className="italic">{canonicalCategorySuggestions.join(", ")}</span>
+              <br />
+              Title suggestion: <span className="italic">{categoryTitleHint}</span>
+            </p>
             <datalist id="category-list">
-              {hobbies.map((h) => <option key={h.id} value={h.name} />)}
+              {categoryOptions.map((h) => <option key={h.id} value={h.name} />)}
             </datalist>
 
             <label className="text-sm">Title</label>
