@@ -17,13 +17,13 @@ const TITLE_SUGGESTIONS = [
 ];
 
 const TITLE_SUGGESTIONS_BY_CATEGORY: Record<string, string[]> = {
-  build: ["Ship my app MVP in 14 days", "Validate a startup idea this week", "Find a co-builder for a side project"],
-  learn: ["Study session for final exam prep", "Learn SQL basics together", "Daily language practice partner"],
-  career: ["Mock interview prep this weekend", "Resume review + job hunt sprint", "LinkedIn networking accountability"],
-  "healthy lifestyle": ["Morning workout accountability group", "Meal prep + healthy habits challenge", "Daily meditation streak check-in"],
-  outdoors: ["Sunrise hike this Saturday", "Beginner-friendly trail meetup", "Weekend camping prep crew"],
-  social: ["Meet new friends over coffee", "Practice better communication this week", "Community hangout in the park"],
-  money: ["Budget reset challenge for this month", "Side hustle brainstorming session", "Weekly savings accountability group"],
+  build: ["Lock in and ship your MVP in 14 days", "Build in public: validate your idea this week", "Find a co-builder and execute"],
+  learn: ["Lock in for a focused study sprint", "Learn SQL with an accountability buddy", "Daily learning streak — no zero days"],
+  career: ["Lock in on interview prep this weekend", "Resume glow-up + job hunt execution", "LinkedIn outreach sprint with accountability"],
+  "healthy lifestyle": ["Lock in with a gym buddy", "Cardio accountability crew (3x/week)", "Healthy habits reset: sleep, food, movement"],
+  outdoors: ["Lock in for a sunrise hike", "Beginner-friendly trail day", "Weekend adventure squad"],
+  social: ["Meet new people and actually follow through", "Communication skills practice circle", "Community hang + good vibes only"],
+  money: ["Lock in and execute a money plan", "Budget reset sprint for this month", "Side hustle ideas to action"],
   creative: ["Write for 30 minutes daily", "Photo walk + editing session", "Co-create content this weekend"],
   lifestyle: ["Build a better morning routine", "Declutter sprint + reset", "Weekly productivity planning"],
   wildcard: ["Something different: let's explore it", "My custom challenge starts now", "Open idea lab — bring your wildcards"],

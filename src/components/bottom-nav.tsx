@@ -41,7 +41,7 @@ export default function BottomNav() {
   }
 
   return (
-    <nav className="fixed bottom-0 inset-x-0 z-40 border-t nav-shell">
+    <nav className="fixed bottom-0 inset-x-0 z-[90] border-t nav-shell">
       <div className="max-w-5xl mx-auto px-3 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] grid grid-cols-5 items-end">
         <Link href="/" className={`text-center text-xs py-2 transition ${isActive("/") ? "nav-item-active" : "nav-item"}`}>
           <div className="text-[15px]">🏠</div>
