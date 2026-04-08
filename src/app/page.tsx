@@ -52,6 +52,58 @@ const TITLE_SUGGESTIONS = [
   "Pickleball for total beginners",
   "Morning run partners (3x/week)",
 ];
+const TITLE_SUGGESTIONS_BY_CATEGORY: Record<string, string[]> = {
+  build: [
+    "Ship my app MVP in 14 days",
+    "Validate a startup idea this week",
+    "Find a co-builder for a side project",
+  ],
+  learn: [
+    "Study session for final exam prep",
+    "Learn SQL basics together",
+    "Daily language practice partner",
+  ],
+  career: [
+    "Mock interview prep this weekend",
+    "Resume review + job hunt sprint",
+    "LinkedIn networking accountability",
+  ],
+  health: [
+    "Morning workout accountability group",
+    "Meal prep + healthy habits challenge",
+    "Daily meditation streak check-in",
+  ],
+  outdoors: [
+    "Sunrise hike this Saturday",
+    "Beginner-friendly trail meetup",
+    "Weekend camping prep crew",
+  ],
+  social: [
+    "Meet new friends over coffee",
+    "Practice better communication this week",
+    "Community hangout in the park",
+  ],
+  money: [
+    "Budget reset challenge for this month",
+    "Side hustle brainstorming session",
+    "Weekly savings accountability group",
+  ],
+  creative: [
+    "Write for 30 minutes daily",
+    "Photo walk + editing session",
+    "Co-create content this weekend",
+  ],
+  lifestyle: [
+    "Build a better morning routine",
+    "Declutter sprint + reset",
+    "Weekly productivity planning",
+  ],
+  wildcard: [
+    "Something different: let's explore it",
+    "My custom challenge starts now",
+    "Open idea lab — bring your wildcards",
+  ],
+};
 const MEDIA_LABEL_HINTS = [
   "Photo of front of building",
   "Video of last event",
@@ -192,9 +244,33 @@ export default function Home() {
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [hobbies]);
 
+  const categoryTitleHint = useMemo(
+    () => pickTitleSuggestionByCategory(categoryInput || ""),
+    [categoryInput]
+  );
+
+  useEffect(() => {
+    if (!categoryInput.trim()) {
+      return;
+    }
+    setTitlePlaceholder(categoryTitleHint);
+  }, [categoryInput, categoryTitleHint]);
+
   function resolveCountryCodeByName(name: string) {
     const found = countryOptions.find((c) => c.name.toLowerCase() === name.trim().toLowerCase());
     return found?.code || countryCode;
+  }
+
+  function pickTitleSuggestionByCategory(categoryName: string) {
+    const normalized = categoryName.trim().toLowerCase();
+    const direct = TITLE_SUGGESTIONS_BY_CATEGORY[normalized];
+    if (direct?.length) return direct[Math.floor(Math.random() * direct.length)];
+    const matchedKey = Object.keys(TITLE_SUGGESTIONS_BY_CATEGORY).find((key) => normalized.includes(key));
+    if (matchedKey) {
+      const pool = TITLE_SUGGESTIONS_BY_CATEGORY[matchedKey];
+      return pool[Math.floor(Math.random() * pool.length)];
+    }
+    return TITLE_SUGGESTIONS[Math.floor(Math.random() * TITLE_SUGGESTIONS.length)];
   }
 
   const passwordChecks = {
@@ -1581,9 +1657,6 @@ ${description}`
             <div className="flex justify-between items-center"><h3 className="font-semibold">{editingQuestId ? "Edit Listing" : "Create Quest"}</h3><button disabled={savingQuest} onClick={() => { setShowCreateModal(false); resetQuestForm(); }} className="border rounded px-2 py-1 disabled:opacity-50">Close</button></div>
             <form onSubmit={createQuest} className="grid gap-3">
               {/* Core Fields */}
-              <label className="text-sm font-medium">Title *</label>
-              <input className="border rounded px-3 py-2" placeholder={titlePlaceholder} value={title} onChange={(e) => setTitle(e.target.value)} required />
-
               <label className="text-sm font-medium">Category *</label>
               <input
                 list="category-list"
@@ -1605,6 +1678,12 @@ ${description}`
                 }}
                 placeholder="Select from list or enter a custom category"
               />
+              <p className="text-xs text-gray-500">
+                Suggestions for {categoryInput.trim() || "this category"}: <span className="italic">{categoryTitleHint}</span>
+              </p>
+
+              <label className="text-sm font-medium">Title *</label>
+              <input className="border rounded px-3 py-2" placeholder={titlePlaceholder} value={title} onChange={(e) => setTitle(e.target.value)} required />
 
               <label className="text-sm font-medium">Availability *</label>
               <div className="grid gap-2 text-sm">
