@@ -1359,7 +1359,7 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-[#f6f7fb]">
-      <div className="max-w-5xl mx-auto px-4 py-4 space-y-4">
+      <div className="w-full mx-auto px-0 py-4 space-y-4">
         {!!pendingVerifyEmail && (
           <div className="text-sm rounded bg-emerald-50 border p-2">Email sent to <b>{pendingVerifyEmail}</b>. <button className="underline" disabled={resendCooldown > 0} onClick={() => void resendVerification()}>{resendCooldown > 0 ? `Resend in ${resendCooldown}s` : "Resend"}</button></div>
         )}
@@ -1396,7 +1396,7 @@ export default function Home() {
             const feedIndex = feedMediaIndexByQuest[q.id] || 0;
 
             return (
-            <article key={q.id} className="quest-card rounded-2xl bg-white p-0 overflow-hidden">
+            <article key={q.id} className="quest-card w-full rounded-none bg-white p-0 overflow-hidden">
               <div className="p-3 flex items-center justify-between gap-2">
                 <Link href={`/profile/${q.creator_id}`} className="flex items-center gap-2 min-w-0">
                   {creatorProfile?.avatar_url ? (
