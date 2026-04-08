@@ -1396,7 +1396,7 @@ export default function Home() {
             const feedIndex = feedMediaIndexByQuest[q.id] || 0;
 
             return (
-            <article key={q.id} className="rounded-2xl border bg-white p-0 overflow-hidden">
+            <article key={q.id} className="rounded-2xl bg-white p-0 overflow-hidden">
               <div className="p-3 flex items-center justify-between gap-2">
                 <Link href={`/profile/${q.creator_id}`} className="flex items-center gap-2 min-w-0">
                   {creatorProfile?.avatar_url ? (
@@ -1550,7 +1550,7 @@ export default function Home() {
               <button className="bg-black text-white rounded px-3 py-2">{authMode === "signup" ? "Create account" : "Log in"}</button>
             </form>
 
-            <div className="pt-2 border-t space-y-2">
+            <div className="pt-2 space-y-2">
               <div className="flex gap-2">
                 <button className="border rounded px-3 py-2 flex items-center gap-2" onClick={() => void socialLogin("google")}><img src="/google-g.svg" alt="Google" className="h-4 w-4"/><span>Google</span></button>
                 <button className="border rounded px-3 py-2 flex items-center gap-2" onClick={() => void socialLogin("facebook")}><img src="/facebook-f.svg" alt="Facebook" className="h-4 w-4"/><span>Facebook</span></button>
