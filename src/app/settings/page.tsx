@@ -44,6 +44,7 @@ export default function SettingsPage() {
 
   const [marketingOptIn, setMarketingOptIn] = useState(false);
   const [themePref, setThemePref] = useState<"auto" | "light" | "dark">("auto");
+  const [publicLocationWarningEnabled, setPublicLocationWarningEnabled] = useState(true);
 
   const countryOptions = useState(() => {
     try {
@@ -65,6 +66,14 @@ export default function SettingsPage() {
     const found = countryOptions.find((c) => c.name.toLowerCase() === countryQuery.trim().toLowerCase());
     return (found?.code || countryCode || "").toLowerCase();
   }, [countryOptions, countryCode, countryQuery]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const raw = window.localStorage.getItem("sidequest_public_location_warning_muted_until");
+      const mutedUntil = raw ? Number(raw) : 0;
+      setPublicLocationWarningEnabled(!(Number.isFinite(mutedUntil) && mutedUntil > Date.now()));
+    }
+  }, []);
 
   useEffect(() => {
     if (!supabase) return;
@@ -360,6 +369,13 @@ export default function SettingsPage() {
       const mq = window.matchMedia("(prefers-color-scheme: dark)");
       const resolved = themePref === "auto" ? (mq.matches ? "dark" : "light") : themePref;
       document.documentElement.dataset.theme = resolved;
+
+      if (publicLocationWarningEnabled) {
+        window.localStorage.removeItem("sidequest_public_location_warning_muted_until");
+      } else {
+        const mutedUntil = Date.now() + 30 * 24 * 60 * 60 * 1000;
+        window.localStorage.setItem("sidequest_public_location_warning_muted_until", String(mutedUntil));
+      }
     }
 
     setStatus("Preferences saved ✅");
@@ -566,6 +582,12 @@ export default function SettingsPage() {
                   <input type="checkbox" checked={marketingOptIn} onChange={(e) => setMarketingOptIn(e.target.checked)} />
                   <span>Send me product updates, promotions, and announcements.</span>
                 </label>
+
+                <label className="flex items-start gap-2 text-sm">
+                  <input type="checkbox" checked={publicLocationWarningEnabled} onChange={(e) => setPublicLocationWarningEnabled(e.target.checked)} />
+                  <span>Public location warning (recommended). Show confirmation before posting quests with public meetup visibility.</span>
+                </label>
+
                 <button className="border rounded px-3 py-2 w-fit">Save preferences</button>
               </form>
             )}

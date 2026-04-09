@@ -5,6 +5,7 @@ import { FormEvent, PointerEvent, UIEvent, useEffect, useMemo, useRef, useState 
 import { getSupabaseClient } from "@/lib/supabase";
 import { CANONICAL_CATEGORIES, resolveCanonicalCategory, suggestCanonicalCategories } from "@/lib/category-suggestions";
 import { isImageLikeFile, prepareImageForUpload } from "@/lib/media-optimize";
+import { compressVideoForUpload } from "@/lib/video-optimize";
 
 type Hobby = { id: string; name: string; category: string | null };
 type QuestMediaItem = {
@@ -144,6 +145,35 @@ const CATEGORY_SUGGESTIONS = [
   "Photography",
 ];
 const GROUP_SIZE_OPTIONS = ["any", "2", "3", "4", "5", "6", "8", "10", "12"];
+const REPORT_REASONS: Record<"listing_content" | "chat_behavior" | "profile_account" | "in_person", Array<{ code: string; label: string }>> = {
+  listing_content: [
+    { code: "spam_scam", label: "Spam / scam" },
+    { code: "sexual_content", label: "Sexual or explicit content" },
+    { code: "hate_harassment", label: "Hate / harassment" },
+    { code: "misleading", label: "Misleading or fake listing" },
+    { code: "other", label: "Other" },
+  ],
+  chat_behavior: [
+    { code: "harassment", label: "Harassment" },
+    { code: "threats", label: "Threats" },
+    { code: "hate_speech", label: "Hate speech" },
+    { code: "spam", label: "Spam" },
+    { code: "other", label: "Other" },
+  ],
+  profile_account: [
+    { code: "fake_identity", label: "Fake identity" },
+    { code: "impersonation", label: "Impersonation" },
+    { code: "inappropriate_profile", label: "Inappropriate profile" },
+    { code: "other", label: "Other" },
+  ],
+  in_person: [
+    { code: "no_show", label: "No-show" },
+    { code: "unsafe_behavior", label: "Unsafe behavior" },
+    { code: "harassment", label: "Harassment" },
+    { code: "fraud_payment", label: "Fraud / payment issue" },
+    { code: "other", label: "Other" },
+  ],
+};
 
 export default function Home() {
   const supabase = getSupabaseClient();
@@ -166,6 +196,12 @@ export default function Home() {
   const [questionText, setQuestionText] = useState("");
   const [sendingQuestion, setSendingQuestion] = useState(false);
   const [lastQuestionMs, setLastQuestionMs] = useState(0);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportTarget, setReportTarget] = useState<Quest | null>(null);
+  const [reportContext, setReportContext] = useState<"listing_content" | "chat_behavior" | "profile_account" | "in_person">("listing_content");
+  const [reportReason, setReportReason] = useState("spam_scam");
+  const [reportDetails, setReportDetails] = useState("");
+  const [submittingReport, setSubmittingReport] = useState(false);
   const [authMode, setAuthMode] = useState<AuthMode>("login");
 
   const [email, setEmail] = useState("");
@@ -784,11 +820,12 @@ export default function Home() {
 
       const file = looksImage
         ? await prepareImageForUpload(originalFile, { maxWidth: 1600, maxHeight: 1600, quality: 0.82 })
-        : originalFile;
+        : (isVideo ? await compressVideoForUpload(originalFile, { maxWidth: 960, maxHeight: 960, videoBitsPerSecond: 900_000 }) : originalFile);
 
       const isImage = file.type.startsWith("image/");
+      const isCompressedVideo = file.type.startsWith("video/");
       if (isImage && file.size > 8 * 1024 * 1024) throw new Error("Compressed images must be under 8MB.");
-      if (isVideo && file.size > 60 * 1024 * 1024) throw new Error("Videos must be under 60MB.");
+      if (isCompressedVideo && file.size > 60 * 1024 * 1024) throw new Error("Videos must be under 60MB.");
 
       const ext = (file.name.split(".").pop() || (isImage ? "jpg" : "mp4")).toLowerCase();
       const filePath = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
@@ -1322,6 +1359,50 @@ export default function Home() {
     setShowQuestionModal(true);
   }
 
+  function openReportModal(quest: Quest) {
+    if (!supabase || !userId) {
+      setShowAuthModal(true);
+      setStatus("Log in to submit reports.");
+      return;
+    }
+    setReportTarget(quest);
+    setReportContext("listing_content");
+    setReportReason(REPORT_REASONS.listing_content[0].code);
+    setReportDetails("");
+    setShowReportModal(true);
+  }
+
+  async function submitReport() {
+    if (!supabase || !userId || !reportTarget) return;
+    if (!reportDetails.trim() && reportContext === "in_person") {
+      return setStatus("Please add details for in-person reports.");
+    }
+
+    setSubmittingReport(true);
+    const payload = {
+      reporter_id: userId,
+      reported_user_id: reportTarget.creator_id || null,
+      quest_id: reportTarget.id,
+      context_type: reportContext,
+      reason_code: reportReason,
+      details: reportDetails.trim() || null,
+    };
+
+    const { error } = await supabase.from("reports").insert(payload);
+    setSubmittingReport(false);
+    if (error) {
+      if (error.message.toLowerCase().includes("relation") || error.message.toLowerCase().includes("does not exist")) {
+        return setStatus("Reporting DB not set up yet. Run the new reports SQL migration.");
+      }
+      return setStatus(error.message);
+    }
+
+    setShowReportModal(false);
+    setReportTarget(null);
+    setReportDetails("");
+    setStatus("Report submitted. Thank you — we’ll review it.");
+  }
+
   async function sendQuestionFromModal() {
     if (!supabase || !userId || !questionTarget) return;
     if (sendingQuestion) return;
@@ -1500,7 +1581,7 @@ export default function Home() {
                         </button>
                       )}
                       {userId !== q.creator_id && (
-                        <button className="block w-full text-left px-3 py-2 text-sm hover:bg-gray-50" onClick={() => { setOpenCardMenuQuestId(null); setStatus("Report submitted. We’ll review it."); }}>
+                        <button className="block w-full text-left px-3 py-2 text-sm hover:bg-gray-50" onClick={() => { setOpenCardMenuQuestId(null); openReportModal(q); }}>
                           Report listing
                         </button>
                       )}
@@ -1970,6 +2051,56 @@ export default function Home() {
                 </div>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {showReportModal && reportTarget && (
+        <div className="fixed inset-0 z-[80] bg-black/45 flex items-center justify-center p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-white border p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold">Report listing</h3>
+              <button className="border rounded px-2 py-1" onClick={() => setShowReportModal(false)}>Close</button>
+            </div>
+            <p className="text-sm text-gray-600">About: <b>{reportTarget.title}</b></p>
+
+            <label className="text-sm font-medium">What are you reporting?</label>
+            <select
+              className="border rounded px-3 py-2"
+              value={reportContext}
+              onChange={(e) => {
+                const next = e.target.value as "listing_content" | "chat_behavior" | "profile_account" | "in_person";
+                setReportContext(next);
+                setReportReason(REPORT_REASONS[next][0]?.code || "other");
+              }}
+            >
+              <option value="listing_content">Listing content</option>
+              <option value="chat_behavior">Chat / in-app behavior</option>
+              <option value="profile_account">Profile/account</option>
+              <option value="in_person">In-person meetup behavior</option>
+            </select>
+
+            <label className="text-sm font-medium">Reason</label>
+            <select className="border rounded px-3 py-2" value={reportReason} onChange={(e) => setReportReason(e.target.value)}>
+              {(REPORT_REASONS[reportContext] || []).map((r) => (
+                <option key={r.code} value={r.code}>{r.label}</option>
+              ))}
+            </select>
+
+            <label className="text-sm font-medium">Details {reportContext === "in_person" ? "*" : "(optional)"}</label>
+            <textarea
+              className="border rounded px-3 py-2"
+              placeholder={reportContext === "in_person" ? "Please describe what happened." : "Add any details that can help us review."}
+              value={reportDetails}
+              onChange={(e) => setReportDetails(e.target.value)}
+            />
+
+            <div className="flex justify-end gap-2">
+              <button className="border rounded px-3 py-2" onClick={() => setShowReportModal(false)}>Cancel</button>
+              <button className="bg-black text-white rounded px-3 py-2 disabled:opacity-50" disabled={submittingReport} onClick={() => void submitReport()}>
+                {submittingReport ? "Submitting..." : "Submit report"}
+              </button>
+            </div>
           </div>
         </div>
       )}
