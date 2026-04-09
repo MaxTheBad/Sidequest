@@ -512,7 +512,7 @@ export default function Home() {
   async function loadQuests() {
     if (!supabase) return;
     setLoading(true);
-    let q = supabase.from("quests").select("id,creator_id,title,description,city,skill_level,group_size,availability,hobby_id,join_mode,exact_location_visibility,exact_address,media_video_url,media_source,media_items,hobbies(name),profiles:profiles!quests_creator_id_fkey(id,display_name,avatar_url)").order("created_at", { ascending: false }).limit(50);
+    let q = supabase.from("quests").select("id,creator_id,title,description,city,skill_level,group_size,availability,hobby_id,join_mode,exact_location_visibility,exact_address,media_video_url,media_source,media_items,hobbies(name),profiles:profiles!quests_creator_id_fkey(id,display_name,avatar_url)").order("created_at", { ascending: false }).limit(24);
     if (hobbyFilter !== "all") q = q.eq("hobby_id", hobbyFilter);
     const firstRes = await q;
     let data: Quest[] | null = firstRes.data as Quest[] | null;
@@ -520,7 +520,7 @@ export default function Home() {
 
     // Backward compatibility if migration for media_items has not been applied yet
     if (error?.message?.includes("column quests.media_items does not exist")) {
-      let fallback = supabase.from("quests").select("id,creator_id,title,description,city,skill_level,group_size,availability,hobby_id,join_mode,exact_location_visibility,exact_address,media_video_url,media_source,hobbies(name),profiles:profiles!quests_creator_id_fkey(id,display_name,avatar_url)").order("created_at", { ascending: false }).limit(50);
+      let fallback = supabase.from("quests").select("id,creator_id,title,description,city,skill_level,group_size,availability,hobby_id,join_mode,exact_location_visibility,exact_address,media_video_url,media_source,hobbies(name),profiles:profiles!quests_creator_id_fkey(id,display_name,avatar_url)").order("created_at", { ascending: false }).limit(24);
       if (hobbyFilter !== "all") fallback = fallback.eq("hobby_id", hobbyFilter);
       const res = await fallback;
       data = res.data as Quest[] | null;
@@ -1442,6 +1442,20 @@ export default function Home() {
     return Array.isArray(q.profiles) ? (q.profiles[0] ?? null) : q.profiles;
   }
 
+  function getCategoryFallbackVisual(categoryRaw?: string | null) {
+    const category = (categoryRaw || "").toLowerCase();
+    if (category.includes("art") || category.includes("craft")) {
+      return { emoji: "🎨", title: "Arts & Crafts vibes", note: "Show your process or finished piece.", gradient: "linear-gradient(135deg,#ffe4e6,#f5d0fe)" };
+    }
+    if (category.includes("music") || category.includes("producer") || category.includes("beat")) {
+      return { emoji: "🎧", title: "Music session", note: "Drop a studio clip or beat preview.", gradient: "linear-gradient(135deg,#dbeafe,#e9d5ff)" };
+    }
+    if (category.includes("healthy") || category.includes("gym") || category.includes("cardio")) {
+      return { emoji: "💪", title: "Healthy Lifestyle", note: "Add a workout pic or plan screenshot.", gradient: "linear-gradient(135deg,#dcfce7,#ccfbf1)" };
+    }
+    return { emoji: "🖼️", title: "No media yet", note: "This quest has details below — ask for photos in comments/DM.", gradient: "linear-gradient(135deg,#ede9fe,#e0e7ff)" };
+  }
+
   async function deleteQuest(id: string) {
     if (!supabase || !userId) return;
     const ok = window.confirm("Delete this listing? This cannot be undone.");
@@ -1554,6 +1568,7 @@ export default function Home() {
               ...((q.media_items || []).map((m) => ({ url: m.url, type: m.type, label: m.label || undefined }))),
             ];
             const feedIndex = feedMediaIndexByQuest[q.id] || 0;
+            const fallbackVisual = getCategoryFallbackVisual(q.hobbies?.[0]?.name);
 
             return (
             <article key={q.id} className="quest-card w-full rounded-none bg-white p-0 overflow-hidden">
@@ -1621,11 +1636,11 @@ export default function Home() {
                   )}
                 </div>
               ) : (
-                <div className="h-[40vh] sm:h-[46vh] bg-gradient-to-br from-violet-50 to-indigo-50 border-y grid place-items-center">
+                <div className="h-[40vh] sm:h-[46vh] border-y grid place-items-center" style={{ background: fallbackVisual.gradient }}>
                   <div className="text-center px-6">
-                    <div className="mx-auto h-14 w-14 rounded-full border bg-white grid place-items-center text-xl">🖼️</div>
-                    <p className="mt-3 text-sm font-semibold">No media yet</p>
-                    <p className="text-xs text-gray-500">This quest has details below — ask for photos in comments/DM.</p>
+                    <div className="mx-auto h-14 w-14 rounded-full border bg-white grid place-items-center text-xl">{fallbackVisual.emoji}</div>
+                    <p className="mt-3 text-sm font-semibold">{fallbackVisual.title}</p>
+                    <p className="text-xs text-gray-500">{fallbackVisual.note}</p>
                   </div>
                 </div>
               )}

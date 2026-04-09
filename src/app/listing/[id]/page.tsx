@@ -55,6 +55,12 @@ export default function ListingPage() {
   const [lastQuestionMs, setLastQuestionMs] = useState(0);
   const [expandedMediaIndex, setExpandedMediaIndex] = useState<number | null>(null);
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportTargetUserId, setReportTargetUserId] = useState<string | null>(null);
+  const [reportContext, setReportContext] = useState<"listing_content" | "chat_behavior" | "profile_account" | "in_person">("in_person");
+  const [reportReason, setReportReason] = useState("unsafe_behavior");
+  const [reportDetails, setReportDetails] = useState("");
+  const [submittingReport, setSubmittingReport] = useState(false);
 
   async function loadMembers(questId: string, uid: string | null) {
     if (!supabase) return;
@@ -204,6 +210,46 @@ export default function ListingPage() {
     if (error) return setStatus(error.message);
     await loadMembers(listing.id, userId);
     setStatus("Request declined.");
+  }
+
+  function openReportUser(targetUserId: string) {
+    if (!userId) {
+      setStatus("Log in to submit reports.");
+      return;
+    }
+    if (targetUserId === userId) return;
+    setReportTargetUserId(targetUserId);
+    setReportContext("in_person");
+    setReportReason("unsafe_behavior");
+    setReportDetails("");
+    setShowReportModal(true);
+  }
+
+  async function submitUserReport() {
+    if (!supabase || !userId || !listing || !reportTargetUserId) return;
+    if (reportContext === "in_person" && !reportDetails.trim()) {
+      return setStatus("Please add details for in-person reports.");
+    }
+
+    setSubmittingReport(true);
+    const { error } = await supabase.from("reports").insert({
+      reporter_id: userId,
+      reported_user_id: reportTargetUserId,
+      quest_id: listing.id,
+      context_type: reportContext,
+      reason_code: reportReason,
+      details: reportDetails.trim() || null,
+    });
+    setSubmittingReport(false);
+    if (error) {
+      if (error.message.toLowerCase().includes("relation") || error.message.toLowerCase().includes("does not exist")) {
+        return setStatus("Reporting DB not set up yet. Run sql/reports-v1.sql");
+      }
+      return setStatus(error.message);
+    }
+
+    setShowReportModal(false);
+    setStatus("Report submitted. Thank you — we’ll review it.");
   }
 
   async function setMemberRole(targetUserId: string, nextRole: "member" | "cohost") {
@@ -443,6 +489,15 @@ export default function ListingPage() {
                             {m.role === "cohost" ? "Demote" : "Promote"}
                           </button>
                         )}
+                        {userId && m.user_id !== userId && (
+                          <button
+                            type="button"
+                            className="text-xs border rounded px-2 py-0.5"
+                            onClick={() => openReportUser(m.user_id)}
+                          >
+                            Report
+                          </button>
+                        )}
                       </div>
                     );
                   })}
@@ -556,6 +611,32 @@ export default function ListingPage() {
             <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 border rounded-full h-10 w-10 bg-white" onClick={(e) => { e.stopPropagation(); setExpandedMediaIndex((idx) => (idx === null || !listing.media_items?.length ? idx : (idx + 1) % listing.media_items.length)); }}>›</button>
           </div>
         )}
+        {showReportModal && listing && reportTargetUserId && (
+          <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center p-4">
+            <div className="w-full max-w-lg rounded-2xl bg-white border p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold">Report participant</h3>
+                <button className="border rounded px-2 py-1" onClick={() => setShowReportModal(false)}>Close</button>
+              </div>
+              <label className="text-sm font-medium">Context</label>
+              <select className="border rounded px-3 py-2" value={reportContext} onChange={(e) => setReportContext(e.target.value as "listing_content" | "chat_behavior" | "profile_account" | "in_person") }>
+                <option value="in_person">In-person meetup behavior</option>
+                <option value="chat_behavior">Chat / in-app behavior</option>
+                <option value="listing_content">Listing content</option>
+                <option value="profile_account">Profile/account</option>
+              </select>
+              <label className="text-sm font-medium">Reason</label>
+              <input className="border rounded px-3 py-2" value={reportReason} onChange={(e) => setReportReason(e.target.value)} placeholder="e.g. unsafe_behavior, no_show" />
+              <label className="text-sm font-medium">Details {reportContext === "in_person" ? "*" : "(optional)"}</label>
+              <textarea className="border rounded px-3 py-2 w-full" value={reportDetails} onChange={(e) => setReportDetails(e.target.value)} placeholder="Describe what happened." />
+              <div className="flex justify-end gap-2">
+                <button className="border rounded px-3 py-2" onClick={() => setShowReportModal(false)}>Cancel</button>
+                <button className="bg-black text-white rounded px-3 py-2 disabled:opacity-50" disabled={submittingReport} onClick={() => void submitUserReport()}>{submittingReport ? "Submitting..." : "Submit report"}</button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {showQuestionModal && listing && (
           <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center p-4">
             <div className="w-full max-w-lg rounded-2xl bg-white border p-4 space-y-3">

@@ -44,6 +44,10 @@ export default function ProfilePage() {
   const [outgoingRequestProfiles, setOutgoingRequestProfiles] = useState<Record<string, Profile>>({});
   const [status, setStatus] = useState("Loading...");
   const [reloadTick, setReloadTick] = useState(0);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportReason, setReportReason] = useState("inappropriate_profile");
+  const [reportDetails, setReportDetails] = useState("");
+  const [submittingReport, setSubmittingReport] = useState(false);
 
   const isOwnProfile = useMemo(() => !!(viewerId && profileId && viewerId === profileId), [viewerId, profileId]);
   const canViewFriends = useMemo(() => {
@@ -219,6 +223,28 @@ export default function ProfilePage() {
     setReloadTick((x) => x + 1);
   }
 
+  async function submitProfileReport() {
+    if (!supabase || !viewerId || !profileId || viewerId === profileId) return;
+    setSubmittingReport(true);
+    const { error } = await supabase.from("reports").insert({
+      reporter_id: viewerId,
+      reported_user_id: profileId,
+      context_type: "profile_account",
+      reason_code: reportReason,
+      details: reportDetails.trim() || null,
+    });
+    setSubmittingReport(false);
+    if (error) {
+      if (error.message.toLowerCase().includes("relation") || error.message.toLowerCase().includes("does not exist")) {
+        return setStatus("Reporting DB not set up yet. Run sql/reports-v1.sql");
+      }
+      return setStatus(error.message);
+    }
+    setShowReportModal(false);
+    setReportDetails("");
+    setStatus("Profile report submitted. Thank you.");
+  }
+
   async function removeFriend(targetId: string) {
     if (!supabase || !viewerId) return;
     const targetName = targetId === profileId ? (profile?.display_name || "this person") : "this person";
@@ -260,23 +286,26 @@ export default function ProfilePage() {
                 {isOwnProfile ? (
                   <Link href="/settings" className="border rounded px-3 py-2">Edit profile</Link>
                 ) : (
-                  <button
-                    className="border rounded px-3 py-2"
-                    onClick={() => {
-                      if (friendship?.status === "accepted") return void removeFriend(profileId as string);
-                      if (friendship?.status === "pending" && friendship.requester_id === viewerId) return void cancelRequest();
-                      if (friendship?.status === "pending" && friendship.addressee_id === viewerId) return void acceptRequest(friendship.requester_id);
-                      void addFriend();
-                    }}
-                  >
-                    {friendship?.status === "accepted"
-                      ? "Unfriend"
-                      : friendship?.status === "pending" && friendship.requester_id === viewerId
-                        ? "Cancel request"
-                        : friendship?.status === "pending" && friendship.addressee_id === viewerId
-                          ? "Accept friend request"
-                          : "Add friend"}
-                  </button>
+                  <>
+                    <button
+                      className="border rounded px-3 py-2"
+                      onClick={() => {
+                        if (friendship?.status === "accepted") return void removeFriend(profileId as string);
+                        if (friendship?.status === "pending" && friendship.requester_id === viewerId) return void cancelRequest();
+                        if (friendship?.status === "pending" && friendship.addressee_id === viewerId) return void acceptRequest(friendship.requester_id);
+                        void addFriend();
+                      }}
+                    >
+                      {friendship?.status === "accepted"
+                        ? "Unfriend"
+                        : friendship?.status === "pending" && friendship.requester_id === viewerId
+                          ? "Cancel request"
+                          : friendship?.status === "pending" && friendship.addressee_id === viewerId
+                            ? "Accept friend request"
+                            : "Add friend"}
+                    </button>
+                    <button className="border rounded px-3 py-2" onClick={() => setShowReportModal(true)}>Report</button>
+                  </>
                 )}
               </div>
             </section>
@@ -363,6 +392,28 @@ export default function ProfilePage() {
           </>
         )}
       </div>
+
+      {showReportModal && !isOwnProfile && (
+        <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white border p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold">Report profile</h3>
+              <button className="border rounded px-2 py-1" onClick={() => setShowReportModal(false)}>Close</button>
+            </div>
+            <select className="border rounded px-3 py-2" value={reportReason} onChange={(e) => setReportReason(e.target.value)}>
+              <option value="inappropriate_profile">Inappropriate profile</option>
+              <option value="fake_identity">Fake identity</option>
+              <option value="impersonation">Impersonation</option>
+              <option value="other">Other</option>
+            </select>
+            <textarea className="border rounded px-3 py-2" placeholder="Details (optional)" value={reportDetails} onChange={(e) => setReportDetails(e.target.value)} />
+            <div className="flex justify-end gap-2">
+              <button className="border rounded px-3 py-2" onClick={() => setShowReportModal(false)}>Cancel</button>
+              <button className="bg-black text-white rounded px-3 py-2 disabled:opacity-50" disabled={submittingReport} onClick={() => void submitProfileReport()}>{submittingReport ? "Submitting..." : "Submit report"}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
