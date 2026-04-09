@@ -219,7 +219,8 @@ export default function EditListingPage() {
                 const value = canonical || rawValue;
                 setCategoryInput(value);
                 const matched = categoryOptions.find((h) => h.name.toLowerCase() === value.trim().toLowerCase());
-                setHobbyId(matched?.id || "");
+                const nextHobbyId = matched?.id && !matched.id.startsWith("canonical:") ? matched.id : "";
+                setHobbyId(nextHobbyId);
               }}
               placeholder="Select from list or enter a custom category"
               required

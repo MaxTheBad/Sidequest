@@ -228,6 +228,12 @@ export default function Home() {
   const [savingQuest, setSavingQuest] = useState(false);
   const [lastQuestCreateMs, setLastQuestCreateMs] = useState(0);
   const [editingQuestId, setEditingQuestId] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, boolean>>({});
+  const [showPublicLocationConfirm, setShowPublicLocationConfirm] = useState(false);
+  const [highlightLocationVisibility, setHighlightLocationVisibility] = useState(false);
+  const [publicVisibilityConfirmed, setPublicVisibilityConfirmed] = useState(false);
+  const locationVisibilityRef = useRef<HTMLDivElement | null>(null);
+  const createQuestFormRef = useRef<HTMLFormElement | null>(null);
 
   const countryOptions = useMemo(() => {
     try {
@@ -270,6 +276,18 @@ export default function Home() {
     setTitlePlaceholder(categoryTitleHint);
   }, [categoryInput, categoryTitleHint]);
 
+  useEffect(() => {
+    if (joinMode === "open" && exactLocationVisibility === "approved_members") {
+      setExactLocationVisibility("private");
+    }
+  }, [joinMode, exactLocationVisibility]);
+
+  useEffect(() => {
+    if (!highlightLocationVisibility) return;
+    const t = setTimeout(() => setHighlightLocationVisibility(false), 2200);
+    return () => clearTimeout(t);
+  }, [highlightLocationVisibility]);
+
   function resolveCountryCodeByName(name: string) {
     const found = countryOptions.find((c) => c.name.toLowerCase() === name.trim().toLowerCase());
     return found?.code || countryCode;
@@ -285,6 +303,20 @@ export default function Home() {
       return pool[Math.floor(Math.random() * pool.length)];
     }
     return TITLE_SUGGESTIONS[Math.floor(Math.random() * TITLE_SUGGESTIONS.length)];
+  }
+
+  function flagFieldError(field: string, message: string) {
+    setFieldErrors((prev) => ({ ...prev, [field]: true }));
+    setStatus(message);
+  }
+
+  function clearFieldError(field: string) {
+    setFieldErrors((prev) => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
   }
 
   const passwordChecks = {
@@ -785,6 +817,10 @@ export default function Home() {
     setSelectedMediaId(null);
     setRemoveExistingVideo(false);
     setEditingQuestId(null);
+    setFieldErrors({});
+    setShowPublicLocationConfirm(false);
+    setHighlightLocationVisibility(false);
+    setPublicVisibilityConfirmed(false);
   }
 
   function openCreateModal() {
@@ -1029,15 +1065,21 @@ export default function Home() {
 
     const selectedGroupSize = groupSizeChoice === "custom" ? Number(groupSizeCustom) : (groupSizeChoice === "any" ? 0 : Number(groupSizeChoice));
 
-    if (!title.trim()) return setStatus("Title is required.");
-    if (!exactAddress.trim()) return setStatus("Location is required.");
-    if (!categoryInput.trim()) return setStatus("Please enter a category.");
-    if (!groupSizeChoice) return setStatus("Group size is required.");
+    if (!title.trim()) return flagFieldError("title", "Please enter a title.");
+    if (!categoryInput.trim()) return flagFieldError("category", "Please enter a category.");
+    if (!countryQuery.trim()) return flagFieldError("country", "Please enter a country.");
+    if (!exactAddress.trim()) return flagFieldError("location", "Location is required.");
+    if (!groupSizeChoice) return flagFieldError("groupSize", "Group size is required.");
     if (groupSizeChoice === "custom" && (!Number.isFinite(selectedGroupSize) || selectedGroupSize < 2 || selectedGroupSize > 50)) {
-      return setStatus("Custom group size must be between 2 and 50.");
+      return flagFieldError("groupSize", "Custom group size must be between 2 and 50.");
     }
     if (availabilityMode === "specific_time" && !startAt) return setStatus("Pick a specific start time.");
     if (isRecurring && !recurringStartDate) return setStatus("Pick a recurring start date.");
+
+    if (exactLocationVisibility === "public" && !publicVisibilityConfirmed) {
+      setShowPublicLocationConfirm(true);
+      return;
+    }
 
     const derivedCity = deriveCityFromLocation(exactAddress) || city;
     const availabilityParts = [
@@ -1102,6 +1144,8 @@ export default function Home() {
 
     const finalDescription = description;
 
+    setShowPublicLocationConfirm(false);
+    setPublicVisibilityConfirmed(false);
     setSavingQuest(true);
     setStatus(editingQuestId ? "Updating listing…" : "Posting listing…");
     try {
@@ -1669,20 +1713,22 @@ export default function Home() {
         <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center p-4 overflow-y-auto">
           <div className="w-full max-w-xl rounded-2xl bg-white border p-4 space-y-3 max-h-[92vh] overflow-y-auto my-auto">
             <div className="flex justify-between items-center"><h3 className="font-semibold">{editingQuestId ? "Edit Listing" : "Create Quest"}</h3><button disabled={savingQuest} onClick={() => { setShowCreateModal(false); resetQuestForm(); }} className="border rounded px-2 py-1 disabled:opacity-50">Close</button></div>
-            <form onSubmit={createQuest} className="grid gap-3">
+            <form ref={createQuestFormRef} onSubmit={createQuest} className="grid gap-3">
               {/* Core Fields */}
-              <label className="text-sm font-medium">Category *</label>
+              <label className={`text-sm font-medium ${fieldErrors.category ? "text-red-600" : ""}`}>Category *</label>
               <input
                 list="category-list"
-                className="border rounded px-3 py-2 w-full"
+                className={`border rounded px-3 py-2 w-full ${fieldErrors.category ? "border-red-500 ring-1 ring-red-300" : ""}`}
                 value={categoryInput}
                 onChange={(e) => {
                   const rawValue = e.target.value;
                   const canonical = resolveCanonicalCategory(rawValue);
                   const value = canonical || rawValue;
                   setCategoryInput(value);
+                  clearFieldError("category");
                   const matched = categoryOptions.find((o) => o.name.toLowerCase() === value.trim().toLowerCase());
-                  setHobbyId(matched?.id || "");
+                  const nextHobbyId = matched?.id && !matched.id.startsWith("canonical:") ? matched.id : "";
+                  setHobbyId(nextHobbyId);
                   if (!matched && value.trim()) {
                     setUseCustomCategory(true);
                     setCustomCategory(value.trim());
@@ -1702,8 +1748,8 @@ export default function Home() {
                 Title suggestion: <span className="italic">{categoryTitleHint}</span>
               </p>
 
-              <label className="text-sm font-medium">Title *</label>
-              <input className="border rounded px-3 py-2" placeholder={titlePlaceholder} value={title} onChange={(e) => setTitle(e.target.value)} required />
+              <label className={`text-sm font-medium ${fieldErrors.title ? "text-red-600" : ""}`}>Title *</label>
+              <input className={`border rounded px-3 py-2 ${fieldErrors.title ? "border-red-500 ring-1 ring-red-300" : ""}`} placeholder={titlePlaceholder} value={title} onChange={(e) => { setTitle(e.target.value); clearFieldError("title"); }} />
 
               <label className="text-sm font-medium">Availability *</label>
               <div className="grid gap-2 text-sm">
@@ -1733,22 +1779,32 @@ export default function Home() {
                 <option value="approval_required">Host must approve members</option>
               </select>
 
-              <label className="text-sm font-medium">Location Visibility *</label>
-              <select className="border rounded px-3 py-2" value={exactLocationVisibility} onChange={(e) => setExactLocationVisibility(e.target.value as "private" | "public" | "approved_members")}>
-                <option value="private">Private (manual share)</option>
-                <option value="approved_members">Auto-share with approved members</option>
-                <option value="public">Public (everyone)</option>
-              </select>
+              <div ref={locationVisibilityRef} className={`grid gap-1 rounded-lg p-1 transition ${highlightLocationVisibility || fieldErrors.locationVisibility ? "bg-red-50" : ""}`}>
+                <label className={`text-sm font-medium ${fieldErrors.locationVisibility ? "text-red-600" : ""}`}>Location Visibility *</label>
+                <select
+                  className={`border rounded px-3 py-2 ${fieldErrors.locationVisibility ? "border-red-500 ring-1 ring-red-300" : ""}`}
+                  value={exactLocationVisibility}
+                  onChange={(e) => {
+                    setExactLocationVisibility(e.target.value as "private" | "public" | "approved_members");
+                    clearFieldError("locationVisibility");
+                    setPublicVisibilityConfirmed(false);
+                  }}
+                >
+                  <option value="private">Private (manual share)</option>
+                  {joinMode !== "open" && <option value="approved_members">Auto-share with approved members</option>}
+                  <option value="public">Public (everyone)</option>
+                </select>
+              </div>
 
               <div className="grid gap-2 sm:grid-cols-2 sm:items-end">
                 <div className="grid gap-1">
-                  <label className="text-sm font-medium">Country *</label>
-                  <input list="country-list" className="border rounded px-3 py-2" value={countryQuery} onChange={(e) => { setCountryQuery(e.target.value); setCountryCode(resolveCountryCodeByName(e.target.value)); }} placeholder="Start typing country..." required />
+                  <label className={`text-sm font-medium ${fieldErrors.country ? "text-red-600" : ""}`}>Country *</label>
+                  <input list="country-list" className={`border rounded px-3 py-2 ${fieldErrors.country ? "border-red-500 ring-1 ring-red-300" : ""}`} value={countryQuery} onChange={(e) => { setCountryQuery(e.target.value); setCountryCode(resolveCountryCodeByName(e.target.value)); clearFieldError("country"); }} placeholder="Start typing country..." />
                 </div>
                 <div className="grid gap-1">
-                  <label className="text-sm font-medium">Location *</label>
+                  <label className={`text-sm font-medium ${fieldErrors.location ? "text-red-600" : ""}`}>Location *</label>
                   <div className="relative">
-                    <input className="border rounded px-3 py-2 w-full" placeholder="We recommend a public place" value={exactAddress} onChange={(e) => setExactAddress(e.target.value)} required />
+                    <input className={`border rounded px-3 py-2 w-full ${fieldErrors.location ? "border-red-500 ring-1 ring-red-300" : ""}`} placeholder="We recommend a public place" value={exactAddress} onChange={(e) => { setExactAddress(e.target.value); clearFieldError("location"); }} />
                     {citySuggestions.length > 0 && (
                       <div className="absolute z-20 left-0 right-0 mt-1 border rounded bg-white shadow max-h-44 overflow-auto text-sm">
                         {citySuggestions.map((c) => (
@@ -1874,21 +1930,58 @@ export default function Home() {
                     <option value="custom">Custom number...</option>
                   </select>
                   {groupSizeChoice === "custom" && (
-                    <input type="number" min={2} max={50} className="border rounded px-3 py-2" value={groupSizeCustom} onChange={(e) => setGroupSizeCustom(e.target.value)} placeholder="Enter custom group size" />
+                    <input type="number" min={2} max={50} className={`border rounded px-3 py-2 ${fieldErrors.groupSize ? "border-red-500 ring-1 ring-red-300" : ""}`} value={groupSizeCustom} onChange={(e) => { setGroupSizeCustom(e.target.value); clearFieldError("groupSize"); }} placeholder="Enter custom group size" />
                   )}
                 </div>
               )}
 
               {savingQuest && <div className="text-sm rounded border bg-blue-50 px-3 py-2">Working on it… uploading media and saving listing.</div>}
-              <div className="flex gap-2 flex-wrap">
-                <button className="bg-black text-white rounded px-3 py-2 disabled:opacity-50" disabled={savingQuest}>{savingQuest ? "Saving..." : (editingQuestId ? "Save changes" : "Post quest")}</button>
-                {editingQuestId && (
-                  <button type="button" className="border border-red-300 text-red-700 rounded px-3 py-2" onClick={() => void deleteQuest(editingQuestId)}>
-                    Delete listing
-                  </button>
-                )}
+              <div className="sticky bottom-0 -mx-4 px-4 py-3 bg-white/95 backdrop-blur border-t">
+                <div className="flex gap-2 flex-wrap">
+                  <button className="bg-black text-white rounded px-3 py-2 disabled:opacity-50" disabled={savingQuest}>{savingQuest ? "Saving..." : (editingQuestId ? "Save changes" : "Post quest")}</button>
+                  {editingQuestId && (
+                    <button type="button" className="border border-red-300 text-red-700 rounded px-3 py-2" onClick={() => void deleteQuest(editingQuestId)}>
+                      Delete listing
+                    </button>
+                  )}
+                </div>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {showPublicLocationConfirm && (
+        <div className="fixed inset-0 z-[80] bg-black/45 flex items-center justify-center p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white border p-4 space-y-3">
+            <h3 className="font-semibold">Public location warning</h3>
+            <p className="text-sm text-gray-700">Because Location Visibility is set to <b>Public</b>, anyone can see the meetup location for this quest.</p>
+            <div className="flex gap-2 justify-end">
+              <button
+                type="button"
+                className="border rounded px-3 py-2"
+                onClick={() => {
+                  setShowPublicLocationConfirm(false);
+                  setHighlightLocationVisibility(true);
+                  setFieldErrors((prev) => ({ ...prev, locationVisibility: true }));
+                  locationVisibilityRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+                }}
+              >
+                Go back
+              </button>
+              <button
+                type="button"
+                className="bg-black text-white rounded px-3 py-2"
+                onClick={() => {
+                  setPublicVisibilityConfirmed(true);
+                  setShowPublicLocationConfirm(false);
+                  clearFieldError("locationVisibility");
+                  createQuestFormRef.current?.requestSubmit();
+                }}
+              >
+                Proceed
+              </button>
+            </div>
           </div>
         </div>
       )}
