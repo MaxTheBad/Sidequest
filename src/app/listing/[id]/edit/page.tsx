@@ -25,6 +25,8 @@ const TITLE_SUGGESTIONS_BY_CATEGORY: Record<string, string[]> = {
   social: ["Meet new people and actually follow through", "Communication skills practice circle", "Community hang + good vibes only"],
   money: ["Lock in and execute a money plan", "Budget reset sprint for this month", "Side hustle ideas to action"],
   creative: ["Write for 30 minutes daily", "Photo walk + editing session", "Co-create content this weekend"],
+  "arts & crafts": ["Saturday painting + coffee session", "DIY craft night with accountability", "Lock in and finish your art piece"],
+  "music / producer": ["Producer lock-in session tonight", "Beat-making sprint and feedback", "Finish one track this week"],
   lifestyle: ["Build a better morning routine", "Declutter sprint + reset", "Weekly productivity planning"],
   wildcard: ["Something different: let's explore it", "My custom challenge starts now", "Open idea lab — bring your wildcards"],
 };

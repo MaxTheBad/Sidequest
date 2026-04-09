@@ -7,6 +7,8 @@ export const CANONICAL_CATEGORIES = [
   "Social",
   "Money",
   "Creative",
+  "Arts & Crafts",
+  "Music / Producer",
   "Lifestyle",
   "Wildcard",
 ] as const;
@@ -48,7 +50,14 @@ const ALIAS_TO_CATEGORY: Array<{ alias: string; category: (typeof CANONICAL_CATE
 
   { alias: "writing", category: "Creative" },
   { alias: "photo", category: "Creative" },
-  { alias: "music", category: "Creative" },
+  { alias: "art", category: "Arts & Crafts" },
+  { alias: "craft", category: "Arts & Crafts" },
+  { alias: "painting", category: "Arts & Crafts" },
+  { alias: "diy", category: "Arts & Crafts" },
+  { alias: "music", category: "Music / Producer" },
+  { alias: "producer", category: "Music / Producer" },
+  { alias: "beat", category: "Music / Producer" },
+  { alias: "song", category: "Music / Producer" },
 
   { alias: "habit", category: "Lifestyle" },
   { alias: "routine", category: "Lifestyle" },

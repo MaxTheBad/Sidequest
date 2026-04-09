@@ -76,6 +76,12 @@ export default function GlobalTopBar() {
     <header className="fixed top-0 inset-x-0 z-50 border-b nav-shell">
       <div className="max-w-5xl mx-auto px-4 h-[52px] flex items-center justify-between gap-3">
         <Link href="/" className="nav-brand text-[15px] tracking-tight">Sydequest</Link>
+        <nav className="hidden md:flex items-center gap-1">
+          <Link href="/" className={`nav-item text-xs px-3 py-1 ${pathname === "/" ? "nav-item-active" : ""}`}>Home</Link>
+          <button type="button" onClick={() => router.push("/inbox")} className={`nav-item text-xs px-3 py-1 ${pathname === "/inbox" ? "nav-item-active" : ""}`}>Inbox</button>
+          <button type="button" onClick={() => router.push("/joined")} className={`nav-item text-xs px-3 py-1 ${pathname === "/joined" ? "nav-item-active" : ""}`}>Joined</button>
+          <button type="button" onClick={() => router.push("/settings")} className={`nav-item text-xs px-3 py-1 ${pathname === "/settings" ? "nav-item-active" : ""}`}>Settings</button>
+        </nav>
         <div className="ml-auto flex items-center gap-2">
           <button
             className="nav-control"

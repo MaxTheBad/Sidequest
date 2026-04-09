@@ -95,6 +95,16 @@ const TITLE_SUGGESTIONS_BY_CATEGORY: Record<string, string[]> = {
     "Photo walk + editing session",
     "Co-create content this weekend",
   ],
+  "arts & crafts": [
+    "Saturday painting + coffee session",
+    "DIY craft night with accountability",
+    "Lock in and finish your art piece",
+  ],
+  "music / producer": [
+    "Producer lock-in session tonight",
+    "Beat-making sprint and feedback",
+    "Finish one track this week",
+  ],
   lifestyle: [
     "Build a better morning routine",
     "Declutter sprint + reset",
@@ -232,6 +242,9 @@ export default function Home() {
   const [showPublicLocationConfirm, setShowPublicLocationConfirm] = useState(false);
   const [highlightLocationVisibility, setHighlightLocationVisibility] = useState(false);
   const [publicVisibilityConfirmed, setPublicVisibilityConfirmed] = useState(false);
+  const [snoozePublicLocationWarning, setSnoozePublicLocationWarning] = useState(false);
+  const publicVisibilityBypassRef = useRef(false);
+  const publicWarningMutedUntilRef = useRef<number>(0);
   const locationVisibilityRef = useRef<HTMLDivElement | null>(null);
   const createQuestFormRef = useRef<HTMLFormElement | null>(null);
 
@@ -287,6 +300,13 @@ export default function Home() {
     const t = setTimeout(() => setHighlightLocationVisibility(false), 2200);
     return () => clearTimeout(t);
   }, [highlightLocationVisibility]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const raw = window.localStorage.getItem("sidequest_public_location_warning_muted_until");
+    const ts = raw ? Number(raw) : 0;
+    if (Number.isFinite(ts) && ts > 0) publicWarningMutedUntilRef.current = ts;
+  }, []);
 
   function resolveCountryCodeByName(name: string) {
     const found = countryOptions.find((c) => c.name.toLowerCase() === name.trim().toLowerCase());
@@ -821,6 +841,7 @@ export default function Home() {
     setShowPublicLocationConfirm(false);
     setHighlightLocationVisibility(false);
     setPublicVisibilityConfirmed(false);
+    publicVisibilityBypassRef.current = false;
   }
 
   function openCreateModal() {
@@ -1065,8 +1086,8 @@ export default function Home() {
 
     const selectedGroupSize = groupSizeChoice === "custom" ? Number(groupSizeCustom) : (groupSizeChoice === "any" ? 0 : Number(groupSizeChoice));
 
-    if (!title.trim()) return flagFieldError("title", "Please enter a title.");
     if (!categoryInput.trim()) return flagFieldError("category", "Please enter a category.");
+    if (!title.trim()) return flagFieldError("title", "Please enter a title.");
     if (!countryQuery.trim()) return flagFieldError("country", "Please enter a country.");
     if (!exactAddress.trim()) return flagFieldError("location", "Location is required.");
     if (!groupSizeChoice) return flagFieldError("groupSize", "Group size is required.");
@@ -1076,7 +1097,8 @@ export default function Home() {
     if (availabilityMode === "specific_time" && !startAt) return setStatus("Pick a specific start time.");
     if (isRecurring && !recurringStartDate) return setStatus("Pick a recurring start date.");
 
-    if (exactLocationVisibility === "public" && !publicVisibilityConfirmed) {
+    const isPublicWarningMuted = Date.now() < publicWarningMutedUntilRef.current;
+    if (exactLocationVisibility === "public" && !isPublicWarningMuted && !publicVisibilityBypassRef.current && !publicVisibilityConfirmed) {
       setShowPublicLocationConfirm(true);
       return;
     }
@@ -1225,6 +1247,7 @@ export default function Home() {
     } catch (err) {
       setStatus(err instanceof Error ? err.message : "Could not save listing.");
     } finally {
+      publicVisibilityBypassRef.current = false;
       setSavingQuest(false);
     }
   }
@@ -1956,11 +1979,18 @@ export default function Home() {
           <div className="w-full max-w-md rounded-2xl bg-white border p-4 space-y-3">
             <h3 className="font-semibold">Public location warning</h3>
             <p className="text-sm text-gray-700">Because Location Visibility is set to <b>Public</b>, anyone can see the meetup location for this quest.</p>
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={snoozePublicLocationWarning} onChange={(e) => setSnoozePublicLocationWarning(e.target.checked)} />
+              Don’t remind me again for a month
+            </label>
+            <p className="text-xs text-gray-500">You can change this later in Settings → Safety (Public location warning).</p>
             <div className="flex gap-2 justify-end">
               <button
                 type="button"
                 className="border rounded px-3 py-2"
                 onClick={() => {
+                  publicVisibilityBypassRef.current = false;
+                  setSnoozePublicLocationWarning(false);
                   setShowPublicLocationConfirm(false);
                   setHighlightLocationVisibility(true);
                   setFieldErrors((prev) => ({ ...prev, locationVisibility: true }));
@@ -1973,8 +2003,15 @@ export default function Home() {
                 type="button"
                 className="bg-black text-white rounded px-3 py-2"
                 onClick={() => {
+                  if (snoozePublicLocationWarning && typeof window !== "undefined") {
+                    const mutedUntil = Date.now() + 30 * 24 * 60 * 60 * 1000;
+                    window.localStorage.setItem("sidequest_public_location_warning_muted_until", String(mutedUntil));
+                    publicWarningMutedUntilRef.current = mutedUntil;
+                  }
+                  publicVisibilityBypassRef.current = true;
                   setPublicVisibilityConfirmed(true);
                   setShowPublicLocationConfirm(false);
+                  setSnoozePublicLocationWarning(false);
                   clearFieldError("locationVisibility");
                   createQuestFormRef.current?.requestSubmit();
                 }}
