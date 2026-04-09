@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FormEvent, PointerEvent, UIEvent, useEffect, useMemo, useRef, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase";
 import { CANONICAL_CATEGORIES, resolveCanonicalCategory, suggestCanonicalCategories } from "@/lib/category-suggestions";
+import { isImageLikeFile, prepareImageForUpload } from "@/lib/media-optimize";
 
 type Hobby = { id: string; name: string; category: string | null };
 type QuestMediaItem = {
@@ -614,14 +615,14 @@ export default function Home() {
 
   async function savePhotoStep() {
     if (!supabase || !userId || !photoStepFile) return;
-    if (!photoStepFile.type.startsWith("image/")) return setStatus("Please choose an image file.");
-    if (photoStepFile.size > 8 * 1024 * 1024) return setStatus("Photo must be under 8MB.");
+    if (!isImageLikeFile(photoStepFile)) return setStatus("Please choose an image file.");
 
     setPhotoStepState("uploading");
 
     let cropped: Blob;
     try {
-      cropped = await makePhotoStepCrop(photoStepFile);
+      const normalized = await prepareImageForUpload(photoStepFile, { maxWidth: 2200, maxHeight: 2200, quality: 0.9 });
+      cropped = await makePhotoStepCrop(normalized);
     } catch (err) {
       setPhotoStepState("ready");
       return setStatus(err instanceof Error ? err.message : "Could not crop image.");
@@ -724,18 +725,24 @@ export default function Home() {
     const uploaded: QuestMediaItem[] = [];
 
     for (const item of items) {
-      const file = item.file;
+      const originalFile = item.file;
+      const isVideo = originalFile.type.startsWith("video/");
+      const looksImage = isImageLikeFile(originalFile);
+      if (!looksImage && !isVideo) throw new Error("Media must be an image or video file.");
+
+      const file = looksImage
+        ? await prepareImageForUpload(originalFile, { maxWidth: 1600, maxHeight: 1600, quality: 0.82 })
+        : originalFile;
+
       const isImage = file.type.startsWith("image/");
-      const isVideo = file.type.startsWith("video/");
-      if (!isImage && !isVideo) throw new Error("Media must be an image or video file.");
-      if (isImage && file.size > 15 * 1024 * 1024) throw new Error("Images must be under 15MB.");
+      if (isImage && file.size > 8 * 1024 * 1024) throw new Error("Compressed images must be under 8MB.");
       if (isVideo && file.size > 60 * 1024 * 1024) throw new Error("Videos must be under 60MB.");
 
       const ext = (file.name.split(".").pop() || (isImage ? "jpg" : "mp4")).toLowerCase();
       const filePath = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
       const { error } = await supabase.storage
         .from("quest-media")
-        .upload(filePath, file, { upsert: false, contentType: file.type });
+        .upload(filePath, file, { upsert: false, contentType: file.type || (isImage ? "image/jpeg" : "video/mp4") });
       if (error) throw new Error(error.message);
 
       const { data } = supabase.storage.from("quest-media").getPublicUrl(filePath);
@@ -878,7 +885,7 @@ export default function Home() {
     }
   }
 
-  function handleQuestMediaPicked(files: FileList | null) {
+  async function handleQuestMediaPicked(files: FileList | null) {
     if (!files?.length) return;
 
     const existingImages = mediaDraftItems.filter((m) => m.type === "image").length;
@@ -888,12 +895,17 @@ export default function Home() {
     let vidLeft = Math.max(0, 2 - existingVideos);
 
     const added: DraftMediaItem[] = [];
-    for (const file of Array.from(files)) {
-      if (file.type.startsWith("image/") && imgLeft > 0) {
-        added.push({ id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, file, label: "", type: "image", source: "new" });
-        imgLeft -= 1;
-      } else if (file.type.startsWith("video/") && vidLeft > 0) {
-        added.push({ id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, file, label: "", type: "video", source: "new" });
+    for (const picked of Array.from(files)) {
+      if (isImageLikeFile(picked) && imgLeft > 0) {
+        try {
+          const file = await prepareImageForUpload(picked, { maxWidth: 1600, maxHeight: 1600, quality: 0.82 });
+          added.push({ id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, file, label: "", type: "image", source: "new" });
+          imgLeft -= 1;
+        } catch (err) {
+          setStatus(err instanceof Error ? err.message : "Could not process image.");
+        }
+      } else if (picked.type.startsWith("video/") && vidLeft > 0) {
+        added.push({ id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, file: picked, label: "", type: "video", source: "new" });
         vidLeft -= 1;
       }
     }
@@ -1587,14 +1599,33 @@ export default function Home() {
               capture="user"
               className="border rounded px-3 py-2 w-full"
               onChange={(e) => {
-                const file = e.target.files?.[0] ?? null;
-                setPhotoStepFile(file);
-                setPhotoStepZoom(1.2);
-                setPhotoStepOffsetX(0);
-                setPhotoStepOffsetY(0);
-                if (photoStepPreviewUrl) URL.revokeObjectURL(photoStepPreviewUrl);
-                setPhotoStepPreviewUrl(file ? URL.createObjectURL(file) : "");
-                setPhotoStepState(file ? "ready" : "idle");
+                const picked = e.target.files?.[0] ?? null;
+                if (!picked) {
+                  setPhotoStepFile(null);
+                  if (photoStepPreviewUrl) URL.revokeObjectURL(photoStepPreviewUrl);
+                  setPhotoStepPreviewUrl("");
+                  setPhotoStepState("idle");
+                  return;
+                }
+
+                void (async () => {
+                  try {
+                    const file = await prepareImageForUpload(picked, { maxWidth: 2200, maxHeight: 2200, quality: 0.9 });
+                    setPhotoStepFile(file);
+                    setPhotoStepZoom(1.2);
+                    setPhotoStepOffsetX(0);
+                    setPhotoStepOffsetY(0);
+                    if (photoStepPreviewUrl) URL.revokeObjectURL(photoStepPreviewUrl);
+                    setPhotoStepPreviewUrl(URL.createObjectURL(file));
+                    setPhotoStepState("ready");
+                  } catch (err) {
+                    setPhotoStepFile(null);
+                    if (photoStepPreviewUrl) URL.revokeObjectURL(photoStepPreviewUrl);
+                    setPhotoStepPreviewUrl("");
+                    setPhotoStepState("idle");
+                    setStatus(err instanceof Error ? err.message : "Could not process image.");
+                  }
+                })();
               }}
             />
             {photoStepPreviewUrl && (
@@ -1738,7 +1769,7 @@ export default function Home() {
                   accept="image/*,video/*"
                   multiple
                   onChange={(e) => {
-                    handleQuestMediaPicked(e.target.files);
+                    void handleQuestMediaPicked(e.target.files);
                     e.currentTarget.value = "";
                   }}
                   className="border rounded px-3 py-2"

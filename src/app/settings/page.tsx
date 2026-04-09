@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { FormEvent, PointerEvent, useEffect, useMemo, useRef, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase";
+import { isImageLikeFile, prepareImageForUpload } from "@/lib/media-optimize";
 
 type Tab = "profile" | "account" | "preferences";
 
@@ -222,14 +223,14 @@ export default function SettingsPage() {
 
   async function uploadProfilePhoto() {
     if (!supabase || !userId || !photoFile) return setStatus("Choose a photo first.");
-    if (!photoFile.type.startsWith("image/")) return setStatus("Please choose an image file.");
-    if (photoFile.size > 8 * 1024 * 1024) return setStatus("Photo must be under 8MB.");
+    if (!isImageLikeFile(photoFile)) return setStatus("Please choose an image file.");
 
     setUploadingPhoto(true);
 
     let cropped: Blob;
     try {
-      cropped = await makeCroppedAvatar(photoFile);
+      const normalized = await prepareImageForUpload(photoFile, { maxWidth: 2200, maxHeight: 2200, quality: 0.9 });
+      cropped = await makeCroppedAvatar(normalized);
     } catch (err) {
       setUploadingPhoto(false);
       return setStatus(err instanceof Error ? err.message : "Could not crop image.");
@@ -396,14 +397,33 @@ export default function SettingsPage() {
                     capture="user"
                     className="hidden"
                     onChange={(e) => {
-                      const file = e.target.files?.[0] ?? null;
-                      setPhotoFile(file);
-                      setCropZoom(1.2);
-                      setCropOffsetX(0);
-                      setCropOffsetY(0);
-                      if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl);
-                      setPhotoPreviewUrl(file ? URL.createObjectURL(file) : "");
-                      setShowPhotoCropper(!!file);
+                      const picked = e.target.files?.[0] ?? null;
+                      if (!picked) {
+                        setPhotoFile(null);
+                        if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl);
+                        setPhotoPreviewUrl("");
+                        setShowPhotoCropper(false);
+                        return;
+                      }
+
+                      void (async () => {
+                        try {
+                          const file = await prepareImageForUpload(picked, { maxWidth: 2200, maxHeight: 2200, quality: 0.9 });
+                          setPhotoFile(file);
+                          setCropZoom(1.2);
+                          setCropOffsetX(0);
+                          setCropOffsetY(0);
+                          if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl);
+                          setPhotoPreviewUrl(URL.createObjectURL(file));
+                          setShowPhotoCropper(true);
+                        } catch (err) {
+                          setPhotoFile(null);
+                          if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl);
+                          setPhotoPreviewUrl("");
+                          setShowPhotoCropper(false);
+                          setStatus(err instanceof Error ? err.message : "Could not process image.");
+                        }
+                      })();
                     }}
                   />
 
