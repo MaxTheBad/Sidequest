@@ -304,6 +304,11 @@ export default function Home() {
 
     return [...fromDb, ...canonical].sort((a, b) => a.name.localeCompare(b.name));
   }, [hobbies]);
+  const canonicalCategoryNamesById = useMemo(() => {
+    return new Map<string, string>(
+      CANONICAL_CATEGORIES.map((name) => [`canonical:${name.toLowerCase()}`, name] as const)
+    );
+  }, []);
 
   const categoryTitleHint = useMemo(
     () => pickTitleSuggestionByCategory(categoryInput || ""),
@@ -347,6 +352,11 @@ export default function Home() {
   function resolveCountryCodeByName(name: string) {
     const found = countryOptions.find((c) => c.name.toLowerCase() === name.trim().toLowerCase());
     return found?.code || countryCode;
+  }
+
+  function getFilterCategoryName(value: string) {
+    if (value === "all") return null;
+    return canonicalCategoryNamesById.get(value) || hobbies.find((h) => h.id === value)?.name || null;
   }
 
   function pickTitleSuggestionByCategory(categoryName: string) {
@@ -513,7 +523,14 @@ export default function Home() {
     if (!supabase) return;
     setLoading(true);
     let q = supabase.from("quests").select("id,creator_id,title,description,city,skill_level,group_size,availability,hobby_id,join_mode,exact_location_visibility,exact_address,media_video_url,media_source,media_items,hobbies(name),profiles:profiles!quests_creator_id_fkey(id,display_name,avatar_url)").order("created_at", { ascending: false }).limit(24);
-    if (hobbyFilter !== "all") q = q.eq("hobby_id", hobbyFilter);
+      const filterCategoryName = getFilterCategoryName(hobbyFilter);
+      if (hobbyFilter !== "all") {
+        if (filterCategoryName && hobbyFilter.startsWith("canonical:")) {
+          q = q.ilike("hobbies.name", filterCategoryName);
+        } else {
+          q = q.eq("hobby_id", hobbyFilter);
+        }
+      }
     const firstRes = await q;
     let data: Quest[] | null = firstRes.data as Quest[] | null;
     let error = firstRes.error;
@@ -521,7 +538,13 @@ export default function Home() {
     // Backward compatibility if migration for media_items has not been applied yet
     if (error?.message?.includes("column quests.media_items does not exist")) {
       let fallback = supabase.from("quests").select("id,creator_id,title,description,city,skill_level,group_size,availability,hobby_id,join_mode,exact_location_visibility,exact_address,media_video_url,media_source,hobbies(name),profiles:profiles!quests_creator_id_fkey(id,display_name,avatar_url)").order("created_at", { ascending: false }).limit(24);
-      if (hobbyFilter !== "all") fallback = fallback.eq("hobby_id", hobbyFilter);
+      if (hobbyFilter !== "all") {
+        if (filterCategoryName && hobbyFilter.startsWith("canonical:")) {
+          fallback = fallback.ilike("hobbies.name", filterCategoryName);
+        } else {
+          fallback = fallback.eq("hobby_id", hobbyFilter);
+        }
+      }
       const res = await fallback;
       data = res.data as Quest[] | null;
       error = res.error;
@@ -1549,7 +1572,11 @@ export default function Home() {
                 <label className="block text-xs font-medium text-gray-600">Category</label>
                 <select className="w-full border rounded-xl px-3 py-2.5 bg-white" value={hobbyFilter} onChange={(e) => setHobbyFilter(e.target.value)}>
                   <option value="all">All categories</option>
-                  {hobbies.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
+                  {categoryOptions.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.name}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div className="flex flex-wrap gap-2">
