@@ -74,7 +74,7 @@ export default function GlobalTopBar() {
 
   return (
     <header className="fixed top-0 inset-x-0 z-50 border-b nav-shell">
-      <div className="max-w-5xl mx-auto px-4 h-[52px] flex items-center justify-between gap-3">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-[52px] flex items-center justify-between gap-3">
         <Link href="/" className="nav-brand text-[15px] tracking-tight">Sydequest</Link>
         <nav className="hidden md:flex items-center gap-1">
           <Link href="/" className={`nav-item text-xs px-3 py-1 ${pathname === "/" ? "nav-item-active" : ""}`}>Home</Link>

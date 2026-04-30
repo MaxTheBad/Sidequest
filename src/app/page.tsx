@@ -1533,35 +1533,74 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-[#f6f7fb]">
-      <div className="w-full mx-auto px-0 py-4 space-y-4">
+      <div className="w-full mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-4 lg:py-8 space-y-6">
         {!!pendingVerifyEmail && (
           <div className="text-sm rounded bg-emerald-50 border p-2">Email sent to <b>{pendingVerifyEmail}</b>. <button className="underline" disabled={resendCooldown > 0} onClick={() => void resendVerification()}>{resendCooldown > 0 ? `Resend in ${resendCooldown}s` : "Resend"}</button></div>
         )}
-        <section className="rounded-2xl bg-white p-4">
-          <div className="flex flex-wrap gap-2 items-center justify-between">
-            <h2 className="font-semibold">Explore quests</h2>
-            <div className="flex items-center gap-2">
-              <select className="border rounded px-2 py-1" value={hobbyFilter} onChange={(e) => setHobbyFilter(e.target.value)}>
-                <option value="all">All categories</option>
-                {hobbies.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
-              </select>
-              <button
-                className={`border rounded px-3 py-1 ${showSavedOnly ? "bg-black text-white" : ""}`}
-                onClick={() => setShowSavedOnly((x) => !x)}
-                type="button"
-              >
-                {showSavedOnly ? "Showing saved" : "Saved"}
-              </button>
-              <button className="border rounded px-3 py-1" onClick={() => void loadQuests()}>Refresh</button>
-            </div>
-          </div>
-          <div className="mt-3 rounded-lg bg-gray-50 p-3 text-sm border-0">
-            <strong>Surprise me:</strong> {surprisePick ? <><span>{surprisePick.title} ({surprisePick.hobbies?.[0]?.name || "Hobby"})</span>{userId !== surprisePick.creator_id && <button className="ml-3 border rounded px-2 py-1" onClick={() => void toggleJoinQuest(surprisePick.id)}>{membershipStatusByQuest[surprisePick.id] === "pending" ? "Cancel request" : (membershipStatusByQuest[surprisePick.id] === "declined" ? "Request again" : (joinedQuestIds.includes(surprisePick.id) ? "Leave" : ((surprisePick.join_mode || "open") === "approval_required" ? "Request to join" : "Join")))}</button>}</> : "No quests yet"}
-          </div>
-        </section>
+        <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)] xl:items-start">
+          <aside className="space-y-4 xl:sticky xl:top-[76px]">
+            <section className="rounded-3xl bg-white border shadow-sm p-5 space-y-4">
+              <div className="space-y-1">
+                <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Discover</p>
+                <h2 className="text-xl font-semibold">Explore quests</h2>
+                <p className="text-sm text-gray-500">Find a group that fits your schedule, skill level, and energy.</p>
+              </div>
+              <div className="space-y-3">
+                <label className="block text-xs font-medium text-gray-600">Category</label>
+                <select className="w-full border rounded-xl px-3 py-2.5 bg-white" value={hobbyFilter} onChange={(e) => setHobbyFilter(e.target.value)}>
+                  <option value="all">All categories</option>
+                  {hobbies.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
+                </select>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  className={`border rounded-full px-4 py-2 text-sm ${showSavedOnly ? "bg-black text-white" : "bg-white"}`}
+                  onClick={() => setShowSavedOnly((x) => !x)}
+                  type="button"
+                >
+                  {showSavedOnly ? "Showing saved" : "Saved"}
+                </button>
+                <button className="border rounded-full px-4 py-2 text-sm bg-white" onClick={() => void loadQuests()}>Refresh</button>
+              </div>
+            </section>
 
-        <section className="grid gap-3">
-          {loading ? <p>Loading...</p> : filteredQuests.map((q) => {
+            <section className="rounded-3xl bg-gradient-to-br from-white to-slate-50 border shadow-sm p-5 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Surprise me</p>
+                  <p className="text-sm text-gray-500">A quick pick when you do not want to scroll.</p>
+                </div>
+                <div className="h-10 w-10 rounded-full bg-black text-white grid place-items-center">?</div>
+              </div>
+              {surprisePick ? (
+                <div className="space-y-3">
+                  <div>
+                    <p className="font-semibold leading-tight">{surprisePick.title}</p>
+                    <p className="text-sm text-gray-500">{surprisePick.hobbies?.[0]?.name || "Hobby"} · {surprisePick.city || "city tbd"}</p>
+                  </div>
+                  {userId !== surprisePick.creator_id && (
+                    <button className="w-full border rounded-full px-3 py-2 bg-black text-white" onClick={() => void toggleJoinQuest(surprisePick.id)}>
+                      {membershipStatusByQuest[surprisePick.id] === "pending" ? "Cancel request" : (membershipStatusByQuest[surprisePick.id] === "declined" ? "Request again" : (joinedQuestIds.includes(surprisePick.id) ? "Leave" : ((surprisePick.join_mode || "open") === "approval_required" ? "Request to join" : "Join")))}
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500">No quests yet.</p>
+              )}
+            </section>
+          </aside>
+
+          <section className="space-y-4">
+            <div className="hidden lg:flex items-end justify-between gap-4 rounded-3xl bg-white border shadow-sm p-5">
+              <div>
+                <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Feed</p>
+                <h3 className="text-lg font-semibold">Latest quests</h3>
+              </div>
+              <p className="text-sm text-gray-500 max-w-xl text-right">The mobile feed stays intact, but desktop now gets room to breathe with a stronger layout and wider cards.</p>
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+              {loading ? <p>Loading...</p> : filteredQuests.map((q) => {
             const creatorProfile = getCreatorProfile(q);
             const feedMediaItems: QuestMediaItem[] = [
               ...(q.media_video_url ? [{ url: q.media_video_url, type: "video" as const, label: q.media_source === "live" ? "Live video" : "Video" }] : []),
@@ -1571,7 +1610,7 @@ export default function Home() {
             const fallbackVisual = getCategoryFallbackVisual(q.hobbies?.[0]?.name);
 
             return (
-            <article key={q.id} className="quest-card w-full rounded-none bg-white p-0 overflow-hidden">
+            <article key={q.id} className="quest-card w-full rounded-3xl bg-white border shadow-sm overflow-hidden">
               <div className="p-3 flex items-center justify-between gap-2">
                 <Link href={`/profile/${q.creator_id}`} className="flex items-center gap-2 min-w-0">
                   {creatorProfile?.avatar_url ? (
@@ -1619,9 +1658,9 @@ export default function Home() {
                       <div key={`${m.url}-${i}`} className="w-full shrink-0 snap-start bg-black">
                         <button type="button" className="w-full block" onClick={() => setExpandedMedia({ items: feedMediaItems, index: i })}>
                           {m.type === "image" ? (
-                            <img src={m.url} alt={m.label || "Listing media"} className="w-full h-[52vh] sm:h-[60vh] object-cover" />
+                            <img src={m.url} alt={m.label || "Listing media"} className="w-full h-[32vh] sm:h-[40vh] lg:h-[28vw] max-h-[420px] object-cover" />
                           ) : (
-                            <video src={m.url} className="w-full h-[52vh] sm:h-[60vh] object-cover" preload="metadata" muted playsInline />
+                            <video src={m.url} className="w-full h-[32vh] sm:h-[40vh] lg:h-[28vw] max-h-[420px] object-cover" preload="metadata" muted playsInline />
                           )}
                         </button>
                       </div>
@@ -1636,7 +1675,7 @@ export default function Home() {
                   )}
                 </div>
               ) : (
-                <div className="h-[40vh] sm:h-[46vh] border-y grid place-items-center" style={{ background: fallbackVisual.gradient }}>
+                <div className="h-[30vh] sm:h-[36vh] lg:h-[28vw] max-h-[420px] border-y grid place-items-center" style={{ background: fallbackVisual.gradient }}>
                   <div className="text-center px-6">
                     <div className="mx-auto h-14 w-14 rounded-full border bg-white grid place-items-center text-xl">{fallbackVisual.emoji}</div>
                     <p className="mt-3 text-sm font-semibold">{fallbackVisual.title}</p>
@@ -1649,11 +1688,11 @@ export default function Home() {
                 <div className="flex gap-2 flex-wrap">
                   {userId !== q.creator_id && (
                     <>
-                      <button className="border rounded px-3 py-2" onClick={() => void toggleJoinQuest(q.id)}>{membershipStatusByQuest[q.id] === "pending" ? "Cancel request" : (membershipStatusByQuest[q.id] === "declined" ? "Request again" : (joinedQuestIds.includes(q.id) ? "Leave" : ((q.join_mode || "open") === "approval_required" ? "Request to join" : "Join")))}</button>
-                      <button className="border rounded px-3 py-2" onClick={() => void askQuestion(q)}>Comment / DM</button>
+                      <button className="border rounded-full px-3 py-2" onClick={() => void toggleJoinQuest(q.id)}>{membershipStatusByQuest[q.id] === "pending" ? "Cancel request" : (membershipStatusByQuest[q.id] === "declined" ? "Request again" : (joinedQuestIds.includes(q.id) ? "Leave" : ((q.join_mode || "open") === "approval_required" ? "Request to join" : "Join")))}</button>
+                      <button className="border rounded-full px-3 py-2" onClick={() => void askQuestion(q)}>Comment / DM</button>
                     </>
                   )}
-                  <button className="border rounded px-3 py-2" onClick={() => void toggleBookmark(q.id)}>
+                  <button className="border rounded-full px-3 py-2" onClick={() => void toggleBookmark(q.id)}>
                     {bookmarkedQuestIds.includes(q.id) ? "★ Saved" : "☆ Save"}
                   </button>
                 </div>
@@ -1670,8 +1709,10 @@ export default function Home() {
             </article>
           );
           })}
-          {!loading && filteredQuests.length === 0 && <p className="text-sm text-gray-500">{showSavedOnly ? "No saved listings yet." : "No quests yet - create the first one."}</p>}
-        </section>
+            </div>
+            {!loading && filteredQuests.length === 0 && <p className="text-sm text-gray-500">{showSavedOnly ? "No saved listings yet." : "No quests yet - create the first one."}</p>}
+          </section>
+        </div>
       </div>
 
       {showAuthModal && (
