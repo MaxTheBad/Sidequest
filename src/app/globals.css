@@ -2,54 +2,55 @@
 
 /* ============================================
    SYDEQUEST 2026 THEME
-   Inspired by Ditto.com - Clean, Minimal, High-Contrast
+   Clean, modern, neutral-first
    ============================================ */
 
 :root {
-  /* Core - Light Mode (Ditto-inspired) */
-  --background: #ffffff;
-  --foreground: #0a0a0a;
-  --surface: #fafafa;
-  --surface-elevated: #ffffff;
-  --muted: #f5f5f5;
-  --border: #e5e5e5;
-  
-  /* Brand - Purple-focused like Ditto */
-  --accent-primary: #7c3aed;
-  --accent-secondary: #a855f7;
-  --accent-tertiary: #6366f1;
-  
+  color-scheme: light;
+  --background: #f7f8fb;
+  --foreground: #0f172a;
+  --surface: rgba(255, 255, 255, 0.82);
+  --surface-elevated: rgba(255, 255, 255, 0.94);
+  --muted: #eef2f7;
+  --border: rgba(15, 23, 42, 0.08);
+  --border-strong: rgba(15, 23, 42, 0.12);
+
+  /* Brand */
+  --accent-primary: #2563eb;
+  --accent-secondary: #0f766e;
+  --accent-tertiary: #7c3aed;
+
   /* Status */
-  --success: #10b981;
-  --warning: #f59e0b;
-  --error: #ef4444;
-  
-  /* Shadows - Subtle */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
-  --shadow-lg: 0 12px 24px rgba(0, 0, 0, 0.12);
-  --shadow-glow: 0 0 40px rgba(124, 58, 237, 0.25);
+  --success: #16a34a;
+  --warning: #d97706;
+  --error: #dc2626;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-md: 0 12px 28px rgba(15, 23, 42, 0.08);
+  --shadow-lg: 0 24px 64px rgba(15, 23, 42, 0.12);
+  --shadow-glow: 0 0 40px rgba(37, 99, 235, 0.16);
 }
 
 html[data-theme="dark"] {
-  /* Core - Dark Mode */
-  --background: #0a0a0a;
-  --foreground: #fafafa;
-  --surface: #1a1a1a;
-  --surface-elevated: #262626;
-  --muted: #171717;
-  --border: #2a2a2a;
-  
-  /* Brighter accents */
-  --accent-primary: #a78bfa;
-  --accent-secondary: #c084fc;
-  --accent-tertiary: #818cf8;
-  
-  /* Adjusted shadows */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.6);
-  --shadow-lg: 0 12px 24px rgba(0, 0, 0, 0.8);
-  --shadow-glow: 0 0 40px rgba(167, 139, 250, 0.3);
+  color-scheme: dark;
+  --background: #0b1220;
+  --foreground: #e5e7eb;
+  --surface: rgba(15, 23, 42, 0.72);
+  --surface-elevated: rgba(15, 23, 42, 0.9);
+  --muted: rgba(148, 163, 184, 0.1);
+  --border: rgba(148, 163, 184, 0.14);
+  --border-strong: rgba(148, 163, 184, 0.22);
+  --accent-primary: #60a5fa;
+  --accent-secondary: #2dd4bf;
+  --accent-tertiary: #a78bfa;
+  --success: #22c55e;
+  --warning: #f59e0b;
+  --error: #f87171;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.22);
+  --shadow-md: 0 14px 32px rgba(0, 0, 0, 0.28);
+  --shadow-lg: 0 28px 72px rgba(0, 0, 0, 0.38);
+  --shadow-glow: 0 0 42px rgba(96, 165, 250, 0.16);
 }
 
 /* ============================================
@@ -65,14 +66,17 @@ html {
 }
 
 body {
-  background: #ffffff;
-  color: #111111;
-  font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'SF Pro Display', 'Segoe UI', sans-serif;
+  background:
+    radial-gradient(circle at top, color-mix(in srgb, var(--accent-primary) 8%, transparent) 0, transparent 34%),
+    linear-gradient(180deg, color-mix(in srgb, var(--background) 90%, white) 0%, var(--background) 100%);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-feature-settings: 'ss01', 'ss02', 'cv05', 'cv10';
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   line-height: 1.6;
   position: relative;
+  min-height: 100vh;
 }
 
 body::before {
@@ -81,10 +85,10 @@ body::before {
   inset: 0;
   pointer-events: none;
   z-index: 0;
-  opacity: 0.12;
-  background-image: radial-gradient(circle at 1px 1px, rgba(124,58,237,0.55) 1px, transparent 0);
-  background-size: 18px 18px;
-  animation: syde-dots 14s linear infinite;
+  opacity: 0.08;
+  background-image: radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--accent-primary) 42%, transparent) 1px, transparent 0);
+  background-size: 20px 20px;
+  animation: syde-dots 18s linear infinite;
 }
 
 main, header, nav {
@@ -96,9 +100,10 @@ main, header, nav {
    ============================================ */
 
 .bg-white {
-  background-color: #ffffff !important;
-  border: 1px solid #e7e7e7;
-  box-shadow: 0 10px 30px rgba(17,17,17,0.05);
+  background-color: var(--surface-elevated) !important;
+  border: 1px solid var(--border) !important;
+  box-shadow: var(--shadow-md);
+  backdrop-filter: blur(16px);
 }
 
 .quest-card {
@@ -118,6 +123,10 @@ main, header, nav {
 
 .border, .border-b {
   border-color: var(--border) !important;
+}
+
+.border-strong {
+  border-color: var(--border-strong) !important;
 }
 
 .text-gray-500, .text-gray-600 {
@@ -160,7 +169,7 @@ button:active, a:active {
 .btn-secondary {
   background: var(--surface);
   color: var(--foreground);
-  border: 1.5px solid var(--border);
+  border: 1.5px solid var(--border-strong);
   font-weight: 500;
 }
 
@@ -199,11 +208,13 @@ button:active, a:active {
    ============================================ */
 
 .card {
-  background: var(--surface);
+  background: var(--surface-elevated);
   border: 1px solid var(--border);
   border-radius: 16px;
   padding: 1.5rem;
   transition: all 0.2s ease;
+  box-shadow: var(--shadow-sm);
+  backdrop-filter: blur(16px);
 }
 
 .card:hover {
@@ -216,13 +227,15 @@ button:active, a:active {
    ============================================ */
 
 .nav-shell {
-  background: #111111;
-  border: 1px solid #111111;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.22);
+  background: color-mix(in srgb, var(--surface-elevated) 88%, transparent);
+  border-color: var(--border) !important;
+  box-shadow: var(--shadow-md);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
 }
 
 .nav-item {
-  color: rgba(255,255,255,0.72);
+  color: color-mix(in srgb, var(--foreground) 70%, transparent);
   border-radius: 10px;
   padding: 0.5rem 1rem;
   font-weight: 600;
@@ -230,14 +243,14 @@ button:active, a:active {
 }
 
 .nav-item:hover {
-  background: rgba(255,255,255,0.1);
-  color: #ffffff;
+  background: color-mix(in srgb, var(--accent-primary) 10%, transparent);
+  color: var(--foreground);
 }
 
 .nav-item-active {
-  color: #ffffff;
+  color: var(--foreground);
   font-weight: 700;
-  background: rgba(124,58,237,0.45);
+  background: color-mix(in srgb, var(--accent-primary) 14%, transparent);
 }
 
 .nav-create {
@@ -253,20 +266,20 @@ button:active, a:active {
 }
 
 .nav-control {
-  border: 1px solid rgba(255,255,255,0.22);
-  background: rgba(255,255,255,0.08);
-  color: #ffffff;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-elevated) 75%, transparent);
+  color: var(--foreground);
   border-radius: 999px;
   padding: 6px 10px;
   font-size: 12px;
 }
 
 .nav-control:hover {
-  background: rgba(255,255,255,0.16);
+  background: color-mix(in srgb, var(--accent-primary) 8%, var(--surface-elevated));
 }
 
 .nav-brand {
-  color: #ffffff;
+  color: var(--foreground);
   font-weight: 700;
   letter-spacing: -0.01em;
 }
@@ -277,7 +290,7 @@ button:active, a:active {
 
 input, textarea, select {
   background: var(--surface);
-  border: 1.5px solid var(--border);
+  border: 1.5px solid var(--border-strong);
   color: var(--foreground);
   border-radius: 10px;
   padding: 0.75rem 1rem;
@@ -534,4 +547,9 @@ strong {
   background: var(--surface);
   border: 1px solid var(--border);
   box-shadow: var(--shadow-lg);
+}
+
+::selection {
+  background: color-mix(in srgb, var(--accent-primary) 22%, transparent);
+  color: var(--foreground);
 }

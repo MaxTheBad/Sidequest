@@ -90,7 +90,7 @@ export default function GlobalTopBar() {
           >
             Theme: {themeLabel}
           </button>
-          {userId && userLabel ? <span className="text-xs text-white/70 hidden md:inline">Signed in as {userLabel.split("@")[0]}</span> : null}
+          {userId && userLabel ? <span className="text-xs text-gray-500 hidden md:inline">Signed in as {userLabel.split("@")[0]}</span> : null}
           {userId ? (
             <button className="nav-control" onClick={() => void signOut()}>Sign out</button>
           ) : (
