@@ -45,6 +45,8 @@ export default function ProfilePage() {
   const [status, setStatus] = useState("Loading...");
   const [reloadTick, setReloadTick] = useState(0);
   const [showReportModal, setShowReportModal] = useState(false);
+  const [showBlockConfirm, setShowBlockConfirm] = useState(false);
+  const [showUnblockConfirm, setShowUnblockConfirm] = useState(false);
   const [reportReason, setReportReason] = useState("inappropriate_profile");
   const [reportDetails, setReportDetails] = useState("");
   const [submittingReport, setSubmittingReport] = useState(false);
@@ -265,9 +267,8 @@ export default function ProfilePage() {
 
   async function blockUser() {
     if (!supabase || !viewerId || !profileId || viewerId === profileId) return;
-    const ok = window.confirm("Block this user? They won’t be able to friend you or message you from the app.");
-    if (!ok) return;
-
+    const { data: hostedQuests } = await supabase.from("quests").select("id").eq("creator_id", viewerId);
+    const hostedQuestIds = ((hostedQuests || []) as Array<{ id: string }>).map((q) => q.id);
     await supabase.from("friends").delete().or(
       `and(requester_id.eq.${viewerId},addressee_id.eq.${profileId}),and(requester_id.eq.${profileId},addressee_id.eq.${viewerId})`
     );
@@ -278,14 +279,19 @@ export default function ProfilePage() {
       status: "blocked",
     });
     if (error) return setStatus(error.message);
+
+    if (hostedQuestIds.length) {
+      await supabase.from("quest_members").delete().eq("user_id", profileId).in("quest_id", hostedQuestIds);
+      await supabase.from("quest_exact_location_access").delete().eq("user_id", profileId).in("quest_id", hostedQuestIds);
+    }
+
     setStatus("User blocked.");
+    setShowBlockConfirm(false);
     setReloadTick((x) => x + 1);
   }
 
   async function unblockUser() {
     if (!supabase || !viewerId || !profileId || viewerId === profileId) return;
-    const ok = window.confirm("Unblock this user?");
-    if (!ok) return;
     const { error } = await supabase
       .from("friends")
       .delete()
@@ -294,6 +300,7 @@ export default function ProfilePage() {
       );
     if (error) return setStatus(error.message);
     setStatus("User unblocked.");
+    setShowUnblockConfirm(false);
     setReloadTick((x) => x + 1);
   }
 
@@ -345,9 +352,9 @@ export default function ProfilePage() {
                             : "Add friend"}
                     </button>
                     {blockEdge ? (
-                      <button className="border rounded px-3 py-2 text-red-700 border-red-300 bg-red-50" onClick={() => void unblockUser()}>Unblock</button>
+                      <button className="border rounded px-3 py-2 text-red-700 border-red-300 bg-red-50" onClick={() => setShowUnblockConfirm(true)}>Unblock</button>
                     ) : (
-                      <button className="border rounded px-3 py-2 text-red-700 border-red-300 bg-red-50" onClick={() => void blockUser()}>Block</button>
+                      <button className="border rounded px-3 py-2 text-red-700 border-red-300 bg-red-50" onClick={() => setShowBlockConfirm(true)}>Block</button>
                     )}
                     <button className="border rounded px-3 py-2 text-red-700 border-red-300 bg-red-50" onClick={() => setShowReportModal(true)}>Report</button>
                   </>
@@ -455,6 +462,38 @@ export default function ProfilePage() {
             <div className="flex justify-end gap-2">
               <button className="border rounded px-3 py-2" onClick={() => setShowReportModal(false)}>Cancel</button>
               <button className="bg-black text-white rounded px-3 py-2 disabled:opacity-50" disabled={submittingReport} onClick={() => void submitProfileReport()}>{submittingReport ? "Submitting..." : "Submit report"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showBlockConfirm && !isOwnProfile && (
+        <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white border p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold">Block user</h3>
+              <button className="border rounded px-2 py-1" onClick={() => setShowBlockConfirm(false)}>Close</button>
+            </div>
+            <p className="text-sm text-gray-700">Block this user? They won’t be able to friend you or message you from the app. If you host a quest, they’ll be removed from your hosted listings.</p>
+            <div className="flex justify-end gap-2">
+              <button className="border rounded px-3 py-2" onClick={() => setShowBlockConfirm(false)}>Cancel</button>
+              <button className="bg-red-600 text-white rounded px-3 py-2" onClick={() => void blockUser()}>Block user</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showUnblockConfirm && !isOwnProfile && (
+        <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white border p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold">Unblock user</h3>
+              <button className="border rounded px-2 py-1" onClick={() => setShowUnblockConfirm(false)}>Close</button>
+            </div>
+            <p className="text-sm text-gray-700">Unblock this user? They’ll be able to friend or message you again.</p>
+            <div className="flex justify-end gap-2">
+              <button className="border rounded px-3 py-2" onClick={() => setShowUnblockConfirm(false)}>Cancel</button>
+              <button className="bg-red-600 text-white rounded px-3 py-2" onClick={() => void unblockUser()}>Unblock user</button>
             </div>
           </div>
         </div>
