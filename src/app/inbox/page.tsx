@@ -112,12 +112,13 @@ export default function InboxPage() {
   const lastIncomingIdRef = useRef<string | null>(null);
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
   const pendingThreadTargetRef = useRef<{ thread: string | null; message: string | null } | null>(null);
+  const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
 
   const loadInbox = useCallback(async (uid: string, silent = false) => {
     if (!supabase) return;
     if (!silent) setLoading(true);
 
-    const [{ data: myListings }, sentRes] = await Promise.all([
+    const [{ data: myListings }, sentRes, blockRes] = await Promise.all([
       supabase.from("quests").select("id").eq("creator_id", uid),
       supabase
         .from("messages")
@@ -126,6 +127,7 @@ export default function InboxPage() {
         .like("body", "[PRIVATE%")
         .order("created_at", { ascending: false })
         .limit(300),
+      supabase.from("friends").select("requester_id,addressee_id,status").eq("status", "blocked").or(`requester_id.eq.${uid},addressee_id.eq.${uid}`),
     ]);
 
     const ownerQuestIds = ((myListings || []) as Array<{ id: string }>).map((q) => q.id);
@@ -165,7 +167,10 @@ export default function InboxPage() {
     const sentRows = ((sentRes.data || []) as RawInboxMessage[]).map(normalizeMessageRow);
     const privateRows = ((privateRes.data || []) as RawInboxMessage[]).map(normalizeMessageRow);
     const privateForMeRows = ((privateForMeRes.data || []) as RawInboxMessage[]).map(normalizeMessageRow);
-    const merged = [...sentRows, ...privateRows, ...privateForMeRows];
+    const blocked = Array.from(new Set(((blockRes.data || []) as Array<{ requester_id: string; addressee_id: string }>).flatMap((r) => [r.requester_id, r.addressee_id]).filter((id) => id !== uid)));
+    if (JSON.stringify(blocked) !== JSON.stringify(blockedUserIds)) setBlockedUserIds(blocked);
+
+    const merged = [...sentRows, ...privateRows, ...privateForMeRows].filter((m) => !blocked.includes(m.sender_id));
     const dedupedMap = new Map<string, InboxMessage>();
     merged.forEach((m) => dedupedMap.set(m.id, m));
     const deduped = Array.from(dedupedMap.values()).sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at));

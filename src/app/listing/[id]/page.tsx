@@ -62,6 +62,7 @@ export default function ListingPage() {
   const [sendingQuestion, setSendingQuestion] = useState(false);
   const [lastQuestionMs, setLastQuestionMs] = useState(0);
   const [comments, setComments] = useState<ListingComment[]>([]);
+  const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
   const [expandedMediaIndex, setExpandedMediaIndex] = useState<number | null>(null);
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const [showReportModal, setShowReportModal] = useState(false);
@@ -93,7 +94,7 @@ export default function ListingPage() {
     setHasJoined(!!mine && (mine.status || "approved") === "approved");
   }
 
-  async function loadComments(questId: string) {
+  async function loadComments(questId: string, blockedIds: string[] = []) {
     if (!supabase) return;
     const { data, error } = await supabase
       .from("messages")
@@ -106,7 +107,8 @@ export default function ListingPage() {
       setStatus(error.message);
       return;
     }
-    setComments((data || []) as ListingComment[]);
+    const rows = ((data || []) as ListingComment[]).filter((comment) => !blockedIds.includes(comment.sender_id));
+    setComments(rows);
   }
 
   useEffect(() => {
@@ -142,7 +144,15 @@ export default function ListingPage() {
       setListing(data || null);
       setStatus("");
 
+      let blocked: string[] = [];
       if (uid) {
+        const { data: blockRows } = await supabase
+          .from("friends")
+          .select("requester_id,addressee_id,status")
+          .eq("status", "blocked")
+          .or(`requester_id.eq.${uid},addressee_id.eq.${uid}`);
+        blocked = Array.from(new Set((blockRows || []).flatMap((r: { requester_id: string; addressee_id: string }) => [r.requester_id, r.addressee_id]).filter((id: string) => id !== uid)));
+        setBlockedUserIds(blocked);
         const { data: saved, error: savedErr } = await supabase
           .from("quest_bookmarks")
           .select("quest_id")
@@ -153,7 +163,7 @@ export default function ListingPage() {
       }
 
       await loadMembers(listingId, uid);
-      await loadComments(listingId);
+      await loadComments(listingId, blocked);
       if (uid) {
         const { data: accessRows } = await supabase
           .from("quest_exact_location_access")

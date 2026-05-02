@@ -30,6 +30,7 @@ export default function NotificationsPage() {
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [lastSeenAt, setLastSeenAt] = useState<string>("");
   const [activeFilters, setActiveFilters] = useState<Array<"messages" | "comments" | "joined" | "your_listings">>([]);
+  const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -48,17 +49,22 @@ export default function NotificationsPage() {
         return;
       }
 
-      const [{ data: myQuests }, { data: myMessages }, { data: joinedRows }] = await Promise.all([
+      const [{ data: myQuests }, { data: myMessages }, { data: joinedRows }, { data: blockRows }] = await Promise.all([
         supabase.from("quests").select("id,title,created_at").eq("creator_id", uid).order("created_at", { ascending: false }).limit(50),
         supabase.from("messages").select("id,quest_id,sender_id,body,created_at,quests(id,title,creator_id),profiles:profiles!messages_sender_id_fkey(id,display_name,avatar_url)").neq("sender_id", uid).order("created_at", { ascending: false }).limit(100),
         supabase.from("quest_members").select("quest_id,status,quests(title,city,availability)").eq("user_id", uid).in("status", ["pending", "approved"]).order("joined_at", { ascending: false }).limit(50),
+        supabase.from("friends").select("requester_id,addressee_id,status").eq("status", "blocked").or(`requester_id.eq.${uid},addressee_id.eq.${uid}`),
       ]);
+
+      const blocked = Array.from(new Set(((blockRows || []) as Array<{ requester_id: string; addressee_id: string }>).flatMap((r) => [r.requester_id, r.addressee_id]).filter((id) => id !== uid)));
+      setBlockedUserIds(blocked);
 
       const notifications: NotificationItem[] = [];
       (myMessages || []).forEach((row: any) => {
         const quest = Array.isArray(row.quests) ? row.quests[0] : row.quests;
         const sender = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
         const isPrivate = row.body?.startsWith("[PRIVATE");
+        if (blocked.includes(row.sender_id)) return;
         notifications.push({
           id: `msg-${row.id}`,
           kind: "message",
