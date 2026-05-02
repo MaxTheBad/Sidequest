@@ -6,6 +6,7 @@ import { getSupabaseClient } from "@/lib/supabase";
 import { isImageLikeFile, prepareImageForUpload } from "@/lib/media-optimize";
 
 type Tab = "profile" | "account" | "preferences";
+type BlockedProfile = { id: string; display_name: string | null; avatar_url: string | null };
 
 const FALLBACK_COUNTRIES = ["United States","Canada","United Kingdom","Australia","Brazil","India","Mexico","Germany","France","Spain","Italy","Portugal","Japan","South Korea","Argentina","Chile","Colombia","Netherlands","Belgium","Sweden","Norway","Denmark","Finland","Ireland","New Zealand","South Africa"];
 
@@ -45,6 +46,8 @@ export default function SettingsPage() {
   const [marketingOptIn, setMarketingOptIn] = useState(false);
   const [themePref, setThemePref] = useState<"auto" | "light" | "dark">("auto");
   const [publicLocationWarningEnabled, setPublicLocationWarningEnabled] = useState(true);
+  const [blockedProfiles, setBlockedProfiles] = useState<BlockedProfile[]>([]);
+  const [blockedRefreshTick, setBlockedRefreshTick] = useState(0);
 
   const countryOptions = useState(() => {
     try {
@@ -117,10 +120,26 @@ export default function SettingsPage() {
         const region = (navigator.language.split("-")[1] || "US").toUpperCase();
         if (region.length === 2) { setCountryCode(region); const m = countryOptions.find((c)=>c.code===region); if (m) setCountryQuery(m.name); }
       }
+
+      const { data: blockRows } = await supabase
+        .from("friends")
+        .select("requester_id,addressee_id,status")
+        .eq("status", "blocked")
+        .or(`requester_id.eq.${uid},addressee_id.eq.${uid}`);
+      const blockedIds = Array.from(new Set(((blockRows || []) as Array<{ requester_id: string; addressee_id: string }>).flatMap((r) => [r.requester_id, r.addressee_id]).filter((id) => id !== uid)));
+      if (blockedIds.length) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id,display_name,avatar_url")
+          .in("id", blockedIds);
+        setBlockedProfiles((profiles || []) as BlockedProfile[]);
+      } else {
+        setBlockedProfiles([]);
+      }
     };
 
     void run();
-  }, [supabase, countryOptions]);
+  }, [supabase, countryOptions, blockedRefreshTick]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -407,6 +426,17 @@ export default function SettingsPage() {
     setStatus("Onboarding reset. Refresh the home page or sign out and back in.");
   }
 
+  async function unblockProfile(targetId: string) {
+    if (!supabase || !userId) return;
+    const { error } = await supabase
+      .from("friends")
+      .delete()
+      .or(`and(requester_id.eq.${userId},addressee_id.eq.${targetId}),and(requester_id.eq.${targetId},addressee_id.eq.${userId})`);
+    if (error) return setStatus(error.message);
+    setStatus("User unblocked.");
+    setBlockedRefreshTick((x) => x + 1);
+  }
+
   return (
     <main className="min-h-screen bg-[#f6f7fb] p-4">
       <datalist id="country-list">{countryOptions.map((c) => <option key={c.code} value={c.name} />)}</datalist>
@@ -613,6 +643,37 @@ export default function SettingsPage() {
                   <input type="checkbox" checked={publicLocationWarningEnabled} onChange={(e) => setPublicLocationWarningEnabled(e.target.checked)} />
                   <span>Public location warning (recommended). Show confirmation before posting quests with public meetup visibility.</span>
                 </label>
+
+                <div className="rounded-xl border bg-gray-50 p-3 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-medium">Blocked users</p>
+                      <p className="text-xs text-gray-500">People you’ve blocked won’t appear in feeds or comments.</p>
+                    </div>
+                  </div>
+                  {blockedProfiles.length === 0 ? (
+                    <p className="text-sm text-gray-500">No blocked users.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {blockedProfiles.map((p) => (
+                        <div key={p.id} className="flex items-center justify-between gap-3 rounded-xl border bg-white px-3 py-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            {p.avatar_url ? (
+                              <img src={p.avatar_url} alt={p.display_name || "Blocked user"} className="h-8 w-8 rounded-full object-cover border" />
+                            ) : (
+                              <div className="h-8 w-8 rounded-full border bg-gray-100" />
+                            )}
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium truncate">{p.display_name || "Blocked user"}</p>
+                              <p className="text-xs text-gray-500 truncate">{p.id}</p>
+                            </div>
+                          </div>
+                          <button type="button" className="border rounded px-3 py-2 text-sm" onClick={() => void unblockProfile(p.id)}>Unblock</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
 
                 <button type="button" className="border rounded px-3 py-2 w-fit" onClick={() => void restartOnboarding()}>Restart onboarding</button>
                 <button className="border rounded px-3 py-2 w-fit">Save preferences</button>
