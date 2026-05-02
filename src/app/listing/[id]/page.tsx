@@ -335,6 +335,7 @@ export default function ListingPage() {
 
     await supabase.from("quest_members").delete().eq("quest_id", listing.id).eq("user_id", targetUserId);
     await supabase.from("quest_exact_location_access").delete().eq("quest_id", listing.id).eq("user_id", targetUserId);
+    setMembers((prev) => prev.filter((m) => m.user_id !== targetUserId));
     await loadMembers(listing.id, userId);
     await loadComments(listing.id, []);
     setBlockedUserIds((prev) => prev.includes(targetUserId) ? prev : [...prev, targetUserId]);
@@ -453,6 +454,9 @@ export default function ListingPage() {
     return Array.isArray(comment.profiles) ? (comment.profiles[0] || null) : comment.profiles;
   }
 
+  const visibleMembers = members.filter((m) => !blockedUserIds.includes(m.user_id));
+  const blockedMembers = members.filter((m) => blockedUserIds.includes(m.user_id));
+
   return (
     <main className="min-h-screen bg-[#f6f7fb] p-4">
       <div className="max-w-4xl mx-auto space-y-3">
@@ -510,18 +514,18 @@ export default function ListingPage() {
             )}
 
             <div className="rounded-xl border bg-gray-50 p-3">
-              <p className="text-sm font-medium mb-2">Joined members ({members.filter((m) => (m.status || "approved") === "approved").length})</p>
-              {members.some((m) => (m.status || "approved") === "approved" && (m.role === "creator" || m.role === "cohost")) && (
+              <p className="text-sm font-medium mb-2">Joined members ({visibleMembers.filter((m) => (m.status || "approved") === "approved").length})</p>
+              {visibleMembers.some((m) => (m.status || "approved") === "approved" && (m.role === "creator" || m.role === "cohost")) && (
                 <div className="mb-2 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-800">
-                  ⭐ Hosts: {members
+                  ⭐ Hosts: {visibleMembers
                     .filter((m) => (m.status || "approved") === "approved" && (m.role === "creator" || m.role === "cohost"))
                     .map((m) => (memberProfileOf(m)?.display_name || "Host").trim().split(/\s+/)[0] || "Host")
                     .join(", ")}
                 </div>
               )}
-              {members.length ? (
+              {visibleMembers.length ? (
                 <div className="space-y-2">
-                  {members.filter((m) => (m.status || "approved") === "approved").map((m) => {
+                  {visibleMembers.filter((m) => (m.status || "approved") === "approved").map((m) => {
                     const p = memberProfileOf(m);
                     const firstName = (p?.display_name || "Member").trim().split(/\s+/)[0] || "Member";
                     const hasExactAccess = exactAccessUserIds.includes(m.user_id);
@@ -616,9 +620,20 @@ export default function ListingPage() {
                       </div>
                     </div>
                   )}
-                  {members.some((m) => blockedUserIds.includes(m.user_id)) && (
+                  {blockedMembers.length > 0 && (
                     <div className="pt-2 border-t">
                       <p className="text-xs font-medium mb-2 text-red-700">Blocked users are present in this quest.</p>
+                      <div className="flex flex-wrap gap-2">
+                        {blockedMembers.map((m) => {
+                          const p = memberProfileOf(m);
+                          const firstName = (p?.display_name || "Member").trim().split(/\s+/)[0] || "Member";
+                          return (
+                            <span key={`blocked-${m.user_id}`} className="text-xs px-2 py-1 rounded-full border bg-red-50 text-red-700">
+                              {firstName} · Blocked
+                            </span>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
                 </div>
