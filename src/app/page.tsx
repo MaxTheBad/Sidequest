@@ -251,6 +251,7 @@ export default function Home() {
   const [membershipStatusByQuest, setMembershipStatusByQuest] = useState<Record<string, "pending" | "approved" | "declined">>({});
   const [feedMediaIndexByQuest, setFeedMediaIndexByQuest] = useState<Record<string, number>>({});
   const [openCardMenuQuestId, setOpenCardMenuQuestId] = useState<string | null>(null);
+  const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
   const [showSavedOnly, setShowSavedOnly] = useState(false);
   const [hobbyFilter, setHobbyFilter] = useState("all");
   const [loading, setLoading] = useState(false);
@@ -583,6 +584,17 @@ export default function Home() {
   async function loadQuests() {
     if (!supabase) return;
     setLoading(true);
+    const { data: auth } = await supabase.auth.getSession();
+    const uid = auth.session?.user?.id ?? userId ?? null;
+    if (uid) {
+      const { data: blockRows } = await supabase
+        .from("friends")
+        .select("requester_id,addressee_id,status")
+        .eq("status", "blocked")
+        .or(`requester_id.eq.${uid},addressee_id.eq.${uid}`);
+      const blocked = Array.from(new Set(((blockRows || []) as Array<{ requester_id: string; addressee_id: string }>).flatMap((r) => [r.requester_id, r.addressee_id]).filter((id) => id !== uid)));
+      setBlockedUserIds(blocked);
+    }
     let q = supabase.from("quests").select("id,creator_id,title,description,city,skill_level,group_size,availability,hobby_id,join_mode,exact_location_visibility,exact_address,media_video_url,media_source,media_items,hobbies(name),profiles:profiles!quests_creator_id_fkey(id,display_name,avatar_url)").order("created_at", { ascending: false }).limit(24);
       const filterCategoryName = getFilterCategoryName(hobbyFilter);
       if (hobbyFilter !== "all") {
@@ -613,7 +625,7 @@ export default function Home() {
 
     setLoading(false);
     if (error) return setStatus(error.message);
-    setQuests(data || []);
+    setQuests((data || []).filter((quest) => !blockedUserIds.includes(quest.creator_id)));
   }
 
   async function signInWithPassword(e: FormEvent) {
@@ -1814,9 +1826,10 @@ export default function Home() {
   }
 
   const filteredQuests = useMemo(() => {
-    if (!showSavedOnly) return quests;
-    return quests.filter((q) => bookmarkedQuestIds.includes(q.id));
-  }, [quests, showSavedOnly, bookmarkedQuestIds]);
+    const visible = quests.filter((q) => !blockedUserIds.includes(q.creator_id));
+    if (!showSavedOnly) return visible;
+    return visible.filter((q) => bookmarkedQuestIds.includes(q.id));
+  }, [quests, showSavedOnly, bookmarkedQuestIds, blockedUserIds]);
 
   const surprisePick = useMemo(() => (filteredQuests.length ? filteredQuests[Math.floor(Math.random() * filteredQuests.length)] : null), [filteredQuests]);
   const editingQuest = useMemo(() => quests.find((q) => q.id === editingQuestId) || null, [quests, editingQuestId]);
@@ -1929,7 +1942,7 @@ export default function Home() {
                         </button>
                       )}
                       {userId !== q.creator_id && (
-                        <button className="block w-full text-left px-3 py-2 text-sm hover:bg-gray-50" onClick={() => { setOpenCardMenuQuestId(null); openReportModal(q); }}>
+                        <button className="block w-full text-left px-3 py-2 text-sm text-red-700 hover:bg-red-50" onClick={() => { setOpenCardMenuQuestId(null); openReportModal(q); }}>
                           Report listing
                         </button>
                       )}
@@ -1981,17 +1994,17 @@ export default function Home() {
 
               <div className="p-3 sm:p-4 space-y-3">
                 <div className="flex flex-wrap items-center gap-2">
-                  {userId !== q.creator_id && (
-                    <>
+                  <>
+                    {userId !== q.creator_id && (
                       <button className="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800" onClick={() => void toggleJoinQuest(q.id)}>{membershipStatusByQuest[q.id] === "pending" ? "Cancel request" : (membershipStatusByQuest[q.id] === "declined" ? "Request again" : (joinedQuestIds.includes(q.id) ? "Leave" : ((q.join_mode || "open") === "approval_required" ? "Request to join" : "Join")))}</button>
-                      <button className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50" onClick={() => {
-                        void askQuestion(q, "public");
-                      }}>Comment</button>
-                      <button className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50" onClick={() => {
-                        void askQuestion(q, "private");
-                      }}>DM</button>
-                    </>
-                  )}
+                    )}
+                    <button className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50" onClick={() => {
+                      void askQuestion(q, "public");
+                    }}>Comment</button>
+                    <button className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50" onClick={() => {
+                      void askQuestion(q, "private");
+                    }}>DM</button>
+                  </>
                   <button className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50" onClick={() => void toggleBookmark(q.id)}>
                     {bookmarkedQuestIds.includes(q.id) ? "★ Saved" : "☆ Save"}
                   </button>

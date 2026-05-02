@@ -632,10 +632,7 @@ export default function ListingPage() {
             <div className="pt-2 flex gap-2 flex-wrap">
               {!isOwner ? (
                 <>
-                  <button className="border rounded px-3 py-2" onClick={() => void toggleJoin()}>{myMembershipStatus === "pending" ? "Cancel request" : (myMembershipStatus === "declined" ? "Request again" : (hasJoined ? "Leave" : ((listing.join_mode || "open") === "approval_required" ? "Request to join" : "Join")))}</button>
-                  <button className="border rounded px-3 py-2" onClick={() => void askQuestion("public")}>Comment</button>
-                  <button className="border rounded px-3 py-2" onClick={() => void askQuestion("private")}>DM</button>
-                  <button className="border rounded px-3 py-2" onClick={() => void toggleSave()}>{isSaved ? "★ Saved" : "☆ Save"}</button>
+                  <button className="border rounded px-3 py-2 bg-slate-900 text-white" onClick={() => void toggleJoin()}>{myMembershipStatus === "pending" ? "Cancel request" : (myMembershipStatus === "declined" ? "Request again" : (hasJoined ? "Leave" : ((listing.join_mode || "open") === "approval_required" ? "Request to join" : "Join")))}</button>
                 </>
               ) : (
                 <>
@@ -644,6 +641,9 @@ export default function ListingPage() {
                   <button className="border border-red-300 text-red-700 rounded px-3 py-2" onClick={() => void deleteListing()}>Delete listing</button>
                 </>
               )}
+              <button className="border rounded px-3 py-2" onClick={() => void askQuestion("public")}>Comment</button>
+              <button className="border rounded px-3 py-2" onClick={() => void askQuestion("private")}>DM</button>
+              <button className="border rounded px-3 py-2" onClick={() => void toggleSave()}>{isSaved ? "★ Saved" : "☆ Save"}</button>
             </div>
 
             {status && <p className="text-xs text-gray-600">{status}</p>}

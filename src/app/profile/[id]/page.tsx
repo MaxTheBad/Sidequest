@@ -345,11 +345,11 @@ export default function ProfilePage() {
                             : "Add friend"}
                     </button>
                     {blockEdge ? (
-                      <button className="border rounded px-3 py-2" onClick={() => void unblockUser()}>Unblock</button>
+                      <button className="border rounded px-3 py-2 text-red-700 border-red-300 bg-red-50" onClick={() => void unblockUser()}>Unblock</button>
                     ) : (
-                      <button className="border rounded px-3 py-2" onClick={() => void blockUser()}>Block</button>
+                      <button className="border rounded px-3 py-2 text-red-700 border-red-300 bg-red-50" onClick={() => void blockUser()}>Block</button>
                     )}
-                    <button className="border rounded px-3 py-2" onClick={() => setShowReportModal(true)}>Report</button>
+                    <button className="border rounded px-3 py-2 text-red-700 border-red-300 bg-red-50" onClick={() => setShowReportModal(true)}>Report</button>
                   </>
                 )}
               </div>
