@@ -1990,7 +1990,7 @@ export default function Home() {
 
       {showOnboardingWizard && (
         <div className="fixed inset-0 z-[120] bg-black/55 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-2xl rounded-3xl bg-white border shadow-lg p-5 space-y-5">
+          <div className="w-full max-w-2xl max-h-[92vh] overflow-y-auto rounded-3xl bg-white border shadow-lg p-5 space-y-5">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Welcome to Side Quest</p>
@@ -2099,14 +2099,17 @@ export default function Home() {
                   <label className="text-sm font-medium">Add a profile photo</label>
                   <p className="text-xs text-gray-500">This helps people recognize you faster.</p>
                 </div>
-                <div className="h-2 w-full rounded-full bg-gray-100 overflow-hidden">
-                  <div className="h-full rounded-full bg-black transition-all" style={{ width: onboardingPhotoFile ? "100%" : "42%" }} />
+                <div className="flex items-center gap-3">
+                  <div className="h-2 flex-1 rounded-full bg-gray-100 overflow-hidden">
+                    <div className="h-full rounded-full bg-black transition-all" style={{ width: onboardingPhotoFile ? "100%" : "42%" }} />
+                  </div>
+                  <span className="text-xs text-gray-500 whitespace-nowrap">{onboardingPhotoFile ? "Ready" : "Optional"}</span>
                 </div>
                 <input
                   type="file"
                   accept="image/*"
                   capture="user"
-                  className="border rounded-xl px-3 py-2.5 bg-white"
+                  className="border rounded-xl px-3 py-2 bg-white text-sm"
                   onChange={(e) => {
                     const picked = e.target.files?.[0] ?? null;
                     if (!picked) return;
@@ -2116,9 +2119,9 @@ export default function Home() {
                   }}
                 />
                 {onboardingPhotoPreviewUrl && (
-                  <div className="grid gap-3">
+                  <div className="grid gap-2">
                     <div
-                      className="relative aspect-square w-full overflow-hidden rounded-3xl border bg-black touch-none"
+                      className="relative h-48 sm:h-56 w-full overflow-hidden rounded-3xl border bg-black touch-none"
                       onPointerDown={(e) => {
                         (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
                         setOnboardingPhotoDragging(true);
@@ -2162,7 +2165,7 @@ export default function Home() {
               </div>
             )}
 
-            <div className="flex items-center justify-between gap-3 pt-2">
+            <div className="sticky bottom-0 -mx-5 px-5 pt-3 pb-1 bg-white/95 backdrop-blur flex items-center justify-between gap-3 border-t">
               <button
                 type="button"
                 className="border rounded-full px-4 py-2"
