@@ -69,7 +69,7 @@ export default function GlobalTopBar() {
       ]);
 
       const messageCount = ((myMessages || []) as Array<{ created_at: string }>).filter((row) => !lastSeen || new Date(row.created_at).getTime() > lastSeen).length;
-      const joinCount = ((joinedRows || []) as Array<{ joined_at?: string | null; status?: string | null }>).filter((row) => row.status === "pending" || row.status === "approved").filter((row) => !lastSeen || new Date(row.joined_at || row.joined_at || new Date().toISOString()).getTime() > lastSeen).length;
+      const joinCount = ((joinedRows || []) as Array<{ joined_at?: string | null; status?: string | null }>).filter((row) => row.status === "pending" || row.status === "approved").filter((row) => !lastSeen || new Date(row.joined_at || new Date().toISOString()).getTime() > lastSeen).length;
       setNotificationCount(messageCount + joinCount);
     };
     void run();

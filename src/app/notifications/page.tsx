@@ -101,6 +101,13 @@ export default function NotificationsPage() {
     return items.filter((item) => new Date(item.created_at).getTime() > lastSeen).length;
   }, [items, lastSeenAt]);
 
+  const grouped = useMemo(() => {
+    const messages = items.filter((item) => item.kind === "message");
+    const joins = items.filter((item) => item.kind === "join_request" || item.kind === "approval");
+    const creations = items.filter((item) => item.kind === "created");
+    return { messages, joins, creations };
+  }, [items]);
+
   function markSeen() {
     if (typeof window === "undefined") return;
     const now = new Date().toISOString();
@@ -130,19 +137,81 @@ export default function NotificationsPage() {
         ) : items.length === 0 ? (
           <p className="text-sm text-gray-500">No recent activity yet.</p>
         ) : (
-          <div className="grid gap-3">
-            {items.map((item) => (
-              <Link key={item.id} href={item.href} className="block rounded-2xl border px-4 py-3 hover:bg-gray-50">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-[11px] uppercase tracking-[0.2em] text-gray-500">{item.badge}</p>
-                    <p className="text-sm font-semibold mt-1">{item.title}</p>
-                    <p className="text-sm text-gray-600">{item.body}</p>
-                  </div>
-                  <span className="text-[11px] text-gray-500 whitespace-nowrap">{new Date(item.created_at).toLocaleString()}</span>
+          <div className="grid gap-5">
+            <section className="space-y-2">
+              <div className="flex items-center justify-between">
+                <h2 className="font-semibold">Messages from people</h2>
+                <span className="text-xs text-gray-500">{grouped.messages.length}</span>
+              </div>
+              {grouped.messages.length === 0 ? (
+                <p className="text-sm text-gray-500">No new messages from other people.</p>
+              ) : (
+                <div className="grid gap-3">
+                  {grouped.messages.map((item) => (
+                    <Link key={item.id} href={item.href} className="block rounded-2xl border px-4 py-3 hover:bg-gray-50">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-[11px] uppercase tracking-[0.2em] text-gray-500">{item.badge}</p>
+                          <p className="text-sm font-semibold mt-1">{item.title}</p>
+                          <p className="text-sm text-gray-600">{item.body}</p>
+                        </div>
+                        <span className="text-[11px] text-gray-500 whitespace-nowrap">{new Date(item.created_at).toLocaleString()}</span>
+                      </div>
+                    </Link>
+                  ))}
                 </div>
-              </Link>
-            ))}
+              )}
+            </section>
+
+            <section className="space-y-2">
+              <div className="flex items-center justify-between">
+                <h2 className="font-semibold">Join activity</h2>
+                <span className="text-xs text-gray-500">{grouped.joins.length}</span>
+              </div>
+              {grouped.joins.length === 0 ? (
+                <p className="text-sm text-gray-500">No join requests or approvals yet.</p>
+              ) : (
+                <div className="grid gap-3">
+                  {grouped.joins.map((item) => (
+                    <Link key={item.id} href={item.href} className="block rounded-2xl border px-4 py-3 hover:bg-gray-50">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-[11px] uppercase tracking-[0.2em] text-gray-500">{item.badge}</p>
+                          <p className="text-sm font-semibold mt-1">{item.title}</p>
+                          <p className="text-sm text-gray-600">{item.body}</p>
+                        </div>
+                        <span className="text-[11px] text-gray-500 whitespace-nowrap">{new Date(item.created_at).toLocaleString()}</span>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <section className="space-y-2">
+              <div className="flex items-center justify-between">
+                <h2 className="font-semibold">Your listings</h2>
+                <span className="text-xs text-gray-500">{grouped.creations.length}</span>
+              </div>
+              {grouped.creations.length === 0 ? (
+                <p className="text-sm text-gray-500">No listings created yet.</p>
+              ) : (
+                <div className="grid gap-3">
+                  {grouped.creations.map((item) => (
+                    <Link key={item.id} href={item.href} className="block rounded-2xl border px-4 py-3 hover:bg-gray-50">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-[11px] uppercase tracking-[0.2em] text-gray-500">{item.badge}</p>
+                          <p className="text-sm font-semibold mt-1">{item.title}</p>
+                          <p className="text-sm text-gray-600">{item.body}</p>
+                        </div>
+                        <span className="text-[11px] text-gray-500 whitespace-nowrap">{new Date(item.created_at).toLocaleString()}</span>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </section>
           </div>
         )}
       </section>
