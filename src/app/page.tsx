@@ -1897,7 +1897,7 @@ export default function Home() {
             const fallbackVisual = getCategoryFallbackVisual(q.hobbies?.[0]?.name);
 
             return (
-            <article key={q.id} className="quest-card w-full rounded-3xl bg-white border shadow-sm overflow-hidden">
+            <article key={q.id} className="quest-card w-full rounded-[2rem] bg-white border border-slate-200 shadow-[0_14px_40px_rgba(15,23,42,0.08)] overflow-hidden">
               <div className="p-3 flex items-center justify-between gap-2">
                 <Link href={`/profile/${q.creator_id}`} className="flex items-center gap-2 min-w-0">
                   {creatorProfile?.avatar_url ? (
@@ -1945,9 +1945,9 @@ export default function Home() {
                       <div key={`${m.url}-${i}`} className="w-full shrink-0 snap-start bg-black">
                         <button type="button" className="w-full block" onClick={() => setExpandedMedia({ items: feedMediaItems, index: i })}>
                           {m.type === "image" ? (
-                            <img src={m.url} alt={m.label || "Listing media"} className="w-full h-[32vh] sm:h-[40vh] lg:h-[28vw] max-h-[420px] object-cover" />
+                            <img src={m.url} alt={m.label || "Listing media"} className="w-full h-[24vh] sm:h-[28vh] lg:h-[22vw] max-h-[340px] object-cover" />
                           ) : (
-                            <video src={m.url} className="w-full h-[32vh] sm:h-[40vh] lg:h-[28vw] max-h-[420px] object-cover" preload="metadata" muted playsInline />
+                            <video src={m.url} className="w-full h-[24vh] sm:h-[28vh] lg:h-[22vw] max-h-[340px] object-cover" preload="metadata" muted playsInline />
                           )}
                         </button>
                       </div>
@@ -1962,43 +1962,55 @@ export default function Home() {
                   )}
                 </div>
               ) : (
-                <div className="h-[30vh] sm:h-[36vh] lg:h-[28vw] max-h-[420px] border-y grid place-items-center" style={{ background: fallbackVisual.gradient }}>
-                  <div className="text-center px-6">
-                    <div className="mx-auto h-14 w-14 rounded-full border bg-white grid place-items-center text-xl">{fallbackVisual.emoji}</div>
-                    <p className="mt-3 text-sm font-semibold">{fallbackVisual.title}</p>
-                    <p className="text-xs text-gray-500">{fallbackVisual.note}</p>
+                <div className="relative h-[24vh] sm:h-[28vh] lg:h-[22vw] max-h-[340px] border-y grid place-items-center overflow-hidden" style={{ background: fallbackVisual.gradient }}>
+                  <div className="absolute inset-0 opacity-50" style={{ background: "radial-gradient(circle at top, rgba(255,255,255,0.9), transparent 55%)" }} />
+                  <div className="relative text-center px-6 max-w-sm">
+                    <div className="mx-auto h-12 w-12 rounded-2xl border bg-white/90 shadow-sm grid place-items-center text-xl">{fallbackVisual.emoji}</div>
+                    <p className="mt-3 text-sm font-semibold text-slate-900">{fallbackVisual.title}</p>
+                    <p className="text-xs text-slate-500">{fallbackVisual.note}</p>
                   </div>
                 </div>
               )}
 
-              <div className="p-3 space-y-2">
-                <div className="flex gap-2 flex-wrap">
+              <div className="p-3 sm:p-4 space-y-3">
+                <div className="flex flex-wrap items-center gap-2">
                   {userId !== q.creator_id && (
                     <>
-                      <button className="border rounded-full px-3 py-2" onClick={() => void toggleJoinQuest(q.id)}>{membershipStatusByQuest[q.id] === "pending" ? "Cancel request" : (membershipStatusByQuest[q.id] === "declined" ? "Request again" : (joinedQuestIds.includes(q.id) ? "Leave" : ((q.join_mode || "open") === "approval_required" ? "Request to join" : "Join")))}</button>
-                      <button className="border rounded-full px-3 py-2" onClick={() => {
+                      <button className="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800" onClick={() => void toggleJoinQuest(q.id)}>{membershipStatusByQuest[q.id] === "pending" ? "Cancel request" : (membershipStatusByQuest[q.id] === "declined" ? "Request again" : (joinedQuestIds.includes(q.id) ? "Leave" : ((q.join_mode || "open") === "approval_required" ? "Request to join" : "Join")))}</button>
+                      <button className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50" onClick={() => {
                         setQuestionMode("public");
                         void askQuestion(q);
                       }}>Comment</button>
-                      <button className="border rounded-full px-3 py-2" onClick={() => {
+                      <button className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50" onClick={() => {
                         setQuestionMode("private");
                         void askQuestion(q);
                       }}>DM</button>
                     </>
                   )}
-                  <button className="border rounded-full px-3 py-2" onClick={() => void toggleBookmark(q.id)}>
+                  <button className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50" onClick={() => void toggleBookmark(q.id)}>
                     {bookmarkedQuestIds.includes(q.id) ? "★ Saved" : "☆ Save"}
                   </button>
                 </div>
 
-                <h3 className="font-semibold text-lg leading-tight">
-                  <Link href={`/listing/${q.id}`} className="underline decoration-2 underline-offset-2" title="Open listing">
-                    {q.title} <span className="text-sm text-gray-500">↗ View listing</span>
-                  </Link>
-                </h3>
-                <p className="text-xs text-gray-500">{q.hobbies?.[0]?.name || "Hobby"} · {(q.skill_level || "all levels")} · group {q.group_size > 0 ? q.group_size : "any"}</p>
-                {q.description ? <p className="text-sm">{q.description}</p> : null}
-                <p className="text-xs text-gray-500">{q.city || deriveCityFromLocation(q.exact_address || "") || "city tbd"} · {q.availability || "availability tbd"}</p>
+                <div className="space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <h3 className="text-lg font-semibold leading-tight tracking-tight">
+                      <Link href={`/listing/${q.id}`} className="underline decoration-2 underline-offset-2" title="Open listing">
+                        {q.title}
+                      </Link>
+                    </h3>
+                    <Link href={`/listing/${q.id}`} className="text-xs font-medium text-slate-500 whitespace-nowrap pt-1">
+                      View listing ↗
+                    </Link>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-700">{q.hobbies?.[0]?.name || "Hobby"}</span>
+                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-700">{q.skill_level || "all levels"}</span>
+                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-700">group {q.group_size > 0 ? q.group_size : "any"}</span>
+                  </div>
+                  {q.description ? <p className="text-sm text-slate-700 leading-relaxed line-clamp-2">{q.description}</p> : null}
+                  <p className="text-xs text-slate-500">{q.city || deriveCityFromLocation(q.exact_address || "") || "city tbd"} · {q.availability || "availability tbd"}</p>
+                </div>
               </div>
             </article>
           );
