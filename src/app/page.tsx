@@ -233,6 +233,7 @@ export default function Home() {
   const [onboardingInterestIds, setOnboardingInterestIds] = useState<string[]>([]);
   const [onboardingSaving, setOnboardingSaving] = useState(false);
   const [onboardingDone, setOnboardingDone] = useState(false);
+  const [onboardingCitySuggestions, setOnboardingCitySuggestions] = useState<string[]>([]);
 
   const [hobbies, setHobbies] = useState<Hobby[]>([]);
   const [quests, setQuests] = useState<Quest[]>([]);
@@ -357,6 +358,28 @@ export default function Home() {
     const ts = raw ? Number(raw) : 0;
     if (Number.isFinite(ts) && ts > 0) publicWarningMutedUntilRef.current = ts;
   }, []);
+
+  useEffect(() => {
+    const q = onboardingCity.trim();
+    if (q.length < 2) {
+      setOnboardingCitySuggestions([]);
+      return;
+    }
+
+    const t = setTimeout(async () => {
+      try {
+        const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=5&language=en&format=json${countryCode ? `&countryCode=${countryCode.toLowerCase()}` : ""}`;
+        const res = await fetch(url);
+        const json = (await res.json()) as { results?: Array<{ name: string; admin1?: string; country?: string }> };
+        const suggestions = (json.results || []).map((r) => [r.name, r.admin1, r.country].filter(Boolean).join(", "));
+        setOnboardingCitySuggestions(suggestions);
+      } catch {
+        setOnboardingCitySuggestions([]);
+      }
+    }, 250);
+
+    return () => clearTimeout(t);
+  }, [onboardingCity, countryCode]);
 
   function resolveCountryCodeByName(name: string) {
     const found = countryOptions.find((c) => c.name.toLowerCase() === name.trim().toLowerCase());
@@ -717,6 +740,11 @@ export default function Home() {
   async function maybeShowOnboarding(uid: string | null, emailValue?: string | null) {
     if (!supabase || !uid) return;
     await loadOnboardingState(uid, emailValue);
+    if (typeof window !== "undefined" && window.localStorage.getItem("sidequest_onboarding_done") === "1") {
+      setOnboardingDone(true);
+      setShowOnboardingWizard(false);
+      return;
+    }
     const { data: profile } = await supabase
       .from("profiles")
       .select("onboarding_done")
@@ -762,12 +790,20 @@ export default function Home() {
         },
       });
 
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem("sidequest_onboarding_done", "1");
+      }
       setOnboardingDone(true);
       setShowOnboardingWizard(false);
       setStatus("Onboarding saved ✅");
       await loadQuests();
     } catch (err) {
-      setStatus(err instanceof Error ? err.message : "Could not save onboarding.");
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem("sidequest_onboarding_done", "1");
+      }
+      setOnboardingDone(true);
+      setShowOnboardingWizard(false);
+      setStatus(err instanceof Error ? `${err.message} (saved locally; DB migration may still be needed)` : "Could not save onboarding.");
     } finally {
       setOnboardingSaving(false);
     }
@@ -779,11 +815,19 @@ export default function Home() {
     try {
       const { error } = await supabase.from("profiles").upsert({ id: userId, onboarding_done: true });
       if (error) throw error;
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem("sidequest_onboarding_done", "1");
+      }
       setOnboardingDone(true);
       setShowOnboardingWizard(false);
       setStatus("You can finish setup later in Settings.");
     } catch (err) {
-      setStatus(err instanceof Error ? err.message : "Could not skip onboarding.");
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem("sidequest_onboarding_done", "1");
+      }
+      setOnboardingDone(true);
+      setShowOnboardingWizard(false);
+      setStatus(err instanceof Error ? `${err.message} (skipped locally; DB migration may still be needed)` : "Could not skip onboarding.");
     } finally {
       setOnboardingSaving(false);
     }
@@ -1882,6 +1926,23 @@ export default function Home() {
                 <input className="border rounded-xl px-3 py-2.5" value={onboardingDisplayName} onChange={(e) => setOnboardingDisplayName(e.target.value)} placeholder="How people should see you" />
                 <label className="text-sm font-medium">City</label>
                 <input className="border rounded-xl px-3 py-2.5" value={onboardingCity} onChange={(e) => setOnboardingCity(e.target.value)} placeholder="Where are you based?" />
+                {onboardingCitySuggestions.length > 0 && (
+                  <div className="rounded-2xl border bg-gray-50 overflow-hidden">
+                    {onboardingCitySuggestions.map((suggestion) => (
+                      <button
+                        key={suggestion}
+                        type="button"
+                        className="block w-full text-left px-3 py-2 text-sm hover:bg-gray-100"
+                        onClick={() => {
+                          setOnboardingCity(suggestion);
+                          setOnboardingCitySuggestions([]);
+                        }}
+                      >
+                        {suggestion}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
