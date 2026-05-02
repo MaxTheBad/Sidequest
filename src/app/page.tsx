@@ -236,6 +236,7 @@ export default function Home() {
   const [onboardingCitySuggestions, setOnboardingCitySuggestions] = useState<string[]>([]);
   const [onboardingPhotoFile, setOnboardingPhotoFile] = useState<File | null>(null);
   const [onboardingPhotoPreviewUrl, setOnboardingPhotoPreviewUrl] = useState("");
+  const [onboardingExistingAvatarUrl, setOnboardingExistingAvatarUrl] = useState("");
   const [onboardingPhotoZoom, setOnboardingPhotoZoom] = useState(1.2);
   const [onboardingPhotoOffsetX, setOnboardingPhotoOffsetX] = useState(0);
   const [onboardingPhotoOffsetY, setOnboardingPhotoOffsetY] = useState(0);
@@ -309,6 +310,7 @@ export default function Home() {
     setOnboardingPhotoFile(null);
     if (onboardingPhotoPreviewUrl) URL.revokeObjectURL(onboardingPhotoPreviewUrl);
     setOnboardingPhotoPreviewUrl("");
+    setOnboardingExistingAvatarUrl("");
     setOnboardingPhotoZoom(1.2);
     setOnboardingPhotoOffsetX(0);
     setOnboardingPhotoOffsetY(0);
@@ -759,6 +761,7 @@ export default function Home() {
     setOnboardingBio(profile?.bio || "");
     setOnboardingInterestIds(savedHobbyIds);
     setOnboardingDone(Boolean(profile?.onboarding_done));
+    setOnboardingExistingAvatarUrl((profile as { avatar_url?: string | null } | null)?.avatar_url || "");
   }
 
   async function maybeShowOnboarding(uid: string | null, emailValue?: string | null) {
@@ -2101,10 +2104,18 @@ export default function Home() {
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="h-2 flex-1 rounded-full bg-gray-100 overflow-hidden">
-                    <div className="h-full rounded-full bg-black transition-all" style={{ width: onboardingPhotoFile ? "100%" : "42%" }} />
+                    <div className="h-full rounded-full bg-black transition-all" style={{ width: onboardingPhotoFile || onboardingExistingAvatarUrl ? "100%" : "42%" }} />
                   </div>
-                  <span className="text-xs text-gray-500 whitespace-nowrap">{onboardingPhotoFile ? "Ready" : "Optional"}</span>
+                  <span className="text-xs text-gray-500 whitespace-nowrap">{onboardingPhotoFile || onboardingExistingAvatarUrl ? "Ready" : "Optional"}</span>
                 </div>
+                {onboardingExistingAvatarUrl && !onboardingPhotoPreviewUrl ? (
+                  <div className="grid gap-2">
+                    <p className="text-xs text-gray-500">Current photo</p>
+                    <div className="h-40 w-40 rounded-3xl border overflow-hidden bg-gray-50">
+                      <img src={onboardingExistingAvatarUrl} alt="Current profile photo" className="h-full w-full object-cover" />
+                    </div>
+                  </div>
+                ) : null}
                 <input
                   type="file"
                   accept="image/*"
@@ -2118,8 +2129,9 @@ export default function Home() {
                     setOnboardingPhotoPreviewUrl(URL.createObjectURL(picked));
                   }}
                 />
-                {onboardingPhotoPreviewUrl && (
+                {(onboardingPhotoPreviewUrl || onboardingExistingAvatarUrl) && (
                   <div className="grid gap-2">
+                    <p className="text-xs text-gray-500">{onboardingPhotoPreviewUrl ? "Selected preview" : "Preview from your profile"}</p>
                     <div
                       className="relative h-48 sm:h-56 w-full overflow-hidden rounded-3xl border bg-black touch-none"
                       onPointerDown={(e) => {
@@ -2141,7 +2153,7 @@ export default function Home() {
                       }}
                     >
                       <img
-                        src={onboardingPhotoPreviewUrl}
+                        src={onboardingPhotoPreviewUrl || onboardingExistingAvatarUrl}
                         alt="Onboarding preview"
                         className="absolute inset-0 h-full w-full object-cover"
                         style={{
@@ -2176,7 +2188,7 @@ export default function Home() {
               </button>
               <div className="flex items-center gap-2">
                 <span className="text-xs text-gray-500">
-                  Step {onboardingStep + 1} of 3
+                  Step {onboardingStep + 1} of 4
                 </span>
                 {onboardingStep < 3 ? (
                   <button
