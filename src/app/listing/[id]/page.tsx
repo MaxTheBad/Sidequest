@@ -309,7 +309,6 @@ export default function ListingPage() {
 
   function askQuestion(mode: "public" | "private" = "public") {
     if (!supabase || !userId || !listing) return setStatus("Log in to comment or message listing owners.");
-    if (listing.creator_id === userId) return setStatus("You can’t comment on your own listing from this button.");
     setQuestionMode(mode);
     setQuestionText("");
     setShowQuestionModal(true);

@@ -1632,10 +1632,6 @@ export default function Home() {
       setStatus("Log in to message listing owners.");
       return;
     }
-    if (userId === quest.creator_id) {
-      setStatus("You can't ask a question on your own listing.");
-      return;
-    }
 
     setQuestionTarget(quest);
     setQuestionMode(mode);
