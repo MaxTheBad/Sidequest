@@ -629,9 +629,9 @@ export default function SettingsPage() {
               <h3 className="font-semibold">Adjust profile photo</h3>
               <button className="border rounded px-2 py-1" onClick={() => setShowPhotoCropper(false)}>Done</button>
             </div>
-            <p className="text-xs text-gray-600">Drag photo with your finger to position it.</p>
+            <p className="text-xs text-gray-600">Drag the photo in the circle to reposition it. Use zoom for framing. We keep the original upload so you can crop again later.</p>
             <div
-              className="h-64 w-64 rounded-full overflow-hidden border mx-auto bg-black/5 touch-none"
+              className="relative h-64 w-64 rounded-full overflow-hidden border mx-auto bg-black/5 touch-none cursor-grab active:cursor-grabbing"
               onPointerDown={onCropPointerDown}
               onPointerMove={onCropPointerMove}
               onPointerUp={onCropPointerUp}
@@ -642,8 +642,9 @@ export default function SettingsPage() {
                 alt="Crop preview"
                 className="h-full w-full object-cover select-none"
                 draggable={false}
-                style={{ transform: `translate(${cropOffsetX}px, ${cropOffsetY}px) scale(${cropZoom})` }}
+                style={{ transform: `translate(${cropOffsetX}px, ${cropOffsetY}px) scale(${cropZoom})`, transformOrigin: "center center" }}
               />
+              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/55 to-transparent px-3 py-2 text-[11px] text-white">Drag to reposition</div>
             </div>
             <label className="text-xs">Zoom</label>
             <input type="range" min={1} max={3} step={0.05} value={cropZoom} onChange={(e) => setCropZoom(Number(e.target.value))} />

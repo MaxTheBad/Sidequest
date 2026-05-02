@@ -2147,8 +2147,8 @@ export default function Home() {
                   <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_136px] lg:items-start">
                     <div className="grid gap-2">
                       <p className="text-xs text-gray-500">{onboardingPhotoPreviewUrl ? "Selected preview" : "Preview from your profile"}</p>
-                      <div
-                        className="relative h-44 sm:h-52 w-full overflow-hidden rounded-3xl border bg-black touch-none"
+                    <div
+                        className="relative h-44 sm:h-52 w-full overflow-hidden rounded-3xl border bg-black touch-none cursor-grab active:cursor-grabbing"
                         onPointerDown={(e) => {
                           (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
                           setOnboardingPhotoDragging(true);
@@ -2176,6 +2176,9 @@ export default function Home() {
                             transformOrigin: "center center",
                           }}
                         />
+                        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/55 to-transparent px-3 py-2 text-[11px] text-white">
+                          Drag to reposition
+                        </div>
                       </div>
                       <input
                         type="range"
