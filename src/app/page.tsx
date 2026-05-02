@@ -294,6 +294,10 @@ export default function Home() {
   const locationVisibilityRef = useRef<HTMLDivElement | null>(null);
   const createQuestFormRef = useRef<HTMLFormElement | null>(null);
 
+  function onboardingStorageKey(uid: string) {
+    return `sidequest_onboarding_done:${uid}`;
+  }
+
   const countryOptions = useMemo(() => {
     try {
       // @ts-ignore
@@ -740,7 +744,7 @@ export default function Home() {
   async function maybeShowOnboarding(uid: string | null, emailValue?: string | null) {
     if (!supabase || !uid) return;
     await loadOnboardingState(uid, emailValue);
-    if (typeof window !== "undefined" && window.localStorage.getItem("sidequest_onboarding_done") === "1") {
+    if (typeof window !== "undefined" && window.localStorage.getItem(onboardingStorageKey(uid)) === "1") {
       setOnboardingDone(true);
       setShowOnboardingWizard(false);
       return;
@@ -790,17 +794,13 @@ export default function Home() {
         },
       });
 
-      if (typeof window !== "undefined") {
-        window.localStorage.setItem("sidequest_onboarding_done", "1");
-      }
+      if (typeof window !== "undefined") window.localStorage.setItem(onboardingStorageKey(userId), "1");
       setOnboardingDone(true);
       setShowOnboardingWizard(false);
       setStatus("Onboarding saved ✅");
       await loadQuests();
     } catch (err) {
-      if (typeof window !== "undefined") {
-        window.localStorage.setItem("sidequest_onboarding_done", "1");
-      }
+      if (typeof window !== "undefined") window.localStorage.setItem(onboardingStorageKey(userId), "1");
       setOnboardingDone(true);
       setShowOnboardingWizard(false);
       setStatus(err instanceof Error ? `${err.message} (saved locally; DB migration may still be needed)` : "Could not save onboarding.");
@@ -815,16 +815,12 @@ export default function Home() {
     try {
       const { error } = await supabase.from("profiles").upsert({ id: userId, onboarding_done: true });
       if (error) throw error;
-      if (typeof window !== "undefined") {
-        window.localStorage.setItem("sidequest_onboarding_done", "1");
-      }
+      if (typeof window !== "undefined") window.localStorage.setItem(onboardingStorageKey(userId), "1");
       setOnboardingDone(true);
       setShowOnboardingWizard(false);
       setStatus("You can finish setup later in Settings.");
     } catch (err) {
-      if (typeof window !== "undefined") {
-        window.localStorage.setItem("sidequest_onboarding_done", "1");
-      }
+      if (typeof window !== "undefined") window.localStorage.setItem(onboardingStorageKey(userId), "1");
       setOnboardingDone(true);
       setShowOnboardingWizard(false);
       setStatus(err instanceof Error ? `${err.message} (skipped locally; DB migration may still be needed)` : "Could not skip onboarding.");
