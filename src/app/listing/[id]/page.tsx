@@ -307,10 +307,10 @@ export default function ListingPage() {
     setStatus("Exact location access revoked.");
   }
 
-  function askQuestion() {
+  function askQuestion(mode: "public" | "private" = "public") {
     if (!supabase || !userId || !listing) return setStatus("Log in to comment or message listing owners.");
     if (listing.creator_id === userId) return setStatus("You can’t comment on your own listing from this button.");
-    setQuestionMode("public");
+    setQuestionMode(mode);
     setQuestionText("");
     setShowQuestionModal(true);
   }
@@ -624,8 +624,8 @@ export default function ListingPage() {
               {!isOwner ? (
                 <>
                   <button className="border rounded px-3 py-2" onClick={() => void toggleJoin()}>{myMembershipStatus === "pending" ? "Cancel request" : (myMembershipStatus === "declined" ? "Request again" : (hasJoined ? "Leave" : ((listing.join_mode || "open") === "approval_required" ? "Request to join" : "Join")))}</button>
-                  <button className="border rounded px-3 py-2" onClick={() => { setQuestionMode("public"); void askQuestion(); }}>Comment</button>
-                  <button className="border rounded px-3 py-2" onClick={() => { setQuestionMode("private"); void askQuestion(); }}>DM</button>
+                  <button className="border rounded px-3 py-2" onClick={() => void askQuestion("public")}>Comment</button>
+                  <button className="border rounded px-3 py-2" onClick={() => void askQuestion("private")}>DM</button>
                   <button className="border rounded px-3 py-2" onClick={() => void toggleSave()}>{isSaved ? "★ Saved" : "☆ Save"}</button>
                 </>
               ) : (
@@ -705,11 +705,36 @@ export default function ListingPage() {
                 <h3 className="font-semibold">{questionMode === "public" ? "Comment" : "Direct message"}</h3>
                 <button className="border rounded px-2 py-1" onClick={() => setShowQuestionModal(false)}>Close</button>
               </div>
-              <div className="flex gap-2">
-                <button type="button" className={`border rounded px-3 py-2 ${questionMode === "public" ? "bg-black text-white" : ""}`} onClick={() => setQuestionMode("public")}>Comment</button>
-                <button type="button" className={`border rounded px-3 py-2 ${questionMode === "private" ? "bg-black text-white" : ""}`} onClick={() => setQuestionMode("private")}>DM</button>
-              </div>
-              <p className="text-xs text-gray-600">{questionMode === "public" ? "Comments are visible on this listing." : "Direct messages go to the listing owner only."}</p>
+              {questionMode === "public" ? (
+                <>
+                  <p className="text-xs text-gray-600">Comments are visible on this listing.</p>
+                  <div className="max-h-56 overflow-auto space-y-2 rounded-xl border bg-gray-50 p-3">
+                    {comments.length ? comments.map((comment) => {
+                      const profile = commentProfileOf(comment);
+                      return (
+                        <div key={`modal-${comment.id}`} className="rounded-lg border bg-white px-3 py-2">
+                          <div className="flex items-center gap-2">
+                            {profile?.avatar_url ? (
+                              <img src={profile.avatar_url} alt={profile.display_name || "Commenter"} className="h-6 w-6 rounded-full object-cover border" />
+                            ) : (
+                              <div className="h-6 w-6 rounded-full bg-gray-100 border" />
+                            )}
+                            <Link href={`/profile/${comment.sender_id}`} className="text-xs font-medium underline">
+                              {(profile?.display_name || "Member").trim().split(/\s+/)[0] || "Member"}
+                            </Link>
+                            <span className="text-[11px] text-gray-500">{new Date(comment.created_at).toLocaleString()}</span>
+                          </div>
+                          <p className="mt-2 text-sm text-gray-700">{comment.body.replace(/^\[PUBLIC\]\s?/, "")}</p>
+                        </div>
+                      );
+                    }) : <p className="text-xs text-gray-500">No comments yet.</p>}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-xs text-gray-600">Direct messages go to the listing owner only.</p>
+                </>
+              )}
               <textarea className="border rounded px-3 py-2 w-full" placeholder={questionMode === "public" ? "Write your comment..." : "Write your direct message..."} value={questionText} onChange={(e) => setQuestionText(e.target.value)} />
               <button className="bg-black text-white rounded px-3 py-2 disabled:opacity-50" disabled={sendingQuestion || !questionText.trim()} onClick={() => void sendQuestionFromModal()}>{sendingQuestion ? "Sending..." : "Send"}</button>
             </div>
