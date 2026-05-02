@@ -29,6 +29,7 @@ export default function NotificationsPage() {
   const [status, setStatus] = useState("");
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [lastSeenAt, setLastSeenAt] = useState<string>("");
+  const [activeFilters, setActiveFilters] = useState<Array<"messages" | "comments" | "joined" | "your_listings">>([]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -113,6 +114,33 @@ export default function NotificationsPage() {
     return { messages, joins, creations };
   }, [items]);
 
+  const visibleItems = useMemo(() => {
+    if (!activeFilters.length) return items;
+    return items.filter((item) => {
+      if (activeFilters.includes("messages") && item.kind === "message" && item.badge === "Direct message") return true;
+      if (activeFilters.includes("comments") && item.kind === "message" && item.badge === "Public comment") return true;
+      if (activeFilters.includes("joined") && (item.kind === "join_request" || item.kind === "approval")) return true;
+      if (activeFilters.includes("your_listings") && item.kind === "created") return true;
+      return false;
+    });
+  }, [items, activeFilters]);
+
+  function toggleFilter(filter: "messages" | "comments" | "joined" | "your_listings") {
+    setActiveFilters((prev) => prev.includes(filter) ? prev.filter((f) => f !== filter) : [...prev, filter]);
+  }
+
+  function clearFilters() {
+    setActiveFilters([]);
+  }
+
+  function badgeTone(item: NotificationItem) {
+    if (item.kind === "message" && item.badge === "Direct message") return "bg-blue-50 text-blue-700 border-blue-200";
+    if (item.kind === "message" && item.badge === "Public comment") return "bg-emerald-50 text-emerald-700 border-emerald-200";
+    if (item.kind === "join_request") return "bg-amber-50 text-amber-700 border-amber-200";
+    if (item.kind === "approval") return "bg-teal-50 text-teal-700 border-teal-200";
+    return "bg-slate-50 text-slate-700 border-slate-200";
+  }
+
   function markSeen() {
     if (typeof window === "undefined") return;
     const now = new Date().toISOString();
@@ -137,96 +165,52 @@ export default function NotificationsPage() {
 
         {status && <p className="text-sm rounded border bg-amber-100 text-amber-900 border-amber-300 px-3 py-2">{status}</p>}
 
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={clearFilters} className={`rounded-full px-3 py-2 text-sm border ${activeFilters.length === 0 ? "bg-black text-white border-black" : "bg-white"}`}>
+            All
+          </button>
+          <button type="button" onClick={() => toggleFilter("messages")} className={`rounded-full px-3 py-2 text-sm border ${activeFilters.includes("messages") ? "bg-blue-600 text-white border-blue-600" : "bg-white"}`}>
+            Messages
+          </button>
+          <button type="button" onClick={() => toggleFilter("comments")} className={`rounded-full px-3 py-2 text-sm border ${activeFilters.includes("comments") ? "bg-emerald-600 text-white border-emerald-600" : "bg-white"}`}>
+            Comments
+          </button>
+          <button type="button" onClick={() => toggleFilter("joined")} className={`rounded-full px-3 py-2 text-sm border ${activeFilters.includes("joined") ? "bg-amber-600 text-white border-amber-600" : "bg-white"}`}>
+            Joined
+          </button>
+          <button type="button" onClick={() => toggleFilter("your_listings")} className={`rounded-full px-3 py-2 text-sm border ${activeFilters.includes("your_listings") ? "bg-slate-700 text-white border-slate-700" : "bg-white"}`}>
+            Your listings
+          </button>
+        </div>
+        {activeFilters.length > 0 ? <p className="text-xs text-gray-500">Showing {activeFilters.join(", ")}.</p> : null}
+
         {loading ? (
           <p className="text-sm text-gray-500">Loading…</p>
-        ) : items.length === 0 ? (
+        ) : visibleItems.length === 0 ? (
           <p className="text-sm text-gray-500">No recent activity yet.</p>
         ) : (
-          <div className="grid gap-5">
-            <section className="space-y-2">
-              <div className="flex items-center justify-between">
-                <h2 className="font-semibold">Messages from people</h2>
-                <span className="text-xs text-gray-500">{grouped.messages.length}</span>
-              </div>
-              {grouped.messages.length === 0 ? (
-                <p className="text-sm text-gray-500">No new messages from other people.</p>
-              ) : (
-                <div className="grid gap-3">
-                  {grouped.messages.map((item) => (
-                    <Link key={item.id} href={item.href} className="block rounded-2xl border px-4 py-3 hover:bg-gray-50">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            {item.senderAvatar ? (
-                              <img src={item.senderAvatar} alt={item.senderName || "Sender"} className="h-7 w-7 rounded-full object-cover border" />
-                            ) : (
-                              <div className="h-7 w-7 rounded-full border bg-gray-100 grid place-items-center text-[10px] text-gray-500">{(item.senderName || "S")[0]}</div>
-                            )}
-                            <div className="min-w-0">
-                              <p className="text-[11px] uppercase tracking-[0.2em] text-gray-500">{item.badge}</p>
-                              <p className="text-sm font-semibold truncate">{item.senderName}</p>
-                            </div>
-                          </div>
-                          <p className="text-sm font-semibold mt-2">{item.title}</p>
-                          <p className="text-sm text-gray-600">{item.body}</p>
-                        </div>
-                        <span className="text-[11px] text-gray-500 whitespace-nowrap">{new Date(item.created_at).toLocaleString()}</span>
-                      </div>
-                    </Link>
-                  ))}
+          <div className="grid gap-3">
+            {visibleItems.map((item) => (
+              <Link key={item.id} href={item.href} className="block rounded-2xl border px-4 py-3 hover:bg-gray-50">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${badgeTone(item)}`}>{item.badge}</p>
+                    <div className="flex items-center gap-2 mt-2">
+                      {item.kind === "message" ? (
+                        item.senderAvatar ? (
+                          <img src={item.senderAvatar} alt={item.senderName || "Sender"} className="h-7 w-7 rounded-full object-cover border" />
+                        ) : (
+                          <div className="h-7 w-7 rounded-full border bg-gray-100 grid place-items-center text-[10px] text-gray-500">{(item.senderName || "S")[0]}</div>
+                        )
+                      ) : null}
+                      <p className="text-sm font-semibold">{item.kind === "message" ? item.senderName : item.title}</p>
+                    </div>
+                    <p className="text-sm text-gray-600 mt-1">{item.kind === "message" ? item.body : item.body}</p>
+                  </div>
+                  <span className="text-[11px] text-gray-500 whitespace-nowrap">{new Date(item.created_at).toLocaleString()}</span>
                 </div>
-              )}
-            </section>
-
-            <section className="space-y-2">
-              <div className="flex items-center justify-between">
-                <h2 className="font-semibold">Join activity</h2>
-                <span className="text-xs text-gray-500">{grouped.joins.length}</span>
-              </div>
-              {grouped.joins.length === 0 ? (
-                <p className="text-sm text-gray-500">No join requests or approvals yet.</p>
-              ) : (
-                <div className="grid gap-3">
-                  {grouped.joins.map((item) => (
-                    <Link key={item.id} href={item.href} className="block rounded-2xl border px-4 py-3 hover:bg-gray-50">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="text-[11px] uppercase tracking-[0.2em] text-gray-500">{item.badge}</p>
-                          <p className="text-sm font-semibold mt-1">{item.title}</p>
-                          <p className="text-sm text-gray-600">{item.body}</p>
-                        </div>
-                        <span className="text-[11px] text-gray-500 whitespace-nowrap">{new Date(item.created_at).toLocaleString()}</span>
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </section>
-
-            <section className="space-y-2">
-              <div className="flex items-center justify-between">
-                <h2 className="font-semibold">Your listings</h2>
-                <span className="text-xs text-gray-500">{grouped.creations.length}</span>
-              </div>
-              {grouped.creations.length === 0 ? (
-                <p className="text-sm text-gray-500">No listings created yet.</p>
-              ) : (
-                <div className="grid gap-3">
-                  {grouped.creations.map((item) => (
-                    <Link key={item.id} href={item.href} className="block rounded-2xl border px-4 py-3 hover:bg-gray-50">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="text-[11px] uppercase tracking-[0.2em] text-gray-500">{item.badge}</p>
-                          <p className="text-sm font-semibold mt-1">{item.title}</p>
-                          <p className="text-sm text-gray-600">{item.body}</p>
-                        </div>
-                        <span className="text-[11px] text-gray-500 whitespace-nowrap">{new Date(item.created_at).toLocaleString()}</span>
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </section>
+              </Link>
+            ))}
           </div>
         )}
       </section>
