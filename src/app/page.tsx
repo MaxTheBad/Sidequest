@@ -195,6 +195,7 @@ export default function Home() {
   const [questionTarget, setQuestionTarget] = useState<Quest | null>(null);
   const [questionMode, setQuestionMode] = useState<"public" | "private">("public");
   const [questionText, setQuestionText] = useState("");
+  const [questionComments, setQuestionComments] = useState<Array<{ id: string; sender_id: string; body: string; created_at: string; profiles?: { id: string; display_name: string | null; avatar_url: string | null }[] | { id: string; display_name: string | null; avatar_url: string | null } | null }>>([]);
   const [sendingQuestion, setSendingQuestion] = useState(false);
   const [lastQuestionMs, setLastQuestionMs] = useState(0);
   const [showReportModal, setShowReportModal] = useState(false);
@@ -1640,6 +1641,16 @@ export default function Home() {
     setQuestionMode("public");
     setQuestionText("");
     setShowQuestionModal(true);
+    void (async () => {
+      const { data } = await supabase
+        .from("messages")
+        .select("id,sender_id,body,created_at,profiles:profiles!messages_sender_id_fkey(id,display_name,avatar_url)")
+        .eq("quest_id", quest.id)
+        .like("body", "[PUBLIC] %")
+        .order("created_at", { ascending: false })
+        .limit(100);
+      setQuestionComments((data || []) as typeof questionComments);
+    })();
   }
 
   function openReportModal(quest: Quest) {
@@ -2839,11 +2850,36 @@ export default function Home() {
               <button className="border rounded px-2 py-1" onClick={() => setShowQuestionModal(false)}>Close</button>
             </div>
             <p className="text-sm text-gray-600">About: <b>{questionTarget.title}</b></p>
-            <div className="flex gap-2">
-              <button type="button" className={`border rounded px-3 py-2 ${questionMode === "public" ? "bg-black text-white" : ""}`} onClick={() => setQuestionMode("public")}>Comment</button>
-              <button type="button" className={`border rounded px-3 py-2 ${questionMode === "private" ? "bg-black text-white" : ""}`} onClick={() => setQuestionMode("private")}>DM</button>
-            </div>
-            <p className="text-xs text-gray-600">{questionMode === "public" ? "Comments are visible on this listing." : "Direct messages are private."}</p>
+            {questionMode === "public" ? (
+              <>
+                <p className="text-xs text-gray-600">Comments are visible on this listing.</p>
+                <div className="max-h-56 overflow-auto space-y-2 rounded-xl border bg-gray-50 p-3">
+                  {questionComments.length ? questionComments.map((comment) => {
+                    const profile = Array.isArray(comment.profiles) ? (comment.profiles[0] || null) : comment.profiles;
+                    return (
+                      <div key={comment.id} className="rounded-lg border bg-white px-3 py-2">
+                        <div className="flex items-center gap-2">
+                          {profile?.avatar_url ? (
+                            <img src={profile.avatar_url} alt={profile.display_name || "Commenter"} className="h-6 w-6 rounded-full object-cover border" />
+                          ) : (
+                            <div className="h-6 w-6 rounded-full bg-gray-100 border" />
+                          )}
+                          <Link href={`/profile/${comment.sender_id}`} className="text-xs font-medium underline">
+                            {(profile?.display_name || "Member").trim().split(/\s+/)[0] || "Member"}
+                          </Link>
+                          <span className="text-[11px] text-gray-500">{new Date(comment.created_at).toLocaleString()}</span>
+                        </div>
+                        <p className="mt-2 text-sm text-gray-700">{comment.body.replace(/^\[PUBLIC\]\s?/, "")}</p>
+                      </div>
+                    );
+                  }) : <p className="text-xs text-gray-500">No comments yet.</p>}
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-xs text-gray-600">Direct messages are private.</p>
+              </>
+            )}
             <textarea className="border rounded px-3 py-2 w-full" placeholder={questionMode === "public" ? "Write your comment..." : "Write your direct message..."} value={questionText} onChange={(e) => setQuestionText(e.target.value)} />
             <button className="bg-black text-white rounded px-3 py-2 disabled:opacity-50" disabled={sendingQuestion || !questionText.trim()} onClick={() => void sendQuestionFromModal()}>{sendingQuestion ? "Sending..." : "Send"}</button>
           </div>
