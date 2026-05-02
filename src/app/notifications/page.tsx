@@ -12,6 +12,8 @@ type NotificationItem = {
   body: string;
   href: string;
   created_at: string;
+  senderName?: string | null;
+  senderAvatar?: string | null;
 };
 
 function stripMessagePrefix(body: string) {
@@ -47,13 +49,14 @@ export default function NotificationsPage() {
 
       const [{ data: myQuests }, { data: myMessages }, { data: joinedRows }] = await Promise.all([
         supabase.from("quests").select("id,title,created_at").eq("creator_id", uid).order("created_at", { ascending: false }).limit(50),
-        supabase.from("messages").select("id,quest_id,sender_id,body,created_at,quests(id,title,creator_id)").neq("sender_id", uid).order("created_at", { ascending: false }).limit(100),
+        supabase.from("messages").select("id,quest_id,sender_id,body,created_at,quests(id,title,creator_id),profiles:profiles!messages_sender_id_fkey(id,display_name,avatar_url)").neq("sender_id", uid).order("created_at", { ascending: false }).limit(100),
         supabase.from("quest_members").select("quest_id,status,quests(title,city,availability)").eq("user_id", uid).in("status", ["pending", "approved"]).order("joined_at", { ascending: false }).limit(50),
       ]);
 
       const notifications: NotificationItem[] = [];
       (myMessages || []).forEach((row: any) => {
         const quest = Array.isArray(row.quests) ? row.quests[0] : row.quests;
+        const sender = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
         notifications.push({
           id: `msg-${row.id}`,
           kind: "message",
@@ -62,6 +65,8 @@ export default function NotificationsPage() {
           body: stripMessagePrefix(row.body || ""),
           href: "/inbox",
           created_at: row.created_at,
+          senderName: sender?.display_name || "Someone",
+          senderAvatar: sender?.avatar_url || null,
         });
       });
       (joinedRows || []).forEach((row: any) => {
@@ -151,8 +156,18 @@ export default function NotificationsPage() {
                     <Link key={item.id} href={item.href} className="block rounded-2xl border px-4 py-3 hover:bg-gray-50">
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <p className="text-[11px] uppercase tracking-[0.2em] text-gray-500">{item.badge}</p>
-                          <p className="text-sm font-semibold mt-1">{item.title}</p>
+                          <div className="flex items-center gap-2">
+                            {item.senderAvatar ? (
+                              <img src={item.senderAvatar} alt={item.senderName || "Sender"} className="h-7 w-7 rounded-full object-cover border" />
+                            ) : (
+                              <div className="h-7 w-7 rounded-full border bg-gray-100 grid place-items-center text-[10px] text-gray-500">{(item.senderName || "S")[0]}</div>
+                            )}
+                            <div className="min-w-0">
+                              <p className="text-[11px] uppercase tracking-[0.2em] text-gray-500">{item.badge}</p>
+                              <p className="text-sm font-semibold truncate">{item.senderName}</p>
+                            </div>
+                          </div>
+                          <p className="text-sm font-semibold mt-2">{item.title}</p>
                           <p className="text-sm text-gray-600">{item.body}</p>
                         </div>
                         <span className="text-[11px] text-gray-500 whitespace-nowrap">{new Date(item.created_at).toLocaleString()}</span>
