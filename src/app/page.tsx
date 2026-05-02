@@ -234,6 +234,13 @@ export default function Home() {
   const [onboardingSaving, setOnboardingSaving] = useState(false);
   const [onboardingDone, setOnboardingDone] = useState(false);
   const [onboardingCitySuggestions, setOnboardingCitySuggestions] = useState<string[]>([]);
+  const [onboardingPhotoFile, setOnboardingPhotoFile] = useState<File | null>(null);
+  const [onboardingPhotoPreviewUrl, setOnboardingPhotoPreviewUrl] = useState("");
+  const [onboardingPhotoZoom, setOnboardingPhotoZoom] = useState(1.2);
+  const [onboardingPhotoOffsetX, setOnboardingPhotoOffsetX] = useState(0);
+  const [onboardingPhotoOffsetY, setOnboardingPhotoOffsetY] = useState(0);
+  const [onboardingPhotoDragging, setOnboardingPhotoDragging] = useState(false);
+  const [onboardingPhotoLastPointer, setOnboardingPhotoLastPointer] = useState<{ x: number; y: number } | null>(null);
 
   const [hobbies, setHobbies] = useState<Hobby[]>([]);
   const [quests, setQuests] = useState<Quest[]>([]);
@@ -296,6 +303,17 @@ export default function Home() {
 
   function onboardingStorageKey(uid: string) {
     return `sidequest_onboarding_done:${uid}`;
+  }
+
+  function resetOnboardingPhoto() {
+    setOnboardingPhotoFile(null);
+    if (onboardingPhotoPreviewUrl) URL.revokeObjectURL(onboardingPhotoPreviewUrl);
+    setOnboardingPhotoPreviewUrl("");
+    setOnboardingPhotoZoom(1.2);
+    setOnboardingPhotoOffsetX(0);
+    setOnboardingPhotoOffsetY(0);
+    setOnboardingPhotoDragging(false);
+    setOnboardingPhotoLastPointer(null);
   }
 
   const countryOptions = useMemo(() => {
@@ -704,6 +722,8 @@ export default function Home() {
     setOnboardingBio("");
     setOnboardingInterestIds([]);
     setOnboardingDone(false);
+    setOnboardingStep(0);
+    resetOnboardingPhoto();
     setStatus("Signed out");
   }
 
@@ -761,16 +781,74 @@ export default function Home() {
     }
   }
 
+  async function uploadOnboardingPhoto() {
+    if (!supabase || !userId || !onboardingPhotoFile) return null;
+    if (!isImageLikeFile(onboardingPhotoFile)) return null;
+
+    const normalized = await prepareImageForUpload(onboardingPhotoFile, { maxWidth: 2200, maxHeight: 2200, quality: 0.9 });
+    const cropUrl = URL.createObjectURL(normalized);
+    try {
+      const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const i = new Image();
+        i.onload = () => resolve(i);
+        i.onerror = () => reject(new Error("Could not load image."));
+        i.src = cropUrl;
+      });
+
+      const size = 512;
+      const canvas = document.createElement("canvas");
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("Could not prepare image.");
+
+      const baseScale = Math.max(size / img.width, size / img.height);
+      const finalScale = baseScale * onboardingPhotoZoom;
+      const drawW = img.width * finalScale;
+      const drawH = img.height * finalScale;
+      const dx = (size - drawW) / 2 + onboardingPhotoOffsetX;
+      const dy = (size - drawH) / 2 + onboardingPhotoOffsetY;
+      ctx.drawImage(img, dx, dy, drawW, drawH);
+
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.9));
+      if (!blob) throw new Error("Could not export image.");
+
+      const filePath = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
+      const { error: uploadError } = await supabase.storage
+        .from("profile-photos")
+        .upload(filePath, blob, { upsert: false, contentType: "image/jpeg" });
+      if (uploadError) throw uploadError;
+
+      const { data: publicData } = supabase.storage.from("profile-photos").getPublicUrl(filePath);
+      const { error: profileError } = await supabase.from("profiles").upsert({
+        id: userId,
+        avatar_url: publicData.publicUrl,
+        photo_onboarding_done: true,
+      });
+      if (profileError && !profileError.message.toLowerCase().includes("row-level security")) throw profileError;
+
+      await supabase.auth.updateUser({ data: { avatar_url: publicData.publicUrl } });
+      return publicData.publicUrl;
+    } finally {
+      URL.revokeObjectURL(cropUrl);
+    }
+  }
+
   async function saveOnboarding() {
     if (!supabase || !userId) return;
     setOnboardingSaving(true);
     try {
+      let uploadedPhotoUrl: string | null = null;
+      if (onboardingPhotoFile) {
+        uploadedPhotoUrl = await uploadOnboardingPhoto();
+      }
       const { error: profileError } = await supabase.from("profiles").upsert({
         id: userId,
         display_name: onboardingDisplayName.trim() || userEmail.split("@")[0] || "SideQuest user",
         city: onboardingCity.trim() || null,
         bio: onboardingBio.trim() || null,
         onboarding_done: true,
+        avatar_url: uploadedPhotoUrl,
       });
       if (profileError) throw profileError;
 
@@ -1909,7 +1987,7 @@ export default function Home() {
             </div>
 
             <div className="flex gap-2">
-              {["Basics", "Bio", "Interests"].map((label, index) => (
+              {["Basics", "Bio", "Interests", "Photo"].map((label, index) => (
                 <div key={label} className={`flex-1 rounded-full px-3 py-2 text-center text-sm border ${index === onboardingStep ? "bg-black text-white border-black" : "bg-gray-50"}`}>
                   {label}
                 </div>
@@ -1973,6 +2051,72 @@ export default function Home() {
               </div>
             )}
 
+            {onboardingStep === 3 && (
+              <div className="grid gap-3">
+                <div>
+                  <label className="text-sm font-medium">Add a profile photo</label>
+                  <p className="text-xs text-gray-500">This helps people recognize you faster.</p>
+                </div>
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="user"
+                  className="border rounded-xl px-3 py-2.5 bg-white"
+                  onChange={(e) => {
+                    const picked = e.target.files?.[0] ?? null;
+                    if (!picked) return;
+                    setOnboardingPhotoFile(picked);
+                    if (onboardingPhotoPreviewUrl) URL.revokeObjectURL(onboardingPhotoPreviewUrl);
+                    setOnboardingPhotoPreviewUrl(URL.createObjectURL(picked));
+                  }}
+                />
+                {onboardingPhotoPreviewUrl && (
+                  <div className="grid gap-3">
+                    <div
+                      className="relative aspect-square w-full overflow-hidden rounded-3xl border bg-black touch-none"
+                      onPointerDown={(e) => {
+                        (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+                        setOnboardingPhotoDragging(true);
+                        setOnboardingPhotoLastPointer({ x: e.clientX, y: e.clientY });
+                      }}
+                      onPointerMove={(e) => {
+                        if (!onboardingPhotoDragging || !onboardingPhotoLastPointer) return;
+                        const dx = e.clientX - onboardingPhotoLastPointer.x;
+                        const dy = e.clientY - onboardingPhotoLastPointer.y;
+                        setOnboardingPhotoOffsetX((v) => v + dx);
+                        setOnboardingPhotoOffsetY((v) => v + dy);
+                        setOnboardingPhotoLastPointer({ x: e.clientX, y: e.clientY });
+                      }}
+                      onPointerUp={() => {
+                        setOnboardingPhotoDragging(false);
+                        setOnboardingPhotoLastPointer(null);
+                      }}
+                    >
+                      <img
+                        src={onboardingPhotoPreviewUrl}
+                        alt="Onboarding preview"
+                        className="absolute inset-0 h-full w-full object-cover"
+                        style={{
+                          transform: `translate(${onboardingPhotoOffsetX}px, ${onboardingPhotoOffsetY}px) scale(${onboardingPhotoZoom})`,
+                        }}
+                      />
+                    </div>
+                    <input
+                      type="range"
+                      min="1"
+                      max="2"
+                      step="0.01"
+                      value={onboardingPhotoZoom}
+                      onChange={(e) => setOnboardingPhotoZoom(Number(e.target.value))}
+                    />
+                    <button type="button" className="border rounded-full px-3 py-2 text-sm self-start" onClick={() => resetOnboardingPhoto()}>
+                      Remove photo
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="flex items-center justify-between gap-3 pt-2">
               <button
                 type="button"
@@ -1986,11 +2130,11 @@ export default function Home() {
                 <span className="text-xs text-gray-500">
                   Step {onboardingStep + 1} of 3
                 </span>
-                {onboardingStep < 2 ? (
+                {onboardingStep < 3 ? (
                   <button
                     type="button"
                     className="bg-black text-white rounded-full px-4 py-2"
-                    onClick={() => setOnboardingStep((s) => Math.min(2, s + 1))}
+                    onClick={() => setOnboardingStep((s) => Math.min(3, s + 1))}
                   >
                     Next
                   </button>
