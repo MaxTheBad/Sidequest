@@ -33,6 +33,14 @@ type MemberRow = {
   profiles?: MemberProfile[] | MemberProfile | null;
 };
 
+type ListingComment = {
+  id: string;
+  sender_id: string;
+  body: string;
+  created_at: string;
+  profiles?: MemberProfile[] | MemberProfile | null;
+};
+
 export const runtime = "edge";
 
 export default function ListingPage() {
@@ -53,6 +61,7 @@ export default function ListingPage() {
   const [questionText, setQuestionText] = useState("");
   const [sendingQuestion, setSendingQuestion] = useState(false);
   const [lastQuestionMs, setLastQuestionMs] = useState(0);
+  const [comments, setComments] = useState<ListingComment[]>([]);
   const [expandedMediaIndex, setExpandedMediaIndex] = useState<number | null>(null);
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const [showReportModal, setShowReportModal] = useState(false);
@@ -82,6 +91,22 @@ export default function ListingPage() {
     const mine = uid ? rows.find((m) => m.user_id === uid) : null;
     setMyMembershipStatus((mine?.status || (mine ? "approved" : null)) as "pending" | "approved" | "declined" | null);
     setHasJoined(!!mine && (mine.status || "approved") === "approved");
+  }
+
+  async function loadComments(questId: string) {
+    if (!supabase) return;
+    const { data, error } = await supabase
+      .from("messages")
+      .select("id,sender_id,body,created_at,profiles:profiles!messages_sender_id_fkey(id,display_name,avatar_url)")
+      .eq("quest_id", questId)
+      .like("body", "[PUBLIC] %")
+      .order("created_at", { ascending: false })
+      .limit(100);
+    if (error) {
+      setStatus(error.message);
+      return;
+    }
+    setComments((data || []) as ListingComment[]);
   }
 
   useEffect(() => {
@@ -128,6 +153,7 @@ export default function ListingPage() {
       }
 
       await loadMembers(listingId, uid);
+      await loadComments(listingId);
       if (uid) {
         const { data: accessRows } = await supabase
           .from("quest_exact_location_access")
@@ -387,6 +413,11 @@ export default function ListingPage() {
     return Array.isArray(member.profiles) ? (member.profiles[0] || null) : member.profiles;
   }
 
+  function commentProfileOf(comment: ListingComment): MemberProfile | null {
+    if (!comment.profiles) return null;
+    return Array.isArray(comment.profiles) ? (comment.profiles[0] || null) : comment.profiles;
+  }
+
   return (
     <main className="min-h-screen bg-[#f6f7fb] p-4">
       <div className="max-w-4xl mx-auto space-y-3">
@@ -560,11 +591,41 @@ export default function ListingPage() {
               </div>
             )}
 
+            <div className="rounded-xl border bg-gray-50 p-3">
+              <p className="text-sm font-medium mb-2">Comments ({comments.length})</p>
+              {comments.length ? (
+                <div className="space-y-2">
+                  {comments.map((comment) => {
+                    const profile = commentProfileOf(comment);
+                    return (
+                      <div key={comment.id} className="rounded-xl border bg-white px-3 py-2">
+                        <div className="flex items-center gap-2">
+                          {profile?.avatar_url ? (
+                            <img src={profile.avatar_url} alt={profile.display_name || "Commenter"} className="h-6 w-6 rounded-full object-cover border" />
+                          ) : (
+                            <div className="h-6 w-6 rounded-full bg-gray-100 border" />
+                          )}
+                          <Link href={`/profile/${comment.sender_id}`} className="text-xs font-medium underline">
+                            {(profile?.display_name || "Member").trim().split(/\s+/)[0] || "Member"}
+                          </Link>
+                          <span className="text-[11px] text-gray-500">{new Date(comment.created_at).toLocaleString()}</span>
+                        </div>
+                        <p className="mt-2 text-sm text-gray-700">{comment.body.replace(/^\[PUBLIC\]\s?/, "")}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-xs text-gray-500">No comments yet.</p>
+              )}
+            </div>
+
             <div className="pt-2 flex gap-2 flex-wrap">
               {!isOwner ? (
                 <>
                   <button className="border rounded px-3 py-2" onClick={() => void toggleJoin()}>{myMembershipStatus === "pending" ? "Cancel request" : (myMembershipStatus === "declined" ? "Request again" : (hasJoined ? "Leave" : ((listing.join_mode || "open") === "approval_required" ? "Request to join" : "Join")))}</button>
-                  <button className="border rounded px-3 py-2" onClick={() => void askQuestion()}>Comment / DM</button>
+                  <button className="border rounded px-3 py-2" onClick={() => { setQuestionMode("public"); void askQuestion(); }}>Comment</button>
+                  <button className="border rounded px-3 py-2" onClick={() => { setQuestionMode("private"); void askQuestion(); }}>DM</button>
                   <button className="border rounded px-3 py-2" onClick={() => void toggleSave()}>{isSaved ? "★ Saved" : "☆ Save"}</button>
                 </>
               ) : (
@@ -641,15 +702,15 @@ export default function ListingPage() {
           <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center p-4">
             <div className="w-full max-w-lg rounded-2xl bg-white border p-4 space-y-3">
               <div className="flex items-center justify-between">
-                <h3 className="font-semibold">Comment or message</h3>
+                <h3 className="font-semibold">{questionMode === "public" ? "Comment" : "Direct message"}</h3>
                 <button className="border rounded px-2 py-1" onClick={() => setShowQuestionModal(false)}>Close</button>
               </div>
               <div className="flex gap-2">
-                <button type="button" className={`border rounded px-3 py-2 ${questionMode === "public" ? "bg-black text-white" : ""}`} onClick={() => setQuestionMode("public")}>Comment (public)</button>
-                <button type="button" className={`border rounded px-3 py-2 ${questionMode === "private" ? "bg-black text-white" : ""}`} onClick={() => setQuestionMode("private")}>Direct message</button>
+                <button type="button" className={`border rounded px-3 py-2 ${questionMode === "public" ? "bg-black text-white" : ""}`} onClick={() => setQuestionMode("public")}>Comment</button>
+                <button type="button" className={`border rounded px-3 py-2 ${questionMode === "private" ? "bg-black text-white" : ""}`} onClick={() => setQuestionMode("private")}>DM</button>
               </div>
-              <p className="text-xs text-gray-600">Comments are visible to everyone. Direct messages are private.</p>
-              <textarea className="border rounded px-3 py-2 w-full" placeholder="Write your comment or message..." value={questionText} onChange={(e) => setQuestionText(e.target.value)} />
+              <p className="text-xs text-gray-600">{questionMode === "public" ? "Comments are visible on this listing." : "Direct messages go to the listing owner only."}</p>
+              <textarea className="border rounded px-3 py-2 w-full" placeholder={questionMode === "public" ? "Write your comment..." : "Write your direct message..."} value={questionText} onChange={(e) => setQuestionText(e.target.value)} />
               <button className="bg-black text-white rounded px-3 py-2 disabled:opacity-50" disabled={sendingQuestion || !questionText.trim()} onClick={() => void sendQuestionFromModal()}>{sendingQuestion ? "Sending..." : "Send"}</button>
             </div>
           </div>

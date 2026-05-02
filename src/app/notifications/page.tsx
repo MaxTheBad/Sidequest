@@ -67,7 +67,7 @@ export default function NotificationsPage() {
           body: stripMessagePrefix(row.body || ""),
           href: isPrivate
             ? `/inbox?thread=${row.quest_id}:private:${row.sender_id}&message=${row.id}`
-            : `/inbox?thread=${row.quest_id}:public&message=${row.id}`,
+            : `/listing/${row.quest_id}`,
           created_at: row.created_at,
           senderName: sender?.display_name || "Someone",
           senderAvatar: sender?.avatar_url || null,
