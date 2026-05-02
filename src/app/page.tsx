@@ -47,6 +47,7 @@ type AuthMode = "login" | "signup";
 type ProfilePhotoStep = "idle" | "ready" | "uploading";
 type Bookmark = { quest_id: string };
 type Membership = { quest_id: string; status?: "pending" | "approved" | "declined" };
+type OnboardingHobby = { hobby_id: string; is_primary?: boolean | null };
 
 const TITLE_SUGGESTIONS = [
   "Beginner tennis buddy this weekend",
@@ -224,6 +225,14 @@ export default function Home() {
   const [photoStepDragging, setPhotoStepDragging] = useState(false);
   const [photoStepLastPointer, setPhotoStepLastPointer] = useState<{ x: number; y: number } | null>(null);
   const [photoStepState, setPhotoStepState] = useState<ProfilePhotoStep>("idle");
+  const [showOnboardingWizard, setShowOnboardingWizard] = useState(false);
+  const [onboardingStep, setOnboardingStep] = useState(0);
+  const [onboardingDisplayName, setOnboardingDisplayName] = useState("");
+  const [onboardingCity, setOnboardingCity] = useState("");
+  const [onboardingBio, setOnboardingBio] = useState("");
+  const [onboardingInterestIds, setOnboardingInterestIds] = useState<string[]>([]);
+  const [onboardingSaving, setOnboardingSaving] = useState(false);
+  const [onboardingDone, setOnboardingDone] = useState(false);
 
   const [hobbies, setHobbies] = useState<Hobby[]>([]);
   const [quests, setQuests] = useState<Quest[]>([]);
@@ -409,6 +418,8 @@ export default function Home() {
       if (data.session?.user) {
         const md = (data.session.user.user_metadata || {}) as Record<string, unknown>;
         await ensureProfileRow(data.session.user.id, data.session.user.email, md);
+        await maybeShowOnboarding(data.session.user.id, data.session.user.email);
+        await maybeShowPhotoOnboarding(data.session.user.id);
       }
 
       if (!data.session) {
@@ -419,6 +430,8 @@ export default function Home() {
           const md = (u.data.user.user_metadata || {}) as Record<string, unknown>;
           setViewerName((typeof md.full_name === "string" && md.full_name) || (typeof md.name === "string" && md.name) || "");
           await ensureProfileRow(u.data.user.id, u.data.user.email, md);
+          await maybeShowOnboarding(u.data.user.id, u.data.user.email);
+          await maybeShowPhotoOnboarding(u.data.user.id);
         }
       }
 
@@ -653,10 +666,17 @@ export default function Home() {
     setUserEmail("");
     setViewerName("");
     setShowPhotoStepModal(false);
+    setShowOnboardingWizard(false);
     setPhotoStepFile(null);
     if (photoStepPreviewUrl) URL.revokeObjectURL(photoStepPreviewUrl);
     setPhotoStepPreviewUrl("");
     setPhotoStepState("idle");
+    setOnboardingStep(0);
+    setOnboardingDisplayName("");
+    setOnboardingCity("");
+    setOnboardingBio("");
+    setOnboardingInterestIds([]);
+    setOnboardingDone(false);
     setStatus("Signed out");
   }
 
@@ -674,6 +694,98 @@ export default function Home() {
       setPhotoStepFile(null);
       if (photoStepPreviewUrl) URL.revokeObjectURL(photoStepPreviewUrl);
       setPhotoStepPreviewUrl("");
+    }
+  }
+
+  async function loadOnboardingState(uid: string, emailValue?: string | null) {
+    if (!supabase || !uid) return;
+
+    const [{ data: profile }, { data: hobbyRows }] = await Promise.all([
+      supabase.from("profiles").select("display_name,city,bio,onboarding_done").eq("id", uid).maybeSingle(),
+      supabase.from("user_hobbies").select("hobby_id,is_primary").eq("user_id", uid),
+    ]);
+
+    const savedHobbyIds = ((hobbyRows as OnboardingHobby[] | null) || []).map((row) => row.hobby_id);
+    const savedName = profile?.display_name || emailValue?.split("@")[0] || "SideQuest user";
+    setOnboardingDisplayName(savedName);
+    setOnboardingCity(profile?.city || "");
+    setOnboardingBio(profile?.bio || "");
+    setOnboardingInterestIds(savedHobbyIds);
+    setOnboardingDone(Boolean(profile?.onboarding_done));
+  }
+
+  async function maybeShowOnboarding(uid: string | null, emailValue?: string | null) {
+    if (!supabase || !uid) return;
+    await loadOnboardingState(uid, emailValue);
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("onboarding_done")
+      .eq("id", uid)
+      .maybeSingle();
+
+    if (!profile?.onboarding_done) {
+      setShowOnboardingWizard(true);
+      setOnboardingStep(0);
+    }
+  }
+
+  async function saveOnboarding() {
+    if (!supabase || !userId) return;
+    setOnboardingSaving(true);
+    try {
+      const { error: profileError } = await supabase.from("profiles").upsert({
+        id: userId,
+        display_name: onboardingDisplayName.trim() || userEmail.split("@")[0] || "SideQuest user",
+        city: onboardingCity.trim() || null,
+        bio: onboardingBio.trim() || null,
+        onboarding_done: true,
+      });
+      if (profileError) throw profileError;
+
+      const { error: deleteError } = await supabase.from("user_hobbies").delete().eq("user_id", userId);
+      if (deleteError && !deleteError.message.toLowerCase().includes("row-level security")) throw deleteError;
+
+      if (onboardingInterestIds.length) {
+        const { error: insertError } = await supabase.from("user_hobbies").insert(
+          onboardingInterestIds.map((hobbyId, index) => ({
+            user_id: userId,
+            hobby_id: hobbyId,
+            is_primary: index === 0,
+          }))
+        );
+        if (insertError && !insertError.message.toLowerCase().includes("row-level security")) throw insertError;
+      }
+
+      await supabase.auth.updateUser({
+        data: {
+          full_name: onboardingDisplayName.trim() || userEmail.split("@")[0] || "SideQuest user",
+        },
+      });
+
+      setOnboardingDone(true);
+      setShowOnboardingWizard(false);
+      setStatus("Onboarding saved ✅");
+      await loadQuests();
+    } catch (err) {
+      setStatus(err instanceof Error ? err.message : "Could not save onboarding.");
+    } finally {
+      setOnboardingSaving(false);
+    }
+  }
+
+  async function skipOnboarding() {
+    if (!supabase || !userId) return;
+    setOnboardingSaving(true);
+    try {
+      const { error } = await supabase.from("profiles").upsert({ id: userId, onboarding_done: true });
+      if (error) throw error;
+      setOnboardingDone(true);
+      setShowOnboardingWizard(false);
+      setStatus("You can finish setup later in Settings.");
+    } catch (err) {
+      setStatus(err instanceof Error ? err.message : "Could not skip onboarding.");
+    } finally {
+      setOnboardingSaving(false);
     }
   }
 
@@ -1741,6 +1853,105 @@ export default function Home() {
           </section>
         </div>
       </div>
+
+      {showOnboardingWizard && (
+        <div className="fixed inset-0 z-[120] bg-black/55 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-2xl rounded-3xl bg-white border shadow-lg p-5 space-y-5">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Welcome to Side Quest</p>
+                <h3 className="text-2xl font-semibold">Set up your profile</h3>
+                <p className="text-sm text-gray-500">This takes about a minute and helps people find the right outdoor plans.</p>
+              </div>
+              <button className="border rounded-full px-3 py-1.5 text-sm" onClick={() => void skipOnboarding()} type="button">
+                Skip
+              </button>
+            </div>
+
+            <div className="flex gap-2">
+              {["Basics", "Bio", "Interests"].map((label, index) => (
+                <div key={label} className={`flex-1 rounded-full px-3 py-2 text-center text-sm border ${index === onboardingStep ? "bg-black text-white border-black" : "bg-gray-50"}`}>
+                  {label}
+                </div>
+              ))}
+            </div>
+
+            {onboardingStep === 0 && (
+              <div className="grid gap-3">
+                <label className="text-sm font-medium">Display name</label>
+                <input className="border rounded-xl px-3 py-2.5" value={onboardingDisplayName} onChange={(e) => setOnboardingDisplayName(e.target.value)} placeholder="How people should see you" />
+                <label className="text-sm font-medium">City</label>
+                <input className="border rounded-xl px-3 py-2.5" value={onboardingCity} onChange={(e) => setOnboardingCity(e.target.value)} placeholder="Where are you based?" />
+              </div>
+            )}
+
+            {onboardingStep === 1 && (
+              <div className="grid gap-3">
+                <label className="text-sm font-medium">Short bio</label>
+                <textarea className="border rounded-xl px-3 py-2.5 min-h-28" value={onboardingBio} onChange={(e) => setOnboardingBio(e.target.value)} placeholder="Tell people what you like doing outside..." />
+              </div>
+            )}
+
+            {onboardingStep === 2 && (
+              <div className="grid gap-3">
+                <div>
+                  <label className="text-sm font-medium">Pick a few interests</label>
+                  <p className="text-xs text-gray-500">We’ll use these to personalize your feed and suggestions.</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {categoryOptions.slice(0, 12).map((option) => {
+                    const active = onboardingInterestIds.includes(option.id);
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        onClick={() => setOnboardingInterestIds((prev) => active ? prev.filter((id) => id !== option.id) : [...prev, option.id])}
+                        className={`rounded-full border px-3 py-2 text-sm ${active ? "bg-black text-white border-black" : "bg-gray-50"}`}
+                      >
+                        {option.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            <div className="flex items-center justify-between gap-3 pt-2">
+              <button
+                type="button"
+                className="border rounded-full px-4 py-2"
+                onClick={() => setOnboardingStep((s) => Math.max(0, s - 1))}
+                disabled={onboardingStep === 0 || onboardingSaving}
+              >
+                Back
+              </button>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500">
+                  Step {onboardingStep + 1} of 3
+                </span>
+                {onboardingStep < 2 ? (
+                  <button
+                    type="button"
+                    className="bg-black text-white rounded-full px-4 py-2"
+                    onClick={() => setOnboardingStep((s) => Math.min(2, s + 1))}
+                  >
+                    Next
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="bg-black text-white rounded-full px-4 py-2 disabled:opacity-50"
+                    disabled={onboardingSaving}
+                    onClick={() => void saveOnboarding()}
+                  >
+                    {onboardingSaving ? "Saving..." : "Finish setup"}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showAuthModal && (
         <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center p-4">
