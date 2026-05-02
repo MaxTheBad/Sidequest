@@ -50,6 +50,10 @@ export default function ProfilePage() {
   const [submittingReport, setSubmittingReport] = useState(false);
 
   const isOwnProfile = useMemo(() => !!(viewerId && profileId && viewerId === profileId), [viewerId, profileId]);
+  const blockEdge = useMemo(() => {
+    if (!viewerId || !profileId) return null;
+    return friendship?.status === "blocked" ? friendship : null;
+  }, [friendship, profileId, viewerId]);
   const canViewFriends = useMemo(() => {
     if (isOwnProfile) return true;
     if (!profile) return false;
@@ -259,6 +263,40 @@ export default function ProfilePage() {
     setReloadTick((x) => x + 1);
   }
 
+  async function blockUser() {
+    if (!supabase || !viewerId || !profileId || viewerId === profileId) return;
+    const ok = window.confirm("Block this user? They won’t be able to friend you or message you from the app.");
+    if (!ok) return;
+
+    await supabase.from("friends").delete().or(
+      `and(requester_id.eq.${viewerId},addressee_id.eq.${profileId}),and(requester_id.eq.${profileId},addressee_id.eq.${viewerId})`
+    );
+
+    const { error } = await supabase.from("friends").upsert({
+      requester_id: viewerId,
+      addressee_id: profileId,
+      status: "blocked",
+    });
+    if (error) return setStatus(error.message);
+    setStatus("User blocked.");
+    setReloadTick((x) => x + 1);
+  }
+
+  async function unblockUser() {
+    if (!supabase || !viewerId || !profileId || viewerId === profileId) return;
+    const ok = window.confirm("Unblock this user?");
+    if (!ok) return;
+    const { error } = await supabase
+      .from("friends")
+      .delete()
+      .or(
+        `and(requester_id.eq.${viewerId},addressee_id.eq.${profileId}),and(requester_id.eq.${profileId},addressee_id.eq.${viewerId})`
+      );
+    if (error) return setStatus(error.message);
+    setStatus("User unblocked.");
+    setReloadTick((x) => x + 1);
+  }
+
   return (
     <main className="min-h-screen bg-[#f6f7fb] p-4">
       <div className="max-w-3xl mx-auto space-y-3">
@@ -298,12 +336,19 @@ export default function ProfilePage() {
                     >
                       {friendship?.status === "accepted"
                         ? "Unfriend"
+                        : blockEdge
+                          ? "Blocked"
                         : friendship?.status === "pending" && friendship.requester_id === viewerId
                           ? "Cancel request"
                           : friendship?.status === "pending" && friendship.addressee_id === viewerId
                             ? "Accept friend request"
                             : "Add friend"}
                     </button>
+                    {blockEdge ? (
+                      <button className="border rounded px-3 py-2" onClick={() => void unblockUser()}>Unblock</button>
+                    ) : (
+                      <button className="border rounded px-3 py-2" onClick={() => void blockUser()}>Block</button>
+                    )}
                     <button className="border rounded px-3 py-2" onClick={() => setShowReportModal(true)}>Report</button>
                   </>
                 )}
