@@ -58,13 +58,16 @@ export default function NotificationsPage() {
       (myMessages || []).forEach((row: any) => {
         const quest = Array.isArray(row.quests) ? row.quests[0] : row.quests;
         const sender = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
+        const isPrivate = row.body?.startsWith("[PRIVATE");
         notifications.push({
           id: `msg-${row.id}`,
           kind: "message",
-          badge: row.body?.startsWith("[PRIVATE") ? "Direct message" : "Public comment",
+          badge: isPrivate ? "Direct message" : "Public comment",
           title: quest?.title || "Conversation",
           body: stripMessagePrefix(row.body || ""),
-          href: "/inbox",
+          href: isPrivate
+            ? `/inbox?thread=${row.quest_id}:private:${row.sender_id}&message=${row.id}`
+            : `/inbox?thread=${row.quest_id}:public&message=${row.id}`,
           created_at: row.created_at,
           senderName: sender?.display_name || "Someone",
           senderAvatar: sender?.avatar_url || null,

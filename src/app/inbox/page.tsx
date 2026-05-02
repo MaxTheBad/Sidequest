@@ -110,6 +110,8 @@ export default function InboxPage() {
   const [newIncomingCount, setNewIncomingCount] = useState(0);
   const lastMessageIdRef = useRef<string | null>(null);
   const lastIncomingIdRef = useRef<string | null>(null);
+  const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
+  const pendingThreadTargetRef = useRef<{ thread: string | null; message: string | null } | null>(null);
 
   const loadInbox = useCallback(async (uid: string, silent = false) => {
     if (!supabase) return;
@@ -354,6 +356,37 @@ export default function InboxPage() {
   }, [messages, activeThread, userId]);
 
   useEffect(() => {
+    if (typeof window !== "undefined" && !pendingThreadTargetRef.current) {
+      const params = new URLSearchParams(window.location.search);
+      pendingThreadTargetRef.current = {
+        thread: params.get("thread"),
+        message: params.get("message"),
+      };
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!pendingThreadTargetRef.current || !threads.length || didAutoSelectRef.current) return;
+    const requestedThreadId = pendingThreadTargetRef.current.thread;
+    if (requestedThreadId && threads.some((t) => t.id === requestedThreadId)) {
+      setActiveThreadId(requestedThreadId);
+      setSelectedMessageId(pendingThreadTargetRef.current.message);
+      didAutoSelectRef.current = true;
+      return;
+    }
+    pendingThreadTargetRef.current = null;
+  }, [threads]);
+
+  useEffect(() => {
+    if (!selectedMessageId) return;
+    const el = document.getElementById(`message-${selectedMessageId}`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    const timer = window.setTimeout(() => setSelectedMessageId(null), 1500);
+    return () => window.clearTimeout(timer);
+  }, [selectedMessageId, activeMessages]);
+
+  useEffect(() => {
     lastMessageIdRef.current = null;
     lastIncomingIdRef.current = null;
     setShowJumpToLatest(false);
@@ -543,7 +576,11 @@ export default function InboxPage() {
                 activeMessages.map((m) => {
                   const mine = m.sender_id === userId;
                   return (
-                    <div key={m.id} className={`max-w-[86%] rounded-xl px-3 py-2 text-sm ${mine ? "ml-auto bg-black text-white" : "bg-gray-100"}`}>
+                    <div
+                      id={`message-${m.id}`}
+                      key={m.id}
+                      className={`max-w-[86%] rounded-xl px-3 py-2 text-sm ${mine ? "ml-auto bg-black text-white" : "bg-gray-100"} ${selectedMessageId === m.id ? "ring-2 ring-blue-400 ring-offset-2" : ""}`}
+                    >
                       <div className="flex items-center gap-2 mb-1">
                         {m.profiles?.avatar_url ? (
                           <img src={m.profiles.avatar_url} alt={m.profiles.display_name || "User"} className="h-5 w-5 rounded-full object-cover border" />
