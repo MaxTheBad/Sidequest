@@ -118,14 +118,14 @@ export default function NotificationsPage() {
   }, [items]);
 
   const visibleItems = useMemo(() => {
-    if (!activeFilters.length) return items;
-    return items.filter((item) => {
+    const filtered = !activeFilters.length ? items : items.filter((item) => {
       if (activeFilters.includes("messages") && item.kind === "message" && item.badge === "Direct message") return true;
       if (activeFilters.includes("comments") && item.kind === "message" && item.badge === "Public comment") return true;
       if (activeFilters.includes("joined") && (item.kind === "join_request" || item.kind === "approval")) return true;
       if (activeFilters.includes("your_listings") && item.kind === "created") return true;
       return false;
     });
+    return [...filtered].sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at));
   }, [items, activeFilters]);
 
   function toggleFilter(filter: "messages" | "comments" | "joined" | "your_listings") {
