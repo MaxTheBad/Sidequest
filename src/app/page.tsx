@@ -2013,16 +2013,27 @@ export default function Home() {
             </div>
 
             <div className="flex gap-2">
-              {["Basics", "Bio", "Interests", "Photo"].map((label, index) => (
+              {["Basics", "Bio", "Interests", "Photo"].map((label, index) => {
+                const done =
+                  (index === 0 && onboardingDisplayName.trim() && onboardingCity.trim()) ||
+                  (index === 1 && onboardingBio.trim()) ||
+                  (index === 2 && onboardingInterestIds.length > 0) ||
+                  (index === 3 && onboardingPhotoFile);
+
+                return (
                 <button
                   key={label}
                   type="button"
                   onClick={() => setOnboardingStep(index)}
                   className={`flex-1 rounded-full px-3 py-2 text-center text-sm border ${index === onboardingStep ? "bg-black text-white border-black" : "bg-gray-50"}`}
                 >
-                  {label}
+                  <span className="inline-flex items-center justify-center gap-1.5">
+                    {done ? <span aria-hidden="true">✓</span> : null}
+                    <span>{label}</span>
+                  </span>
                 </button>
-              ))}
+                );
+              })}
             </div>
 
             {onboardingStep === 0 && (
