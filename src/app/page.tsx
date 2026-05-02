@@ -761,7 +761,7 @@ export default function Home() {
     setOnboardingBio(profile?.bio || "");
     setOnboardingInterestIds(savedHobbyIds);
     setOnboardingDone(Boolean(profile?.onboarding_done));
-    setOnboardingExistingAvatarUrl((profile as { avatar_url?: string | null } | null)?.avatar_url || "");
+    setOnboardingExistingAvatarUrl((profile as { avatar_source_url?: string | null; avatar_url?: string | null } | null)?.avatar_source_url || (profile as { avatar_url?: string | null } | null)?.avatar_url || "");
   }
 
   async function maybeShowOnboarding(uid: string | null, emailValue?: string | null) {
@@ -823,15 +823,22 @@ export default function Home() {
       if (uploadError) throw uploadError;
 
       const { data: publicData } = supabase.storage.from("profile-photos").getPublicUrl(filePath);
+      const originalFilePath = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2)}-original.jpg`;
+      const { error: originalUploadError } = await supabase.storage
+        .from("profile-photos")
+        .upload(originalFilePath, onboardingPhotoFile, { upsert: false, contentType: onboardingPhotoFile.type || "image/jpeg" });
+      if (originalUploadError) throw originalUploadError;
+      const { data: originalData } = supabase.storage.from("profile-photos").getPublicUrl(originalFilePath);
       const { error: profileError } = await supabase.from("profiles").upsert({
         id: userId,
         avatar_url: publicData.publicUrl,
+        avatar_source_url: originalData.publicUrl,
         photo_onboarding_done: true,
       });
       if (profileError && !profileError.message.toLowerCase().includes("row-level security")) throw profileError;
 
       await supabase.auth.updateUser({ data: { avatar_url: publicData.publicUrl } });
-      return publicData.publicUrl;
+      return { avatarUrl: publicData.publicUrl, sourceUrl: originalData.publicUrl };
     } finally {
       URL.revokeObjectURL(cropUrl);
     }
@@ -842,8 +849,11 @@ export default function Home() {
     setOnboardingSaving(true);
     try {
       let uploadedPhotoUrl: string | null = null;
+      let uploadedPhotoSourceUrl: string | null = null;
       if (onboardingPhotoFile) {
-        uploadedPhotoUrl = await uploadOnboardingPhoto();
+        const uploaded = await uploadOnboardingPhoto();
+        uploadedPhotoUrl = uploaded?.avatarUrl || null;
+        uploadedPhotoSourceUrl = uploaded?.sourceUrl || null;
       }
       const { error: profileError } = await supabase.from("profiles").upsert({
         id: userId,
@@ -852,6 +862,7 @@ export default function Home() {
         bio: onboardingBio.trim() || null,
         onboarding_done: true,
         avatar_url: uploadedPhotoUrl,
+        avatar_source_url: uploadedPhotoSourceUrl,
       });
       if (profileError) throw profileError;
 

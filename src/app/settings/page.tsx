@@ -90,7 +90,7 @@ export default function SettingsPage() {
 
       const { data: profile } = await supabase
         .from("profiles")
-        .select("display_name,city,bio,friends_visibility,avatar_url")
+        .select("display_name,city,bio,friends_visibility,avatar_url,avatar_source_url")
         .eq("id", uid)
         .maybeSingle();
 
@@ -213,9 +213,15 @@ export default function SettingsPage() {
   }
 
   async function startAdjustCurrentPhoto() {
-    if (!avatarUrl) return;
+    if (!supabase || !userId || !avatarUrl) return;
     try {
-      const res = await fetch(avatarUrl);
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("avatar_source_url,avatar_url")
+        .eq("id", userId)
+        .maybeSingle();
+      const sourceUrl = profile?.avatar_source_url || profile?.avatar_url || avatarUrl;
+      const res = await fetch(sourceUrl);
       const blob = await res.blob();
       const file = new File([blob], "current-avatar.jpg", { type: blob.type || "image/jpeg" });
       setPhotoFile(file);
@@ -257,12 +263,22 @@ export default function SettingsPage() {
     }
 
     const { data: publicData } = supabase.storage.from("profile-photos").getPublicUrl(filePath);
+    const originalFilePath = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2)}-original.jpg`;
+    const { error: originalUploadError } = await supabase.storage
+      .from("profile-photos")
+      .upload(originalFilePath, photoFile, { upsert: false, contentType: photoFile.type || "image/jpeg" });
+    if (originalUploadError) {
+      setUploadingPhoto(false);
+      return setStatus(`Photo upload failed: ${originalUploadError.message}`);
+    }
+    const { data: originalData } = supabase.storage.from("profile-photos").getPublicUrl(originalFilePath);
+
     let { error: profileErr } = await supabase
       .from("profiles")
-      .upsert({ id: userId, avatar_url: publicData.publicUrl, avatar_capture_method: "camera", photo_onboarding_done: true });
+      .upsert({ id: userId, avatar_url: publicData.publicUrl, avatar_source_url: originalData.publicUrl, avatar_capture_method: "camera", photo_onboarding_done: true });
 
     if (profileErr?.message?.includes("column") && (profileErr.message.includes("avatar_capture_method") || profileErr.message.includes("photo_onboarding_done"))) {
-      const fallback = await supabase.from("profiles").upsert({ id: userId, avatar_url: publicData.publicUrl });
+      const fallback = await supabase.from("profiles").upsert({ id: userId, avatar_url: publicData.publicUrl, avatar_source_url: originalData.publicUrl });
       profileErr = fallback.error;
     }
 
