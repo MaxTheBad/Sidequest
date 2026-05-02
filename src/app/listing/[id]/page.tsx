@@ -66,7 +66,9 @@ export default function ListingPage() {
   const [expandedMediaIndex, setExpandedMediaIndex] = useState<number | null>(null);
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const [showReportModal, setShowReportModal] = useState(false);
+  const [showBlockConfirm, setShowBlockConfirm] = useState(false);
   const [reportTargetUserId, setReportTargetUserId] = useState<string | null>(null);
+  const [blockTargetUserId, setBlockTargetUserId] = useState<string | null>(null);
   const [reportContext, setReportContext] = useState<"listing_content" | "chat_behavior" | "profile_account" | "in_person">("in_person");
   const [reportReason, setReportReason] = useState("unsafe_behavior");
   const [reportDetails, setReportDetails] = useState("");
@@ -317,6 +319,30 @@ export default function ListingPage() {
     setStatus("Exact location access revoked.");
   }
 
+  async function blockMemberFromQuest(targetUserId: string) {
+    if (!supabase || !listing || !isManager || !targetUserId) return;
+
+    await supabase.from("friends").delete().or(
+      `and(requester_id.eq.${userId},addressee_id.eq.${targetUserId}),and(requester_id.eq.${targetUserId},addressee_id.eq.${userId})`
+    );
+
+    const { error } = await supabase.from("friends").upsert({
+      requester_id: userId,
+      addressee_id: targetUserId,
+      status: "blocked",
+    });
+    if (error) return setStatus(error.message);
+
+    await supabase.from("quest_members").delete().eq("quest_id", listing.id).eq("user_id", targetUserId);
+    await supabase.from("quest_exact_location_access").delete().eq("quest_id", listing.id).eq("user_id", targetUserId);
+    await loadMembers(listing.id, userId);
+    await loadComments(listing.id, []);
+    setBlockedUserIds((prev) => prev.includes(targetUserId) ? prev : [...prev, targetUserId]);
+    setShowBlockConfirm(false);
+    setBlockTargetUserId(null);
+    setStatus("User blocked and removed from this quest.");
+  }
+
   function askQuestion(mode: "public" | "private" = "public") {
     if (!supabase || !userId || !listing) return setStatus("Log in to comment or message listing owners.");
     setQuestionMode(mode);
@@ -531,13 +557,27 @@ export default function ListingPage() {
                           </button>
                         )}
                         {userId && m.user_id !== userId && (
-                          <button
-                            type="button"
-                            className="text-xs border rounded px-2 py-0.5"
-                            onClick={() => openReportUser(m.user_id)}
-                          >
-                            Report
-                          </button>
+                          <>
+                            {isManager && (
+                              <button
+                                type="button"
+                                className="text-xs border rounded px-2 py-0.5 text-red-700 border-red-300 bg-red-50"
+                                onClick={() => {
+                                  setBlockTargetUserId(m.user_id);
+                                  setShowBlockConfirm(true);
+                                }}
+                              >
+                                Block
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              className="text-xs border rounded px-2 py-0.5"
+                              onClick={() => openReportUser(m.user_id)}
+                            >
+                              Report
+                            </button>
+                          </>
                         )}
                       </div>
                     );
@@ -688,7 +728,7 @@ export default function ListingPage() {
             <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 border rounded-full h-10 w-10 bg-white" onClick={(e) => { e.stopPropagation(); setExpandedMediaIndex((idx) => (idx === null || !listing.media_items?.length ? idx : (idx + 1) % listing.media_items.length)); }}>›</button>
           </div>
         )}
-        {showReportModal && listing && reportTargetUserId && (
+      {showReportModal && listing && reportTargetUserId && (
           <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center p-4">
             <div className="w-full max-w-lg rounded-2xl bg-white border p-4 space-y-3">
               <div className="flex items-center justify-between">
@@ -712,7 +752,23 @@ export default function ListingPage() {
               </div>
             </div>
           </div>
-        )}
+      )}
+
+      {showBlockConfirm && listing && blockTargetUserId && (
+        <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white border p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold">Block user</h3>
+              <button className="border rounded px-2 py-1" onClick={() => setShowBlockConfirm(false)}>Close</button>
+            </div>
+            <p className="text-sm text-gray-700">Block this user from your quest? They’ll be removed from this listing and won’t be able to message or friend you from the app.</p>
+            <div className="flex justify-end gap-2">
+              <button className="border rounded px-3 py-2" onClick={() => setShowBlockConfirm(false)}>Cancel</button>
+              <button className="bg-red-600 text-white rounded px-3 py-2" onClick={() => void blockMemberFromQuest(blockTargetUserId)}>Block user</button>
+            </div>
+          </div>
+        </div>
+      )}
 
         {showQuestionModal && listing && (
           <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center p-4">
