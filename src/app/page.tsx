@@ -2014,9 +2014,14 @@ export default function Home() {
 
             <div className="flex gap-2">
               {["Basics", "Bio", "Interests", "Photo"].map((label, index) => (
-                <div key={label} className={`flex-1 rounded-full px-3 py-2 text-center text-sm border ${index === onboardingStep ? "bg-black text-white border-black" : "bg-gray-50"}`}>
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() => setOnboardingStep(index)}
+                  className={`flex-1 rounded-full px-3 py-2 text-center text-sm border ${index === onboardingStep ? "bg-black text-white border-black" : "bg-gray-50"}`}
+                >
                   {label}
-                </div>
+                </button>
               ))}
             </div>
 
@@ -2082,6 +2087,9 @@ export default function Home() {
                 <div>
                   <label className="text-sm font-medium">Add a profile photo</label>
                   <p className="text-xs text-gray-500">This helps people recognize you faster.</p>
+                </div>
+                <div className="h-2 w-full rounded-full bg-gray-100 overflow-hidden">
+                  <div className="h-full rounded-full bg-black transition-all" style={{ width: onboardingPhotoFile ? "100%" : "42%" }} />
                 </div>
                 <input
                   type="file"
