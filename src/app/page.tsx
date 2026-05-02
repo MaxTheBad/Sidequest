@@ -907,6 +907,22 @@ export default function Home() {
     }
   }
 
+  async function restartOnboardingForTesting() {
+    if (!supabase || !userId) return;
+    const ok = window.confirm("Restart onboarding for this account?");
+    if (!ok) return;
+    const { error } = await supabase.from("profiles").upsert({ id: userId, onboarding_done: false });
+    if (error) return setStatus(error.message);
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem(onboardingStorageKey(userId));
+    }
+    setOnboardingDone(false);
+    setShowOnboardingWizard(true);
+    setOnboardingStep(0);
+    await maybeShowOnboarding(userId, userEmail);
+    setStatus("Onboarding restarted.");
+  }
+
   async function skipPhotoStep() {
     if (!supabase || !userId) return;
     const { error } = await supabase
@@ -1980,6 +1996,16 @@ export default function Home() {
                 <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Welcome to Side Quest</p>
                 <h3 className="text-2xl font-semibold">Set up your profile</h3>
                 <p className="text-sm text-gray-500">This takes about a minute and helps people find the right outdoor plans.</p>
+                <p className="mt-2 text-xs text-gray-500">
+                  {[
+                    onboardingDisplayName.trim() ? "name" : null,
+                    onboardingCity.trim() ? "city" : null,
+                    onboardingBio.trim() ? "bio" : null,
+                    onboardingInterestIds.length ? "interests" : null,
+                    onboardingPhotoFile ? "photo" : null,
+                  ].filter(Boolean).length}
+                  /5 complete
+                </p>
               </div>
               <button className="border rounded-full px-3 py-1.5 text-sm" onClick={() => void skipOnboarding()} type="button">
                 Skip
@@ -2001,7 +2027,7 @@ export default function Home() {
                 <label className="text-sm font-medium">City</label>
                 <input className="border rounded-xl px-3 py-2.5" value={onboardingCity} onChange={(e) => setOnboardingCity(e.target.value)} placeholder="Where are you based?" />
                 {onboardingCitySuggestions.length > 0 && (
-                  <div className="rounded-2xl border bg-gray-50 overflow-hidden">
+                  <div className="rounded-2xl border bg-gray-50 overflow-hidden max-h-56 overflow-y-auto">
                     {onboardingCitySuggestions.map((suggestion) => (
                       <button
                         key={suggestion}

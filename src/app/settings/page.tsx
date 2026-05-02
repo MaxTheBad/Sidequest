@@ -381,6 +381,16 @@ export default function SettingsPage() {
     setStatus("Preferences saved ✅");
   }
 
+  async function restartOnboarding() {
+    if (!supabase || !userId) return;
+    const ok = window.confirm("Restart onboarding for this account?");
+    if (!ok) return;
+    const { error } = await supabase.from("profiles").upsert({ id: userId, onboarding_done: false });
+    if (error) return setStatus(error.message);
+    window.localStorage.removeItem(`sidequest_onboarding_done:${userId}`);
+    setStatus("Onboarding reset. Refresh the home page or sign out and back in.");
+  }
+
   return (
     <main className="min-h-screen bg-[#f6f7fb] p-4">
       <datalist id="country-list">{countryOptions.map((c) => <option key={c.code} value={c.name} />)}</datalist>
@@ -588,6 +598,7 @@ export default function SettingsPage() {
                   <span>Public location warning (recommended). Show confirmation before posting quests with public meetup visibility.</span>
                 </label>
 
+                <button type="button" className="border rounded px-3 py-2 w-fit" onClick={() => void restartOnboarding()}>Restart onboarding</button>
                 <button className="border rounded px-3 py-2 w-fit">Save preferences</button>
               </form>
             )}
