@@ -1976,7 +1976,14 @@ export default function Home() {
                   {userId !== q.creator_id && (
                     <>
                       <button className="border rounded-full px-3 py-2" onClick={() => void toggleJoinQuest(q.id)}>{membershipStatusByQuest[q.id] === "pending" ? "Cancel request" : (membershipStatusByQuest[q.id] === "declined" ? "Request again" : (joinedQuestIds.includes(q.id) ? "Leave" : ((q.join_mode || "open") === "approval_required" ? "Request to join" : "Join")))}</button>
-                      <button className="border rounded-full px-3 py-2" onClick={() => void askQuestion(q)}>Comment / DM</button>
+                      <button className="border rounded-full px-3 py-2" onClick={() => {
+                        setQuestionMode("public");
+                        void askQuestion(q);
+                      }}>Comment</button>
+                      <button className="border rounded-full px-3 py-2" onClick={() => {
+                        setQuestionMode("private");
+                        void askQuestion(q);
+                      }}>DM</button>
                     </>
                   )}
                   <button className="border rounded-full px-3 py-2" onClick={() => void toggleBookmark(q.id)}>
@@ -2816,16 +2823,16 @@ export default function Home() {
         <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center p-4">
           <div className="w-full max-w-lg rounded-2xl bg-white border p-4 space-y-3">
             <div className="flex items-center justify-between">
-              <h3 className="font-semibold">Comment or message</h3>
+              <h3 className="font-semibold">{questionMode === "public" ? "Comment" : "Direct message"}</h3>
               <button className="border rounded px-2 py-1" onClick={() => setShowQuestionModal(false)}>Close</button>
             </div>
             <p className="text-sm text-gray-600">About: <b>{questionTarget.title}</b></p>
             <div className="flex gap-2">
-              <button type="button" className={`border rounded px-3 py-2 ${questionMode === "public" ? "bg-black text-white" : ""}`} onClick={() => setQuestionMode("public")}>Comment (public)</button>
-              <button type="button" className={`border rounded px-3 py-2 ${questionMode === "private" ? "bg-black text-white" : ""}`} onClick={() => setQuestionMode("private")}>Direct message</button>
+              <button type="button" className={`border rounded px-3 py-2 ${questionMode === "public" ? "bg-black text-white" : ""}`} onClick={() => setQuestionMode("public")}>Comment</button>
+              <button type="button" className={`border rounded px-3 py-2 ${questionMode === "private" ? "bg-black text-white" : ""}`} onClick={() => setQuestionMode("private")}>DM</button>
             </div>
-            <p className="text-xs text-gray-600">Comments are visible to everyone. Direct messages are private.</p>
-            <textarea className="border rounded px-3 py-2 w-full" placeholder="Write your comment or message..." value={questionText} onChange={(e) => setQuestionText(e.target.value)} />
+            <p className="text-xs text-gray-600">{questionMode === "public" ? "Comments are visible on this listing." : "Direct messages are private."}</p>
+            <textarea className="border rounded px-3 py-2 w-full" placeholder={questionMode === "public" ? "Write your comment..." : "Write your direct message..."} value={questionText} onChange={(e) => setQuestionText(e.target.value)} />
             <button className="bg-black text-white rounded px-3 py-2 disabled:opacity-50" disabled={sendingQuestion || !questionText.trim()} onClick={() => void sendQuestionFromModal()}>{sendingQuestion ? "Sending..." : "Send"}</button>
           </div>
         </div>
