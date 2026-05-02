@@ -56,7 +56,6 @@ export default function ProfilePage() {
     if (!viewerId || !profileId) return null;
     return friendship?.status === "blocked" ? friendship : null;
   }, [friendship, profileId, viewerId]);
-  const blockedByThem = useMemo(() => !!(blockEdge && blockEdge.requester_id === profileId && blockEdge.addressee_id === viewerId), [blockEdge, profileId, viewerId]);
   const youBlockedThem = useMemo(() => !!(blockEdge && blockEdge.requester_id === viewerId && blockEdge.addressee_id === profileId), [blockEdge, profileId, viewerId]);
   const canViewFriends = useMemo(() => {
     if (isOwnProfile) return true;
@@ -338,21 +337,20 @@ export default function ProfilePage() {
                     >
                       {friendship?.status === "accepted"
                         ? "Unfriend"
-                        : blockEdge
-                          ? (blockedByThem ? "Blocked you" : "Blocked")
+                        : youBlockedThem
+                          ? "Blocked"
                         : friendship?.status === "pending" && friendship.requester_id === viewerId
                           ? "Cancel request"
                           : friendship?.status === "pending" && friendship.addressee_id === viewerId
                             ? "Accept friend request"
                             : "Add friend"}
                     </button>
-                    {blockEdge ? (
+                    {youBlockedThem ? (
                       <button className="border rounded px-3 py-2 text-red-700 border-red-300 bg-red-50" onClick={() => setShowUnblockConfirm(true)}>Unblock</button>
                     ) : (
                       <button className="border rounded px-3 py-2 text-red-700 border-red-300 bg-red-50" onClick={() => setShowBlockConfirm(true)}>Block</button>
                     )}
                     <button className="border rounded px-3 py-2 text-red-700 border-red-300 bg-red-50" onClick={() => setShowReportModal(true)}>Report</button>
-                    {blockedByThem && <span className="text-xs px-2 py-1 rounded bg-red-100 text-red-700">Blocked you</span>}
                   </>
                 )}
               </div>
