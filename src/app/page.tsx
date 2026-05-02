@@ -2127,51 +2127,72 @@ export default function Home() {
                     setOnboardingPhotoFile(picked);
                     if (onboardingPhotoPreviewUrl) URL.revokeObjectURL(onboardingPhotoPreviewUrl);
                     setOnboardingPhotoPreviewUrl(URL.createObjectURL(picked));
+                    setOnboardingPhotoZoom(1.2);
+                    setOnboardingPhotoOffsetX(0);
+                    setOnboardingPhotoOffsetY(0);
                   }}
                 />
                 {(onboardingPhotoPreviewUrl || onboardingExistingAvatarUrl) && (
-                  <div className="grid gap-2">
-                    <p className="text-xs text-gray-500">{onboardingPhotoPreviewUrl ? "Selected preview" : "Preview from your profile"}</p>
-                    <div
-                      className="relative h-48 sm:h-56 w-full overflow-hidden rounded-3xl border bg-black touch-none"
-                      onPointerDown={(e) => {
-                        (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
-                        setOnboardingPhotoDragging(true);
-                        setOnboardingPhotoLastPointer({ x: e.clientX, y: e.clientY });
-                      }}
-                      onPointerMove={(e) => {
-                        if (!onboardingPhotoDragging || !onboardingPhotoLastPointer) return;
-                        const dx = e.clientX - onboardingPhotoLastPointer.x;
-                        const dy = e.clientY - onboardingPhotoLastPointer.y;
-                        setOnboardingPhotoOffsetX((v) => v + dx);
-                        setOnboardingPhotoOffsetY((v) => v + dy);
-                        setOnboardingPhotoLastPointer({ x: e.clientX, y: e.clientY });
-                      }}
-                      onPointerUp={() => {
-                        setOnboardingPhotoDragging(false);
-                        setOnboardingPhotoLastPointer(null);
-                      }}
-                    >
-                      <img
-                        src={onboardingPhotoPreviewUrl || onboardingExistingAvatarUrl}
-                        alt="Onboarding preview"
-                        className="absolute inset-0 h-full w-full object-cover"
-                        style={{
-                          transform: `translate(${onboardingPhotoOffsetX}px, ${onboardingPhotoOffsetY}px) scale(${onboardingPhotoZoom})`,
+                  <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_136px] lg:items-start">
+                    <div className="grid gap-2">
+                      <p className="text-xs text-gray-500">{onboardingPhotoPreviewUrl ? "Selected preview" : "Preview from your profile"}</p>
+                      <div
+                        className="relative h-44 sm:h-52 w-full overflow-hidden rounded-3xl border bg-black touch-none"
+                        onPointerDown={(e) => {
+                          (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+                          setOnboardingPhotoDragging(true);
+                          setOnboardingPhotoLastPointer({ x: e.clientX, y: e.clientY });
                         }}
+                        onPointerMove={(e) => {
+                          if (!onboardingPhotoDragging || !onboardingPhotoLastPointer) return;
+                          const dx = e.clientX - onboardingPhotoLastPointer.x;
+                          const dy = e.clientY - onboardingPhotoLastPointer.y;
+                          setOnboardingPhotoOffsetX((v) => v + dx);
+                          setOnboardingPhotoOffsetY((v) => v + dy);
+                          setOnboardingPhotoLastPointer({ x: e.clientX, y: e.clientY });
+                        }}
+                        onPointerUp={() => {
+                          setOnboardingPhotoDragging(false);
+                          setOnboardingPhotoLastPointer(null);
+                        }}
+                      >
+                        <img
+                          src={onboardingPhotoPreviewUrl || onboardingExistingAvatarUrl}
+                          alt="Onboarding preview"
+                          className="absolute inset-0 h-full w-full object-cover"
+                          style={{
+                            transform: `translate(${onboardingPhotoOffsetX}px, ${onboardingPhotoOffsetY}px) scale(${onboardingPhotoZoom})`,
+                            transformOrigin: "center center",
+                          }}
+                        />
+                      </div>
+                      <input
+                        type="range"
+                        min="1"
+                        max="2"
+                        step="0.01"
+                        value={onboardingPhotoZoom}
+                        onChange={(e) => setOnboardingPhotoZoom(Number(e.target.value))}
                       />
+                      <button type="button" className="border rounded-full px-3 py-2 text-sm self-start" onClick={() => resetOnboardingPhoto()}>
+                        Remove photo
+                      </button>
                     </div>
-                    <input
-                      type="range"
-                      min="1"
-                      max="2"
-                      step="0.01"
-                      value={onboardingPhotoZoom}
-                      onChange={(e) => setOnboardingPhotoZoom(Number(e.target.value))}
-                    />
-                    <button type="button" className="border rounded-full px-3 py-2 text-sm self-start" onClick={() => resetOnboardingPhoto()}>
-                      Remove photo
-                    </button>
+                    <div className="grid gap-2 justify-items-center lg:pt-7">
+                      <p className="text-xs text-gray-500">Final avatar</p>
+                      <div className="h-32 w-32 rounded-full border overflow-hidden bg-gray-50 shadow-sm">
+                        <img
+                          src={onboardingPhotoPreviewUrl || onboardingExistingAvatarUrl}
+                          alt="Final avatar preview"
+                          className="h-full w-full object-cover"
+                          style={{
+                            transform: `translate(${onboardingPhotoOffsetX}px, ${onboardingPhotoOffsetY}px) scale(${onboardingPhotoZoom})`,
+                            transformOrigin: "center center",
+                          }}
+                        />
+                      </div>
+                      <p className="text-[11px] text-gray-500 text-center">This is roughly how your profile picture will appear.</p>
+                    </div>
                   </div>
                 )}
               </div>
