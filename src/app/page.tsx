@@ -26,6 +26,7 @@ type DraftMediaItem = {
 type Quest = {
   id: string;
   creator_id: string;
+  created_at?: string | null;
   join_mode?: "open" | "approval_required";
   exact_location_visibility?: "private" | "public" | "approved_members";
   exact_address?: string | null;
@@ -252,6 +253,8 @@ export default function Home() {
   const [feedMediaIndexByQuest, setFeedMediaIndexByQuest] = useState<Record<string, number>>({});
   const [openCardMenuQuestId, setOpenCardMenuQuestId] = useState<string | null>(null);
   const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortMode, setSortMode] = useState<"newest" | "soonest" | "title">("newest");
   const [showSavedOnly, setShowSavedOnly] = useState(false);
   const [hobbyFilter, setHobbyFilter] = useState("all");
   const [loading, setLoading] = useState(false);
@@ -595,7 +598,7 @@ export default function Home() {
       const blocked = Array.from(new Set(((blockRows || []) as Array<{ requester_id: string; addressee_id: string }>).flatMap((r) => [r.requester_id, r.addressee_id]).filter((id) => id !== uid)));
       setBlockedUserIds(blocked);
     }
-    let q = supabase.from("quests").select("id,creator_id,title,description,city,skill_level,group_size,availability,hobby_id,join_mode,exact_location_visibility,exact_address,media_video_url,media_source,media_items,hobbies(name),profiles:profiles!quests_creator_id_fkey(id,display_name,avatar_url)").order("created_at", { ascending: false }).limit(24);
+    let q = supabase.from("quests").select("id,creator_id,created_at,title,description,city,skill_level,group_size,availability,hobby_id,join_mode,exact_location_visibility,exact_address,media_video_url,media_source,media_items,hobbies(name),profiles:profiles!quests_creator_id_fkey(id,display_name,avatar_url)").order("created_at", { ascending: false }).limit(24);
       const filterCategoryName = getFilterCategoryName(hobbyFilter);
       if (hobbyFilter !== "all") {
         if (filterCategoryName && hobbyFilter.startsWith("canonical:")) {
@@ -610,7 +613,7 @@ export default function Home() {
 
     // Backward compatibility if migration for media_items has not been applied yet
     if (error?.message?.includes("column quests.media_items does not exist")) {
-      let fallback = supabase.from("quests").select("id,creator_id,title,description,city,skill_level,group_size,availability,hobby_id,join_mode,exact_location_visibility,exact_address,media_video_url,media_source,hobbies(name),profiles:profiles!quests_creator_id_fkey(id,display_name,avatar_url)").order("created_at", { ascending: false }).limit(24);
+      let fallback = supabase.from("quests").select("id,creator_id,created_at,title,description,city,skill_level,group_size,availability,hobby_id,join_mode,exact_location_visibility,exact_address,media_video_url,media_source,hobbies(name),profiles:profiles!quests_creator_id_fkey(id,display_name,avatar_url)").order("created_at", { ascending: false }).limit(24);
       if (hobbyFilter !== "all") {
         if (filterCategoryName && hobbyFilter.startsWith("canonical:")) {
           fallback = fallback.ilike("hobbies.name", filterCategoryName);
@@ -1826,10 +1829,39 @@ export default function Home() {
   }
 
   const filteredQuests = useMemo(() => {
-    const visible = quests.filter((q) => !blockedUserIds.includes(q.creator_id));
-    if (!showSavedOnly) return visible;
-    return visible.filter((q) => bookmarkedQuestIds.includes(q.id));
-  }, [quests, showSavedOnly, bookmarkedQuestIds, blockedUserIds]);
+    const query = searchQuery.trim().toLowerCase();
+    const visible = quests
+      .filter((q) => !blockedUserIds.includes(q.creator_id))
+      .filter((q) => {
+        if (!query) return true;
+        const haystack = [
+          q.title,
+          q.description,
+          q.city,
+          q.availability,
+          q.hobbies?.[0]?.name,
+          q.skill_level,
+        ].filter(Boolean).join(" ").toLowerCase();
+        return haystack.includes(query);
+      });
+    const savedOnly = showSavedOnly ? visible.filter((q) => bookmarkedQuestIds.includes(q.id)) : visible;
+    return [...savedOnly].sort((a, b) => {
+      if (sortMode === "title") return (a.title || "").localeCompare(b.title || "");
+      const parseStart = (availability?: string | null) => {
+        const match = availability?.match(/Start at:\s*(.+?)(?:\s*·\s*Notes:|$)/i);
+        const ts = match ? Date.parse(match[1] || "") : NaN;
+        return Number.isFinite(ts) ? ts : 0;
+      };
+      const aTime = parseStart(a.availability);
+      const bTime = parseStart(b.availability);
+      if (sortMode === "soonest") {
+        if (aTime && bTime) return aTime - bTime;
+        if (aTime) return -1;
+        if (bTime) return 1;
+      }
+      return +new Date(b.created_at || 0) - +new Date(a.created_at || 0);
+    });
+  }, [quests, showSavedOnly, bookmarkedQuestIds, blockedUserIds, searchQuery, sortMode]);
 
   const surprisePick = useMemo(() => (filteredQuests.length ? filteredQuests[Math.floor(Math.random() * filteredQuests.length)] : null), [filteredQuests]);
   const editingQuest = useMemo(() => quests.find((q) => q.id === editingQuestId) || null, [quests, editingQuestId]);
@@ -1858,6 +1890,23 @@ export default function Home() {
                     </option>
                   ))}
                 </select>
+                <div className="grid gap-2">
+                  <label className="block text-xs font-medium text-gray-600">Search</label>
+                  <input
+                    className="w-full border rounded-xl px-3 py-2.5 bg-white"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search title, city, category..."
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <label className="block text-xs font-medium text-gray-600">Sort by</label>
+                  <select className="w-full border rounded-xl px-3 py-2.5 bg-white" value={sortMode} onChange={(e) => setSortMode(e.target.value as "newest" | "soonest" | "title")}>
+                    <option value="newest">Newest</option>
+                    <option value="soonest">Soonest</option>
+                    <option value="title">Title</option>
+                  </select>
+                </div>
               </div>
               <div className="flex flex-wrap gap-2">
                 <button
