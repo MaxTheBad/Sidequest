@@ -12,6 +12,7 @@ export default function GlobalTopBar() {
   const [userId, setUserId] = useState<string | null>(null);
   const [userLabel, setUserLabel] = useState("");
   const [themePref, setThemePref] = useState<"auto" | "light" | "dark">("auto");
+  const [notificationCount, setNotificationCount] = useState(0);
 
   useEffect(() => {
     if (!supabase) return;
@@ -56,6 +57,26 @@ export default function GlobalTopBar() {
 
   const themeLabel = useMemo(() => (themePref === "auto" ? "Auto" : themePref === "light" ? "Light" : "Dark"), [themePref]);
 
+  useEffect(() => {
+    if (!supabase || !userId) return;
+    const run = async () => {
+      const lastSeenRaw = typeof window !== "undefined" ? window.localStorage.getItem("sidequest_notifications_last_seen") : "";
+      const lastSeen = lastSeenRaw ? new Date(lastSeenRaw).getTime() : 0;
+
+      const [{ data: myMessages }, { data: joinedRows }] = await Promise.all([
+        supabase.from("messages").select("id,created_at,sender_id").neq("sender_id", userId).order("created_at", { ascending: false }).limit(50),
+        supabase.from("quest_members").select("quest_id,status,joined_at").eq("user_id", userId).in("status", ["pending", "approved"]).order("joined_at", { ascending: false }).limit(50),
+      ]);
+
+      const messageCount = ((myMessages || []) as Array<{ created_at: string }>).filter((row) => !lastSeen || new Date(row.created_at).getTime() > lastSeen).length;
+      const joinCount = ((joinedRows || []) as Array<{ joined_at?: string | null; status?: string | null }>).filter((row) => row.status === "pending" || row.status === "approved").filter((row) => !lastSeen || new Date(row.joined_at || row.joined_at || new Date().toISOString()).getTime() > lastSeen).length;
+      setNotificationCount(messageCount + joinCount);
+    };
+    void run();
+    const id = window.setInterval(run, 30000);
+    return () => window.clearInterval(id);
+  }, [supabase, userId]);
+
   async function signOut() {
     if (!supabase) return;
     await supabase.auth.signOut();
@@ -78,7 +99,10 @@ export default function GlobalTopBar() {
         <Link href="/" className="nav-brand text-[15px] tracking-tight">Sydequest</Link>
         <nav className="hidden md:flex items-center gap-1">
           <Link href="/" className={`nav-item text-xs px-3 py-1 ${pathname === "/" ? "nav-item-active" : ""}`}>Home</Link>
-          <button type="button" onClick={() => router.push("/notifications")} className={`nav-item text-xs px-3 py-1 ${pathname === "/notifications" ? "nav-item-active" : ""}`}>Notifications</button>
+          <button type="button" onClick={() => router.push("/notifications")} className={`nav-item text-xs px-3 py-1 ${pathname === "/notifications" ? "nav-item-active" : ""}`}>
+            Notifications
+            {notificationCount > 0 ? <span className="ml-2 inline-flex min-w-5 h-5 px-1 items-center justify-center rounded-full bg-black text-white text-[10px]">{notificationCount > 9 ? "9+" : notificationCount}</span> : null}
+          </button>
           <button type="button" onClick={() => router.push("/inbox")} className={`nav-item text-xs px-3 py-1 ${pathname === "/inbox" ? "nav-item-active" : ""}`}>Inbox</button>
           <button type="button" onClick={() => router.push("/joined")} className={`nav-item text-xs px-3 py-1 ${pathname === "/joined" ? "nav-item-active" : ""}`}>Joined</button>
           <button type="button" onClick={() => router.push("/settings")} className={`nav-item text-xs px-3 py-1 ${pathname === "/settings" ? "nav-item-active" : ""}`}>Settings</button>

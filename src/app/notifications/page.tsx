@@ -7,6 +7,7 @@ import { getSupabaseClient } from "@/lib/supabase";
 type NotificationItem = {
   id: string;
   kind: "message" | "join_request" | "approval" | "created";
+  badge: string;
   title: string;
   body: string;
   href: string;
@@ -46,7 +47,7 @@ export default function NotificationsPage() {
 
       const [{ data: myQuests }, { data: myMessages }, { data: joinedRows }] = await Promise.all([
         supabase.from("quests").select("id,title,created_at").eq("creator_id", uid).order("created_at", { ascending: false }).limit(50),
-        supabase.from("messages").select("id,quest_id,body,created_at,quests(title,creator_id)").or(`sender_id.eq.${uid},body.like.[PRIVATE to=${uid}] %,body.like.[PUBLIC] %`).order("created_at", { ascending: false }).limit(100),
+        supabase.from("messages").select("id,quest_id,sender_id,body,created_at,quests(id,title,creator_id)").neq("sender_id", uid).order("created_at", { ascending: false }).limit(100),
         supabase.from("quest_members").select("quest_id,status,quests(title,city,availability)").eq("user_id", uid).in("status", ["pending", "approved"]).order("joined_at", { ascending: false }).limit(50),
       ]);
 
@@ -55,10 +56,11 @@ export default function NotificationsPage() {
         const quest = Array.isArray(row.quests) ? row.quests[0] : row.quests;
         notifications.push({
           id: `msg-${row.id}`,
-          kind: row.sender_id === uid ? "message" : "message",
+          kind: "message",
+          badge: row.body?.startsWith("[PRIVATE") ? "Direct message" : "Public comment",
           title: quest?.title || "Conversation",
           body: stripMessagePrefix(row.body || ""),
-          href: quest?.id ? `/inbox` : "/inbox",
+          href: "/inbox",
           created_at: row.created_at,
         });
       });
@@ -67,8 +69,9 @@ export default function NotificationsPage() {
         notifications.push({
           id: `join-${row.quest_id}`,
           kind: row.status === "pending" ? "join_request" : "approval",
+          badge: row.status === "pending" ? "Join request" : "Joined",
           title: quest?.title || "Joined quest",
-          body: row.status === "pending" ? "Waiting for approval" : "You are in",
+          body: row.status === "pending" ? "Waiting for host approval" : "You joined this quest",
           href: row.quest_id ? `/listing/${row.quest_id}` : "/joined",
           created_at: row.created_at || new Date().toISOString(),
         });
@@ -77,6 +80,7 @@ export default function NotificationsPage() {
         notifications.push({
           id: `created-${row.id}`,
           kind: "created",
+          badge: "Your listing",
           title: row.title || "Your listing",
           body: "You created this quest",
           href: `/listing/${row.id}`,
@@ -131,7 +135,8 @@ export default function NotificationsPage() {
               <Link key={item.id} href={item.href} className="block rounded-2xl border px-4 py-3 hover:bg-gray-50">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-sm font-semibold">{item.title}</p>
+                    <p className="text-[11px] uppercase tracking-[0.2em] text-gray-500">{item.badge}</p>
+                    <p className="text-sm font-semibold mt-1">{item.title}</p>
                     <p className="text-sm text-gray-600">{item.body}</p>
                   </div>
                   <span className="text-[11px] text-gray-500 whitespace-nowrap">{new Date(item.created_at).toLocaleString()}</span>
