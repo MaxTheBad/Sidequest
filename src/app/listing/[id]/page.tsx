@@ -511,6 +511,7 @@ export default function ListingPage() {
                         </Link>
                         {m.role === "creator" && <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">⭐ Organizer</span>}
                         {m.role === "cohost" && <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">⭐ Co-host</span>}
+                        {blockedUserIds.includes(m.user_id) && <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-100 text-red-700">Blocked</span>}
                         {isManager && m.role !== "creator" && (
                           <button
                             type="button"
@@ -575,6 +576,11 @@ export default function ListingPage() {
                       </div>
                     </div>
                   )}
+                  {members.some((m) => blockedUserIds.includes(m.user_id)) && (
+                    <div className="pt-2 border-t">
+                      <p className="text-xs font-medium mb-2 text-red-700">Blocked users are present in this quest.</p>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <p className="text-xs text-gray-500">No members yet.</p>
@@ -617,6 +623,7 @@ export default function ListingPage() {
                           <Link href={`/profile/${comment.sender_id}`} className="text-xs font-medium underline">
                             {(profile?.display_name || "Member").trim().split(/\s+/)[0] || "Member"}
                           </Link>
+                          {blockedUserIds.includes(comment.sender_id) && <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-100 text-red-700">Blocked</span>}
                           <span className="text-[11px] text-gray-500">{new Date(comment.created_at).toLocaleString()}</span>
                         </div>
                         <p className="mt-2 text-sm text-gray-700">{comment.body.replace(/^\[PUBLIC\]\s?/, "")}</p>
