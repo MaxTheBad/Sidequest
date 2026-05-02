@@ -56,6 +56,8 @@ export default function ProfilePage() {
     if (!viewerId || !profileId) return null;
     return friendship?.status === "blocked" ? friendship : null;
   }, [friendship, profileId, viewerId]);
+  const blockedByThem = useMemo(() => !!(blockEdge && blockEdge.requester_id === profileId && blockEdge.addressee_id === viewerId), [blockEdge, profileId, viewerId]);
+  const youBlockedThem = useMemo(() => !!(blockEdge && blockEdge.requester_id === viewerId && blockEdge.addressee_id === profileId), [blockEdge, profileId, viewerId]);
   const canViewFriends = useMemo(() => {
     if (isOwnProfile) return true;
     if (!profile) return false;
@@ -269,9 +271,7 @@ export default function ProfilePage() {
     if (!supabase || !viewerId || !profileId || viewerId === profileId) return;
     const { data: hostedQuests } = await supabase.from("quests").select("id").eq("creator_id", viewerId);
     const hostedQuestIds = ((hostedQuests || []) as Array<{ id: string }>).map((q) => q.id);
-    await supabase.from("friends").delete().or(
-      `and(requester_id.eq.${viewerId},addressee_id.eq.${profileId}),and(requester_id.eq.${profileId},addressee_id.eq.${viewerId})`
-    );
+    await supabase.from("friends").delete().eq("requester_id", viewerId).eq("addressee_id", profileId);
 
     const { error } = await supabase.from("friends").upsert({
       requester_id: viewerId,
@@ -292,12 +292,7 @@ export default function ProfilePage() {
 
   async function unblockUser() {
     if (!supabase || !viewerId || !profileId || viewerId === profileId) return;
-    const { error } = await supabase
-      .from("friends")
-      .delete()
-      .or(
-        `and(requester_id.eq.${viewerId},addressee_id.eq.${profileId}),and(requester_id.eq.${profileId},addressee_id.eq.${viewerId})`
-      );
+    const { error } = await supabase.from("friends").delete().eq("requester_id", viewerId).eq("addressee_id", profileId);
     if (error) return setStatus(error.message);
     setStatus("User unblocked.");
     setShowUnblockConfirm(false);
@@ -344,7 +339,7 @@ export default function ProfilePage() {
                       {friendship?.status === "accepted"
                         ? "Unfriend"
                         : blockEdge
-                          ? "Blocked"
+                          ? (blockedByThem ? "Blocked you" : "Blocked")
                         : friendship?.status === "pending" && friendship.requester_id === viewerId
                           ? "Cancel request"
                           : friendship?.status === "pending" && friendship.addressee_id === viewerId
@@ -357,6 +352,7 @@ export default function ProfilePage() {
                       <button className="border rounded px-3 py-2 text-red-700 border-red-300 bg-red-50" onClick={() => setShowBlockConfirm(true)}>Block</button>
                     )}
                     <button className="border rounded px-3 py-2 text-red-700 border-red-300 bg-red-50" onClick={() => setShowReportModal(true)}>Report</button>
+                    {blockedByThem && <span className="text-xs px-2 py-1 rounded bg-red-100 text-red-700">Blocked you</span>}
                   </>
                 )}
               </div>

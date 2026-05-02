@@ -321,10 +321,7 @@ export default function ListingPage() {
 
   async function blockMemberFromQuest(targetUserId: string) {
     if (!supabase || !listing || !isManager || !targetUserId) return;
-
-    await supabase.from("friends").delete().or(
-      `and(requester_id.eq.${userId},addressee_id.eq.${targetUserId}),and(requester_id.eq.${targetUserId},addressee_id.eq.${userId})`
-    );
+    await supabase.from("friends").delete().eq("requester_id", userId).eq("addressee_id", targetUserId);
 
     const { error } = await supabase.from("friends").upsert({
       requester_id: userId,
@@ -771,17 +768,17 @@ export default function ListingPage() {
 
       {showBlockConfirm && listing && blockTargetUserId && (
         <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white border p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold">Block user</h3>
-              <button className="border rounded px-2 py-1" onClick={() => setShowBlockConfirm(false)}>Close</button>
-            </div>
-            <p className="text-sm text-gray-700">Block this user from your quest? They’ll be removed from this listing and won’t be able to message or friend you from the app.</p>
-            <div className="flex justify-end gap-2">
-              <button className="border rounded px-3 py-2" onClick={() => setShowBlockConfirm(false)}>Cancel</button>
-              <button className="bg-red-600 text-white rounded px-3 py-2" onClick={() => void blockMemberFromQuest(blockTargetUserId)}>Block user</button>
-            </div>
-          </div>
+      <div className="w-full max-w-md rounded-2xl bg-white border p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold">Block user</h3>
+          <button className="border rounded px-2 py-1" onClick={() => setShowBlockConfirm(false)}>Close</button>
+        </div>
+        <p className="text-sm text-gray-700">Block this user from your quest? They’ll be removed from this listing and won’t be able to message or friend you from the app. Their own block of you, if any, stays separate.</p>
+        <div className="flex justify-end gap-2">
+          <button className="border rounded px-3 py-2" onClick={() => setShowBlockConfirm(false)}>Cancel</button>
+          <button className="bg-red-600 text-white rounded px-3 py-2" onClick={() => void blockMemberFromQuest(blockTargetUserId)}>Block user</button>
+        </div>
+      </div>
         </div>
       )}
 
