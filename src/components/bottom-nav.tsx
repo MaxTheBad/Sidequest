@@ -10,6 +10,7 @@ export default function BottomNav() {
   const router = useRouter();
   const supabase = getSupabaseClient();
   const [userId, setUserId] = useState<string | null>(null);
+  const [notificationCount, setNotificationCount] = useState(0);
 
   useEffect(() => {
     if (!supabase) return;
@@ -19,6 +20,24 @@ export default function BottomNav() {
     });
     return () => sub.subscription.unsubscribe();
   }, [supabase]);
+
+  useEffect(() => {
+    if (!supabase || !userId) return;
+    const run = async () => {
+      const lastSeenRaw = typeof window !== "undefined" ? window.localStorage.getItem("sidequest_notifications_last_seen") : "";
+      const lastSeen = lastSeenRaw ? new Date(lastSeenRaw).getTime() : 0;
+      const [{ data: myMessages }, { data: joinedRows }] = await Promise.all([
+        supabase.from("messages").select("created_at,sender_id").neq("sender_id", userId).order("created_at", { ascending: false }).limit(50),
+        supabase.from("quest_members").select("joined_at,status").eq("user_id", userId).in("status", ["pending", "approved"]).order("joined_at", { ascending: false }).limit(50),
+      ]);
+      const messageCount = ((myMessages || []) as Array<{ created_at: string }>).filter((row) => !lastSeen || new Date(row.created_at).getTime() > lastSeen).length;
+      const joinCount = ((joinedRows || []) as Array<{ joined_at?: string | null; status?: string | null }>).filter((row) => !lastSeen || new Date(row.joined_at || new Date().toISOString()).getTime() > lastSeen).length;
+      setNotificationCount(messageCount + joinCount);
+    };
+    void run();
+    const id = window.setInterval(run, 30000);
+    return () => window.clearInterval(id);
+  }, [supabase, userId]);
 
   const isActive = (path: string) => pathname === path;
 
@@ -50,7 +69,10 @@ export default function BottomNav() {
 
         <button type="button" onClick={() => requireAuthNavigate("/inbox")} className={`text-center text-xs py-2 transition ${isActive("/inbox") ? "nav-item-active" : "nav-item"}`}>
           <div className="text-[15px]">📥</div>
-          <div className="text-[11px] mt-0.5">Inbox</div>
+          <div className="text-[11px] mt-0.5 inline-flex items-center justify-center gap-1">
+            <span>Inbox</span>
+            {notificationCount > 0 ? <span className="inline-flex min-w-4 h-4 px-1 items-center justify-center rounded-full bg-black text-white text-[9px] leading-none">{notificationCount > 9 ? "9+" : notificationCount}</span> : null}
+          </div>
         </button>
 
         <button
