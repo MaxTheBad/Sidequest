@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { FormEvent, PointerEvent, useEffect, useMemo, useRef, useState } from "react";
+import CityAutocompleteInput from "@/components/city-autocomplete-input";
+import { DISTANCE_OPTIONS_KM } from "@/lib/distance-options";
 import { getSupabaseClient } from "@/lib/supabase";
 import { isImageLikeFile, prepareImageForUpload } from "@/lib/media-optimize";
 
@@ -22,10 +24,10 @@ export default function SettingsPage() {
   const [countryCode, setCountryCode] = useState("US");
   const [countryQuery, setCountryQuery] = useState("United States");
   const [city, setCity] = useState("");
+  const [radiusKm, setRadiusKm] = useState(15);
   const [bio, setBio] = useState("");
   const [friendsVisibility, setFriendsVisibility] = useState<"public" | "private">("public");
   const [dob, setDob] = useState("");
-  const [citySuggestions, setCitySuggestions] = useState<string[]>([]);
   const [avatarUrl, setAvatarUrl] = useState("");
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreviewUrl, setPhotoPreviewUrl] = useState("");
@@ -93,11 +95,12 @@ export default function SettingsPage() {
 
       const { data: profile } = await supabase
         .from("profiles")
-        .select("display_name,city,bio,friends_visibility,avatar_url,avatar_source_url")
+        .select("display_name,city,bio,friends_visibility,radius_km,avatar_url,avatar_source_url")
         .eq("id", uid)
         .maybeSingle();
 
       setCity(profile?.city ?? "");
+      setRadiusKm(Number(profile?.radius_km || 15));
       setBio(profile?.bio ?? "");
       setFriendsVisibility(((profile?.friends_visibility as "public" | "private") || "public"));
 
@@ -149,35 +152,13 @@ export default function SettingsPage() {
     }
   }, []);
 
-  useEffect(() => {
-    const q = city.trim();
-    if (q.length < 2) {
-      setCitySuggestions([]);
-      return;
-    }
-
-    const t = setTimeout(async () => {
-      try {
-        const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=5&language=en&format=json${selectedCountryCode ? `&countryCode=${selectedCountryCode}` : ""}`;
-        const res = await fetch(url);
-        const json = (await res.json()) as { results?: Array<{ name: string; admin1?: string; country?: string }> };
-        const suggestions = (json.results || []).map((r) => [r.name, r.admin1, r.country].filter(Boolean).join(", "));
-        setCitySuggestions(suggestions);
-      } catch {
-        setCitySuggestions([]);
-      }
-    }, 250);
-
-    return () => clearTimeout(t);
-  }, [city, selectedCountryCode]);
-
   async function saveProfile(e: FormEvent) {
     e.preventDefault();
     if (!supabase || !userId) return setStatus("Not signed in.");
 
     const { error } = await supabase
       .from("profiles")
-      .upsert({ id: userId, display_name: displayName, city, bio, friends_visibility: friendsVisibility, avatar_url: avatarUrl || null });
+      .upsert({ id: userId, display_name: displayName, city, bio, friends_visibility: friendsVisibility, radius_km: radiusKm, avatar_url: avatarUrl || null });
 
     if (error) return setStatus(error.message);
 
@@ -569,23 +550,21 @@ export default function SettingsPage() {
                     <input list="country-list" className="border rounded px-3 py-2" value={countryQuery} onChange={(e) => { setCountryQuery(e.target.value); setCountryCode(resolveCountryCodeByName(e.target.value)); }} placeholder="Start typing country..." />
                   </div>
 
-                  <div className="relative grid gap-1">
-                    <label className="text-sm font-medium">City</label>
-                    <input className="border rounded px-3 py-2 w-full" value={city} onChange={(e) => setCity(e.target.value)} placeholder={`Start typing city in ${countryCode}...`} />
-                    {citySuggestions.length > 0 && (
-                      <div className="absolute z-20 left-0 right-0 top-full mt-1 border rounded bg-white shadow max-h-44 overflow-auto text-sm">
-                        {citySuggestions.map((c) => (
-                          <button key={c} type="button" className="block w-full text-left px-3 py-2 hover:bg-gray-100" onClick={() => { setCity(c); setCitySuggestions([]); }}>
-                            {c}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                  <CityAutocompleteInput label="City" value={city} onChange={setCity} placeholder={`Start typing city in ${countryCode}...`} countryCode={selectedCountryCode} />
                 </div>
 
                 <label className="text-sm font-medium">Bio</label>
                 <textarea className="border rounded px-3 py-2" value={bio} onChange={(e) => setBio(e.target.value)} />
+
+                <label className="text-sm font-medium">Travel distance</label>
+                <select className="border rounded px-3 py-2 w-fit min-w-[180px]" value={radiusKm} onChange={(e) => setRadiusKm(Number(e.target.value))}>
+                  {DISTANCE_OPTIONS_KM.map((km) => (
+                    <option key={km} value={km}>
+                      Within {km} km
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500">Used for nearby discovery and future distance sorting.</p>
 
                 <label className="text-sm font-medium">Friends list visibility</label>
                 <select className="border rounded px-3 py-2" value={friendsVisibility} onChange={(e) => setFriendsVisibility(e.target.value as "public" | "private")}>

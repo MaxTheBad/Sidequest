@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import CityAutocompleteInput from "@/components/city-autocomplete-input";
 import { getSupabaseClient } from "@/lib/supabase";
 import { CANONICAL_CATEGORIES, resolveCanonicalCategory, suggestCanonicalCategories } from "@/lib/category-suggestions";
 
@@ -242,8 +243,7 @@ export default function EditListingPage() {
             <label className="text-sm">Description</label>
             <textarea className="border rounded px-3 py-2" value={description} onChange={(e) => setDescription(e.target.value)} />
 
-            <label className="text-sm">City</label>
-            <input className="border rounded px-3 py-2" value={city} onChange={(e) => setCity(e.target.value)} />
+            <CityAutocompleteInput label="City" value={city} onChange={setCity} />
 
             <label className="text-sm">Exact address</label>
             <input className="border rounded px-3 py-2" value={exactAddress} onChange={(e) => setExactAddress(e.target.value)} />

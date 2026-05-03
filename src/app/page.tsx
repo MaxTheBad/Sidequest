@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { FormEvent, PointerEvent, UIEvent, useEffect, useMemo, useRef, useState } from "react";
+import CityAutocompleteInput from "@/components/city-autocomplete-input";
+import { DISTANCE_OPTIONS_KM } from "@/lib/distance-options";
 import { getSupabaseClient } from "@/lib/supabase";
 import { CANONICAL_CATEGORIES, resolveCanonicalCategory, suggestCanonicalCategories } from "@/lib/category-suggestions";
 import { isImageLikeFile, prepareImageForUpload } from "@/lib/media-optimize";
@@ -231,11 +233,11 @@ export default function Home() {
   const [onboardingStep, setOnboardingStep] = useState(0);
   const [onboardingDisplayName, setOnboardingDisplayName] = useState("");
   const [onboardingCity, setOnboardingCity] = useState("");
+  const [onboardingRadiusKm, setOnboardingRadiusKm] = useState(15);
   const [onboardingBio, setOnboardingBio] = useState("");
   const [onboardingInterestIds, setOnboardingInterestIds] = useState<string[]>([]);
   const [onboardingSaving, setOnboardingSaving] = useState(false);
   const [onboardingDone, setOnboardingDone] = useState(false);
-  const [onboardingCitySuggestions, setOnboardingCitySuggestions] = useState<string[]>([]);
   const [onboardingPhotoFile, setOnboardingPhotoFile] = useState<File | null>(null);
   const [onboardingPhotoPreviewUrl, setOnboardingPhotoPreviewUrl] = useState("");
   const [onboardingExistingAvatarUrl, setOnboardingExistingAvatarUrl] = useState("");
@@ -323,6 +325,16 @@ export default function Home() {
     setOnboardingPhotoLastPointer(null);
   }
 
+  function resetOnboardingForm() {
+    setOnboardingStep(0);
+    setOnboardingDisplayName("");
+    setOnboardingCity("");
+    setOnboardingRadiusKm(15);
+    setOnboardingBio("");
+    setOnboardingInterestIds([]);
+    resetOnboardingPhoto();
+  }
+
   const countryOptions = useMemo(() => {
     try {
       // @ts-ignore
@@ -387,28 +399,6 @@ export default function Home() {
     const ts = raw ? Number(raw) : 0;
     if (Number.isFinite(ts) && ts > 0) publicWarningMutedUntilRef.current = ts;
   }, []);
-
-  useEffect(() => {
-    const q = onboardingCity.trim();
-    if (q.length < 2) {
-      setOnboardingCitySuggestions([]);
-      return;
-    }
-
-    const t = setTimeout(async () => {
-      try {
-        const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=5&language=en&format=json${countryCode ? `&countryCode=${countryCode.toLowerCase()}` : ""}`;
-        const res = await fetch(url);
-        const json = (await res.json()) as { results?: Array<{ name: string; admin1?: string; country?: string }> };
-        const suggestions = (json.results || []).map((r) => [r.name, r.admin1, r.country].filter(Boolean).join(", "));
-        setOnboardingCitySuggestions(suggestions);
-      } catch {
-        setOnboardingCitySuggestions([]);
-      }
-    }, 250);
-
-    return () => clearTimeout(t);
-  }, [onboardingCity, countryCode]);
 
   function resolveCountryCodeByName(name: string) {
     const found = countryOptions.find((c) => c.name.toLowerCase() === name.trim().toLowerCase());
@@ -737,6 +727,7 @@ export default function Home() {
     setOnboardingStep(0);
     setOnboardingDisplayName("");
     setOnboardingCity("");
+    setOnboardingRadiusKm(15);
     setOnboardingBio("");
     setOnboardingInterestIds([]);
     setOnboardingDone(false);
@@ -766,7 +757,7 @@ export default function Home() {
     if (!supabase || !uid) return;
 
     const [{ data: profile }, { data: hobbyRows }] = await Promise.all([
-      supabase.from("profiles").select("display_name,city,bio,onboarding_done").eq("id", uid).maybeSingle(),
+      supabase.from("profiles").select("display_name,city,bio,radius_km,onboarding_done").eq("id", uid).maybeSingle(),
       supabase.from("user_hobbies").select("hobby_id,is_primary").eq("user_id", uid),
     ]);
 
@@ -774,6 +765,7 @@ export default function Home() {
     const savedName = profile?.display_name || emailValue?.split("@")[0] || "SideQuest user";
     setOnboardingDisplayName(savedName);
     setOnboardingCity(profile?.city || "");
+    setOnboardingRadiusKm(Number(profile?.radius_km || 15));
     setOnboardingBio(profile?.bio || "");
     setOnboardingInterestIds(savedHobbyIds);
     setOnboardingDone(Boolean(profile?.onboarding_done));
@@ -875,6 +867,7 @@ export default function Home() {
         id: userId,
         display_name: onboardingDisplayName.trim() || userEmail.split("@")[0] || "SideQuest user",
         city: onboardingCity.trim() || null,
+        radius_km: onboardingRadiusKm,
         bio: onboardingBio.trim() || null,
         onboarding_done: true,
         avatar_url: uploadedPhotoUrl,
@@ -2140,25 +2133,17 @@ export default function Home() {
               <div className="grid gap-3">
                 <label className="text-sm font-medium">Display name</label>
                 <input className="border rounded-xl px-3 py-2.5" value={onboardingDisplayName} onChange={(e) => setOnboardingDisplayName(e.target.value)} placeholder="How people should see you" />
-                <label className="text-sm font-medium">City</label>
-                <input className="border rounded-xl px-3 py-2.5" value={onboardingCity} onChange={(e) => setOnboardingCity(e.target.value)} placeholder="Where are you based?" />
-                {onboardingCitySuggestions.length > 0 && (
-                  <div className="rounded-2xl border bg-gray-50 overflow-hidden max-h-56 overflow-y-auto">
-                    {onboardingCitySuggestions.map((suggestion) => (
-                      <button
-                        key={suggestion}
-                        type="button"
-                        className="block w-full text-left px-3 py-2 text-sm hover:bg-gray-100"
-                        onClick={() => {
-                          setOnboardingCity(suggestion);
-                          setOnboardingCitySuggestions([]);
-                        }}
-                      >
-                        {suggestion}
-                      </button>
+                <CityAutocompleteInput label="City" value={onboardingCity} onChange={setOnboardingCity} placeholder="Where are you based?" countryCode={countryCode} />
+                <div className="grid gap-1">
+                  <label className="text-sm font-medium">Travel distance</label>
+                  <select className="border rounded-xl px-3 py-2.5 w-full" value={onboardingRadiusKm} onChange={(e) => setOnboardingRadiusKm(Number(e.target.value))}>
+                    {DISTANCE_OPTIONS_KM.map((km) => (
+                      <option key={km} value={km}>
+                        Within {km} km
+                      </option>
                     ))}
-                  </div>
-                )}
+                  </select>
+                </div>
               </div>
             )}
 
