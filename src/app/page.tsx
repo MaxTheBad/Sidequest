@@ -2058,9 +2058,9 @@ export default function Home() {
                     </Link>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-700">{q.hobbies?.[0]?.name || "Hobby"}</span>
-                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-700">{q.skill_level || "all levels"}</span>
-                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-700">group {q.group_size > 0 ? q.group_size : "any"}</span>
+                    <span className="text-[11px] font-semibold tracking-wide uppercase text-slate-700">{q.hobbies?.[0]?.name || "Hobby"}</span>
+                    <span className="text-[11px] font-semibold tracking-wide uppercase text-slate-700">{q.skill_level || "all levels"}</span>
+                    <span className="text-[11px] font-semibold tracking-wide uppercase text-slate-700">group {q.group_size > 0 ? q.group_size : "any"}</span>
                   </div>
                   {q.description ? <p className="text-sm text-slate-700 leading-relaxed line-clamp-2">{q.description}</p> : null}
                   <p className="text-xs text-slate-500">{q.city || deriveCityFromLocation(q.exact_address || "") || "city tbd"} · {q.availability || "availability tbd"}</p>
