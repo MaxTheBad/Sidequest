@@ -1939,7 +1939,6 @@ export default function Home() {
                 <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Feed</p>
                 <h3 className="text-lg font-semibold">Latest quests</h3>
               </div>
-              <p className="text-sm text-gray-500 max-w-xl text-right">The mobile feed stays intact, but desktop now gets room to breathe with a stronger layout and wider cards.</p>
             </div>
 
             <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
