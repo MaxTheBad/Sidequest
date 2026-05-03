@@ -2033,23 +2033,6 @@ export default function Home() {
               )}
 
               <div className="p-3 sm:p-4 space-y-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <>
-                    {userId !== q.creator_id && (
-                    <button className="rounded-full bg-black px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-zinc-900" onClick={() => void toggleJoinQuest(q.id)}>{membershipStatusByQuest[q.id] === "pending" ? "Cancel request" : (membershipStatusByQuest[q.id] === "declined" ? "Request again" : (joinedQuestIds.includes(q.id) ? "Leave" : ((q.join_mode || "open") === "approval_required" ? "Request to join" : "Join")))}</button>
-                    )}
-                    <button className="rounded-full bg-black px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-zinc-900" onClick={() => {
-                      void askQuestion(q, "public");
-                    }}>Comment</button>
-                    <button className="rounded-full bg-black px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-zinc-900" onClick={() => {
-                      void askQuestion(q, "private");
-                    }}>DM</button>
-                  </>
-                  <button className="rounded-full bg-black px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-zinc-900" onClick={() => void toggleBookmark(q.id)}>
-                    {bookmarkedQuestIds.includes(q.id) ? "★ Saved" : "☆ Save"}
-                  </button>
-                </div>
-
                 <div className="space-y-2">
                   <div className="flex items-start justify-between gap-2">
                     <h3 className="text-lg font-semibold leading-tight tracking-tight">
@@ -2070,6 +2053,23 @@ export default function Home() {
                   </div>
                   {q.description ? <p className="text-sm text-slate-700 leading-relaxed line-clamp-2">{q.description}</p> : null}
                   <p className="text-xs text-slate-500">{q.city || deriveCityFromLocation(q.exact_address || "") || "city tbd"} · {q.availability || "availability tbd"}</p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <>
+                    {userId !== q.creator_id && (
+                      <button className="rounded-full bg-black px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-zinc-900" onClick={() => void toggleJoinQuest(q.id)}>{membershipStatusByQuest[q.id] === "pending" ? "Cancel request" : (membershipStatusByQuest[q.id] === "declined" ? "Request again" : (joinedQuestIds.includes(q.id) ? "Leave" : ((q.join_mode || "open") === "approval_required" ? "Request to join" : "Join")))}</button>
+                    )}
+                    <button className="rounded-full bg-black px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-zinc-900" onClick={() => {
+                      void askQuestion(q, "public");
+                    }}>Comment</button>
+                    <button className="rounded-full bg-black px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-zinc-900" onClick={() => {
+                      void askQuestion(q, "private");
+                    }}>DM</button>
+                  </>
+                  <button className="rounded-full bg-black px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-zinc-900" onClick={() => void toggleBookmark(q.id)}>
+                    {bookmarkedQuestIds.includes(q.id) ? "★ Saved" : "☆ Save"}
+                  </button>
                 </div>
               </div>
             </article>

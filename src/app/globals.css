@@ -179,10 +179,10 @@ button:active, a:active {
   transform: scale(0.98);
 }
 
-/* Primary CTA - Bold purple */
+/* Primary CTA - Bold black */
 .bg-black.text-white,
 .btn-primary {
-  background: var(--accent-primary) !important;
+  background: #000 !important;
   color: #ffffff !important;
   border: none;
   font-weight: 600;
@@ -191,7 +191,7 @@ button:active, a:active {
 
 .bg-black.text-white:hover,
 .btn-primary:hover {
-  background: var(--accent-secondary) !important;
+  background: #111 !important;
   box-shadow: var(--shadow-lg);
 }
 
