@@ -64,12 +64,12 @@ export default function BottomNav() {
     <nav className="fixed bottom-0 inset-x-0 z-[90] border-t nav-shell md:hidden">
       <div className="max-w-5xl mx-auto px-3 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] grid grid-cols-5 items-end">
         <Link href="/" className={`text-center text-xs py-2 transition ${isActive("/") ? "nav-item-active" : "nav-item"}`}>
-          <div className="text-[15px]">🏠</div>
+          <div className="text-[15px]">⌂</div>
           <div className="text-[11px] mt-0.5">Home</div>
         </Link>
 
         <button type="button" onClick={() => requireAuthNavigate("/inbox")} className={`text-center text-xs py-2 transition ${isActive("/inbox") ? "nav-item-active" : "nav-item"}`}>
-          <div className="text-[15px]">📥</div>
+          <div className="text-[15px]">✉</div>
           <div className="text-[11px] mt-0.5 inline-flex items-center justify-center gap-1">
             <span>Inbox</span>
             {notificationCount > 0 ? <span className="inline-flex min-w-4 h-4 px-1 items-center justify-center rounded-full bg-black text-white text-[9px] leading-none">{notificationCount > 9 ? "9+" : notificationCount}</span> : null}
@@ -94,12 +94,12 @@ export default function BottomNav() {
         </button>
 
         <button type="button" onClick={() => requireAuthNavigate("/joined")} className={`text-center text-xs py-2 transition ${isActive("/joined") ? "nav-item-active" : "nav-item"}`}>
-          <div className="text-[15px]">✅</div>
+          <div className="text-[15px]">✓</div>
           <div className="text-[11px] mt-0.5">Joined</div>
         </button>
 
         <button type="button" onClick={() => requireAuthNavigate("/settings")} className={`text-center text-xs py-2 transition ${isActive("/settings") ? "nav-item-active" : "nav-item"}`}>
-          <div className="text-[15px]">⚙️</div>
+          <div className="text-[15px]">⚙</div>
           <div className="text-[11px] mt-0.5">Settings</div>
         </button>
       </div>
