@@ -1972,9 +1972,14 @@ export default function Home() {
                   {openCardMenuQuestId === q.id && (
                     <div className="absolute right-0 mt-1 w-36 rounded-xl border bg-white shadow-md z-20 overflow-hidden">
                       {userId === q.creator_id && (
-                        <button className="block w-full text-left px-3 py-2 text-sm hover:bg-gray-50" onClick={() => { setOpenCardMenuQuestId(null); openEditModal(q); }}>
-                          Edit listing
-                        </button>
+                        <>
+                          <button className="block w-full text-left px-3 py-2 text-sm hover:bg-gray-50" onClick={() => { setOpenCardMenuQuestId(null); openEditModal(q); }}>
+                            Edit listing
+                          </button>
+                          <button className="block w-full text-left px-3 py-2 text-sm text-red-700 hover:bg-red-50" onClick={() => { setOpenCardMenuQuestId(null); void deleteQuest(q.id); }}>
+                            Delete listing
+                          </button>
+                        </>
                       )}
                       {userId !== q.creator_id && (
                         <button className="block w-full text-left px-3 py-2 text-sm text-red-700 hover:bg-red-50" onClick={() => { setOpenCardMenuQuestId(null); openReportModal(q); }}>
@@ -2031,16 +2036,16 @@ export default function Home() {
                 <div className="flex flex-wrap items-center gap-2">
                   <>
                     {userId !== q.creator_id && (
-                      <button className="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800" onClick={() => void toggleJoinQuest(q.id)}>{membershipStatusByQuest[q.id] === "pending" ? "Cancel request" : (membershipStatusByQuest[q.id] === "declined" ? "Request again" : (joinedQuestIds.includes(q.id) ? "Leave" : ((q.join_mode || "open") === "approval_required" ? "Request to join" : "Join")))}</button>
+                    <button className="rounded-full bg-black px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-zinc-900" onClick={() => void toggleJoinQuest(q.id)}>{membershipStatusByQuest[q.id] === "pending" ? "Cancel request" : (membershipStatusByQuest[q.id] === "declined" ? "Request again" : (joinedQuestIds.includes(q.id) ? "Leave" : ((q.join_mode || "open") === "approval_required" ? "Request to join" : "Join")))}</button>
                     )}
-                    <button className="rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-slate-800" onClick={() => {
+                    <button className="rounded-full bg-black px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-zinc-900" onClick={() => {
                       void askQuestion(q, "public");
                     }}>Comment</button>
-                    <button className="rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-slate-800" onClick={() => {
+                    <button className="rounded-full bg-black px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-zinc-900" onClick={() => {
                       void askQuestion(q, "private");
                     }}>DM</button>
                   </>
-                  <button className="rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-slate-800" onClick={() => void toggleBookmark(q.id)}>
+                  <button className="rounded-full bg-black px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-zinc-900" onClick={() => void toggleBookmark(q.id)}>
                     {bookmarkedQuestIds.includes(q.id) ? "★ Saved" : "☆ Save"}
                   </button>
                 </div>

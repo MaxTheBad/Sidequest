@@ -691,7 +691,7 @@ export default function ListingPage() {
             <div className="pt-2 flex gap-2 flex-wrap">
               {!isOwner ? (
                 <>
-                  <button className="border rounded px-3 py-2 bg-slate-900 text-white" onClick={() => void toggleJoin()}>{myMembershipStatus === "pending" ? "Cancel request" : (myMembershipStatus === "declined" ? "Request again" : (hasJoined ? "Leave" : ((listing.join_mode || "open") === "approval_required" ? "Request to join" : "Join")))}</button>
+                  <button className="border rounded px-3 py-2 bg-black text-white" onClick={() => void toggleJoin()}>{myMembershipStatus === "pending" ? "Cancel request" : (myMembershipStatus === "declined" ? "Request again" : (hasJoined ? "Leave" : ((listing.join_mode || "open") === "approval_required" ? "Request to join" : "Join")))}</button>
                 </>
               ) : (
                 <>
