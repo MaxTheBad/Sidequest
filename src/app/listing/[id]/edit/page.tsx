@@ -200,7 +200,7 @@ export default function EditListingPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f6f7fb] p-4">
+    <main className="min-h-screen bg-transparent p-4">
       <section className="max-w-xl mx-auto rounded-2xl border bg-white p-4 space-y-3">
         <div className="flex items-center justify-between">
           <h1 className="font-semibold text-lg">Edit listing</h1>

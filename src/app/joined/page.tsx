@@ -119,7 +119,7 @@ export default function JoinedPage() {
   }, [rows, sort, myCity]);
 
   return (
-    <main className="min-h-screen bg-[#f6f7fb] p-4">
+    <main className="min-h-screen bg-transparent p-4">
       <section className="max-w-4xl mx-auto rounded-2xl border bg-white p-4 space-y-4">
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-bold">Joined Quests</h1>

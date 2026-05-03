@@ -399,7 +399,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f6f7fb] p-4">
+    <main className="min-h-screen bg-transparent p-4">
       <datalist id="country-list">{COUNTRY_OPTIONS.map((c) => <option key={c.code} value={c.name} />)}</datalist>
       <section className="max-w-3xl mx-auto rounded-2xl border bg-white p-5 space-y-4">
         <div className="flex items-center justify-between">

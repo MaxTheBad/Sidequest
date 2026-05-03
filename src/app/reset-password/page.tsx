@@ -47,7 +47,7 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f6f7fb] flex items-center justify-center p-4">
+    <main className="min-h-screen bg-transparent flex items-center justify-center p-4">
       <section className="w-full max-w-md rounded-2xl border bg-white p-5 space-y-3">
         <h1 className="text-2xl font-bold">Set New Password</h1>
         <p className="text-sm text-gray-600">Use this page after clicking the reset link from your email.</p>

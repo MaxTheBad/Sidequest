@@ -474,11 +474,11 @@ export default function InboxPage() {
     await loadInbox(userId, true);
   }
 
-  if (!supabase) return <main className="min-h-screen bg-[#f6f7fb] p-4">Missing Supabase config.</main>;
+  if (!supabase) return <main className="min-h-screen bg-transparent p-4">Missing Supabase config.</main>;
 
   if (!userId && !loading) {
     return (
-      <main className="min-h-screen bg-[#f6f7fb] p-4">
+      <main className="min-h-screen bg-transparent p-4">
         <div className="max-w-3xl mx-auto rounded-2xl border bg-white p-6">
           <h1 className="text-2xl font-bold">Inbox</h1>
           <p className="mt-2 text-sm text-gray-600">Please log in from the home page first to view messages.</p>
@@ -489,7 +489,7 @@ export default function InboxPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f6f7fb] p-4">
+    <main className="min-h-screen bg-transparent p-4">
       <div className="max-w-6xl mx-auto">
         <div className="mb-3 flex items-center justify-between">
           <h1 className="text-2xl font-bold">Inbox</h1>

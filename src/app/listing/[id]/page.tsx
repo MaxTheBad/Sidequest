@@ -455,7 +455,7 @@ export default function ListingPage() {
   const blockedMembers = members.filter((m) => blockedUserIds.includes(m.user_id));
 
   return (
-    <main className="min-h-screen bg-[#f6f7fb] p-4">
+    <main className="min-h-screen bg-transparent p-4">
       <div className="max-w-4xl mx-auto space-y-3">
         <Link href="/" className="inline-block border rounded px-3 py-2">← Back to listings</Link>
 

@@ -299,7 +299,7 @@ export default function ProfilePage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f6f7fb] p-4">
+    <main className="min-h-screen bg-transparent p-4">
       <div className="max-w-3xl mx-auto space-y-3">
         <Link href="/" className="inline-block border rounded px-3 py-2">← Back to listings</Link>
 
