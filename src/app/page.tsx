@@ -2033,14 +2033,14 @@ export default function Home() {
                     {userId !== q.creator_id && (
                       <button className="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800" onClick={() => void toggleJoinQuest(q.id)}>{membershipStatusByQuest[q.id] === "pending" ? "Cancel request" : (membershipStatusByQuest[q.id] === "declined" ? "Request again" : (joinedQuestIds.includes(q.id) ? "Leave" : ((q.join_mode || "open") === "approval_required" ? "Request to join" : "Join")))}</button>
                     )}
-                    <button className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50" onClick={() => {
+                    <button className="rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-slate-800" onClick={() => {
                       void askQuestion(q, "public");
                     }}>Comment</button>
-                    <button className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50" onClick={() => {
+                    <button className="rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-slate-800" onClick={() => {
                       void askQuestion(q, "private");
                     }}>DM</button>
                   </>
-                  <button className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50" onClick={() => void toggleBookmark(q.id)}>
+                  <button className="rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-slate-800" onClick={() => void toggleBookmark(q.id)}>
                     {bookmarkedQuestIds.includes(q.id) ? "★ Saved" : "☆ Save"}
                   </button>
                 </div>
