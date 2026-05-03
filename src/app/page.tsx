@@ -2070,24 +2070,22 @@ export default function Home() {
                     <button className="rounded-full bg-transparent px-1 py-1 text-sm font-medium text-[color:var(--foreground)] dark:text-white transition hover:opacity-80" aria-label="Comment" title="Comment" onClick={() => {
                       void askQuestion(q, "public");
                     }}>
-                      <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                        <path d="M20 14c0 1.657-1.79 3-4 3H9l-5 4v-4.5C2.79 15.87 2 14.54 2 13V8c0-2.21 1.79-4 4-4h10c2.21 0 4 1.79 4 4v6Z" />
-                        <path d="M7 9h10" />
-                        <path d="M7 12h7" />
+                      <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M20 14a4 4 0 0 1-4 4H9l-5 3V8a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4v6Z" />
                       </svg>
                     </button>
                     <button className="rounded-full bg-transparent px-1 py-1 text-sm font-medium text-[color:var(--foreground)] dark:text-white transition hover:opacity-80" aria-label="Direct message" title="Direct message" onClick={() => {
                       void askQuestion(q, "private");
                     }}>
-                      <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                        <path d="M4 6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5v11A2.5 2.5 0 0 1 17.5 20h-11A2.5 2.5 0 0 1 4 17.5v-11Z" />
-                        <path d="M5 7l7 6 7-6" />
+                      <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M3.5 6.5A2.5 2.5 0 0 1 6 4h12a2.5 2.5 0 0 1 2.5 2.5v11A2.5 2.5 0 0 1 18 20H6a2.5 2.5 0 0 1-2.5-2.5v-11Z" />
+                        <path d="M5 7l7 5.5L19 7" />
                       </svg>
                     </button>
                   </div>
                   <button className="rounded-full bg-transparent px-1 py-1 text-sm font-medium text-[color:var(--foreground)] dark:text-white transition hover:opacity-80" aria-label={bookmarkedQuestIds.includes(q.id) ? "Saved" : "Save"} title={bookmarkedQuestIds.includes(q.id) ? "Saved" : "Save"} onClick={() => void toggleBookmark(q.id)}>
-                    <svg viewBox="0 0 24 24" className="h-7 w-7" fill={bookmarkedQuestIds.includes(q.id) ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                      <path d="M6 4.5A2.5 2.5 0 0 1 8.5 2h7A2.5 2.5 0 0 1 18 4.5V21l-5.5-3.5L7 21V4.5Z" />
+                    <svg viewBox="0 0 24 24" className="h-7 w-7" fill={bookmarkedQuestIds.includes(q.id) ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M12 3.5 14.6 8.8l5.9.9-4.3 4.2 1 5.9L12 17.1 6.8 19.8l1-5.9-4.3-4.2 5.9-.9L12 3.5Z" />
                     </svg>
                   </button>
                 </div>
