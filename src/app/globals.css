@@ -53,6 +53,22 @@ html[data-theme="dark"] {
   --shadow-glow: 0 0 42px rgba(96, 165, 250, 0.16);
 }
 
+html[data-theme="dark"] .quest-card .text-slate-900,
+html[data-theme="dark"] .quest-card .text-slate-800,
+html[data-theme="dark"] .quest-card .text-slate-700,
+html[data-theme="dark"] .quest-card .text-slate-600,
+html[data-theme="dark"] .quest-card .text-slate-500 {
+  color: #ffffff !important;
+}
+
+html[data-theme="dark"] .quest-card .text-slate-500 {
+  color: rgba(255, 255, 255, 0.78) !important;
+}
+
+html[data-theme="dark"] .quest-card .text-slate-700 {
+  color: rgba(255, 255, 255, 0.9) !important;
+}
+
 /* ============================================
    BASE - MINIMAL & CLEAN
    ============================================ */
