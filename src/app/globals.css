@@ -61,6 +61,14 @@ html[data-theme="dark"] .quest-card .text-slate-500 {
   color: #ffffff !important;
 }
 
+html[data-theme="dark"] .surprise-card .text-gray-500,
+html[data-theme="dark"] .surprise-card .text-gray-600,
+html[data-theme="dark"] .surprise-card .text-gray-700,
+html[data-theme="dark"] .surprise-card .text-xs,
+html[data-theme="dark"] .surprise-card .text-sm {
+  color: rgba(17, 24, 39, 0.92) !important;
+}
+
 html[data-theme="dark"] .quest-card .text-slate-500 {
   color: rgba(255, 255, 255, 0.78) !important;
 }

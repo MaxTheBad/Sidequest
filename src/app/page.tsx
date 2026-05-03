@@ -1907,7 +1907,7 @@ export default function Home() {
               </div>
             </section>
 
-            <section className="rounded-3xl bg-gradient-to-br from-white to-slate-50 border shadow-sm p-5 space-y-3">
+            <section className="rounded-3xl bg-gradient-to-br from-white to-slate-50 border shadow-sm p-5 space-y-3 surprise-card">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Surprise me</p>
