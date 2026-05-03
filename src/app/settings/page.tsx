@@ -3,13 +3,12 @@
 import Link from "next/link";
 import { FormEvent, PointerEvent, useEffect, useMemo, useRef, useState } from "react";
 import CityAutocompleteInput from "@/components/city-autocomplete-input";
+import { COUNTRY_OPTIONS, countryNameFromCode } from "@/lib/countries";
 import { getSupabaseClient } from "@/lib/supabase";
 import { isImageLikeFile, prepareImageForUpload } from "@/lib/media-optimize";
 
 type Tab = "profile" | "account" | "preferences";
 type BlockedProfile = { id: string; display_name: string | null; avatar_url: string | null };
-
-const FALLBACK_COUNTRIES = ["United States","Canada","United Kingdom","Australia","Brazil","India","Mexico","Germany","France","Spain","Italy","Portugal","Japan","South Korea","Argentina","Chile","Colombia","Netherlands","Belgium","Sweden","Norway","Denmark","Finland","Ireland","New Zealand","South Africa"];
 
 export default function SettingsPage() {
   const supabase = getSupabaseClient();
@@ -49,22 +48,6 @@ export default function SettingsPage() {
   const [publicLocationWarningEnabled, setPublicLocationWarningEnabled] = useState(true);
   const [blockedProfiles, setBlockedProfiles] = useState<BlockedProfile[]>([]);
   const [blockedRefreshTick, setBlockedRefreshTick] = useState(0);
-
-  const countryOptions = useState(() => {
-    try {
-      // @ts-expect-error supportedValuesOf may not exist in all TS lib targets
-      const regions: string[] | undefined = typeof Intl !== "undefined" && Intl.supportedValuesOf ? Intl.supportedValuesOf("region") : undefined;
-      const dn = new Intl.DisplayNames(["en"], { type: "region" });
-      const names = (regions || []).map((code) => ({ code, name: dn.of(code) || code })).filter((x) => !!x.name).sort((a, b) => a.name.localeCompare(b.name));
-      if (names.length) return names;
-    } catch {}
-    return FALLBACK_COUNTRIES.map((name) => ({ code: name.slice(0,2).toUpperCase(), name }));
-  })[0];
-
-  function resolveCountryCodeByName(name: string) {
-    const found = countryOptions.find((c) => c.name.toLowerCase() === name.trim().toLowerCase());
-    return found?.code || countryCode;
-  }
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -112,10 +95,10 @@ export default function SettingsPage() {
       setMarketingOptIn(Boolean(meta.marketing_opt_in));
       if (typeof meta.dob === "string") setDob(meta.dob);
       const metaCountry = typeof meta.country_code === "string" ? meta.country_code : "";
-      if (metaCountry.length === 2) { const cc = metaCountry.toUpperCase(); setCountryCode(cc); const m = countryOptions.find((c)=>c.code===cc); if (m) setCountryQuery(m.name); }
+      if (metaCountry.length === 2) { const cc = metaCountry.toUpperCase(); setCountryCode(cc); setCountryQuery(countryNameFromCode(cc)); }
       else if (typeof navigator !== "undefined") {
         const region = (navigator.language.split("-")[1] || "US").toUpperCase();
-        if (region.length === 2) { setCountryCode(region); const m = countryOptions.find((c)=>c.code===region); if (m) setCountryQuery(m.name); }
+        if (region.length === 2) { setCountryCode(region); setCountryQuery(countryNameFromCode(region)); }
       }
 
       const { data: blockRows } = await supabase
@@ -136,7 +119,7 @@ export default function SettingsPage() {
     };
 
     void run();
-  }, [supabase, countryOptions, blockedRefreshTick]);
+  }, [supabase, blockedRefreshTick]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -414,7 +397,7 @@ export default function SettingsPage() {
 
   return (
     <main className="min-h-screen bg-[#f6f7fb] p-4">
-      <datalist id="country-list">{countryOptions.map((c) => <option key={c.code} value={c.name} />)}</datalist>
+      <datalist id="country-list">{COUNTRY_OPTIONS.map((c) => <option key={c.code} value={c.name} />)}</datalist>
       <section className="max-w-3xl mx-auto rounded-2xl border bg-white p-5 space-y-4">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold">Settings</h1>
@@ -547,11 +530,11 @@ export default function SettingsPage() {
                       onChange={(e) => {
                         const next = e.target.value;
                         setCountryCode(next);
-                        const match = countryOptions.find((c) => c.code === next);
+                        const match = COUNTRY_OPTIONS.find((c) => c.code === next);
                         if (match) setCountryQuery(match.name);
                       }}
                     >
-                      {countryOptions.map((country) => (
+                      {COUNTRY_OPTIONS.map((country) => (
                         <option key={country.code} value={country.code}>
                           {country.name}
                         </option>
