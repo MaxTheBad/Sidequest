@@ -2058,17 +2058,24 @@ export default function Home() {
                 <div className="flex flex-wrap items-center gap-2">
                   <>
                     {userId !== q.creator_id && (
-                      <button className="rounded-full bg-black px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-zinc-900" onClick={() => void toggleJoinQuest(q.id)}>{membershipStatusByQuest[q.id] === "pending" ? "Cancel request" : (membershipStatusByQuest[q.id] === "declined" ? "Request again" : (joinedQuestIds.includes(q.id) ? "Leave" : ((q.join_mode || "open") === "approval_required" ? "Request to join" : "Join")))}</button>
+                      <button
+                        className="rounded-full bg-black px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-zinc-900"
+                        aria-label={membershipStatusByQuest[q.id] === "pending" ? "Cancel request" : (membershipStatusByQuest[q.id] === "declined" ? "Request again" : (joinedQuestIds.includes(q.id) ? "Leave" : ((q.join_mode || "open") === "approval_required" ? "Request to join" : "Join")))}
+                        title={membershipStatusByQuest[q.id] === "pending" ? "Cancel request" : (membershipStatusByQuest[q.id] === "declined" ? "Request again" : (joinedQuestIds.includes(q.id) ? "Leave" : ((q.join_mode || "open") === "approval_required" ? "Request to join" : "Join")))}
+                        onClick={() => void toggleJoinQuest(q.id)}
+                      >
+                        {membershipStatusByQuest[q.id] === "pending" ? "⏳" : (membershipStatusByQuest[q.id] === "declined" ? "↻" : (joinedQuestIds.includes(q.id) ? "➖" : "➕"))}
+                      </button>
                     )}
-                    <button className="rounded-full bg-black px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-zinc-900" onClick={() => {
+                    <button className="rounded-full bg-black px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-zinc-900" aria-label="Comment" title="Comment" onClick={() => {
                       void askQuestion(q, "public");
-                    }}>Comment</button>
-                    <button className="rounded-full bg-black px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-zinc-900" onClick={() => {
+                    }}>💬</button>
+                    <button className="rounded-full bg-black px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-zinc-900" aria-label="Direct message" title="Direct message" onClick={() => {
                       void askQuestion(q, "private");
-                    }}>DM</button>
+                    }}>✉️</button>
                   </>
-                  <button className="rounded-full bg-black px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-zinc-900" onClick={() => void toggleBookmark(q.id)}>
-                    {bookmarkedQuestIds.includes(q.id) ? "★ Saved" : "☆ Save"}
+                  <button className="rounded-full bg-black px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-zinc-900" aria-label={bookmarkedQuestIds.includes(q.id) ? "Saved" : "Save"} title={bookmarkedQuestIds.includes(q.id) ? "Saved" : "Save"} onClick={() => void toggleBookmark(q.id)}>
+                    {bookmarkedQuestIds.includes(q.id) ? "★" : "☆"}
                   </button>
                 </div>
               </div>
