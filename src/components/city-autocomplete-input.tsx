@@ -45,12 +45,27 @@ export default function CityAutocompleteInput({
 
     const t = window.setTimeout(async () => {
       try {
-        const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=6&language=en&format=json${countryCode ? `&countryCode=${countryCode.toUpperCase()}` : ""}`;
+        const base = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=8&language=en&format=json`;
+        const url = countryCode ? `${base}&countryCode=${countryCode.toUpperCase()}` : base;
         const res = await fetch(url);
         const json = (await res.json()) as { results?: Array<{ name: string; admin1?: string; country?: string }> };
         const items = (json.results || []).map((r) => [r.name, r.admin1, r.country].filter(Boolean).join(", "));
-        setSuggestions(Array.from(new Set(items)));
-        setOpen(true);
+        const unique = Array.from(new Set(items));
+        if (unique.length > 0) {
+          setSuggestions(unique);
+          setOpen(true);
+          return;
+        }
+
+        if (countryCode) {
+          const fallbackRes = await fetch(base);
+          const fallbackJson = (await fallbackRes.json()) as { results?: Array<{ name: string; admin1?: string; country?: string }> };
+          const fallbackItems = (fallbackJson.results || []).map((r) => [r.name, r.admin1, r.country].filter(Boolean).join(", "));
+          setSuggestions(Array.from(new Set(fallbackItems)));
+          setOpen(true);
+        } else {
+          setSuggestions([]);
+        }
       } catch {
         setSuggestions([]);
       }

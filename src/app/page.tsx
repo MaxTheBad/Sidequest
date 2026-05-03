@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { FormEvent, PointerEvent, UIEvent, useEffect, useMemo, useRef, useState } from "react";
 import CityAutocompleteInput from "@/components/city-autocomplete-input";
-import { DISTANCE_OPTIONS_KM } from "@/lib/distance-options";
 import { getSupabaseClient } from "@/lib/supabase";
 import { CANONICAL_CATEGORIES, resolveCanonicalCategory, suggestCanonicalCategories } from "@/lib/category-suggestions";
 import { isImageLikeFile, prepareImageForUpload } from "@/lib/media-optimize";
@@ -233,7 +232,6 @@ export default function Home() {
   const [onboardingStep, setOnboardingStep] = useState(0);
   const [onboardingDisplayName, setOnboardingDisplayName] = useState("");
   const [onboardingCity, setOnboardingCity] = useState("");
-  const [onboardingRadiusKm, setOnboardingRadiusKm] = useState(15);
   const [onboardingBio, setOnboardingBio] = useState("");
   const [onboardingInterestIds, setOnboardingInterestIds] = useState<string[]>([]);
   const [onboardingSaving, setOnboardingSaving] = useState(false);
@@ -329,7 +327,6 @@ export default function Home() {
     setOnboardingStep(0);
     setOnboardingDisplayName("");
     setOnboardingCity("");
-    setOnboardingRadiusKm(15);
     setOnboardingBio("");
     setOnboardingInterestIds([]);
     resetOnboardingPhoto();
@@ -727,7 +724,6 @@ export default function Home() {
     setOnboardingStep(0);
     setOnboardingDisplayName("");
     setOnboardingCity("");
-    setOnboardingRadiusKm(15);
     setOnboardingBio("");
     setOnboardingInterestIds([]);
     setOnboardingDone(false);
@@ -765,7 +761,6 @@ export default function Home() {
     const savedName = profile?.display_name || emailValue?.split("@")[0] || "SideQuest user";
     setOnboardingDisplayName(savedName);
     setOnboardingCity(profile?.city || "");
-    setOnboardingRadiusKm(Number(profile?.radius_km || 15));
     setOnboardingBio(profile?.bio || "");
     setOnboardingInterestIds(savedHobbyIds);
     setOnboardingDone(Boolean(profile?.onboarding_done));
@@ -867,7 +862,6 @@ export default function Home() {
         id: userId,
         display_name: onboardingDisplayName.trim() || userEmail.split("@")[0] || "SideQuest user",
         city: onboardingCity.trim() || null,
-        radius_km: onboardingRadiusKm,
         bio: onboardingBio.trim() || null,
         onboarding_done: true,
         avatar_url: uploadedPhotoUrl,
@@ -2134,16 +2128,6 @@ export default function Home() {
                 <label className="text-sm font-medium">Display name</label>
                 <input className="border rounded-xl px-3 py-2.5" value={onboardingDisplayName} onChange={(e) => setOnboardingDisplayName(e.target.value)} placeholder="How people should see you" />
                 <CityAutocompleteInput label="City" value={onboardingCity} onChange={setOnboardingCity} placeholder="Where are you based?" countryCode={countryCode} />
-                <div className="grid gap-1">
-                  <label className="text-sm font-medium">Travel distance</label>
-                  <select className="border rounded-xl px-3 py-2.5 w-full" value={onboardingRadiusKm} onChange={(e) => setOnboardingRadiusKm(Number(e.target.value))}>
-                    {DISTANCE_OPTIONS_KM.map((km) => (
-                      <option key={km} value={km}>
-                        Within {km} km
-                      </option>
-                    ))}
-                  </select>
-                </div>
               </div>
             )}
 

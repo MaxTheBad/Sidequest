@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { FormEvent, PointerEvent, useEffect, useMemo, useRef, useState } from "react";
 import CityAutocompleteInput from "@/components/city-autocomplete-input";
-import { DISTANCE_OPTIONS_KM } from "@/lib/distance-options";
 import { getSupabaseClient } from "@/lib/supabase";
 import { isImageLikeFile, prepareImageForUpload } from "@/lib/media-optimize";
 
@@ -95,7 +94,7 @@ export default function SettingsPage() {
 
       const { data: profile } = await supabase
         .from("profiles")
-        .select("display_name,city,bio,friends_visibility,radius_km,avatar_url,avatar_source_url")
+      .select("display_name,city,bio,friends_visibility,radius_km,avatar_url,avatar_source_url")
         .eq("id", uid)
         .maybeSingle();
 
@@ -558,13 +557,17 @@ export default function SettingsPage() {
 
                 <label className="text-sm font-medium">Travel distance</label>
                 <select className="border rounded px-3 py-2 w-fit min-w-[180px]" value={radiusKm} onChange={(e) => setRadiusKm(Number(e.target.value))}>
-                  {DISTANCE_OPTIONS_KM.map((km) => (
-                    <option key={km} value={km}>
-                      Within {km} km
-                    </option>
-                  ))}
+                  <option value={5}>Within 5 km</option>
+                  <option value={10}>Within 10 km</option>
+                  <option value={15}>Within 15 km</option>
+                  <option value={25}>Within 25 km</option>
+                  <option value={50}>Within 50 km</option>
+                  <option value={75}>Within 75 km</option>
+                  <option value={100}>Within 100 km</option>
+                  <option value={150}>Within 150 km</option>
+                  <option value={250}>Within 250 km</option>
                 </select>
-                <p className="text-xs text-gray-500">Used for nearby discovery and future distance sorting.</p>
+                <p className="text-xs text-gray-500">Shown on your profile for now.</p>
 
                 <label className="text-sm font-medium">Friends list visibility</label>
                 <select className="border rounded px-3 py-2" value={friendsVisibility} onChange={(e) => setFriendsVisibility(e.target.value as "public" | "private")}>
