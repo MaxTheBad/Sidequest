@@ -107,6 +107,21 @@ export default function GlobalTopBar() {
           <button type="button" onClick={() => router.push("/inbox")} className={`nav-item text-xs px-3 py-1 ${pathname === "/inbox" ? "nav-item-active" : ""}`}>Inbox</button>
           <button type="button" onClick={() => router.push("/joined")} className={`nav-item text-xs px-3 py-1 ${pathname === "/joined" ? "nav-item-active" : ""}`}>Joined</button>
           <button type="button" onClick={() => router.push("/settings")} className={`nav-item text-xs px-3 py-1 ${pathname === "/settings" ? "nav-item-active" : ""}`}>Settings</button>
+          <button
+            type="button"
+            onClick={() => {
+              if (typeof window === "undefined") return;
+              if (pathname === "/") {
+                window.dispatchEvent(new CustomEvent("sidequest:open-create"));
+                return;
+              }
+              sessionStorage.setItem("sidequest_open_create", "1");
+              router.push("/");
+            }}
+            className="nav-item text-xs px-3 py-1 border border-slate-300 bg-slate-50"
+          >
+            Create
+          </button>
         </nav>
         <div className="ml-auto flex items-center gap-2">
           <button
