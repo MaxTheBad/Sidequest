@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase";
 import { getPersistedNotificationLastSeen } from "@/lib/notification-state";
 
@@ -12,7 +12,6 @@ export default function GlobalTopBar() {
   const pathname = usePathname();
   const [userId, setUserId] = useState<string | null>(null);
   const [userLabel, setUserLabel] = useState("");
-  const [themePref, setThemePref] = useState<"auto" | "light" | "dark">("auto");
   const [notificationCount, setNotificationCount] = useState(0);
 
   useEffect(() => {
@@ -31,32 +30,6 @@ export default function GlobalTopBar() {
     });
     return () => sub.subscription.unsubscribe();
   }, [supabase]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const saved = window.localStorage.getItem("sidequest_theme_pref");
-    if (saved === "light" || saved === "dark" || saved === "auto") setThemePref(saved);
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const mq = window.matchMedia("(prefers-color-scheme: dark)");
-    const apply = () => {
-      const resolved = themePref === "auto" ? (mq.matches ? "dark" : "light") : themePref;
-      document.documentElement.dataset.theme = resolved;
-      window.localStorage.setItem("sidequest_theme_pref", themePref);
-    };
-
-    apply();
-    const listener = () => {
-      if (themePref === "auto") apply();
-    };
-    mq.addEventListener?.("change", listener);
-    return () => mq.removeEventListener?.("change", listener);
-  }, [themePref]);
-
-  const themeLabel = useMemo(() => (themePref === "auto" ? "Auto" : themePref === "light" ? "Light" : "Dark"), [themePref]);
 
   useEffect(() => {
     if (!supabase || !userId) return;
@@ -124,13 +97,6 @@ export default function GlobalTopBar() {
           </button>
         </nav>
         <div className="ml-auto flex items-center gap-2">
-          <button
-            className="nav-control"
-            onClick={() => setThemePref((p) => (p === "auto" ? "light" : p === "light" ? "dark" : "auto"))}
-            title="Temporary theme toggle"
-          >
-            Theme: {themeLabel}
-          </button>
           {userId && userLabel ? <span className="text-xs text-gray-500 hidden md:inline">Signed in as {userLabel.split("@")[0]}</span> : null}
           {userId ? (
             <button className="nav-control" onClick={() => void signOut()}>Sign out</button>
