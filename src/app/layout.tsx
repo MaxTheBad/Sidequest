@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 import BottomNav from "@/components/bottom-nav";
 import GlobalTopBar from "@/components/global-top-bar";
@@ -26,6 +27,26 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <Script id="theme-init" strategy="beforeInteractive">
+          {`
+            (() => {
+              try {
+                const saved = localStorage.getItem('sidequest_theme_pref');
+                const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                const resolved = saved === 'light' || saved === 'dark'
+                  ? saved
+                  : saved === 'auto'
+                    ? (prefersDark ? 'dark' : 'light')
+                    : (prefersDark ? 'dark' : 'light');
+                document.documentElement.dataset.theme = resolved;
+              } catch {
+                document.documentElement.dataset.theme = 'light';
+              }
+            })();
+          `}
+        </Script>
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased pt-12 pb-28 lg:pb-0`}
       >
