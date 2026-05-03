@@ -91,7 +91,8 @@ export default function GlobalTopBar() {
               sessionStorage.setItem("sidequest_open_create", "1");
               router.push("/");
             }}
-            className="nav-item text-xs px-3 py-1 border border-slate-300 bg-slate-50 text-black"
+            className="nav-item text-xs px-3 py-1 border border-slate-300 bg-slate-50"
+            style={{ color: "#000" }}
           >
             Create
           </button>
