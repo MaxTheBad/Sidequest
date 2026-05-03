@@ -129,6 +129,14 @@ export default function SettingsPage() {
     }
   }, []);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const resolved = themePref === "auto" ? (mq.matches ? "dark" : "light") : themePref;
+    document.documentElement.dataset.theme = resolved;
+    window.localStorage.setItem("sidequest_theme_pref", themePref);
+  }, [themePref]);
+
   async function saveProfile(e: FormEvent) {
     e.preventDefault();
     if (!supabase || !userId) return setStatus("Not signed in.");
@@ -358,11 +366,6 @@ export default function SettingsPage() {
     if (error) return setStatus(error.message);
 
     if (typeof window !== "undefined") {
-      window.localStorage.setItem("sidequest_theme_pref", themePref);
-      const mq = window.matchMedia("(prefers-color-scheme: dark)");
-      const resolved = themePref === "auto" ? (mq.matches ? "dark" : "light") : themePref;
-      document.documentElement.dataset.theme = resolved;
-
       if (publicLocationWarningEnabled) {
         window.localStorage.removeItem("sidequest_public_location_warning_muted_until");
       } else {

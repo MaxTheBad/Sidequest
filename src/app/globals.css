@@ -67,7 +67,7 @@ html {
 
 body {
   background:
-    linear-gradient(180deg, rgba(0, 0, 0, 0.42), rgba(0, 0, 0, 0.58)),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.22), rgba(0, 0, 0, 0.38)),
     url("/backgrounds/raniramli-background-2672597_1920.jpg") center center / cover fixed no-repeat;
   color: var(--foreground);
   font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -85,8 +85,8 @@ body::before {
   inset: 0;
   pointer-events: none;
   z-index: 0;
-  opacity: 0.12;
-  background: radial-gradient(circle at top, rgba(255, 255, 255, 0.1), transparent 42%);
+  opacity: 0.16;
+  background: radial-gradient(circle at top, rgba(255, 255, 255, 0.14), transparent 42%);
 }
 
 main, header, nav {
