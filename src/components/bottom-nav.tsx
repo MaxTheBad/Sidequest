@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase";
+import { getPersistedNotificationLastSeen } from "@/lib/notification-state";
 
 export default function BottomNav() {
   const pathname = usePathname();
@@ -24,7 +25,7 @@ export default function BottomNav() {
   useEffect(() => {
     if (!supabase || !userId) return;
     const run = async () => {
-      const lastSeenRaw = typeof window !== "undefined" ? window.localStorage.getItem("sidequest_notifications_last_seen") : "";
+      const lastSeenRaw = await getPersistedNotificationLastSeen(supabase, userId);
       const lastSeen = lastSeenRaw ? new Date(lastSeenRaw).getTime() : 0;
       const [{ data: myMessages }, { data: joinedRows }] = await Promise.all([
         supabase.from("messages").select("created_at,sender_id").neq("sender_id", userId).order("created_at", { ascending: false }).limit(50),

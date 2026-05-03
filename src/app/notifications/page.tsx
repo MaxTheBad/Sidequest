@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase";
+import { getPersistedNotificationLastSeen, markNotificationsSeen } from "@/lib/notification-state";
 
 type NotificationItem = {
   id: string;
@@ -33,11 +34,6 @@ export default function NotificationsPage() {
   const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    setLastSeenAt(window.localStorage.getItem("sidequest_notifications_last_seen") || "");
-  }, []);
-
-  useEffect(() => {
     if (!supabase) return;
     const run = async () => {
       setLoading(true);
@@ -48,6 +44,9 @@ export default function NotificationsPage() {
         if (typeof window !== "undefined") window.location.href = "/?auth=1";
         return;
       }
+
+      const seenAt = await getPersistedNotificationLastSeen(supabase, uid);
+      setLastSeenAt(seenAt);
 
       const [{ data: myQuests }, { data: myMessages }, { data: joinedRows }, { data: blockRows }] = await Promise.all([
         supabase.from("quests").select("id,title,created_at").eq("creator_id", uid).order("created_at", { ascending: false }).limit(50),
@@ -116,13 +115,6 @@ export default function NotificationsPage() {
     return items.filter((item) => new Date(item.created_at).getTime() > lastSeen).length;
   }, [items, lastSeenAt]);
 
-  const grouped = useMemo(() => {
-    const messages = items.filter((item) => item.kind === "message");
-    const joins = items.filter((item) => item.kind === "join_request" || item.kind === "approval");
-    const creations = items.filter((item) => item.kind === "created");
-    return { messages, joins, creations };
-  }, [items]);
-
   const visibleItems = useMemo(() => {
     const filtered = !activeFilters.length ? items : items.filter((item) => {
       if (activeFilters.includes("messages") && item.kind === "message" && item.badge === "Direct message") return true;
@@ -151,9 +143,8 @@ export default function NotificationsPage() {
   }
 
   function markSeen() {
-    if (typeof window === "undefined") return;
+    void markNotificationsSeen(supabase, userId);
     const now = new Date().toISOString();
-    window.localStorage.setItem("sidequest_notifications_last_seen", now);
     setLastSeenAt(now);
   }
 
