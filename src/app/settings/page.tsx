@@ -66,11 +66,6 @@ export default function SettingsPage() {
     return found?.code || countryCode;
   }
 
-  const selectedCountryCode = useMemo(() => {
-    const found = countryOptions.find((c) => c.name.toLowerCase() === countryQuery.trim().toLowerCase());
-    return (found?.code || countryCode || "").toLowerCase();
-  }, [countryOptions, countryCode, countryQuery]);
-
   useEffect(() => {
     if (typeof window !== "undefined") {
       const raw = window.localStorage.getItem("sidequest_public_location_warning_muted_until");
@@ -94,7 +89,7 @@ export default function SettingsPage() {
 
       const { data: profile } = await supabase
         .from("profiles")
-      .select("display_name,city,bio,friends_visibility,radius_km,avatar_url,avatar_source_url")
+        .select("display_name,city,bio,friends_visibility,radius_km,avatar_url,avatar_source_url")
         .eq("id", uid)
         .maybeSingle();
 
@@ -546,28 +541,31 @@ export default function SettingsPage() {
                 <div className="grid gap-2 sm:grid-cols-2 sm:items-end">
                   <div className="grid gap-1">
                     <label className="text-sm font-medium">Country</label>
-                    <input list="country-list" className="border rounded px-3 py-2" value={countryQuery} onChange={(e) => { setCountryQuery(e.target.value); setCountryCode(resolveCountryCodeByName(e.target.value)); }} placeholder="Start typing country..." />
+                    <select
+                      className="border rounded px-3 py-2"
+                      value={countryCode}
+                      onChange={(e) => {
+                        const next = e.target.value;
+                        setCountryCode(next);
+                        const match = countryOptions.find((c) => c.code === next);
+                        if (match) setCountryQuery(match.name);
+                      }}
+                    >
+                      {countryOptions.map((country) => (
+                        <option key={country.code} value={country.code}>
+                          {country.name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
-                  <CityAutocompleteInput label="City" value={city} onChange={setCity} placeholder={`Start typing city in ${countryCode}...`} countryCode={selectedCountryCode} />
+                  <CityAutocompleteInput label="City" value={city} onChange={setCity} placeholder="Start typing city..." countryCode="US" />
                 </div>
 
                 <label className="text-sm font-medium">Bio</label>
                 <textarea className="border rounded px-3 py-2" value={bio} onChange={(e) => setBio(e.target.value)} />
 
-                <label className="text-sm font-medium">Travel distance</label>
-                <select className="border rounded px-3 py-2 w-fit min-w-[180px]" value={radiusKm} onChange={(e) => setRadiusKm(Number(e.target.value))}>
-                  <option value={5}>Within 5 km</option>
-                  <option value={10}>Within 10 km</option>
-                  <option value={15}>Within 15 km</option>
-                  <option value={25}>Within 25 km</option>
-                  <option value={50}>Within 50 km</option>
-                  <option value={75}>Within 75 km</option>
-                  <option value={100}>Within 100 km</option>
-                  <option value={150}>Within 150 km</option>
-                  <option value={250}>Within 250 km</option>
-                </select>
-                <p className="text-xs text-gray-500">Shown on your profile for now.</p>
+                <p className="text-xs text-gray-500">Travel distance: within {radiusKm} km</p>
 
                 <label className="text-sm font-medium">Friends list visibility</label>
                 <select className="border rounded px-3 py-2" value={friendsVisibility} onChange={(e) => setFriendsVisibility(e.target.value as "public" | "private")}>

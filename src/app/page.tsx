@@ -2127,7 +2127,7 @@ export default function Home() {
               <div className="grid gap-3">
                 <label className="text-sm font-medium">Display name</label>
                 <input className="border rounded-xl px-3 py-2.5" value={onboardingDisplayName} onChange={(e) => setOnboardingDisplayName(e.target.value)} placeholder="How people should see you" />
-                <CityAutocompleteInput label="City" value={onboardingCity} onChange={setOnboardingCity} placeholder="Where are you based?" countryCode={countryCode} />
+                <CityAutocompleteInput label="City" value={onboardingCity} onChange={setOnboardingCity} placeholder="Where are you based?" countryCode="US" />
               </div>
             )}
 

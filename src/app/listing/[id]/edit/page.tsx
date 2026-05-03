@@ -243,7 +243,7 @@ export default function EditListingPage() {
             <label className="text-sm">Description</label>
             <textarea className="border rounded px-3 py-2" value={description} onChange={(e) => setDescription(e.target.value)} />
 
-            <CityAutocompleteInput label="City" value={city} onChange={setCity} />
+            <CityAutocompleteInput label="City" value={city} onChange={setCity} countryCode="US" />
 
             <label className="text-sm">Exact address</label>
             <input className="border rounded px-3 py-2" value={exactAddress} onChange={(e) => setExactAddress(e.target.value)} />
