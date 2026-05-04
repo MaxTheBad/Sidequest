@@ -2063,7 +2063,7 @@ export default function Home() {
                       title={membershipStatusByQuest[q.id] === "pending" ? "Cancel request" : (membershipStatusByQuest[q.id] === "declined" ? "Request again" : (joinedQuestIds.includes(q.id) ? "Leave" : ((q.join_mode || "open") === "approval_required" ? "Request to join" : "Join")))}
                       onClick={() => void toggleJoinQuest(q.id)}
                     >
-                      <span className="text-2xl leading-none">{membershipStatusByQuest[q.id] === "pending" ? "⌛" : (membershipStatusByQuest[q.id] === "declined" ? "↺" : (joinedQuestIds.includes(q.id) ? "−" : "+"))}</span>
+                      <span className="inline-flex h-8 w-8 items-center justify-center text-2xl leading-none">{membershipStatusByQuest[q.id] === "pending" ? "⌛" : (membershipStatusByQuest[q.id] === "declined" ? "↺" : (joinedQuestIds.includes(q.id) ? "−" : "+"))}</span>
                     </button>
                   ) : null}
                   <button className="justify-self-center inline-flex h-10 w-10 items-center justify-center rounded-full bg-transparent text-sm font-medium text-[color:var(--foreground)] dark:text-white transition hover:opacity-80" aria-label="Comment" title="Comment" onClick={() => {
