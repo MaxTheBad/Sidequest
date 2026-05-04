@@ -2033,7 +2033,7 @@ export default function Home() {
               )}
 
               <div className="p-3 sm:p-4 space-y-3 flex h-full flex-col">
-                <div className="space-y-2 min-h-[148px]">
+                <div className="space-y-2 min-h-[112px]">
                   <div className="flex items-start justify-between gap-2">
                     <h3 className="text-lg font-semibold leading-tight tracking-tight">
                       <Link href={`/listing/${q.id}`} className="underline decoration-2 underline-offset-2" title="Open listing">
@@ -2055,7 +2055,7 @@ export default function Home() {
                   <p className="text-xs text-slate-500">{q.city || deriveCityFromLocation(q.exact_address || "") || "city tbd"} · {q.availability || "availability tbd"}</p>
                 </div>
 
-                <div className={`grid w-full items-center mt-auto ${userId !== q.creator_id ? "grid-cols-4" : "grid-cols-3"}`}>
+                <div className={`grid w-full items-center mt-1 ${userId !== q.creator_id ? "grid-cols-4" : "grid-cols-3"}`}>
                   {userId !== q.creator_id ? (
                     <button
                       className="justify-self-start rounded-full bg-transparent px-1 py-1 text-sm font-semibold text-[color:var(--foreground)] dark:text-white transition hover:opacity-80"
