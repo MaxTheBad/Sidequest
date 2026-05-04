@@ -2058,7 +2058,7 @@ export default function Home() {
                 <div className={`grid w-full items-center mt-1 ${userId !== q.creator_id ? "grid-cols-4" : "grid-cols-3"}`}>
                   {userId !== q.creator_id ? (
                     <button
-                      className="justify-self-start rounded-full bg-transparent px-1 py-1 text-sm font-semibold text-[color:var(--foreground)] dark:text-white transition hover:opacity-80"
+                      className="justify-self-start inline-flex h-10 w-10 items-center justify-center rounded-full bg-transparent text-sm font-semibold text-[color:var(--foreground)] dark:text-white transition hover:opacity-80"
                       aria-label={membershipStatusByQuest[q.id] === "pending" ? "Cancel request" : (membershipStatusByQuest[q.id] === "declined" ? "Request again" : (joinedQuestIds.includes(q.id) ? "Leave" : ((q.join_mode || "open") === "approval_required" ? "Request to join" : "Join")))}
                       title={membershipStatusByQuest[q.id] === "pending" ? "Cancel request" : (membershipStatusByQuest[q.id] === "declined" ? "Request again" : (joinedQuestIds.includes(q.id) ? "Leave" : ((q.join_mode || "open") === "approval_required" ? "Request to join" : "Join")))}
                       onClick={() => void toggleJoinQuest(q.id)}
@@ -2066,23 +2066,23 @@ export default function Home() {
                       <span className="text-2xl leading-none">{membershipStatusByQuest[q.id] === "pending" ? "⌛" : (membershipStatusByQuest[q.id] === "declined" ? "↺" : (joinedQuestIds.includes(q.id) ? "−" : "+"))}</span>
                     </button>
                   ) : null}
-                  <button className="justify-self-center rounded-full bg-transparent px-1 py-1 text-sm font-medium text-[color:var(--foreground)] dark:text-white transition hover:opacity-80" aria-label="Comment" title="Comment" onClick={() => {
+                  <button className="justify-self-center inline-flex h-10 w-10 items-center justify-center rounded-full bg-transparent text-sm font-medium text-[color:var(--foreground)] dark:text-white transition hover:opacity-80" aria-label="Comment" title="Comment" onClick={() => {
                     void askQuestion(q, "public");
                   }}>
-                    <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                       <path d="M20 14a4 4 0 0 1-4 4H9l-5 3V8a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4v6Z" />
                     </svg>
                   </button>
-                  <button className="justify-self-center rounded-full bg-transparent px-1 py-1 text-sm font-medium text-[color:var(--foreground)] dark:text-white transition hover:opacity-80" aria-label="Direct message" title="Direct message" onClick={() => {
+                  <button className="justify-self-center inline-flex h-10 w-10 items-center justify-center rounded-full bg-transparent text-sm font-medium text-[color:var(--foreground)] dark:text-white transition hover:opacity-80" aria-label="Direct message" title="Direct message" onClick={() => {
                     void askQuestion(q, "private");
                   }}>
-                    <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                       <path d="M3.5 6.5A2.5 2.5 0 0 1 6 4h12a2.5 2.5 0 0 1 2.5 2.5v11A2.5 2.5 0 0 1 18 20H6a2.5 2.5 0 0 1-2.5-2.5v-11Z" />
                       <path d="M5 7l7 5.5L19 7" />
                     </svg>
                   </button>
-                  <button className="justify-self-end rounded-full bg-transparent px-1 py-1 text-sm font-medium text-[color:var(--foreground)] dark:text-white transition hover:opacity-80" aria-label={bookmarkedQuestIds.includes(q.id) ? "Saved" : "Save"} title={bookmarkedQuestIds.includes(q.id) ? "Saved" : "Save"} onClick={() => void toggleBookmark(q.id)}>
-                    <svg viewBox="0 0 24 24" className="h-7 w-7" fill={bookmarkedQuestIds.includes(q.id) ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <button className="justify-self-end inline-flex h-10 w-10 items-center justify-center rounded-full bg-transparent text-sm font-medium text-[color:var(--foreground)] dark:text-white transition hover:opacity-80" aria-label={bookmarkedQuestIds.includes(q.id) ? "Saved" : "Save"} title={bookmarkedQuestIds.includes(q.id) ? "Saved" : "Save"} onClick={() => void toggleBookmark(q.id)}>
+                    <svg viewBox="0 0 24 24" className="h-6 w-6" fill={bookmarkedQuestIds.includes(q.id) ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                       <path d="M12 3.5 14.6 8.8l5.9.9-4.3 4.2 1 5.9L12 17.1 6.8 19.8l1-5.9-4.3-4.2 5.9-.9L12 3.5Z" />
                     </svg>
                   </button>
