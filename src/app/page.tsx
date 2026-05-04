@@ -1384,6 +1384,20 @@ export default function Home() {
     return summary || parts[0];
   }
 
+  function formatQuestMeta(quest: Quest) {
+    const rawLocation = quest.city || deriveCityFromLocation(quest.exact_address || "") || "city tbd";
+    const stateMatch = rawLocation.match(/,\s*([A-Z]{2})\b/);
+    const cityOnly = rawLocation.split(",")[0]?.trim() || rawLocation;
+    const locationLabel = `📍${cityOnly}${stateMatch ? `, ${stateMatch[1]}` : ""}`;
+    const timeLabel = quest.availability?.toLowerCase().includes("find the best time")
+      ? "🕜 Let’s plan"
+      : "🕜 Set time";
+    const recurringLabel = quest.availability?.match(/Recurring weekly/i) || quest.availability?.match(/Weekly/i)
+      ? "🔁 Weekly"
+      : "";
+    return [locationLabel, timeLabel, recurringLabel].filter(Boolean).join("  ");
+  }
+
   async function createQuest(e: FormEvent) {
 
     e.preventDefault();
@@ -2052,7 +2066,7 @@ export default function Home() {
                     <span className="text-[11px] font-semibold tracking-wide uppercase text-slate-700">group {q.group_size > 0 ? q.group_size : "any"}</span>
                   </div>
                   {q.description ? <p className="text-sm text-slate-700 leading-relaxed line-clamp-2">{q.description}</p> : null}
-                  <p className="text-xs text-slate-500">{q.city || deriveCityFromLocation(q.exact_address || "") || "city tbd"} · {q.availability || "availability tbd"}</p>
+                  <p className="text-xs text-slate-500 leading-relaxed">{formatQuestMeta(q)}</p>
                 </div>
 
                 <div className={`grid w-full items-center mt-1 ${userId !== q.creator_id ? "grid-cols-4" : "grid-cols-3"}`}>
