@@ -1387,9 +1387,10 @@ export default function Home() {
 
   function formatQuestMeta(quest: Quest) {
     const rawLocation = quest.city || deriveCityFromLocation(quest.exact_address || "") || "city tbd";
-    const stateMatch = rawLocation.match(/,\s*([A-Z]{2})\b/);
-    const cityOnly = rawLocation.split(",")[0]?.trim() || rawLocation;
-    return `📍 ${cityOnly}${stateMatch ? `, ${stateMatch[1]}` : ""}`;
+    const parts = rawLocation.split(",").map((p) => p.trim()).filter(Boolean);
+    const city = parts[0] || rawLocation;
+    const state = parts[1] || "";
+    return `📍 ${city}${state ? `, ${state}` : ""}`;
   }
 
   async function createQuest(e: FormEvent) {
@@ -2013,9 +2014,9 @@ export default function Home() {
                       <div key={`${m.url}-${i}`} className="w-full shrink-0 snap-start bg-black">
                         <button type="button" className="w-full block" onClick={() => setExpandedMedia({ items: feedMediaItems, index: i })}>
                           {m.type === "image" ? (
-                            <img src={m.url} alt={m.label || "Listing media"} className="w-full h-[24vh] sm:h-[28vh] lg:h-[22vw] max-h-[340px] object-cover" />
+                            <img src={m.url} alt={m.label || "Listing media"} className="w-full h-[38vh] sm:h-[34vh] lg:h-[26vw] max-h-[420px] object-cover" />
                           ) : (
-                            <video src={m.url} className="w-full h-[24vh] sm:h-[28vh] lg:h-[22vw] max-h-[340px] object-cover" preload="metadata" muted playsInline />
+                            <video src={m.url} className="w-full h-[38vh] sm:h-[34vh] lg:h-[26vw] max-h-[420px] object-cover" preload="metadata" muted playsInline />
                           )}
                         </button>
                       </div>
@@ -2030,7 +2031,7 @@ export default function Home() {
                   )}
                 </div>
               ) : (
-                <div className="relative h-[24vh] sm:h-[28vh] lg:h-[22vw] max-h-[340px] border-y grid place-items-center overflow-hidden" style={{ background: fallbackVisual.gradient }}>
+                <div className="relative h-[38vh] sm:h-[34vh] lg:h-[26vw] max-h-[420px] border-y grid place-items-center overflow-hidden" style={{ background: fallbackVisual.gradient }}>
                   <div className="absolute inset-0 opacity-50" style={{ background: "radial-gradient(circle at top, rgba(255,255,255,0.9), transparent 55%)" }} />
                   <div className="relative text-center px-6 max-w-sm">
                     <div className="mx-auto h-12 w-12 rounded-2xl border bg-white/90 shadow-sm grid place-items-center text-xl">{fallbackVisual.emoji}</div>
