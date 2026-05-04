@@ -1389,25 +1389,7 @@ export default function Home() {
     const rawLocation = quest.city || deriveCityFromLocation(quest.exact_address || "") || "city tbd";
     const stateMatch = rawLocation.match(/,\s*([A-Z]{2})\b/);
     const cityOnly = rawLocation.split(",")[0]?.trim() || rawLocation;
-    const locationLabel = `📍${cityOnly}${stateMatch ? `, ${stateMatch[1]}` : ""}`;
-    const timeLabel = quest.availability?.toLowerCase().includes("find the best time")
-      ? "🕜 Let’s plan"
-      : "🕜 Set time";
-    const recurringLabel = quest.availability?.match(/Recurring weekly/i) || quest.availability?.match(/Weekly/i)
-      ? "🔁 Weekly"
-      : "";
-    return [locationLabel, timeLabel, recurringLabel].filter(Boolean).join("  ");
-  }
-
-  function formatQuestSummary(quest: Quest) {
-    const title = quest.hobbies?.[0]?.name || "Hobby";
-    const level = quest.skill_level || "all levels";
-    const group = `Group ${quest.group_size > 0 ? quest.group_size : "any"}`;
-    const cityOnly = (quest.city || deriveCityFromLocation(quest.exact_address || "") || "city tbd").split(",")[0]?.trim() || "city tbd";
-    const timeLabel = quest.availability?.toLowerCase().includes("find the best time")
-      ? "Set time"
-      : "Set time";
-    return `${quest.title} · ${title} · ${level.charAt(0).toUpperCase()}${level.slice(1)} · ${group} · ${cityOnly} · ${timeLabel}`;
+    return `📍 ${cityOnly}${stateMatch ? `, ${stateMatch[1]}` : ""}`;
   }
 
   async function createQuest(e: FormEvent) {
@@ -2066,13 +2048,15 @@ export default function Home() {
                         {q.title}
                       </Link>
                     </h3>
-                    <Link href={`/listing/${q.id}`} className="text-xs font-medium text-slate-500 whitespace-nowrap pt-1">
-                      View listing ↗
-                    </Link>
+                    <p className="text-xs font-medium text-slate-500 whitespace-nowrap pt-1">
+                      {formatQuestMeta(q).replace(/^📍/, "📍 ")}
+                    </p>
                   </div>
-                  <p className="text-xs font-medium text-slate-600 leading-relaxed">{formatQuestSummary(q)}</p>
                   {expandedQuestIds[q.id] ? (
                     <>
+                      <Link href={`/listing/${q.id}`} className="text-xs font-medium text-slate-500 whitespace-nowrap">
+                        View listing ↗
+                      </Link>
                       <div className="flex flex-wrap gap-2">
                         <span className="text-[11px] font-semibold tracking-wide uppercase text-slate-700">{q.hobbies?.[0]?.name || "Hobby"}</span>
                         <span className="text-[11px] font-semibold text-slate-700">-</span>
@@ -2091,10 +2075,10 @@ export default function Home() {
                     </>
                   ) : (
                     <button
-                      className="text-xs font-medium text-slate-500 underline underline-offset-2"
+                      className="text-xs font-medium text-slate-500 underline underline-offset-2 w-fit"
                       onClick={() => setExpandedQuestIds((prev) => ({ ...prev, [q.id]: true }))}
                     >
-                      Show more
+                      Show more v
                     </button>
                   )}
                 </div>
