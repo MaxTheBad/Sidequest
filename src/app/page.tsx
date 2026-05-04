@@ -1389,7 +1389,7 @@ export default function Home() {
     const rawLocation = quest.city || deriveCityFromLocation(quest.exact_address || "") || "city tbd";
     const parts = rawLocation.split(",").map((p) => p.trim()).filter(Boolean);
     const city = parts[0] || rawLocation;
-    const state = parts[1] || "";
+    const state = (parts.find((part, index) => index > 0 && /^[A-Z]{2}$/.test(part)) || "").toUpperCase();
     return `📍 ${city}${state ? `, ${state}` : ""}`;
   }
 
