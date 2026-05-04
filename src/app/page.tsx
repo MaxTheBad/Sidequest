@@ -194,6 +194,7 @@ export default function Home() {
   const [showQuestionModal, setShowQuestionModal] = useState(false);
   const [expandedMedia, setExpandedMedia] = useState<{ items: QuestMediaItem[]; index: number } | null>(null);
   const expandedMediaStripRef = useRef<HTMLDivElement | null>(null);
+  const [expandedQuestIds, setExpandedQuestIds] = useState<Record<string, boolean>>({});
   const [questionTarget, setQuestionTarget] = useState<Quest | null>(null);
   const [questionMode, setQuestionMode] = useState<"public" | "private">("public");
   const [questionText, setQuestionText] = useState("");
@@ -1398,6 +1399,17 @@ export default function Home() {
     return [locationLabel, timeLabel, recurringLabel].filter(Boolean).join("  ");
   }
 
+  function formatQuestSummary(quest: Quest) {
+    const title = quest.hobbies?.[0]?.name || "Hobby";
+    const level = quest.skill_level || "all levels";
+    const group = `Group ${quest.group_size > 0 ? quest.group_size : "any"}`;
+    const cityOnly = (quest.city || deriveCityFromLocation(quest.exact_address || "") || "city tbd").split(",")[0]?.trim() || "city tbd";
+    const timeLabel = quest.availability?.toLowerCase().includes("find the best time")
+      ? "Set time"
+      : "Set time";
+    return `${quest.title} · ${title} · ${level.charAt(0).toUpperCase()}${level.slice(1)} · ${group} · ${cityOnly} · ${timeLabel}`;
+  }
+
   async function createQuest(e: FormEvent) {
 
     e.preventDefault();
@@ -2058,15 +2070,33 @@ export default function Home() {
                       View listing ↗
                     </Link>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    <span className="text-[11px] font-semibold tracking-wide uppercase text-slate-700">{q.hobbies?.[0]?.name || "Hobby"}</span>
-                    <span className="text-[11px] font-semibold text-slate-700">-</span>
-                    <span className="text-[11px] font-semibold tracking-wide uppercase text-slate-700">{q.skill_level || "all levels"}</span>
-                    <span className="text-[11px] font-semibold text-slate-700">-</span>
-                    <span className="text-[11px] font-semibold tracking-wide uppercase text-slate-700">group {q.group_size > 0 ? q.group_size : "any"}</span>
-                  </div>
-                  {q.description ? <p className="text-sm text-slate-700 leading-relaxed line-clamp-2">{q.description}</p> : null}
-                  <p className="text-xs text-slate-500 leading-relaxed">{formatQuestMeta(q)}</p>
+                  <p className="text-xs font-medium text-slate-600 leading-relaxed">{formatQuestSummary(q)}</p>
+                  {expandedQuestIds[q.id] ? (
+                    <>
+                      <div className="flex flex-wrap gap-2">
+                        <span className="text-[11px] font-semibold tracking-wide uppercase text-slate-700">{q.hobbies?.[0]?.name || "Hobby"}</span>
+                        <span className="text-[11px] font-semibold text-slate-700">-</span>
+                        <span className="text-[11px] font-semibold tracking-wide uppercase text-slate-700">{q.skill_level || "all levels"}</span>
+                        <span className="text-[11px] font-semibold text-slate-700">-</span>
+                        <span className="text-[11px] font-semibold tracking-wide uppercase text-slate-700">group {q.group_size > 0 ? q.group_size : "any"}</span>
+                      </div>
+                      {q.description ? <p className="text-sm text-slate-700 leading-relaxed line-clamp-2">{q.description}</p> : null}
+                      <p className="text-xs text-slate-500 leading-relaxed">{formatQuestMeta(q)}</p>
+                      <button
+                        className="text-xs font-medium text-slate-500 underline underline-offset-2"
+                        onClick={() => setExpandedQuestIds((prev) => ({ ...prev, [q.id]: false }))}
+                      >
+                        Show less
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      className="text-xs font-medium text-slate-500 underline underline-offset-2"
+                      onClick={() => setExpandedQuestIds((prev) => ({ ...prev, [q.id]: true }))}
+                    >
+                      Show more
+                    </button>
+                  )}
                 </div>
 
                 <div className={`grid w-full items-center mt-1 ${userId !== q.creator_id ? "grid-cols-4" : "grid-cols-3"}`}>
