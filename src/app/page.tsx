@@ -2012,7 +2012,7 @@ export default function Home() {
                     }}
                   >
                     {feedMediaItems.map((m, i) => (
-                      <div key={`${m.url}-${i}`} className={`w-full shrink-0 snap-start bg-black overflow-hidden ${mediaOrientationByUrl[m.url] === "landscape" ? "h-[28vh] sm:h-[24vh] lg:h-[18vw] max-h-[320px]" : "h-[44vh] sm:h-[40vh] lg:h-[30vw] max-h-[520px]"}`}>
+                      <div key={`${m.url}-${i}`} className={`w-full shrink-0 snap-start bg-black overflow-hidden ${mediaOrientationByUrl[m.url] === "landscape" ? "h-[40vh] sm:h-[24vh] lg:h-[18vw] max-h-[320px]" : "h-[52vh] sm:h-[40vh] lg:h-[30vw] max-h-[520px]"}`}>
                         <button type="button" className="w-full h-full block overflow-hidden" onClick={() => setExpandedMedia({ items: feedMediaItems, index: i })}>
                           {m.type === "image" ? (
                             <img
@@ -2093,18 +2093,24 @@ export default function Home() {
                       {q.description ? <p className="text-sm text-slate-700 leading-relaxed line-clamp-2">{q.description}</p> : null}
                       <p className="text-xs text-slate-500 leading-relaxed">{formatQuestMeta(q)}</p>
                       <button
-                        className="text-xs font-medium text-slate-500 underline underline-offset-2"
+                        className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 underline underline-offset-2"
                         onClick={() => setExpandedQuestIds((prev) => ({ ...prev, [q.id]: false }))}
                       >
-                        Show less ˄
+                        <span>Show less</span>
+                        <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <path d="m6 14 6-6 6 6" />
+                        </svg>
                       </button>
                     </>
                   ) : (
                     <button
-                      className="text-xs font-medium text-slate-500 underline underline-offset-2 w-fit"
+                      className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 underline underline-offset-2 w-fit"
                       onClick={() => setExpandedQuestIds((prev) => ({ ...prev, [q.id]: true }))}
                     >
-                      Show more ˅
+                      <span>Show more</span>
+                      <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="m6 10 6 6 6-6" />
+                      </svg>
                     </button>
                   )}
                 </div>
