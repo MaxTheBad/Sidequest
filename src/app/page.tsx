@@ -195,6 +195,7 @@ export default function Home() {
   const [expandedMedia, setExpandedMedia] = useState<{ items: QuestMediaItem[]; index: number } | null>(null);
   const expandedMediaStripRef = useRef<HTMLDivElement | null>(null);
   const [expandedQuestIds, setExpandedQuestIds] = useState<Record<string, boolean>>({});
+  const [mediaOrientationByUrl, setMediaOrientationByUrl] = useState<Record<string, "portrait" | "landscape">>({});
   const [questionTarget, setQuestionTarget] = useState<Quest | null>(null);
   const [questionMode, setQuestionMode] = useState<"public" | "private">("public");
   const [questionText, setQuestionText] = useState("");
@@ -1393,6 +1394,12 @@ export default function Home() {
     return `📍 ${city}${state ? `, ${state}` : ""}`;
   }
 
+  function getFeedMediaClass(url: string) {
+    return mediaOrientationByUrl[url] === "landscape"
+      ? "w-full h-[28vh] sm:h-[24vh] lg:h-[18vw] max-h-[320px] object-cover"
+      : "w-full h-[44vh] sm:h-[40vh] lg:h-[30vw] max-h-[520px] object-cover";
+  }
+
   async function createQuest(e: FormEvent) {
 
     e.preventDefault();
@@ -2014,9 +2021,33 @@ export default function Home() {
                       <div key={`${m.url}-${i}`} className="w-full shrink-0 snap-start bg-black">
                         <button type="button" className="w-full block" onClick={() => setExpandedMedia({ items: feedMediaItems, index: i })}>
                           {m.type === "image" ? (
-                            <img src={m.url} alt={m.label || "Listing media"} className="w-full h-[38vh] sm:h-[34vh] lg:h-[26vw] max-h-[420px] object-cover" />
+                            <img
+                              src={m.url}
+                              alt={m.label || "Listing media"}
+                              className={getFeedMediaClass(m.url)}
+                              onLoad={(e) => {
+                                const img = e.currentTarget;
+                                setMediaOrientationByUrl((prev) => ({
+                                  ...prev,
+                                  [m.url]: img.naturalWidth > img.naturalHeight ? "landscape" : "portrait",
+                                }));
+                              }}
+                            />
                           ) : (
-                            <video src={m.url} className="w-full h-[38vh] sm:h-[34vh] lg:h-[26vw] max-h-[420px] object-cover" preload="metadata" muted playsInline />
+                            <video
+                              src={m.url}
+                              className={getFeedMediaClass(m.url)}
+                              preload="metadata"
+                              muted
+                              playsInline
+                              onLoadedMetadata={(e) => {
+                                const video = e.currentTarget;
+                                setMediaOrientationByUrl((prev) => ({
+                                  ...prev,
+                                  [m.url]: video.videoWidth > video.videoHeight ? "landscape" : "portrait",
+                                }));
+                              }}
+                            />
                           )}
                         </button>
                       </div>
@@ -2031,7 +2062,7 @@ export default function Home() {
                   )}
                 </div>
               ) : (
-                <div className="relative h-[38vh] sm:h-[34vh] lg:h-[26vw] max-h-[420px] border-y grid place-items-center overflow-hidden" style={{ background: fallbackVisual.gradient }}>
+                <div className="relative h-[44vh] sm:h-[40vh] lg:h-[30vw] max-h-[520px] border-y grid place-items-center overflow-hidden" style={{ background: fallbackVisual.gradient }}>
                   <div className="absolute inset-0 opacity-50" style={{ background: "radial-gradient(circle at top, rgba(255,255,255,0.9), transparent 55%)" }} />
                   <div className="relative text-center px-6 max-w-sm">
                     <div className="mx-auto h-12 w-12 rounded-2xl border bg-white/90 shadow-sm grid place-items-center text-xl">{fallbackVisual.emoji}</div>
@@ -2079,7 +2110,7 @@ export default function Home() {
                       className="text-xs font-medium text-slate-500 underline underline-offset-2 w-fit"
                       onClick={() => setExpandedQuestIds((prev) => ({ ...prev, [q.id]: true }))}
                     >
-                      Show more v
+                      Show more ˅
                     </button>
                   )}
                 </div>
