@@ -1394,12 +1394,6 @@ export default function Home() {
     return `📍 ${city}${state ? `, ${state}` : ""}`;
   }
 
-  function getFeedMediaClass(url: string) {
-    return mediaOrientationByUrl[url] === "landscape"
-      ? "w-full h-[28vh] sm:h-[24vh] lg:h-[18vw] max-h-[320px] object-cover"
-      : "w-full h-[44vh] sm:h-[40vh] lg:h-[30vw] max-h-[520px] object-cover";
-  }
-
   async function createQuest(e: FormEvent) {
 
     e.preventDefault();
@@ -2018,13 +2012,13 @@ export default function Home() {
                     }}
                   >
                     {feedMediaItems.map((m, i) => (
-                      <div key={`${m.url}-${i}`} className="w-full shrink-0 snap-start bg-black">
-                        <button type="button" className="w-full block" onClick={() => setExpandedMedia({ items: feedMediaItems, index: i })}>
+                      <div key={`${m.url}-${i}`} className={`w-full shrink-0 snap-start bg-black overflow-hidden ${mediaOrientationByUrl[m.url] === "landscape" ? "h-[28vh] sm:h-[24vh] lg:h-[18vw] max-h-[320px]" : "h-[44vh] sm:h-[40vh] lg:h-[30vw] max-h-[520px]"}`}>
+                        <button type="button" className="w-full h-full block overflow-hidden" onClick={() => setExpandedMedia({ items: feedMediaItems, index: i })}>
                           {m.type === "image" ? (
                             <img
                               src={m.url}
                               alt={m.label || "Listing media"}
-                              className={getFeedMediaClass(m.url)}
+                              className="w-full h-full object-cover object-center"
                               onLoad={(e) => {
                                 const img = e.currentTarget;
                                 setMediaOrientationByUrl((prev) => ({
@@ -2036,7 +2030,7 @@ export default function Home() {
                           ) : (
                             <video
                               src={m.url}
-                              className={getFeedMediaClass(m.url)}
+                              className="w-full h-full object-cover object-center"
                               preload="metadata"
                               muted
                               playsInline
@@ -2102,7 +2096,7 @@ export default function Home() {
                         className="text-xs font-medium text-slate-500 underline underline-offset-2"
                         onClick={() => setExpandedQuestIds((prev) => ({ ...prev, [q.id]: false }))}
                       >
-                        Show less
+                        Show less ˄
                       </button>
                     </>
                   ) : (
