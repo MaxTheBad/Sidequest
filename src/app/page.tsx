@@ -195,7 +195,6 @@ export default function Home() {
   const [expandedMedia, setExpandedMedia] = useState<{ items: QuestMediaItem[]; index: number } | null>(null);
   const expandedMediaStripRef = useRef<HTMLDivElement | null>(null);
   const [expandedQuestIds, setExpandedQuestIds] = useState<Record<string, boolean>>({});
-  const [mediaOrientationByUrl, setMediaOrientationByUrl] = useState<Record<string, "portrait" | "landscape">>({});
   const [questionTarget, setQuestionTarget] = useState<Quest | null>(null);
   const [questionMode, setQuestionMode] = useState<"public" | "private">("public");
   const [questionText, setQuestionText] = useState("");
@@ -2012,20 +2011,13 @@ export default function Home() {
                     }}
                   >
                     {feedMediaItems.map((m, i) => (
-                      <div key={`${m.url}-${i}`} className={`w-full shrink-0 snap-start bg-black overflow-hidden ${mediaOrientationByUrl[m.url] === "landscape" ? "h-[40vh] sm:h-[24vh] lg:h-[18vw] max-h-[320px]" : "h-[52vh] sm:h-[40vh] lg:h-[30vw] max-h-[520px]"}`}>
+                      <div key={`${m.url}-${i}`} className="w-full shrink-0 snap-start bg-black overflow-hidden aspect-[4/5] lg:aspect-[4/3]">
                         <button type="button" className="w-full h-full block overflow-hidden" onClick={() => setExpandedMedia({ items: feedMediaItems, index: i })}>
                           {m.type === "image" ? (
                             <img
                               src={m.url}
                               alt={m.label || "Listing media"}
                               className="w-full h-full object-cover object-center"
-                              onLoad={(e) => {
-                                const img = e.currentTarget;
-                                setMediaOrientationByUrl((prev) => ({
-                                  ...prev,
-                                  [m.url]: img.naturalWidth > img.naturalHeight ? "landscape" : "portrait",
-                                }));
-                              }}
                             />
                           ) : (
                             <video
@@ -2034,13 +2026,6 @@ export default function Home() {
                               preload="metadata"
                               muted
                               playsInline
-                              onLoadedMetadata={(e) => {
-                                const video = e.currentTarget;
-                                setMediaOrientationByUrl((prev) => ({
-                                  ...prev,
-                                  [m.url]: video.videoWidth > video.videoHeight ? "landscape" : "portrait",
-                                }));
-                              }}
                             />
                           )}
                         </button>
@@ -2056,7 +2041,7 @@ export default function Home() {
                   )}
                 </div>
               ) : (
-                <div className="relative h-[44vh] sm:h-[40vh] lg:h-[30vw] max-h-[520px] border-y grid place-items-center overflow-hidden" style={{ background: fallbackVisual.gradient }}>
+                <div className="relative aspect-[4/5] lg:aspect-[4/3] border-y grid place-items-center overflow-hidden" style={{ background: fallbackVisual.gradient }}>
                   <div className="absolute inset-0 opacity-50" style={{ background: "radial-gradient(circle at top, rgba(255,255,255,0.9), transparent 55%)" }} />
                   <div className="relative text-center px-6 max-w-sm">
                     <div className="mx-auto h-12 w-12 rounded-2xl border bg-white/90 shadow-sm grid place-items-center text-xl">{fallbackVisual.emoji}</div>
