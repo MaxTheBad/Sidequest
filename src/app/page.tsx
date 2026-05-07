@@ -2052,6 +2052,11 @@ export default function Home() {
               )}
 
               <div className="p-3 sm:p-4 space-y-3 flex h-full flex-col">
+                {q.description ? (
+                  <p className="text-sm text-slate-700 leading-relaxed line-clamp-2">
+                    {q.description}
+                  </p>
+                ) : null}
                 <div className={`grid w-full items-center ${userId !== q.creator_id ? "grid-cols-4" : "grid-cols-3"}`}>
                   {userId !== q.creator_id ? (
                     <button
