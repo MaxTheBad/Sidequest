@@ -2041,12 +2041,12 @@ export default function Home() {
                   )}
                 </div>
               ) : (
-                <div className="relative aspect-[4/5] lg:aspect-[4/3] border-y grid place-items-center overflow-hidden" style={{ background: fallbackVisual.gradient }}>
+                <div className="relative h-[28vh] sm:h-[22vh] lg:h-[16vw] max-h-[280px] border-y grid place-items-center overflow-hidden" style={{ background: fallbackVisual.gradient }}>
                   <div className="absolute inset-0 opacity-50" style={{ background: "radial-gradient(circle at top, rgba(255,255,255,0.9), transparent 55%)" }} />
                   <div className="relative text-center px-6 max-w-sm">
-                    <div className="mx-auto h-12 w-12 rounded-2xl border bg-white/90 shadow-sm grid place-items-center text-xl">{fallbackVisual.emoji}</div>
-                    <p className="mt-3 text-sm font-semibold text-slate-900">{fallbackVisual.title}</p>
-                    <p className="text-xs text-slate-500">{fallbackVisual.note}</p>
+                    <div className="mx-auto h-10 w-10 rounded-2xl border bg-white/90 shadow-sm grid place-items-center text-lg">{fallbackVisual.emoji}</div>
+                    <p className="mt-2 text-sm font-semibold text-slate-900">{fallbackVisual.title}</p>
+                    <p className="text-xs text-slate-500 leading-snug">{fallbackVisual.note}</p>
                   </div>
                 </div>
               )}
