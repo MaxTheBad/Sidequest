@@ -1981,7 +1981,7 @@ export default function Home() {
               </div>
             </div>
 
-            <div className={feedViewMode === "list" ? "grid gap-4 grid-cols-1 max-w-4xl" : "grid gap-4 lg:grid-cols-2 2xl:grid-cols-3"}>
+            <div className={feedViewMode === "list" ? "grid gap-5 grid-cols-1 max-w-3xl mx-auto" : "grid gap-4 lg:grid-cols-2 2xl:grid-cols-3"}>
               {loading ? <p>Loading...</p> : filteredQuests.map((q) => {
             const creatorProfile = getCreatorProfile(q);
             const feedMediaItems: QuestMediaItem[] = [
@@ -1992,8 +1992,8 @@ export default function Home() {
             const fallbackVisual = getCategoryFallbackVisual(q.hobbies?.[0]?.name);
 
             return (
-            <article key={q.id} className="quest-card w-full rounded-[2rem] bg-white border border-slate-200 shadow-[0_14px_40px_rgba(15,23,42,0.08)] overflow-hidden">
-              <div className="p-3 flex items-center justify-between gap-2">
+            <article key={q.id} className={`quest-card w-full bg-white border border-slate-200 shadow-[0_14px_40px_rgba(15,23,42,0.08)] overflow-hidden ${feedViewMode === "list" ? "rounded-[1.75rem]" : "rounded-[2rem]"}`}>
+              <div className={`p-3 flex items-center justify-between gap-2 ${feedViewMode === "list" ? "sm:p-4" : ""}`}>
                 <Link href={`/profile/${q.creator_id}`} className="flex items-center gap-2 min-w-0">
                   {creatorProfile?.avatar_url ? (
                     <img src={creatorProfile.avatar_url} alt="Creator" className="h-9 w-9 rounded-full object-cover border" />
@@ -2032,9 +2032,9 @@ export default function Home() {
               </div>
 
               {feedMediaItems.length > 0 ? (
-                <div>
+                <div className={feedViewMode === "list" ? "relative" : ""}>
                   <div
-                    className="w-full overflow-x-auto snap-x snap-mandatory flex"
+                    className={`w-full overflow-x-auto snap-x snap-mandatory flex ${feedViewMode === "list" ? "gap-0" : ""}`}
                     onScroll={(e) => {
                       const el = e.currentTarget;
                       const idx = Math.round(el.scrollLeft / Math.max(1, el.clientWidth));
@@ -2042,8 +2042,13 @@ export default function Home() {
                     }}
                   >
                     {feedMediaItems.map((m, i) => (
-                      <div key={`${m.url}-${i}`} className="w-full shrink-0 snap-start bg-black overflow-hidden aspect-[4/5] lg:aspect-[4/3]">
-                        <button type="button" className="w-full h-full block overflow-hidden" onClick={() => setExpandedMedia({ items: feedMediaItems, index: i })}>
+                      <div key={`${m.url}-${i}`} className={`w-full shrink-0 snap-start bg-black overflow-hidden ${feedViewMode === "list" ? "aspect-[4/5] sm:aspect-[16/11] lg:aspect-[16/10]" : "aspect-[4/5] lg:aspect-[4/3]"}`}>
+                        <button
+                          type="button"
+                          className="w-full h-full block overflow-hidden"
+                          style={feedViewMode === "list" ? { clipPath: "polygon(0 0, 100% 0, 100% 94%, 0 100%)" } : undefined}
+                          onClick={() => setExpandedMedia({ items: feedMediaItems, index: i })}
+                        >
                           {m.type === "image" ? (
                             <img
                               src={m.url}
@@ -2072,7 +2077,7 @@ export default function Home() {
                   )}
                 </div>
               ) : (
-                <div className="relative h-[28vh] sm:h-[22vh] lg:h-[16vw] max-h-[280px] border-y grid place-items-center overflow-hidden" style={{ background: fallbackVisual.gradient }}>
+                <div className={`relative border-y grid place-items-center overflow-hidden ${feedViewMode === "list" ? "aspect-[4/5] sm:aspect-[16/11] lg:aspect-[16/10]" : "h-[28vh] sm:h-[22vh] lg:h-[16vw] max-h-[280px]"}`} style={{ background: fallbackVisual.gradient, clipPath: feedViewMode === "list" ? "polygon(0 0, 100% 0, 100% 94%, 0 100%)" : undefined }}>
                   <div className="absolute inset-0 opacity-50" style={{ background: "radial-gradient(circle at top, rgba(255,255,255,0.9), transparent 55%)" }} />
                   <div className="relative text-center px-6 max-w-sm">
                     <div className="mx-auto h-10 w-10 rounded-2xl border bg-white/90 shadow-sm grid place-items-center text-lg">{fallbackVisual.emoji}</div>
@@ -2082,7 +2087,7 @@ export default function Home() {
                 </div>
               )}
 
-              <div className="p-3 sm:p-4 space-y-3 flex h-full flex-col">
+              <div className={`p-3 sm:p-4 space-y-3 flex h-full flex-col ${feedViewMode === "list" ? "sm:p-5" : ""}`}>
                 <div className="space-y-2 min-h-[112px]">
                   <div className="flex items-start justify-between gap-2">
                     <h3 className="text-base sm:text-[1.05rem] font-semibold leading-tight tracking-tight">
