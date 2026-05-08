@@ -195,6 +195,7 @@ export default function Home() {
   const [expandedMedia, setExpandedMedia] = useState<{ items: QuestMediaItem[]; index: number } | null>(null);
   const expandedMediaStripRef = useRef<HTMLDivElement | null>(null);
   const [expandedQuestIds, setExpandedQuestIds] = useState<Record<string, boolean>>({});
+  const [feedViewMode, setFeedViewMode] = useState<"grid" | "list">("grid");
   const [questionTarget, setQuestionTarget] = useState<Quest | null>(null);
   const [questionMode, setQuestionMode] = useState<"public" | "private">("public");
   const [questionText, setQuestionText] = useState("");
@@ -1964,9 +1965,23 @@ export default function Home() {
                 <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Feed</p>
                 <h3 className="text-lg font-semibold">Latest quests</h3>
               </div>
+              <div className="flex items-center gap-2">
+                <button
+                  className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${feedViewMode === "grid" ? "bg-black text-white border-black" : "bg-white text-slate-700 border-slate-200"}`}
+                  onClick={() => setFeedViewMode("grid")}
+                >
+                  Grid
+                </button>
+                <button
+                  className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${feedViewMode === "list" ? "bg-black text-white border-black" : "bg-white text-slate-700 border-slate-200"}`}
+                  onClick={() => setFeedViewMode("list")}
+                >
+                  List
+                </button>
+              </div>
             </div>
 
-            <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+            <div className={feedViewMode === "list" ? "grid gap-4 grid-cols-1 max-w-4xl" : "grid gap-4 lg:grid-cols-2 2xl:grid-cols-3"}>
               {loading ? <p>Loading...</p> : filteredQuests.map((q) => {
             const creatorProfile = getCreatorProfile(q);
             const feedMediaItems: QuestMediaItem[] = [
@@ -2070,7 +2085,7 @@ export default function Home() {
               <div className="p-3 sm:p-4 space-y-3 flex h-full flex-col">
                 <div className="space-y-2 min-h-[112px]">
                   <div className="flex items-start justify-between gap-2">
-                    <h3 className="text-lg font-semibold leading-tight tracking-tight">
+                    <h3 className="text-base sm:text-[1.05rem] font-semibold leading-tight tracking-tight">
                       <Link href={`/listing/${q.id}`} className="underline decoration-2 underline-offset-2" title="Open listing">
                         {q.title}
                       </Link>
