@@ -1393,6 +1393,22 @@ export default function Home() {
     return `📍 ${city}${state ? `, ${state}` : ""}`;
   }
 
+  function formatPostedLabel(createdAt?: string | null) {
+    if (!createdAt) return "";
+    const created = new Date(createdAt);
+    if (Number.isNaN(created.getTime())) return "";
+    const diffMs = Date.now() - created.getTime();
+    const diffHours = diffMs / (60 * 60 * 1000);
+    const diffDays = diffHours / 24;
+    if (diffHours < 24) {
+      const roundedMinutes = Math.max(1, Math.round(diffMs / (60 * 1000)));
+      if (roundedMinutes < 60) return `${roundedMinutes}m ago`;
+      return `${Math.max(1, Math.round(diffHours))}hrs ago`;
+    }
+    if (diffDays < 7) return created.toLocaleDateString(undefined, { weekday: "short" });
+    return created.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  }
+
   async function createQuest(e: FormEvent) {
 
     e.preventDefault();
@@ -2063,6 +2079,9 @@ export default function Home() {
                       {formatQuestMeta(q).replace(/^📍/, "📍 ")}
                     </p>
                   </div>
+                  <p className="text-xs font-medium text-slate-500 leading-relaxed">
+                    {formatPostedLabel(q.created_at)}
+                  </p>
                   {expandedQuestIds[q.id] ? (
                     <>
                       <Link href={`/listing/${q.id}`} className="text-xs font-medium text-slate-500 whitespace-nowrap">
