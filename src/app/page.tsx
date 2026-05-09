@@ -2048,12 +2048,12 @@ export default function Home() {
                             <img
                               src={m.url}
                               alt={m.label || "Listing media"}
-                              className="w-full h-full object-cover object-center"
+                              className={`w-full h-full ${feedViewMode === "list" ? "object-contain object-center" : "object-cover object-center"}`}
                             />
                           ) : (
                             <video
                               src={m.url}
-                              className="w-full h-full object-cover object-center"
+                              className={`w-full h-full ${feedViewMode === "list" ? "object-contain object-center" : "object-cover object-center"}`}
                               preload="metadata"
                               muted
                               playsInline
