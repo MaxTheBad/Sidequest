@@ -2043,23 +2043,25 @@ export default function Home() {
                   >
                     {feedMediaItems.map((m, i) => (
                       <div key={`${m.url}-${i}`} className={`w-full shrink-0 snap-start bg-black overflow-hidden ${feedViewMode === "list" ? "aspect-[10/7] sm:aspect-[10/7] lg:aspect-[10/7]" : "aspect-[4/3] lg:aspect-[4/3]"}`}>
-                        <button type="button" className="w-full h-full block overflow-hidden" onClick={() => setExpandedMedia({ items: feedMediaItems, index: i })}>
-                          {m.type === "image" ? (
+                        {m.type === "image" ? (
+                          <button type="button" className="w-full h-full block overflow-hidden" onClick={() => setExpandedMedia({ items: feedMediaItems, index: i })}>
                             <img
                               src={m.url}
                               alt={m.label || "Listing media"}
                               className={`w-full h-full ${feedViewMode === "list" ? "object-contain object-center" : "object-cover object-center"}`}
                             />
-                          ) : (
-                            <video
-                              src={m.url}
-                              className={`w-full h-full ${feedViewMode === "list" ? "object-contain object-center" : "object-cover object-center"}`}
-                              preload="metadata"
-                              muted
-                              playsInline
-                            />
-                          )}
-                        </button>
+                          </button>
+                        ) : (
+                          <video
+                            src={m.url}
+                            className={`w-full h-full ${feedViewMode === "list" ? "object-contain object-center" : "object-cover object-center"}`}
+                            preload="metadata"
+                            controls
+                            playsInline
+                            controlsList="nofullscreen noremoteplayback"
+                            disablePictureInPicture
+                          />
+                        )}
                       </div>
                     ))}
                   </div>
