@@ -2058,8 +2058,6 @@ export default function Home() {
                             preload="metadata"
                             controls
                             playsInline
-                            controlsList="nofullscreen noremoteplayback"
-                            disablePictureInPicture
                           />
                         )}
                       </div>
