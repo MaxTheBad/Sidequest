@@ -2042,7 +2042,7 @@ export default function Home() {
                     }}
                   >
                     {feedMediaItems.map((m, i) => (
-                      <div key={`${m.url}-${i}`} className={`w-full shrink-0 snap-start bg-black overflow-hidden ${feedViewMode === "list" ? "aspect-square sm:aspect-square lg:aspect-square" : "aspect-[4/3] lg:aspect-[4/3]"}`}>
+                      <div key={`${m.url}-${i}`} className={`w-full shrink-0 snap-start bg-black overflow-hidden ${feedViewMode === "list" ? "aspect-[5/6] sm:aspect-[5/6] lg:aspect-[5/6]" : "aspect-[4/3] lg:aspect-[4/3]"}`}>
                         <button type="button" className="w-full h-full block overflow-hidden" onClick={() => setExpandedMedia({ items: feedMediaItems, index: i })}>
                           {m.type === "image" ? (
                             <img
@@ -2072,7 +2072,7 @@ export default function Home() {
                   )}
                 </div>
               ) : (
-                <div className={`relative border-y grid place-items-center overflow-hidden ${feedViewMode === "list" ? "aspect-square sm:aspect-square lg:aspect-square" : "h-[22vh] sm:h-[18vh] lg:h-[14vw] max-h-[220px]"}`} style={{ background: fallbackVisual.gradient, clipPath: feedViewMode === "list" ? "polygon(0 0, 100% 0, 100% 94%, 0 100%)" : undefined }}>
+                <div className={`relative border-y grid place-items-center overflow-hidden ${feedViewMode === "list" ? "aspect-[5/6] sm:aspect-[5/6] lg:aspect-[5/6]" : "h-[22vh] sm:h-[18vh] lg:h-[14vw] max-h-[220px]"}`} style={{ background: fallbackVisual.gradient, clipPath: feedViewMode === "list" ? "polygon(0 0, 100% 0, 100% 94%, 0 100%)" : undefined }}>
                   <div className="absolute inset-0 opacity-50" style={{ background: "radial-gradient(circle at top, rgba(255,255,255,0.9), transparent 55%)" }} />
                   <div className="relative text-center px-6 max-w-sm">
                     <div className="mx-auto h-10 w-10 rounded-2xl border bg-white/90 shadow-sm grid place-items-center text-lg">{fallbackVisual.emoji}</div>
