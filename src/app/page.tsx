@@ -2085,7 +2085,7 @@ export default function Home() {
               <div className={`p-3 sm:p-4 space-y-3 flex h-full flex-col ${feedViewMode === "list" ? "sm:p-5" : ""}`}>
                 <div className="space-y-2 min-h-[112px]">
                   <div className="flex items-start justify-between gap-2">
-                    <h3 className="text-sm sm:text-[0.98rem] font-semibold leading-tight tracking-tight">
+                    <h3 className="text-xs sm:text-sm font-semibold leading-tight tracking-tight">
                       <Link href={`/listing/${q.id}`} className="underline decoration-2 underline-offset-2" title="Open listing">
                         {q.title}
                       </Link>
