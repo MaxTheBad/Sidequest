@@ -192,6 +192,10 @@ export default function Home() {
   const [showTroubleModal, setShowTroubleModal] = useState(false);
   const [handledCreateParam, setHandledCreateParam] = useState(false);
   const [showQuestionModal, setShowQuestionModal] = useState(false);
+  const [showCityMapModal, setShowCityMapModal] = useState(false);
+  const [cityMapTitle, setCityMapTitle] = useState("");
+  const [cityMapUrl, setCityMapUrl] = useState("");
+  const [cityMapLoading, setCityMapLoading] = useState(false);
   const [expandedMedia, setExpandedMedia] = useState<{ items: QuestMediaItem[]; index: number } | null>(null);
   const expandedMediaStripRef = useRef<HTMLDivElement | null>(null);
   const [expandedQuestIds, setExpandedQuestIds] = useState<Record<string, boolean>>({});
@@ -1394,6 +1398,37 @@ export default function Home() {
     return `📍 ${city}${state ? `, ${state}` : ""}`;
   }
 
+  function getQuestCityQuery(quest: Quest) {
+    const rawLocation = quest.city || deriveCityFromLocation(quest.exact_address || "") || "";
+    const parts = rawLocation.split(",").map((p) => p.trim()).filter(Boolean);
+    const city = parts[0] || rawLocation;
+    const state = (parts.find((part, index) => index > 0 && /^[A-Z]{2}$/.test(part)) || "").toUpperCase();
+    return [city, state].filter(Boolean).join(", ");
+  }
+
+  async function openQuestCityMap(quest: Quest) {
+    const query = getQuestCityQuery(quest);
+    if (!query) return;
+    setCityMapTitle(formatQuestMeta(quest));
+    setShowCityMapModal(true);
+    setCityMapLoading(true);
+    setCityMapUrl("");
+    try {
+      const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=1&language=en&format=json`);
+      const json = (await res.json()) as { results?: Array<{ latitude: number; longitude: number; name: string; admin1?: string; country?: string }> };
+      const result = json.results?.[0];
+      if (result) {
+        setCityMapUrl(`https://www.openstreetmap.org/export/embed.html?bbox=${result.longitude - 0.08}%2C${result.latitude - 0.08}%2C${result.longitude + 0.08}%2C${result.latitude + 0.08}&layer=mapnik&marker=${result.latitude}%2C${result.longitude}`);
+      } else {
+        setCityMapUrl(`https://www.openstreetmap.org/search?query=${encodeURIComponent(query)}#map=10`);
+      }
+    } catch {
+      setCityMapUrl(`https://www.openstreetmap.org/search?query=${encodeURIComponent(query)}#map=10`);
+    } finally {
+      setCityMapLoading(false);
+    }
+  }
+
   function formatPostedLabel(createdAt?: string | null) {
     if (!createdAt) return "";
     const created = new Date(createdAt);
@@ -2084,17 +2119,17 @@ export default function Home() {
 
               {feedViewMode === "list" ? (
                 <div className="relative">
-                  <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/88 via-black/58 to-transparent px-4 pb-4 pt-14 text-white">
-                    <div className="space-y-2">
+                  <div className="absolute inset-x-0 bottom-0 z-10 pointer-events-none bg-gradient-to-t from-black/88 via-black/58 to-transparent px-4 pb-4 pt-14 text-white">
+                    <div className="space-y-2 pointer-events-auto">
                       <div className="flex items-start justify-between gap-2">
                         <h3 className="text-[11px] sm:text-xs font-semibold leading-tight tracking-tight text-white">
                           <Link href={`/listing/${q.id}`} className="underline decoration-2 underline-offset-2" title="Open listing">
                             {q.title}
                           </Link>
                         </h3>
-                        <p className="text-xs font-medium text-white/80 whitespace-nowrap pt-1">
+                        <button type="button" className="text-xs font-medium text-white/80 whitespace-nowrap pt-1 text-right" onClick={() => void openQuestCityMap(q)}>
                           {formatQuestMeta(q).replace(/^📍/, "📍 ")}
-                        </p>
+                        </button>
                       </div>
                       <p className="text-xs font-medium text-white/80 leading-relaxed">
                         {formatPostedLabel(q.created_at)}
@@ -2137,7 +2172,7 @@ export default function Home() {
                     </div>
                   </div>
 
-                  <div className={`grid w-full items-center absolute left-0 right-0 bottom-0 z-20 px-4 pb-4 ${userId !== q.creator_id ? "grid-cols-4" : "grid-cols-3"}`}>
+                  <div className={`grid w-full items-center absolute left-0 right-0 bottom-0 z-20 pointer-events-auto px-4 pb-4 ${userId !== q.creator_id ? "grid-cols-4" : "grid-cols-3"}`}>
                     {userId !== q.creator_id ? (
                       <button
                         className="justify-self-start inline-flex h-10 w-10 items-center justify-center rounded-full bg-transparent text-sm font-semibold text-white transition hover:opacity-80"
@@ -2991,6 +3026,34 @@ export default function Home() {
               >
                 Proceed
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCityMapModal && (
+        <div className="fixed inset-0 z-[80] bg-black/55 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-4xl rounded-3xl bg-white border shadow-lg overflow-hidden">
+            <div className="flex items-center justify-between gap-3 px-4 py-3 border-b">
+              <div>
+                <h3 className="text-base font-semibold">City map</h3>
+                <p className="text-xs text-slate-500">{cityMapTitle}</p>
+              </div>
+              <button className="border rounded-full px-3 py-2 text-sm" onClick={() => setShowCityMapModal(false)}>Close</button>
+            </div>
+            <div className="bg-slate-100">
+              {cityMapLoading ? (
+                <div className="grid place-items-center h-[70vh] text-slate-600">Loading map…</div>
+              ) : cityMapUrl ? (
+                <iframe
+                  title={cityMapTitle || "City map"}
+                  src={cityMapUrl}
+                  className="h-[70vh] w-full"
+                  loading="lazy"
+                />
+              ) : (
+                <div className="grid place-items-center h-[70vh] text-slate-600">Map unavailable.</div>
+              )}
             </div>
           </div>
         </div>
