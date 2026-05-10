@@ -2082,97 +2082,187 @@ export default function Home() {
                 </div>
               )}
 
-              <div className={`p-3 sm:p-4 space-y-3 flex h-full flex-col ${feedViewMode === "list" ? "sm:p-5" : ""}`}>
-                <div className="space-y-2 min-h-[112px]">
-                  <div className="flex items-start justify-between gap-2">
-                    <h3 className="text-[11px] sm:text-xs font-semibold leading-tight tracking-tight">
-                      <Link href={`/listing/${q.id}`} className="underline decoration-2 underline-offset-2" title="Open listing">
-                        {q.title}
-                      </Link>
-                    </h3>
-                    <p className="text-xs font-medium text-slate-500 whitespace-nowrap pt-1">
-                      {formatQuestMeta(q).replace(/^📍/, "📍 ")}
-                    </p>
-                  </div>
-                  <p className="text-xs font-medium text-slate-500 leading-relaxed">
-                    {formatPostedLabel(q.created_at)}
-                  </p>
-                  {expandedQuestIds[q.id] ? (
-                    <>
-                      <Link href={`/listing/${q.id}`} className="text-xs font-medium text-slate-500 whitespace-nowrap">
-                        View listing ↗
-                      </Link>
-                      <div className="flex flex-wrap gap-2">
-                        <span className="text-[11px] font-semibold tracking-wide uppercase text-slate-700">{q.hobbies?.[0]?.name || "Hobby"}</span>
-                        <span className="text-[11px] font-semibold text-slate-700">-</span>
-                        <span className="text-[11px] font-semibold tracking-wide uppercase text-slate-700">{q.skill_level || "all levels"}</span>
-                        <span className="text-[11px] font-semibold text-slate-700">-</span>
-                        <span className="text-[11px] font-semibold tracking-wide uppercase text-slate-700">group {q.group_size > 0 ? q.group_size : "any"}</span>
+              {feedViewMode === "list" ? (
+                <div className="relative">
+                  <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/88 via-black/58 to-transparent px-4 pb-4 pt-14 text-white">
+                    <div className="space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <h3 className="text-[11px] sm:text-xs font-semibold leading-tight tracking-tight text-white">
+                          <Link href={`/listing/${q.id}`} className="underline decoration-2 underline-offset-2" title="Open listing">
+                            {q.title}
+                          </Link>
+                        </h3>
+                        <p className="text-xs font-medium text-white/80 whitespace-nowrap pt-1">
+                          {formatQuestMeta(q).replace(/^📍/, "📍 ")}
+                        </p>
                       </div>
-                      {q.description ? <p className="text-sm text-slate-700 leading-relaxed line-clamp-2">{q.description}</p> : null}
-                      <p className="text-xs text-slate-500 leading-relaxed">{formatQuestMeta(q)}</p>
+                      <p className="text-xs font-medium text-white/80 leading-relaxed">
+                        {formatPostedLabel(q.created_at)}
+                      </p>
+                      {expandedQuestIds[q.id] ? (
+                        <>
+                          <Link href={`/listing/${q.id}`} className="text-xs font-medium text-white/80 whitespace-nowrap">
+                            View listing ↗
+                          </Link>
+                          <div className="flex flex-wrap gap-2">
+                            <span className="text-[11px] font-semibold tracking-wide uppercase text-white">{q.hobbies?.[0]?.name || "Hobby"}</span>
+                            <span className="text-[11px] font-semibold text-white/70">-</span>
+                            <span className="text-[11px] font-semibold tracking-wide uppercase text-white">{q.skill_level || "all levels"}</span>
+                            <span className="text-[11px] font-semibold text-white/70">-</span>
+                            <span className="text-[11px] font-semibold tracking-wide uppercase text-white">group {q.group_size > 0 ? q.group_size : "any"}</span>
+                          </div>
+                          {q.description ? <p className="text-sm text-white/85 leading-relaxed line-clamp-2">{q.description}</p> : null}
+                          <p className="text-xs text-white/70 leading-relaxed">{formatQuestMeta(q)}</p>
+                          <button
+                            className="inline-flex items-center gap-1 text-xs font-medium text-white/80 underline underline-offset-2"
+                            onClick={() => setExpandedQuestIds((prev) => ({ ...prev, [q.id]: false }))}
+                          >
+                            <span>Show less</span>
+                            <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                              <path d="m6 14 6-6 6 6" />
+                            </svg>
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          className="inline-flex items-center gap-1 text-xs font-medium text-white/80 underline underline-offset-2 w-fit"
+                          onClick={() => setExpandedQuestIds((prev) => ({ ...prev, [q.id]: true }))}
+                        >
+                          <span>Show more</span>
+                          <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <path d="m6 10 6 6 6-6" />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className={`grid w-full items-center absolute left-0 right-0 bottom-0 z-20 px-4 pb-4 ${userId !== q.creator_id ? "grid-cols-4" : "grid-cols-3"}`}>
+                    {userId !== q.creator_id ? (
                       <button
-                        className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 underline underline-offset-2"
-                        onClick={() => setExpandedQuestIds((prev) => ({ ...prev, [q.id]: false }))}
+                        className="justify-self-start inline-flex h-10 w-10 items-center justify-center rounded-full bg-transparent text-sm font-semibold text-white transition hover:opacity-80"
+                        aria-label={membershipStatusByQuest[q.id] === "pending" ? "Cancel request" : (membershipStatusByQuest[q.id] === "declined" ? "Request again" : (joinedQuestIds.includes(q.id) ? "Leave" : ((q.join_mode || "open") === "approval_required" ? "Request to join" : "Join")))}
+                        title={membershipStatusByQuest[q.id] === "pending" ? "Cancel request" : (membershipStatusByQuest[q.id] === "declined" ? "Request again" : (joinedQuestIds.includes(q.id) ? "Leave" : ((q.join_mode || "open") === "approval_required" ? "Request to join" : "Join")))}
+                        onClick={() => void toggleJoinQuest(q.id)}
                       >
-                        <span>Show less</span>
-                        <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                          <path d="m6 14 6-6 6 6" />
-                        </svg>
+                        <span className="inline-flex h-8 w-8 items-center justify-center text-2xl leading-none">{membershipStatusByQuest[q.id] === "pending" ? "⌛" : (membershipStatusByQuest[q.id] === "declined" ? "↺" : (joinedQuestIds.includes(q.id) ? "−" : "+"))}</span>
                       </button>
-                    </>
-                  ) : (
-                    <button
-                      className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 underline underline-offset-2 w-fit"
-                      onClick={() => setExpandedQuestIds((prev) => ({ ...prev, [q.id]: true }))}
-                    >
-                      <span>Show more</span>
-                      <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                        <path d="m6 10 6 6 6-6" />
+                    ) : null}
+                    <button className="justify-self-center inline-flex h-10 w-10 items-center justify-center rounded-full bg-transparent text-sm font-medium text-white transition hover:opacity-80" aria-label="Comment" title="Comment" onClick={() => {
+                      void askQuestion(q, "public");
+                    }}>
+                      <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M20 14a4 4 0 0 1-4 4H9l-5 3V8a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4v6Z" />
                       </svg>
                     </button>
-                  )}
-                </div>
-
-                <div className={`grid w-full items-center ${userId !== q.creator_id ? "grid-cols-4" : "grid-cols-3"}`}>
-                  {userId !== q.creator_id ? (
-                    <button
-                      className="justify-self-start inline-flex h-10 w-10 items-center justify-center rounded-full bg-transparent text-sm font-semibold text-black dark:text-white transition hover:opacity-80"
-                      aria-label={membershipStatusByQuest[q.id] === "pending" ? "Cancel request" : (membershipStatusByQuest[q.id] === "declined" ? "Request again" : (joinedQuestIds.includes(q.id) ? "Leave" : ((q.join_mode || "open") === "approval_required" ? "Request to join" : "Join")))}
-                      title={membershipStatusByQuest[q.id] === "pending" ? "Cancel request" : (membershipStatusByQuest[q.id] === "declined" ? "Request again" : (joinedQuestIds.includes(q.id) ? "Leave" : ((q.join_mode || "open") === "approval_required" ? "Request to join" : "Join")))}
-                      onClick={() => void toggleJoinQuest(q.id)}
-                    >
-                      <span className="inline-flex h-8 w-8 items-center justify-center text-2xl leading-none">{membershipStatusByQuest[q.id] === "pending" ? "⌛" : (membershipStatusByQuest[q.id] === "declined" ? "↺" : (joinedQuestIds.includes(q.id) ? "−" : "+"))}</span>
+                    <button className="justify-self-center inline-flex h-10 w-10 items-center justify-center rounded-full bg-transparent text-sm font-medium text-white transition hover:opacity-80" aria-label="Direct message" title="Direct message" onClick={() => {
+                      void askQuestion(q, "private");
+                    }}>
+                      <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M3.5 6.5A2.5 2.5 0 0 1 6 4h12a2.5 2.5 0 0 1 2.5 2.5v11A2.5 2.5 0 0 1 18 20H6a2.5 2.5 0 0 1-2.5-2.5v-11Z" />
+                        <path d="M5 7l7 5.5L19 7" />
+                      </svg>
                     </button>
-                  ) : null}
-                  <button className="justify-self-center inline-flex h-10 w-10 items-center justify-center rounded-full bg-transparent text-sm font-medium text-black dark:text-white transition hover:opacity-80" aria-label="Comment" title="Comment" onClick={() => {
-                    void askQuestion(q, "public");
-                  }}>
-                    <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                      <path d="M20 14a4 4 0 0 1-4 4H9l-5 3V8a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4v6Z" />
-                    </svg>
-                  </button>
-                  <button className="justify-self-center inline-flex h-10 w-10 items-center justify-center rounded-full bg-transparent text-sm font-medium text-black dark:text-white transition hover:opacity-80" aria-label="Direct message" title="Direct message" onClick={() => {
-                    void askQuestion(q, "private");
-                  }}>
-                    <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                      <path d="M3.5 6.5A2.5 2.5 0 0 1 6 4h12a2.5 2.5 0 0 1 2.5 2.5v11A2.5 2.5 0 0 1 18 20H6a2.5 2.5 0 0 1-2.5-2.5v-11Z" />
-                      <path d="M5 7l7 5.5L19 7" />
-                    </svg>
-                  </button>
-                  <button className="justify-self-end inline-flex h-10 w-10 items-center justify-center rounded-full bg-transparent text-sm font-medium text-black dark:text-white transition hover:opacity-80" aria-label={bookmarkedQuestIds.includes(q.id) ? "Saved" : "Save"} title={bookmarkedQuestIds.includes(q.id) ? "Saved" : "Save"} onClick={() => void toggleBookmark(q.id)}>
-                    <svg viewBox="0 0 24 24" className="h-6 w-6" fill={bookmarkedQuestIds.includes(q.id) ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                      <path d="M12 3.5 14.6 8.8l5.9.9-4.3 4.2 1 5.9L12 17.1 6.8 19.8l1-5.9-4.3-4.2 5.9-.9L12 3.5Z" />
-                    </svg>
-                  </button>
+                    <button className="justify-self-end inline-flex h-10 w-10 items-center justify-center rounded-full bg-transparent text-sm font-medium text-white transition hover:opacity-80" aria-label={bookmarkedQuestIds.includes(q.id) ? "Saved" : "Save"} title={bookmarkedQuestIds.includes(q.id) ? "Saved" : "Save"} onClick={() => void toggleBookmark(q.id)}>
+                      <svg viewBox="0 0 24 24" className="h-6 w-6" fill={bookmarkedQuestIds.includes(q.id) ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M12 3.5 14.6 8.8l5.9.9-4.3 4.2 1 5.9L12 17.1 6.8 19.8l1-5.9-4.3-4.2 5.9-.9L12 3.5Z" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
+              ) : (
+                <div className={`p-3 sm:p-4 space-y-3 flex h-full flex-col sm:p-5`}>
+                  <div className="space-y-2 min-h-[112px]">
+                    <div className="flex items-start justify-between gap-2">
+                      <h3 className="text-[11px] sm:text-xs font-semibold leading-tight tracking-tight">
+                        <Link href={`/listing/${q.id}`} className="underline decoration-2 underline-offset-2" title="Open listing">
+                          {q.title}
+                        </Link>
+                      </h3>
+                      <p className="text-xs font-medium text-slate-500 whitespace-nowrap pt-1">
+                        {formatQuestMeta(q).replace(/^📍/, "📍 ")}
+                      </p>
+                    </div>
+                    <p className="text-xs font-medium text-slate-500 leading-relaxed">
+                      {formatPostedLabel(q.created_at)}
+                    </p>
+                    {expandedQuestIds[q.id] ? (
+                      <>
+                        <Link href={`/listing/${q.id}`} className="text-xs font-medium text-slate-500 whitespace-nowrap">
+                          View listing ↗
+                        </Link>
+                        <div className="flex flex-wrap gap-2">
+                          <span className="text-[11px] font-semibold tracking-wide uppercase text-slate-700">{q.hobbies?.[0]?.name || "Hobby"}</span>
+                          <span className="text-[11px] font-semibold text-slate-700">-</span>
+                          <span className="text-[11px] font-semibold tracking-wide uppercase text-slate-700">{q.skill_level || "all levels"}</span>
+                          <span className="text-[11px] font-semibold text-slate-700">-</span>
+                          <span className="text-[11px] font-semibold tracking-wide uppercase text-slate-700">group {q.group_size > 0 ? q.group_size : "any"}</span>
+                        </div>
+                        {q.description ? <p className="text-sm text-slate-700 leading-relaxed line-clamp-2">{q.description}</p> : null}
+                        <p className="text-xs text-slate-500 leading-relaxed">{formatQuestMeta(q)}</p>
+                        <button
+                          className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 underline underline-offset-2"
+                          onClick={() => setExpandedQuestIds((prev) => ({ ...prev, [q.id]: false }))}
+                        >
+                          <span>Show less</span>
+                          <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <path d="m6 14 6-6 6 6" />
+                          </svg>
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 underline underline-offset-2 w-fit"
+                        onClick={() => setExpandedQuestIds((prev) => ({ ...prev, [q.id]: true }))}
+                      >
+                        <span>Show more</span>
+                        <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <path d="m6 10 6 6 6-6" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
 
-                {q.description ? (
-                  <p className="text-sm text-slate-700 leading-relaxed line-clamp-2">
-                    {q.description}
-                  </p>
-                ) : null}
-              </div>
+                  <div className={`grid w-full items-center ${userId !== q.creator_id ? "grid-cols-4" : "grid-cols-3"}`}>
+                    {userId !== q.creator_id ? (
+                      <button
+                        className="justify-self-start inline-flex h-10 w-10 items-center justify-center rounded-full bg-transparent text-sm font-semibold text-black dark:text-white transition hover:opacity-80"
+                        aria-label={membershipStatusByQuest[q.id] === "pending" ? "Cancel request" : (membershipStatusByQuest[q.id] === "declined" ? "Request again" : (joinedQuestIds.includes(q.id) ? "Leave" : ((q.join_mode || "open") === "approval_required" ? "Request to join" : "Join")))}
+                        title={membershipStatusByQuest[q.id] === "pending" ? "Cancel request" : (membershipStatusByQuest[q.id] === "declined" ? "Request again" : (joinedQuestIds.includes(q.id) ? "Leave" : ((q.join_mode || "open") === "approval_required" ? "Request to join" : "Join")))}
+                        onClick={() => void toggleJoinQuest(q.id)}
+                      >
+                        <span className="inline-flex h-8 w-8 items-center justify-center text-2xl leading-none">{membershipStatusByQuest[q.id] === "pending" ? "⌛" : (membershipStatusByQuest[q.id] === "declined" ? "↺" : (joinedQuestIds.includes(q.id) ? "−" : "+"))}</span>
+                      </button>
+                    ) : null}
+                    <button className="justify-self-center inline-flex h-10 w-10 items-center justify-center rounded-full bg-transparent text-sm font-medium text-black dark:text-white transition hover:opacity-80" aria-label="Comment" title="Comment" onClick={() => {
+                      void askQuestion(q, "public");
+                    }}>
+                      <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M20 14a4 4 0 0 1-4 4H9l-5 3V8a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4v6Z" />
+                      </svg>
+                    </button>
+                    <button className="justify-self-center inline-flex h-10 w-10 items-center justify-center rounded-full bg-transparent text-sm font-medium text-black dark:text-white transition hover:opacity-80" aria-label="Direct message" title="Direct message" onClick={() => {
+                      void askQuestion(q, "private");
+                    }}>
+                      <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M3.5 6.5A2.5 2.5 0 0 1 6 4h12a2.5 2.5 0 0 1 2.5 2.5v11A2.5 2.5 0 0 1 18 20H6a2.5 2.5 0 0 1-2.5-2.5v-11Z" />
+                        <path d="M5 7l7 5.5L19 7" />
+                      </svg>
+                    </button>
+                    <button className="justify-self-end inline-flex h-10 w-10 items-center justify-center rounded-full bg-transparent text-sm font-medium text-black dark:text-white transition hover:opacity-80" aria-label={bookmarkedQuestIds.includes(q.id) ? "Saved" : "Save"} title={bookmarkedQuestIds.includes(q.id) ? "Saved" : "Save"} onClick={() => void toggleBookmark(q.id)}>
+                      <svg viewBox="0 0 24 24" className="h-6 w-6" fill={bookmarkedQuestIds.includes(q.id) ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M12 3.5 14.6 8.8l5.9.9-4.3 4.2 1 5.9L12 17.1 6.8 19.8l1-5.9-4.3-4.2 5.9-.9L12 3.5Z" />
+                      </svg>
+                    </button>
+                  </div>
+
+                  {q.description ? (
+                    <p className="text-sm text-slate-700 leading-relaxed line-clamp-2">
+                      {q.description}
+                    </p>
+                  ) : null}
+                </div>
+              )}
             </article>
           );
           })}
