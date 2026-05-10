@@ -2329,7 +2329,7 @@ export default function Home() {
 
               {feedViewMode === "list" ? (
                 <div className="relative">
-                  <div className="absolute inset-x-0 bottom-0 z-10 pointer-events-none quest-list-overlay px-4 pb-4 pt-20 text-white">
+                  <div className="absolute inset-x-0 bottom-0 z-10 pointer-events-none quest-list-overlay px-4 pb-4 pt-12 text-white">
                     <div className="flex h-full flex-col justify-between gap-4 pointer-events-auto">
                       <div className="space-y-2">
                       <div className="flex items-start justify-between gap-3">
@@ -2345,9 +2345,6 @@ export default function Home() {
                       <p className="text-xs font-medium text-white/80 leading-relaxed -mt-0.5">
                         {formatPostedLabel(q.created_at)}
                       </p>
-                      <Link href={`/listing/${q.id}`} className="text-xs font-medium text-white/80 underline underline-offset-2">
-                        Open listing ↗
-                      </Link>
                       {distanceLabel ? <p className="text-xs font-medium text-white/80">{distanceLabel}</p> : null}
                         {expandedQuestIds[q.id] ? (
                           <>
@@ -2382,6 +2379,18 @@ export default function Home() {
                           </button>
                         )}
                       </div>
+                      <button
+                        type="button"
+                        aria-label="Dismiss details"
+                        title="Dismiss details"
+                        className="absolute right-4 top-4 inline-flex h-8 w-8 items-center justify-center rounded-full bg-black/35 text-white backdrop-blur-sm transition hover:bg-black/55"
+                        onClick={() => setExpandedQuestIds((prev) => ({ ...prev, [q.id]: false }))}
+                      >
+                        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <path d="M6 6l12 12" />
+                          <path d="M18 6 6 18" />
+                        </svg>
+                      </button>
                       <div className={`grid w-full items-center ${userId !== q.creator_id ? "grid-cols-4" : "grid-cols-3"}`}>
                         {userId !== q.creator_id ? (
                           <button
