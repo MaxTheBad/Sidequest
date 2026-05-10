@@ -85,6 +85,14 @@ html[data-theme="dark"] .quest-card .text-slate-700 {
   color: rgba(255, 255, 255, 0.9) !important;
 }
 
+html[data-theme="dark"] .quest-list-overlay {
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.84) 0%, rgba(0, 0, 0, 0.56) 55%, rgba(0, 0, 0, 0) 100%);
+}
+
+html:not([data-theme="dark"]) .quest-list-overlay {
+  background: linear-gradient(to top, rgba(255, 255, 255, 0.86) 0%, rgba(255, 255, 255, 0.56) 55%, rgba(255, 255, 255, 0) 100%);
+}
+
 /* ============================================
    BASE - MINIMAL & CLEAN
    ============================================ */

@@ -2119,7 +2119,7 @@ export default function Home() {
 
               {feedViewMode === "list" ? (
                 <div className="relative">
-                  <div className="absolute inset-x-0 bottom-0 z-10 pointer-events-none bg-gradient-to-t from-black/88 via-black/58 to-transparent px-4 pb-4 pt-20 text-white">
+                  <div className="absolute inset-x-0 bottom-0 z-10 pointer-events-none quest-list-overlay px-4 pb-4 pt-20 text-white">
                     <div className="flex h-full flex-col justify-between gap-4 pointer-events-auto">
                       <div className="space-y-2">
                       <div className="flex items-start justify-between gap-3">
