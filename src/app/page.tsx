@@ -2343,7 +2343,40 @@ export default function Home() {
                   >
                     <div className="flex h-full flex-col justify-end gap-4">
                       {expandedQuestIds[q.id] === false ? (
-                        <div className="h-full w-full" />
+                        <div className="flex items-center gap-2 text-xs font-medium leading-none whitespace-nowrap overflow-hidden text-ellipsis">
+                          <Link
+                            href={`/listing/${q.id}`}
+                            className="underline decoration-2 underline-offset-2 text-white/90 truncate max-w-[42%]"
+                            title="Open listing"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {q.title}
+                          </Link>
+                          <span className="text-white/70">📍</span>
+                          <button
+                            type="button"
+                            className="underline decoration-2 underline-offset-2 text-white/90 truncate max-w-[32%]"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void openQuestCityMap(q);
+                            }}
+                          >
+                            {getQuestCityLabel(q)}
+                          </button>
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-1 underline decoration-2 underline-offset-2 text-white/90"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setExpandedQuestIds((prev) => ({ ...prev, [q.id]: true }));
+                            }}
+                          >
+                            <span>Show more</span>
+                            <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                              <path d="m6 10 6 6 6-6" />
+                            </svg>
+                          </button>
+                        </div>
                       ) : (
                         <>
                           <div className="space-y-2">
