@@ -2341,7 +2341,7 @@ export default function Home() {
                       }
                     }}
                   >
-                    <div className="flex h-full flex-col justify-end gap-4" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex h-full flex-col justify-end gap-4">
                       {expandedQuestIds[q.id] === false ? (
                         <div className="h-full w-full" />
                       ) : (
