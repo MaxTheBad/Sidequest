@@ -2119,19 +2119,19 @@ export default function Home() {
 
               {feedViewMode === "list" ? (
                 <div className="relative">
-                  <div className="absolute inset-x-0 bottom-0 z-10 pointer-events-none bg-gradient-to-t from-black/88 via-black/58 to-transparent px-4 pb-4 pt-14 text-white">
+                  <div className="absolute inset-x-0 bottom-0 z-10 pointer-events-none bg-gradient-to-t from-black/88 via-black/58 to-transparent px-4 pb-6 pt-24 text-white">
                     <div className="space-y-2 pointer-events-auto">
-                      <div className="flex items-start justify-between gap-2">
-                        <h3 className="text-[11px] sm:text-xs font-semibold leading-tight tracking-tight text-white">
+                      <div className="flex items-start justify-between gap-3">
+                        <h3 className="text-[11px] sm:text-xs font-semibold leading-tight tracking-tight text-white max-w-[70%]">
                           <Link href={`/listing/${q.id}`} className="underline decoration-2 underline-offset-2" title="Open listing">
                             {q.title}
                           </Link>
                         </h3>
-                        <button type="button" className="text-xs font-medium text-white/80 whitespace-nowrap pt-1 text-right" onClick={() => void openQuestCityMap(q)}>
+                        <button type="button" className="text-xs font-medium text-white/80 whitespace-nowrap pt-1 text-right underline underline-offset-2" onClick={() => void openQuestCityMap(q)}>
                           {formatQuestMeta(q).replace(/^📍/, "📍 ")}
                         </button>
                       </div>
-                      <p className="text-xs font-medium text-white/80 leading-relaxed">
+                      <p className="text-xs font-medium text-white/80 leading-relaxed -mt-0.5">
                         {formatPostedLabel(q.created_at)}
                       </p>
                       {expandedQuestIds[q.id] ? (
@@ -2149,7 +2149,7 @@ export default function Home() {
                           {q.description ? <p className="text-sm text-white/85 leading-relaxed line-clamp-2">{q.description}</p> : null}
                           <p className="text-xs text-white/70 leading-relaxed">{formatQuestMeta(q)}</p>
                           <button
-                            className="inline-flex items-center gap-1 text-xs font-medium text-white/80 underline underline-offset-2"
+                            className="inline-flex items-center gap-1 text-xs font-medium text-white/80 underline underline-offset-2 pt-0.5"
                             onClick={() => setExpandedQuestIds((prev) => ({ ...prev, [q.id]: false }))}
                           >
                             <span>Show less</span>
@@ -2160,7 +2160,7 @@ export default function Home() {
                         </>
                       ) : (
                         <button
-                          className="inline-flex items-center gap-1 text-xs font-medium text-white/80 underline underline-offset-2 w-fit"
+                          className="inline-flex items-center gap-1 text-xs font-medium text-white/80 underline underline-offset-2 w-fit pt-0.5"
                           onClick={() => setExpandedQuestIds((prev) => ({ ...prev, [q.id]: true }))}
                         >
                           <span>Show more</span>
