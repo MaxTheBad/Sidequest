@@ -90,7 +90,8 @@ html[data-theme="dark"] .quest-list-overlay {
 }
 
 html:not([data-theme="dark"]) .quest-list-overlay {
-  background: linear-gradient(to top, rgba(255, 255, 255, 0.86) 0%, rgba(255, 255, 255, 0.56) 55%, rgba(255, 255, 255, 0) 100%);
+  background: linear-gradient(to top, rgba(255, 255, 255, 0.98) 0%, rgba(255, 255, 255, 0.94) 36%, rgba(255, 255, 255, 0.82) 68%, rgba(255, 255, 255, 0) 100%);
+  backdrop-filter: blur(8px);
 }
 
 html:not([data-theme="dark"]) .quest-list-overlay,
