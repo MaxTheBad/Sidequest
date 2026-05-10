@@ -199,6 +199,8 @@ export default function Home() {
   const [mapViewUrl, setMapViewUrl] = useState("");
   const [mapViewLoading, setMapViewLoading] = useState(false);
   const [mapViewTitle, setMapViewTitle] = useState("");
+  const [userLocation, setUserLocation] = useState<{ lat: number; lon: number } | null>(null);
+  const [userLocationStatus, setUserLocationStatus] = useState<"idle" | "loading" | "ready" | "denied" | "error">("idle");
   const [expandedMedia, setExpandedMedia] = useState<{ items: QuestMediaItem[]; index: number } | null>(null);
   const expandedMediaStripRef = useRef<HTMLDivElement | null>(null);
   const feedVideoRefs = useRef<Record<string, HTMLVideoElement | null>>({});
@@ -269,6 +271,8 @@ export default function Home() {
   const [showSavedOnly, setShowSavedOnly] = useState(false);
   const [hobbyFilter, setHobbyFilter] = useState("all");
   const [loading, setLoading] = useState(false);
+  const cityCoordinateCacheRef = useRef<Record<string, { lat: number; lon: number }>>({});
+  const [distanceByQuestId, setDistanceByQuestId] = useState<Record<string, string>>({});
 
   const [title, setTitle] = useState("");
   const [titlePlaceholder, setTitlePlaceholder] = useState(TITLE_SUGGESTIONS[0]);
@@ -1411,6 +1415,46 @@ export default function Home() {
     return [city, state].filter(Boolean).join(", ");
   }
 
+  function getQuestCityLabel(quest: Quest) {
+    const rawLocation = quest.city || deriveCityFromLocation(quest.exact_address || "") || "";
+    const parts = rawLocation.split(",").map((p) => p.trim()).filter(Boolean);
+    const city = parts[0] || rawLocation || "city tbd";
+    const state = (parts.find((part, index) => index > 0 && /^[A-Z]{2}$/.test(part)) || "").toUpperCase();
+    return state ? `${city}, ${state}` : city;
+  }
+
+  function distanceLabelMiles(miles: number) {
+    if (!Number.isFinite(miles)) return "";
+    if (miles < 1) return `${Math.max(0.1, Math.round(miles * 10) / 10)} mi away`;
+    if (miles < 10) return `${Math.round(miles * 10) / 10} mi away`;
+    return `${Math.round(miles)} mi away`;
+  }
+
+  function haversineMiles(lat1: number, lon1: number, lat2: number, lon2: number) {
+    const toRad = (v: number) => (v * Math.PI) / 180;
+    const R = 3958.8;
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(a));
+  }
+
+  async function fetchQuestCityCoordinates(query: string) {
+    const cached = cityCoordinateCacheRef.current[query];
+    if (cached) return cached;
+    try {
+      const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=1&language=en&format=json`);
+      const json = (await res.json()) as { results?: Array<{ latitude: number; longitude: number }> };
+      const result = json.results?.[0];
+      if (!result) return null;
+      const coords = { lat: result.latitude, lon: result.longitude };
+      cityCoordinateCacheRef.current[query] = coords;
+      return coords;
+    } catch {
+      return null;
+    }
+  }
+
   async function openQuestCityMap(quest: Quest) {
     const query = getQuestCityQuery(quest);
     if (!query) return;
@@ -1424,17 +1468,29 @@ export default function Home() {
   }
 
   async function fetchQuestCityMapUrl(query: string) {
-    try {
-      const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=1&language=en&format=json`);
-      const json = (await res.json()) as { results?: Array<{ latitude: number; longitude: number; name: string; admin1?: string; country?: string }> };
-      const result = json.results?.[0];
-      if (result) {
-        return `https://www.openstreetmap.org/export/embed.html?bbox=${result.longitude - 0.08}%2C${result.latitude - 0.08}%2C${result.longitude + 0.08}%2C${result.latitude + 0.08}&layer=mapnik&marker=${result.latitude}%2C${result.longitude}`;
-      }
-      return `https://www.openstreetmap.org/search?query=${encodeURIComponent(query)}#map=10`;
-    } catch {
-      return `https://www.openstreetmap.org/search?query=${encodeURIComponent(query)}#map=10`;
+    const coords = await fetchQuestCityCoordinates(query);
+    if (coords) {
+      return `https://www.openstreetmap.org/export/embed.html?bbox=${coords.lon - 0.08}%2C${coords.lat - 0.08}%2C${coords.lon + 0.08}%2C${coords.lat + 0.08}&layer=mapnik&marker=${coords.lat}%2C${coords.lon}`;
     }
+    return `https://www.openstreetmap.org/search?query=${encodeURIComponent(query)}#map=10`;
+  }
+
+  async function requestUserLocation() {
+    if (!("geolocation" in navigator)) {
+      setUserLocationStatus("error");
+      return;
+    }
+    setUserLocationStatus("loading");
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setUserLocation({ lat: position.coords.latitude, lon: position.coords.longitude });
+        setUserLocationStatus("ready");
+      },
+      (error) => {
+        setUserLocationStatus(error.code === error.PERMISSION_DENIED ? "denied" : "error");
+      },
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 10 * 60 * 1000 },
+    );
   }
 
   function toggleFeedVideoPlayback(videoId: string) {
@@ -1984,6 +2040,26 @@ export default function Home() {
     };
   }, [feedViewMode, selectedMapQuest]);
 
+  useEffect(() => {
+    let cancelled = false;
+    if (!userLocation || !filteredQuests.length) {
+      setDistanceByQuestId({});
+      return;
+    }
+    void (async () => {
+      const entries = await Promise.all(filteredQuests.map(async (quest) => {
+        const coords = await fetchQuestCityCoordinates(getQuestCityQuery(quest));
+        if (!coords) return [quest.id, ""] as const;
+        return [quest.id, distanceLabelMiles(haversineMiles(userLocation.lat, userLocation.lon, coords.lat, coords.lon))] as const;
+      }));
+      if (cancelled) return;
+      setDistanceByQuestId(Object.fromEntries(entries.filter(([, value]) => value)));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [filteredQuests, userLocation]);
+
   return (
     <main className="min-h-screen bg-transparent">
       <div className="w-full mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-4 lg:py-8 space-y-6">
@@ -1993,6 +2069,28 @@ export default function Home() {
         <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)] xl:items-start">
           <aside className="space-y-4 xl:sticky xl:top-[76px]">
             <section className="rounded-3xl bg-white border shadow-sm p-5 space-y-4">
+              <div className="rounded-2xl border bg-slate-50 p-4 space-y-3">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Location</p>
+                  <p className="text-sm font-medium text-slate-900">Show distance from your location</p>
+                  <p className="text-xs text-slate-500">We use your browser location to show how far each event is from you.</p>
+                </div>
+                {userLocationStatus === "ready" ? (
+                  <p className="text-xs font-medium text-emerald-700">Location on. Distances are visible in list and map view.</p>
+                ) : userLocationStatus === "denied" ? (
+                  <p className="text-xs font-medium text-amber-700">Location blocked. You can enable it in your browser to see distances.</p>
+                ) : userLocationStatus === "error" ? (
+                  <p className="text-xs font-medium text-red-700">Could not read your location.</p>
+                ) : null}
+                <button
+                  type="button"
+                  className="w-full rounded-full border bg-black px-4 py-2 text-sm font-medium text-white"
+                  onClick={() => void requestUserLocation()}
+                  disabled={userLocationStatus === "loading"}
+                >
+                  {userLocationStatus === "loading" ? "Requesting location…" : (userLocationStatus === "ready" ? "Update location" : "Allow location")}
+                </button>
+              </div>
               <div className="space-y-1">
                 <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Discover</p>
                 <h2 className="text-xl font-semibold">Explore quests</h2>
@@ -2096,6 +2194,7 @@ export default function Home() {
             ];
             const feedIndex = feedMediaIndexByQuest[q.id] || 0;
             const fallbackVisual = getCategoryFallbackVisual(q.hobbies?.[0]?.name);
+            const distanceLabel = distanceByQuestId[q.id];
 
             return (
             <article key={q.id} className={`quest-card w-full bg-white border border-slate-200 shadow-[0_14px_40px_rgba(15,23,42,0.08)] overflow-hidden ${feedViewMode === "list" ? "rounded-[1.75rem]" : "rounded-[2rem]"}`}>
@@ -2228,17 +2327,18 @@ export default function Home() {
                       <p className="text-xs font-medium text-white/80 leading-relaxed -mt-0.5">
                         {formatPostedLabel(q.created_at)}
                       </p>
+                      <Link href={`/listing/${q.id}`} className="text-xs font-medium text-white/80 underline underline-offset-2">
+                        Open listing ↗
+                      </Link>
+                      {distanceLabel ? <p className="text-xs font-medium text-white/80">{distanceLabel}</p> : null}
                         {expandedQuestIds[q.id] ? (
                           <>
-                            <Link href={`/listing/${q.id}`} className="text-xs font-medium text-white/80 whitespace-nowrap">
-                              View listing ↗
-                            </Link>
                             <div className="flex flex-wrap gap-2">
                               <span className="text-[11px] font-semibold tracking-wide uppercase text-white">{q.hobbies?.[0]?.name || "Hobby"}</span>
                               <span className="text-[11px] font-semibold text-white/70">-</span>
                               <span className="text-[11px] font-semibold tracking-wide uppercase text-white">{q.skill_level || "all levels"}</span>
                               <span className="text-[11px] font-semibold text-white/70">-</span>
-                              <span className="text-[11px] font-semibold tracking-wide uppercase text-white">group {q.group_size > 0 ? q.group_size : "any"}</span>
+                              <span className="text-[11px] font-semibold tracking-wide uppercase text-white">{q.hobbies?.[0]?.name || "Category"}</span>
                             </div>
                             {q.description ? <p className="text-sm text-white/85 leading-relaxed line-clamp-2">{q.description}</p> : null}
                             <p className="text-xs text-white/70 leading-relaxed">{formatQuestMeta(q)}</p>
@@ -2425,7 +2525,7 @@ export default function Home() {
                 </div>
                 <div className="space-y-3">
                   {mapQuestGroups.length ? mapQuestGroups.map((group) => {
-                    const isActive = selectedMapQuest ? formatQuestMeta(selectedMapQuest).replace(/^📍\s*/, "") === group.city : false;
+                    const isActive = selectedMapQuest ? getQuestCityLabel(selectedMapQuest) === group.city : false;
                     return (
                       <button
                         key={group.city}
@@ -2435,14 +2535,28 @@ export default function Home() {
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div>
-                            <p className={`text-xs uppercase tracking-[0.2em] ${isActive ? "text-white/70" : "text-gray-500"}`}>City pin</p>
-                            <h4 className={`font-semibold ${isActive ? "text-white" : "text-slate-900"}`}>{group.city}</h4>
+                            <p className={`text-xs uppercase tracking-[0.2em] ${isActive ? "text-white/70" : "text-gray-500"}`}>Category</p>
+                            <h4 className={`font-semibold ${isActive ? "text-white" : "text-slate-900"}`}>{group.representative.hobbies?.[0]?.name || "Hobby"}</h4>
                           </div>
-                          <span className={`text-xs ${isActive ? "text-white/70" : "text-slate-500"}`}>{group.quests.length} quest{group.quests.length === 1 ? "" : "s"}</span>
                         </div>
-                        <p className={`mt-2 text-xs ${isActive ? "text-white/75" : "text-slate-500"}`}>
-                          {group.representative.title}
-                        </p>
+                        <div className="mt-2 flex items-center justify-between gap-3">
+                          <p className={`text-xs ${isActive ? "text-white/75" : "text-slate-500"}`}>{group.city}</p>
+                          {userLocationStatus === "ready" && distanceByQuestId[group.representative.id] ? (
+                            <span className={`text-xs font-medium ${isActive ? "text-white/80" : "text-slate-500"}`}>{distanceByQuestId[group.representative.id]}</span>
+                          ) : null}
+                        </div>
+                        <p className={`mt-2 text-xs ${isActive ? "text-white/75" : "text-slate-500"}`}>{group.representative.title}</p>
+                        <div className="mt-3 flex items-center gap-2">
+                          <span className={`text-xs ${isActive ? "text-white/70" : "text-slate-500"}`}>{group.quests.length} event{group.quests.length === 1 ? "" : "s"}</span>
+                          <span className={`text-xs ${isActive ? "text-white/40" : "text-slate-400"}`}>•</span>
+                          <Link
+                            href={`/listing/${group.representative.id}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className={`text-xs underline underline-offset-2 ${isActive ? "text-white/80" : "text-slate-600"}`}
+                          >
+                            Open listing ↗
+                          </Link>
+                        </div>
                       </button>
                     );
                   }) : <p className="text-sm text-gray-500">No quests yet.</p>}
@@ -2451,6 +2565,7 @@ export default function Home() {
                       <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Selected pin</p>
                       <h4 className="mt-1 font-semibold">{selectedMapQuest.title}</h4>
                       <p className="text-sm text-slate-500">{formatQuestMeta(selectedMapQuest)}</p>
+                      {distanceByQuestId[selectedMapQuest.id] ? <p className="mt-1 text-sm text-slate-500">{distanceByQuestId[selectedMapQuest.id]}</p> : null}
                       <button
                         type="button"
                         className="mt-3 inline-flex rounded-full border px-4 py-2 text-sm"
@@ -2458,6 +2573,9 @@ export default function Home() {
                       >
                         Open city map
                       </button>
+                      <Link href={`/listing/${selectedMapQuest.id}`} className="ml-3 mt-3 inline-flex rounded-full border px-4 py-2 text-sm">
+                        Open listing ↗
+                      </Link>
                     </div>
                   ) : null}
                 </div>
