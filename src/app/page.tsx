@@ -258,7 +258,6 @@ export default function Home() {
   const [joinedQuestIds, setJoinedQuestIds] = useState<string[]>([]);
   const [membershipStatusByQuest, setMembershipStatusByQuest] = useState<Record<string, "pending" | "approved" | "declined">>({});
   const [feedMediaIndexByQuest, setFeedMediaIndexByQuest] = useState<Record<string, number>>({});
-  const [feedVideoProgressByQuest, setFeedVideoProgressByQuest] = useState<Record<string, { current: number; duration: number }>>({});
   const [openCardMenuQuestId, setOpenCardMenuQuestId] = useState<string | null>(null);
   const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -2120,26 +2119,6 @@ export default function Home() {
                               preload="metadata"
                               playsInline
                               onClick={() => toggleFeedVideoPlayback(`${q.id}-${i}`)}
-                              onTimeUpdate={(e) => {
-                                const el = e.currentTarget;
-                                setFeedVideoProgressByQuest((prev) => ({
-                                  ...prev,
-                                  [q.id]: {
-                                    current: el.currentTime || 0,
-                                    duration: Number.isFinite(el.duration) ? Math.max(0, el.duration) : 0,
-                                  },
-                                }));
-                              }}
-                              onLoadedMetadata={(e) => {
-                                const el = e.currentTarget;
-                                setFeedVideoProgressByQuest((prev) => ({
-                                  ...prev,
-                                  [q.id]: {
-                                    current: el.currentTime || 0,
-                                    duration: Number.isFinite(el.duration) ? Math.max(0, el.duration) : 0,
-                                  },
-                                }));
-                              }}
                             />
                             <button
                               type="button"
@@ -2160,28 +2139,16 @@ export default function Home() {
                             </button>
                           </>
                         )}
-                        {feedViewMode === "list" && m.type === "video" ? (
-                          <div className="absolute inset-x-0 top-0 z-20 px-3 pt-3 pointer-events-none">
-                            <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/20 backdrop-blur-sm">
-                              <div
-                                className="h-full rounded-full bg-white/90 transition-[width] duration-150"
-                                style={{
-                                  width: `${Math.min(100, Math.max(0, ((feedVideoProgressByQuest[q.id]?.current || 0) / Math.max(1, feedVideoProgressByQuest[q.id]?.duration || 0)) * 100))}%`,
-                                }}
-                              />
-                            </div>
+                        {feedViewMode === "list" && feedMediaItems.length > 1 ? (
+                          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1.5 rounded-full bg-black/30 px-2 py-1 backdrop-blur-sm pointer-events-none">
+                            {feedMediaItems.map((_, dotIndex) => (
+                              <span key={dotIndex} className={`h-1.5 w-1.5 rounded-full ${dotIndex === feedIndex ? "bg-white" : "bg-white/40"}`} />
+                            ))}
                           </div>
                         ) : null}
                       </div>
                     ))}
                   </div>
-                  {feedMediaItems.length > 1 && (
-                    <div className="py-2 flex items-center justify-center gap-1.5">
-                      {feedMediaItems.map((_, i) => (
-                        <span key={i} className={`h-1.5 w-1.5 rounded-full ${i === feedIndex ? "bg-black" : "bg-gray-300"}`} />
-                      ))}
-                    </div>
-                  )}
                 </div>
               ) : (
                 <div className={`relative border-y grid place-items-center overflow-hidden ${feedViewMode === "list" ? "aspect-[10/7] sm:aspect-[10/7] lg:aspect-[10/7]" : "h-[22vh] sm:h-[18vh] lg:h-[14vw] max-h-[220px]"}`} style={{ background: fallbackVisual.gradient, clipPath: feedViewMode === "list" ? "polygon(0 0, 100% 0, 100% 94%, 0 100%)" : undefined }}>
