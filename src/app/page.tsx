@@ -198,6 +198,7 @@ export default function Home() {
   const [cityMapLoading, setCityMapLoading] = useState(false);
   const [expandedMedia, setExpandedMedia] = useState<{ items: QuestMediaItem[]; index: number } | null>(null);
   const expandedMediaStripRef = useRef<HTMLDivElement | null>(null);
+  const feedVideoRefs = useRef<Record<string, HTMLVideoElement | null>>({});
   const [expandedQuestIds, setExpandedQuestIds] = useState<Record<string, boolean>>({});
   const [feedViewMode, setFeedViewMode] = useState<"grid" | "list">("grid");
   const [questionTarget, setQuestionTarget] = useState<Quest | null>(null);
@@ -1430,6 +1431,27 @@ export default function Home() {
     }
   }
 
+  function toggleFeedVideoPlayback(videoId: string) {
+    const video = feedVideoRefs.current[videoId];
+    if (!video) return;
+    if (video.paused) {
+      void video.play();
+    } else {
+      video.pause();
+    }
+  }
+
+  async function openFeedVideoFullscreen(videoId: string) {
+    const video = feedVideoRefs.current[videoId];
+    if (!video) return;
+    if (video.requestFullscreen) {
+      await video.requestFullscreen();
+      return;
+    }
+    const webkitVideo = video as HTMLVideoElement & { webkitEnterFullscreen?: () => void };
+    webkitVideo.webkitEnterFullscreen?.();
+  }
+
   function formatPostedLabel(createdAt?: string | null) {
     if (!createdAt) return "";
     const created = new Date(createdAt);
@@ -2078,7 +2100,7 @@ export default function Home() {
                     }}
                   >
                     {feedMediaItems.map((m, i) => (
-                      <div key={`${m.url}-${i}`} className={`w-full shrink-0 snap-start bg-black overflow-hidden ${feedViewMode === "list" ? "aspect-[10/7] sm:aspect-[10/7] lg:aspect-[10/7]" : "aspect-[4/3] lg:aspect-[4/3]"}`}>
+                      <div key={`${m.url}-${i}`} className={`relative w-full shrink-0 snap-start bg-black overflow-hidden ${feedViewMode === "list" ? "aspect-[10/7] sm:aspect-[10/7] lg:aspect-[10/7]" : "aspect-[4/3] lg:aspect-[4/3]"}`}>
                         {m.type === "image" ? (
                           <button type="button" className="w-full h-full block overflow-hidden" onClick={() => setExpandedMedia({ items: feedMediaItems, index: i })}>
                             <img
@@ -2088,33 +2110,55 @@ export default function Home() {
                             />
                           </button>
                         ) : (
-                          <video
-                            src={m.url}
-                            className={`w-full h-full ${feedViewMode === "list" ? "object-contain object-center" : "object-cover object-center"}`}
-                            preload="metadata"
-                            controls
-                            playsInline
-                            onTimeUpdate={(e) => {
-                              const el = e.currentTarget;
-                              setFeedVideoProgressByQuest((prev) => ({
-                                ...prev,
-                                [q.id]: {
-                                  current: el.currentTime || 0,
-                                  duration: Number.isFinite(el.duration) ? Math.max(0, el.duration) : 0,
-                                },
-                              }));
-                            }}
-                            onLoadedMetadata={(e) => {
-                              const el = e.currentTarget;
-                              setFeedVideoProgressByQuest((prev) => ({
-                                ...prev,
-                                [q.id]: {
-                                  current: el.currentTime || 0,
-                                  duration: Number.isFinite(el.duration) ? Math.max(0, el.duration) : 0,
-                                },
-                              }));
-                            }}
-                          />
+                          <>
+                            <video
+                              ref={(el) => {
+                                feedVideoRefs.current[`${q.id}-${i}`] = el;
+                              }}
+                              src={m.url}
+                              className={`w-full h-full ${feedViewMode === "list" ? "object-contain object-center" : "object-cover object-center"}`}
+                              preload="metadata"
+                              playsInline
+                              onClick={() => toggleFeedVideoPlayback(`${q.id}-${i}`)}
+                              onTimeUpdate={(e) => {
+                                const el = e.currentTarget;
+                                setFeedVideoProgressByQuest((prev) => ({
+                                  ...prev,
+                                  [q.id]: {
+                                    current: el.currentTime || 0,
+                                    duration: Number.isFinite(el.duration) ? Math.max(0, el.duration) : 0,
+                                  },
+                                }));
+                              }}
+                              onLoadedMetadata={(e) => {
+                                const el = e.currentTarget;
+                                setFeedVideoProgressByQuest((prev) => ({
+                                  ...prev,
+                                  [q.id]: {
+                                    current: el.currentTime || 0,
+                                    duration: Number.isFinite(el.duration) ? Math.max(0, el.duration) : 0,
+                                  },
+                                }));
+                              }}
+                            />
+                            <button
+                              type="button"
+                              className="absolute top-3 right-3 z-30 inline-flex h-9 w-9 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-sm transition hover:bg-black/65"
+                              aria-label="Fullscreen"
+                              title="Fullscreen"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void openFeedVideoFullscreen(`${q.id}-${i}`);
+                              }}
+                            >
+                              <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                <path d="M7 3H3v4" />
+                                <path d="M17 3h4v4" />
+                                <path d="M3 17v4h4" />
+                                <path d="M21 17v4h-4" />
+                              </svg>
+                            </button>
+                          </>
                         )}
                         {feedViewMode === "list" && m.type === "video" ? (
                           <div className="absolute inset-x-0 top-0 z-20 px-3 pt-3 pointer-events-none">
