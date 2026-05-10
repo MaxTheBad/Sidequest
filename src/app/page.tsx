@@ -2329,8 +2329,11 @@ export default function Home() {
 
               {feedViewMode === "list" ? (
                 <div className="relative">
-                  <div className="absolute inset-x-0 bottom-0 z-10 pointer-events-none quest-list-overlay px-4 pb-4 pt-12 text-white">
-                    <div className="flex h-full flex-col justify-between gap-4 pointer-events-auto">
+                  <div
+                    className="absolute inset-x-0 bottom-0 z-10 quest-list-overlay px-4 pb-4 pt-8 text-white"
+                    onClick={() => setExpandedQuestIds((prev) => ({ ...prev, [q.id]: false }))}
+                  >
+                    <div className="flex h-full flex-col justify-between gap-4" onClick={(e) => e.stopPropagation()}>
                       <div className="space-y-2">
                       <div className="flex items-start justify-between gap-3">
                         <h3 className="text-[11px] sm:text-xs font-semibold leading-tight tracking-tight text-white max-w-[70%]">
