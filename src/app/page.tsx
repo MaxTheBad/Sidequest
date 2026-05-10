@@ -2052,18 +2052,26 @@ export default function Home() {
 
   useEffect(() => {
     let cancelled = false;
-    if (!userLocation || !filteredQuests.length) {
+    if (!filteredQuests.length) {
       setDistanceByQuestId({});
+      setCoordsByQuestId({});
       return;
     }
     void (async () => {
       const entries = await Promise.all(filteredQuests.map(async (quest) => {
         const coords = await fetchQuestCityCoordinates(getQuestCityQuery(quest));
-        if (!coords) return [quest.id, ""] as const;
-        return [quest.id, distanceLabelMiles(haversineMiles(userLocation.lat, userLocation.lon, coords.lat, coords.lon))] as const;
+        return [quest.id, coords] as const;
       }));
       if (cancelled) return;
-      setDistanceByQuestId(Object.fromEntries(entries.filter(([, value]) => value)));
+      setCoordsByQuestId(Object.fromEntries(entries.filter(([, value]) => value).map(([id, value]) => [id, value!])));
+      if (userLocation) {
+        const distanceEntries = entries
+          .filter(([, value]) => value)
+          .map(([id, value]) => [id, distanceLabelMiles(haversineMiles(userLocation.lat, userLocation.lon, value!.lat, value!.lon))] as const);
+        setDistanceByQuestId(Object.fromEntries(distanceEntries.filter(([, value]) => value)));
+      } else {
+        setDistanceByQuestId({});
+      }
     })();
     return () => {
       cancelled = true;
