@@ -273,6 +273,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const cityCoordinateCacheRef = useRef<Record<string, { lat: number; lon: number }>>({});
   const [distanceByQuestId, setDistanceByQuestId] = useState<Record<string, string>>({});
+  const [coordsByQuestId, setCoordsByQuestId] = useState<Record<string, { lat: number; lon: number }>>({});
 
   const [title, setTitle] = useState("");
   const [titlePlaceholder, setTitlePlaceholder] = useState(TITLE_SUGGESTIONS[0]);
@@ -1998,46 +1999,55 @@ export default function Home() {
 
   const surprisePick = useMemo(() => (filteredQuests.length ? filteredQuests[Math.floor(Math.random() * filteredQuests.length)] : null), [filteredQuests]);
   const editingQuest = useMemo(() => quests.find((q) => q.id === editingQuestId) || null, [quests, editingQuestId]);
-  const mapQuestGroups = useMemo(() => {
-    const groups = new Map<string, Quest[]>();
-    for (const quest of filteredQuests) {
-      const label = formatQuestMeta(quest).replace(/^📍\s*/, "");
-      const list = groups.get(label) || [];
-      list.push(quest);
-      groups.set(label, list);
-    }
-    return Array.from(groups.entries()).map(([city, groupQuests]) => ({
-      city,
-      quests: groupQuests,
-      representative: groupQuests[0],
-    }));
-  }, [filteredQuests]);
+  const mapQuestItems = useMemo(() => {
+    const items = filteredQuests
+      .map((quest) => ({
+        quest,
+        coords: coordsByQuestId[quest.id] || null,
+        distance: distanceByQuestId[quest.id] || "",
+      }))
+      .filter((item) => item.coords)
+      .sort((a, b) => {
+        const ap = Number(a.distance.split(" ")[0] || "99999");
+        const bp = Number(b.distance.split(" ")[0] || "99999");
+        return ap - bp;
+      })
+      .slice(0, 10);
+    return items;
+  }, [coordsByQuestId, distanceByQuestId, filteredQuests]);
   const selectedMapQuest = useMemo(() => {
-    if (!mapQuestGroups.length) return null;
-    return mapQuestGroups.find((group) => group.quests.some((quest) => quest.id === selectedMapQuestId))?.representative || mapQuestGroups[0].representative;
-  }, [mapQuestGroups, selectedMapQuestId]);
+    if (!mapQuestItems.length) return null;
+    return mapQuestItems.find((item) => item.quest.id === selectedMapQuestId)?.quest || mapQuestItems[0].quest;
+  }, [mapQuestItems, selectedMapQuestId]);
+  const mapBounds = useMemo(() => {
+    const points = mapQuestItems.flatMap((item) => (item.coords ? [item.coords] : []));
+    if (userLocation) points.push(userLocation);
+    if (!points.length) return null;
+    const lats = points.map((p) => p.lat);
+    const lons = points.map((p) => p.lon);
+    const latMin = Math.min(...lats);
+    const latMax = Math.max(...lats);
+    const lonMin = Math.min(...lons);
+    const lonMax = Math.max(...lons);
+    const padLat = Math.max((latMax - latMin) * 0.2, 0.15);
+    const padLon = Math.max((lonMax - lonMin) * 0.2, 0.15);
+    return {
+      latMin: latMin - padLat,
+      latMax: latMax + padLat,
+      lonMin: lonMin - padLon,
+      lonMax: lonMax + padLon,
+    };
+  }, [mapQuestItems, userLocation]);
 
   useEffect(() => {
     if (feedViewMode !== "map") return;
     const quest = selectedMapQuest;
     if (!quest) {
       setMapViewTitle("");
-      setMapViewUrl("");
+      setMapViewLoading(false);
       return;
     }
-    let cancelled = false;
     setMapViewTitle(formatQuestMeta(quest));
-    setMapViewLoading(true);
-    setMapViewUrl("");
-    void (async () => {
-      const url = await fetchQuestCityMapUrl(getQuestCityQuery(quest));
-      if (cancelled) return;
-      setMapViewUrl(url);
-      setMapViewLoading(false);
-    })();
-    return () => {
-      cancelled = true;
-    };
   }, [feedViewMode, selectedMapQuest]);
 
   useEffect(() => {
@@ -2503,54 +2513,81 @@ export default function Home() {
                     <div className="flex items-center justify-between gap-3 p-4 border-b">
                       <div>
                         <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Map view</p>
-                        <h3 className="text-base sm:text-lg font-semibold">{mapViewTitle || "Select a city"}</h3>
+                        <h3 className="text-base sm:text-lg font-semibold">{mapViewTitle || "Select a pin"}</h3>
                       </div>
-                      <div className="rounded-full border px-3 py-1.5 text-xs text-slate-500">Pins by city</div>
+                      <div className="rounded-full border px-3 py-1.5 text-xs text-slate-500">10 closest</div>
                     </div>
-                    <div className="bg-slate-100">
-                      {mapViewLoading ? (
-                        <div className="grid place-items-center h-[60vh] text-slate-600">Loading map…</div>
-                      ) : mapViewUrl ? (
-                        <iframe
-                          title={mapViewTitle || "City map"}
-                          src={mapViewUrl}
-                          className="h-[60vh] w-full"
-                          loading="lazy"
-                        />
-                      ) : (
-                        <div className="grid place-items-center h-[60vh] text-slate-600">Map unavailable.</div>
-                      )}
+                    <div className="p-4">
+                      <div className="relative h-[60vh] overflow-hidden rounded-3xl border bg-gradient-to-br from-slate-100 via-slate-200 to-slate-100">
+                        <div className="absolute inset-0 opacity-70 pointer-events-none" style={{ backgroundImage: "radial-gradient(circle at 20% 20%, rgba(255,255,255,0.9), transparent 22%), radial-gradient(circle at 80% 30%, rgba(255,255,255,0.55), transparent 24%), linear-gradient(135deg, rgba(15,23,42,0.08), rgba(15,23,42,0.03))" }} />
+                        {mapBounds ? (
+                          <>
+                            {userLocation ? (
+                              <div
+                                className="absolute -translate-x-1/2 -translate-y-1/2"
+                                style={{
+                                  left: `${((userLocation.lon - mapBounds.lonMin) / Math.max(0.0001, mapBounds.lonMax - mapBounds.lonMin)) * 100}%`,
+                                  top: `${(1 - ((userLocation.lat - mapBounds.latMin) / Math.max(0.0001, mapBounds.latMax - mapBounds.latMin))) * 100}%`,
+                                }}
+                              >
+                                <div className="flex flex-col items-center gap-1">
+                                  <span className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-black bg-black text-[11px] font-semibold text-white shadow-lg">You</span>
+                                </div>
+                              </div>
+                            ) : null}
+                            {mapQuestItems.map((item) => {
+                              const coords = item.coords!;
+                              const left = ((coords.lon - mapBounds.lonMin) / Math.max(0.0001, mapBounds.lonMax - mapBounds.lonMin)) * 100;
+                              const top = (1 - ((coords.lat - mapBounds.latMin) / Math.max(0.0001, mapBounds.latMax - mapBounds.latMin))) * 100;
+                              const isActive = selectedMapQuest?.id === item.quest.id;
+                              return (
+                                <button
+                                  key={item.quest.id}
+                                  type="button"
+                                  title={`${item.quest.title} · ${item.distance}`}
+                                  onClick={() => setSelectedMapQuestId(item.quest.id)}
+                                  className="absolute -translate-x-1/2 -translate-y-1/2"
+                                  style={{ left: `${left}%`, top: `${top}%` }}
+                                >
+                                  <span className={`flex h-9 w-9 items-center justify-center rounded-full border-2 ${isActive ? "border-black bg-black text-white" : "border-white bg-sky-500 text-white"} shadow-lg`}>📍</span>
+                                </button>
+                              );
+                            })}
+                          </>
+                        ) : (
+                          <div className="grid place-items-center h-full text-slate-600">Allow location to load nearby pins.</div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
                 <div className="space-y-3">
-                  {mapQuestGroups.length ? mapQuestGroups.map((group) => {
-                    const isActive = selectedMapQuest ? getQuestCityLabel(selectedMapQuest) === group.city : false;
+                  {mapQuestItems.length ? mapQuestItems.map((item) => {
+                    const isActive = selectedMapQuest?.id === item.quest.id;
                     return (
                       <button
-                        key={group.city}
+                        key={item.quest.id}
                         type="button"
-                        onClick={() => setSelectedMapQuestId(group.representative.id)}
+                        onClick={() => setSelectedMapQuestId(item.quest.id)}
                         className={`w-full rounded-2xl border p-4 text-left transition ${isActive ? "bg-black text-white border-black" : "bg-white border-slate-200 hover:border-slate-300"}`}
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div>
-                            <p className={`text-xs uppercase tracking-[0.2em] ${isActive ? "text-white/70" : "text-gray-500"}`}>Category</p>
-                            <h4 className={`font-semibold ${isActive ? "text-white" : "text-slate-900"}`}>{group.representative.hobbies?.[0]?.name || "Hobby"}</h4>
+                            <h4 className={`font-semibold ${isActive ? "text-white" : "text-slate-900"}`}>{item.quest.hobbies?.[0]?.name || "Hobby"}</h4>
                           </div>
                         </div>
                         <div className="mt-2 flex items-center justify-between gap-3">
-                          <p className={`text-xs ${isActive ? "text-white/75" : "text-slate-500"}`}>{group.city}</p>
-                          {userLocationStatus === "ready" && distanceByQuestId[group.representative.id] ? (
-                            <span className={`text-xs font-medium ${isActive ? "text-white/80" : "text-slate-500"}`}>{distanceByQuestId[group.representative.id]}</span>
+                          <p className={`text-xs ${isActive ? "text-white/75" : "text-slate-500"}`}>{getQuestCityLabel(item.quest)}</p>
+                          {userLocationStatus === "ready" && item.distance ? (
+                            <span className={`text-xs font-medium ${isActive ? "text-white/80" : "text-slate-500"}`}>{item.distance}</span>
                           ) : null}
                         </div>
-                        <p className={`mt-2 text-xs ${isActive ? "text-white/75" : "text-slate-500"}`}>{group.representative.title}</p>
+                        <p className={`mt-2 text-xs ${isActive ? "text-white/75" : "text-slate-500"}`}>{item.quest.title}</p>
                         <div className="mt-3 flex items-center gap-2">
-                          <span className={`text-xs ${isActive ? "text-white/70" : "text-slate-500"}`}>{group.quests.length} event{group.quests.length === 1 ? "" : "s"}</span>
+                          <span className={`text-xs ${isActive ? "text-white/70" : "text-slate-500"}`}>{item.quest.city || "City tbd"}</span>
                           <span className={`text-xs ${isActive ? "text-white/40" : "text-slate-400"}`}>•</span>
                           <Link
-                            href={`/listing/${group.representative.id}`}
+                            href={`/listing/${item.quest.id}`}
                             onClick={(e) => e.stopPropagation()}
                             className={`text-xs underline underline-offset-2 ${isActive ? "text-white/80" : "text-slate-600"}`}
                           >
@@ -2559,21 +2596,14 @@ export default function Home() {
                         </div>
                       </button>
                     );
-                  }) : <p className="text-sm text-gray-500">No quests yet.</p>}
+                  }) : <p className="text-sm text-gray-500">No nearby quests yet.</p>}
                   {selectedMapQuest ? (
                     <div className="rounded-2xl border bg-white p-4 shadow-sm">
                       <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Selected pin</p>
                       <h4 className="mt-1 font-semibold">{selectedMapQuest.title}</h4>
-                      <p className="text-sm text-slate-500">{formatQuestMeta(selectedMapQuest)}</p>
+                      <p className="text-sm text-slate-500">{selectedMapQuest.hobbies?.[0]?.name || "Hobby"} · {getQuestCityLabel(selectedMapQuest)}</p>
                       {distanceByQuestId[selectedMapQuest.id] ? <p className="mt-1 text-sm text-slate-500">{distanceByQuestId[selectedMapQuest.id]}</p> : null}
-                      <button
-                        type="button"
-                        className="mt-3 inline-flex rounded-full border px-4 py-2 text-sm"
-                        onClick={() => void openQuestCityMap(selectedMapQuest)}
-                      >
-                        Open city map
-                      </button>
-                      <Link href={`/listing/${selectedMapQuest.id}`} className="ml-3 mt-3 inline-flex rounded-full border px-4 py-2 text-sm">
+                      <Link href={`/listing/${selectedMapQuest.id}`} className="mt-3 inline-flex rounded-full border px-4 py-2 text-sm">
                         Open listing ↗
                       </Link>
                     </div>
