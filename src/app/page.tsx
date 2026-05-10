@@ -257,6 +257,7 @@ export default function Home() {
   const [joinedQuestIds, setJoinedQuestIds] = useState<string[]>([]);
   const [membershipStatusByQuest, setMembershipStatusByQuest] = useState<Record<string, "pending" | "approved" | "declined">>({});
   const [feedMediaIndexByQuest, setFeedMediaIndexByQuest] = useState<Record<string, number>>({});
+  const [feedVideoProgressByQuest, setFeedVideoProgressByQuest] = useState<Record<string, { current: number; duration: number }>>({});
   const [openCardMenuQuestId, setOpenCardMenuQuestId] = useState<string | null>(null);
   const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -2093,8 +2094,40 @@ export default function Home() {
                             preload="metadata"
                             controls
                             playsInline
+                            onTimeUpdate={(e) => {
+                              const el = e.currentTarget;
+                              setFeedVideoProgressByQuest((prev) => ({
+                                ...prev,
+                                [q.id]: {
+                                  current: el.currentTime || 0,
+                                  duration: Number.isFinite(el.duration) ? Math.max(0, el.duration) : 0,
+                                },
+                              }));
+                            }}
+                            onLoadedMetadata={(e) => {
+                              const el = e.currentTarget;
+                              setFeedVideoProgressByQuest((prev) => ({
+                                ...prev,
+                                [q.id]: {
+                                  current: el.currentTime || 0,
+                                  duration: Number.isFinite(el.duration) ? Math.max(0, el.duration) : 0,
+                                },
+                              }));
+                            }}
                           />
                         )}
+                        {feedViewMode === "list" && m.type === "video" ? (
+                          <div className="absolute inset-x-0 top-0 z-20 px-3 pt-3 pointer-events-none">
+                            <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/20 backdrop-blur-sm">
+                              <div
+                                className="h-full rounded-full bg-white/90 transition-[width] duration-150"
+                                style={{
+                                  width: `${Math.min(100, Math.max(0, ((feedVideoProgressByQuest[q.id]?.current || 0) / Math.max(1, feedVideoProgressByQuest[q.id]?.duration || 0)) * 100))}%`,
+                                }}
+                              />
+                            </div>
+                          </div>
+                        ) : null}
                       </div>
                     ))}
                   </div>
