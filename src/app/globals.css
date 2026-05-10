@@ -93,6 +93,15 @@ html:not([data-theme="dark"]) .quest-list-overlay {
   background: linear-gradient(to top, rgba(255, 255, 255, 0.86) 0%, rgba(255, 255, 255, 0.56) 55%, rgba(255, 255, 255, 0) 100%);
 }
 
+html:not([data-theme="dark"]) .quest-list-overlay,
+html:not([data-theme="dark"]) .quest-list-overlay * {
+  color: #0f172a !important;
+}
+
+html:not([data-theme="dark"]) .quest-list-overlay svg {
+  stroke: currentColor;
+}
+
 /* ============================================
    BASE - MINIMAL & CLEAN
    ============================================ */
