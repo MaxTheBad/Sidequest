@@ -2343,29 +2343,18 @@ export default function Home() {
                   >
                     <div className="flex h-full flex-col justify-end gap-4">
                       {expandedQuestIds[q.id] === false ? (
-                        <div className="inline-flex max-w-[calc(100%-1rem)] items-center gap-1 rounded-full bg-black/35 px-2.5 py-1 text-xs font-medium leading-none whitespace-nowrap backdrop-blur-[2px] shadow-sm">
+                        <div className="grid w-full max-w-[calc(100%-1rem)] grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 rounded-full bg-black/35 px-2.5 py-1 text-xs font-medium leading-none whitespace-nowrap backdrop-blur-[2px] shadow-sm">
                           <Link
                             href={`/listing/${q.id}`}
-                            className="underline decoration-2 underline-offset-2 text-white/95 truncate"
+                            className="justify-self-start underline decoration-2 underline-offset-2 text-white/95 truncate max-w-full"
                             title="Open listing"
                             onClick={(e) => e.stopPropagation()}
                           >
                             {q.title}
                           </Link>
-                          <span className="text-white/80">📍</span>
                           <button
                             type="button"
-                            className="underline decoration-2 underline-offset-2 text-white/95 truncate"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              void openQuestCityMap(q);
-                            }}
-                          >
-                            {getQuestCityLabel(q)}
-                          </button>
-                          <button
-                            type="button"
-                            className="inline-flex items-center gap-1 underline decoration-2 underline-offset-2 text-white/95"
+                            className="justify-self-center inline-flex items-center gap-1 underline decoration-2 underline-offset-2 text-white/95"
                             onClick={(e) => {
                               e.stopPropagation();
                               setExpandedQuestIds((prev) => ({ ...prev, [q.id]: true }));
@@ -2375,6 +2364,17 @@ export default function Home() {
                             <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                               <path d="m6 10 6 6 6-6" />
                             </svg>
+                          </button>
+                          <button
+                            type="button"
+                            className="justify-self-end inline-flex items-center gap-1 underline decoration-2 underline-offset-2 text-white/95 truncate max-w-full"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void openQuestCityMap(q);
+                            }}
+                          >
+                            <span>📍</span>
+                            <span className="truncate">{getQuestCityLabel(q)}</span>
                           </button>
                         </div>
                       ) : (
