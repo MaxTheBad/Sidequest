@@ -2330,7 +2330,7 @@ export default function Home() {
               {feedViewMode === "list" ? (
                 <div className="relative">
                   <div
-                    className={`absolute inset-x-0 bottom-0 z-10 px-4 text-white text-left ${expandedQuestIds[q.id] === false ? "h-24" : "quest-list-overlay pt-8 pb-4"}`}
+                    className={`absolute inset-x-0 bottom-0 z-10 px-4 text-white text-left ${expandedQuestIds[q.id] === false ? "pb-3" : "quest-list-overlay pt-8 pb-4"}`}
                     onClick={() => setExpandedQuestIds((prev) => ({ ...prev, [q.id]: !prev[q.id] }))}
                     role="button"
                     tabIndex={0}
@@ -2343,19 +2343,19 @@ export default function Home() {
                   >
                     <div className="flex h-full flex-col justify-end gap-4">
                       {expandedQuestIds[q.id] === false ? (
-                        <div className="flex items-center gap-2 text-xs font-medium leading-none whitespace-nowrap overflow-hidden text-ellipsis">
+                        <div className="inline-flex max-w-[calc(100%-1rem)] items-center gap-1 rounded-full bg-black/35 px-2.5 py-1 text-xs font-medium leading-none whitespace-nowrap backdrop-blur-[2px] shadow-sm">
                           <Link
                             href={`/listing/${q.id}`}
-                            className="underline decoration-2 underline-offset-2 text-white/90 truncate max-w-[42%]"
+                            className="underline decoration-2 underline-offset-2 text-white/95 truncate"
                             title="Open listing"
                             onClick={(e) => e.stopPropagation()}
                           >
                             {q.title}
                           </Link>
-                          <span className="text-white/70">📍</span>
+                          <span className="text-white/80">📍</span>
                           <button
                             type="button"
-                            className="underline decoration-2 underline-offset-2 text-white/90 truncate max-w-[32%]"
+                            className="underline decoration-2 underline-offset-2 text-white/95 truncate"
                             onClick={(e) => {
                               e.stopPropagation();
                               void openQuestCityMap(q);
@@ -2365,7 +2365,7 @@ export default function Home() {
                           </button>
                           <button
                             type="button"
-                            className="inline-flex items-center gap-1 underline decoration-2 underline-offset-2 text-white/90"
+                            className="inline-flex items-center gap-1 underline decoration-2 underline-offset-2 text-white/95"
                             onClick={(e) => {
                               e.stopPropagation();
                               setExpandedQuestIds((prev) => ({ ...prev, [q.id]: true }));
@@ -2402,7 +2402,6 @@ export default function Home() {
                               <span className="text-[11px] font-semibold tracking-wide uppercase text-white">{q.hobbies?.[0]?.name || "Category"}</span>
                             </div>
                             {q.description ? <p className="text-sm text-white/85 leading-relaxed line-clamp-2">{q.description}</p> : null}
-                            <p className="text-xs text-white/70 leading-relaxed">{formatQuestMeta(q)}</p>
                           </div>
                           <div className={`grid w-full items-center ${userId !== q.creator_id ? "grid-cols-4" : "grid-cols-3"}`}>
                             {userId !== q.creator_id ? (
