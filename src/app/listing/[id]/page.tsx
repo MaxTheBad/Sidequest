@@ -19,7 +19,7 @@ type Listing = {
   availability: string | null;
   media_video_url: string | null;
   media_source: "live" | "upload" | null;
-  media_items?: { url: string; type: "image" | "video"; label?: string | null }[] | null;
+  media_items?: { url: string; type: "image" | "video"; label?: string | null; thumbnailUrl?: string | null }[] | null;
   hobbies?: { name: string | null }[] | null;
   profiles?: { id: string; display_name: string | null; avatar_url: string | null }[] | null;
 };
@@ -492,7 +492,7 @@ export default function ListingPage() {
                       {m.type === "image" ? (
                         <img src={m.url} alt={m.label || "Listing media"} className="w-full h-28 object-cover rounded" />
                       ) : (
-                        <video src={m.url} className="w-full h-28 object-cover rounded bg-black" preload="metadata" muted playsInline />
+                        <video src={m.url} poster={m.thumbnailUrl || undefined} className="w-full h-28 object-cover rounded bg-black" preload="metadata" muted playsInline />
                       )}
                         {m.label && <p className="text-xs mt-1 text-gray-600 truncate">{m.label}</p>}
                     </button>
@@ -732,7 +732,7 @@ export default function ListingPage() {
               return item.type === "image" ? (
                 <img src={item.url} alt={item.label || "Expanded media"} className="max-h-[88vh] max-w-[94vw] rounded-xl object-contain" onClick={(e) => e.stopPropagation()} />
               ) : (
-                <video src={item.url} controls autoPlay className="max-h-[88vh] max-w-[94vw] rounded-xl object-contain bg-black" onClick={(e) => e.stopPropagation()} />
+                <video src={item.url} poster={item.thumbnailUrl || undefined} controls autoPlay className="max-h-[88vh] max-w-[94vw] rounded-xl object-contain bg-black" onClick={(e) => e.stopPropagation()} />
               );
             })()}
             <button type="button" className="absolute top-4 right-4 border rounded px-3 py-2 bg-white" onClick={() => setExpandedMediaIndex(null)}>Close</button>

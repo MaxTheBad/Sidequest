@@ -13,6 +13,7 @@ type QuestMediaItem = {
   url: string;
   type: "image" | "video";
   label?: string | null;
+  thumbnailUrl?: string | null;
 };
 
 type DraftMediaItem = {
@@ -22,6 +23,7 @@ type DraftMediaItem = {
   source: "existing" | "new";
   url?: string;
   file?: File;
+  thumbnailUrl?: string | null;
 };
 
 type Quest = {
@@ -307,6 +309,9 @@ export default function Home() {
   const [mediaDraftItems, setMediaDraftItems] = useState<DraftMediaItem[]>([]);
   const [dragMediaId, setDragMediaId] = useState<string | null>(null);
   const [selectedMediaId, setSelectedMediaId] = useState<string | null>(null);
+  const [videoThumbStatus, setVideoThumbStatus] = useState("");
+  const [selectedMediaVideoDuration, setSelectedMediaVideoDuration] = useState(0);
+  const selectedMediaVideoRef = useRef<HTMLVideoElement | null>(null);
   const [removeExistingVideo, setRemoveExistingVideo] = useState(false);
   const liveVideoInputRef = useRef<HTMLInputElement | null>(null);
   const uploadVideoInputRef = useRef<HTMLInputElement | null>(null);
@@ -1110,7 +1115,39 @@ export default function Home() {
     return data.publicUrl;
   }
 
-  async function uploadQuestMediaFiles(items: Array<{ file: File; label: string }>) {
+  async function uploadQuestMediaThumbnail(file: File) {
+    if (!supabase || !userId) throw new Error("Not signed in.");
+    const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+    const filePath = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2)}-thumb.${ext}`;
+    const { error } = await supabase.storage
+      .from("quest-media")
+      .upload(filePath, file, { upsert: false, contentType: file.type || "image/jpeg" });
+    if (error) throw new Error(error.message);
+    const { data } = supabase.storage.from("quest-media").getPublicUrl(filePath);
+    return data.publicUrl;
+  }
+
+  async function captureSelectedVideoThumbnail() {
+    const video = selectedMediaVideoRef.current;
+    const selected = selectedMediaItem;
+    if (!video || !selected || selected.type !== "video") return;
+    if (!video.videoWidth || !video.videoHeight) throw new Error("Video is not ready yet.");
+
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Could not capture video frame.");
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.84));
+    if (!blob) throw new Error("Could not create thumbnail.");
+
+    const thumbFile = new File([blob], `thumb-${Date.now()}.jpg`, { type: "image/jpeg" });
+    return uploadQuestMediaThumbnail(thumbFile);
+  }
+
+  async function uploadQuestMediaFiles(items: Array<{ file: File; label: string; thumbnailUrl?: string | null }>) {
     if (!supabase || !userId) throw new Error("Not signed in.");
     const uploaded: QuestMediaItem[] = [];
 
@@ -1141,6 +1178,7 @@ export default function Home() {
         url: data.publicUrl,
         type: isImage ? "image" : "video",
         label: item.label.trim() || null,
+        thumbnailUrl: item.thumbnailUrl || null,
       });
     }
 
@@ -1341,6 +1379,18 @@ export default function Home() {
 
   const selectedMediaItem = mediaDraftItems.find((m) => m.id === selectedMediaId) || null;
 
+  useEffect(() => {
+    setVideoThumbStatus("");
+    if (!selectedMediaItem || selectedMediaItem.type !== "video") {
+      setSelectedMediaVideoDuration(0);
+      return;
+    }
+    const vid = selectedMediaVideoRef.current;
+    if (vid && Number.isFinite(vid.duration) && vid.duration > 0) {
+      setSelectedMediaVideoDuration(vid.duration);
+    }
+  }, [selectedMediaItem?.id, selectedMediaItem?.type]);
+
   function openEditModal(q: Quest) {
     setEditingQuestId(q.id);
     setTitle(q.title || "");
@@ -1372,7 +1422,7 @@ export default function Home() {
     setQuestVideoSource((q.media_source as "live" | "upload") || "upload");
     setQuestMediaFiles([]);
     const legacyVideo = q.media_video_url ? [{ id: `legacy-video-${q.id}`, type: "video" as const, label: "", source: "existing" as const, url: q.media_video_url }] : [];
-    const existingItems = (q.media_items || []).map((m, i) => ({ id: `existing-${q.id}-${i}`, type: m.type, label: m.label || "", source: "existing" as const, url: m.url }));
+    const existingItems = (q.media_items || []).map((m, i) => ({ id: `existing-${q.id}-${i}`, type: m.type, label: m.label || "", source: "existing" as const, url: m.url, thumbnailUrl: m.thumbnailUrl || null }));
     const draftItems = [...legacyVideo, ...existingItems];
     setMediaDraftItems(draftItems);
     setSelectedMediaId(draftItems[0]?.id || null);
@@ -1643,13 +1693,13 @@ export default function Home() {
     try {
       const newDraftItems = mediaDraftItems.filter((m) => m.source === "new" && m.file);
       const uploadedMedia = newDraftItems.length
-        ? await uploadQuestMediaFiles(newDraftItems.map((m) => ({ file: m.file as File, label: m.label })))
+        ? await uploadQuestMediaFiles(newDraftItems.map((m) => ({ file: m.file as File, label: m.label, thumbnailUrl: m.thumbnailUrl || null })))
         : [];
 
       let uploadIdx = 0;
       const nextMediaItems: QuestMediaItem[] = mediaDraftItems
         .map((m) => {
-          if (m.source === "existing" && m.url) return { url: m.url, type: m.type, label: m.label || null };
+          if (m.source === "existing" && m.url) return { url: m.url, type: m.type, label: m.label || null, thumbnailUrl: m.thumbnailUrl || null };
           const uploaded = uploadedMedia[uploadIdx++];
           return uploaded || null;
         })
@@ -2208,7 +2258,7 @@ export default function Home() {
             const creatorProfile = getCreatorProfile(q);
             const feedMediaItems: QuestMediaItem[] = [
               ...(q.media_video_url ? [{ url: q.media_video_url, type: "video" as const, label: q.media_source === "live" ? "Live video" : "Video" }] : []),
-              ...((q.media_items || []).map((m) => ({ url: m.url, type: m.type, label: m.label || undefined }))),
+              ...((q.media_items || []).map((m) => ({ url: m.url, type: m.type, label: m.label || undefined, thumbnailUrl: m.thumbnailUrl || undefined }))),
             ];
             const feedIndex = feedMediaIndexByQuest[q.id] || 0;
             const fallbackVisual = getCategoryFallbackVisual(q.hobbies?.[0]?.name);
@@ -2265,7 +2315,7 @@ export default function Home() {
                     }}
                   >
                     {feedMediaItems.map((m, i) => (
-                      <div key={`${m.url}-${i}`} className={`relative w-full shrink-0 snap-start bg-black overflow-hidden ${feedViewMode === "list" ? "aspect-[4/5] sm:aspect-[10/7] lg:aspect-[10/7]" : "aspect-[4/3] lg:aspect-[4/3]"}`}>
+                      <div key={`${m.url}-${i}`} className={`relative w-full shrink-0 snap-start bg-black overflow-hidden ${feedViewMode === "list" ? "aspect-[3/4] sm:aspect-[10/7] lg:aspect-[10/7]" : "aspect-[4/3] lg:aspect-[4/3]"}`}>
                         {m.type === "image" ? (
                           <button type="button" className="w-full h-full block overflow-hidden" onClick={() => setExpandedMedia({ items: feedMediaItems, index: i })}>
                             <img
@@ -2281,6 +2331,7 @@ export default function Home() {
                                 feedVideoRefs.current[`${q.id}-${i}`] = el;
                               }}
                               src={m.url}
+                              poster={m.thumbnailUrl || undefined}
                               className={`w-full h-full ${feedViewMode === "list" ? "object-cover sm:object-contain object-center" : "object-cover object-center"}`}
                               preload="metadata"
                               playsInline
@@ -3182,7 +3233,7 @@ export default function Home() {
                         {item.type === "image" ? (
                           <img src={previewUrl} alt={item.label || "Media preview"} className="h-full w-full object-cover" />
                         ) : (
-                          <video src={previewUrl} className="h-full w-full object-cover bg-black" muted playsInline preload="metadata" />
+                          <video src={previewUrl} poster={item.thumbnailUrl || undefined} className="h-full w-full object-cover bg-black" muted playsInline preload="metadata" />
                         )}
                         {idx === 0 && <span className="absolute left-1.5 top-1.5 px-1.5 py-0.5 rounded bg-black text-white text-[10px]">Main</span>}
                         <span className="absolute right-1.5 bottom-1.5 text-[10px] px-1.5 py-0.5 rounded bg-black/70 text-white">{item.type === "image" ? "Photo" : "Video"}</span>
@@ -3217,6 +3268,65 @@ export default function Home() {
                         setMediaDraftItems((prev) => prev.map((m) => m.id === selectedMediaItem.id ? { ...m, label: value } : m));
                       }}
                     />
+                    {selectedMediaItem.type === "video" ? (
+                      <div className="grid gap-2 rounded-lg border bg-gray-50 p-2">
+                        <div className="text-xs font-medium text-gray-700">Video thumbnail</div>
+                        <video
+                          ref={selectedMediaVideoRef}
+                          src={mediaPreviewUrls.get(selectedMediaItem.id) || ""}
+                          className="w-full max-h-48 rounded-md bg-black object-contain"
+                          controls
+                          playsInline
+                          preload="metadata"
+                          onLoadedMetadata={() => {
+                            const vid = selectedMediaVideoRef.current;
+                            if (vid && Number.isFinite(vid.duration) && vid.duration > 0) {
+                              setSelectedMediaVideoDuration(vid.duration);
+                              vid.currentTime = Math.min(vid.currentTime || 0, vid.duration);
+                            }
+                          }}
+                        />
+                        <input
+                          type="range"
+                          min="0"
+                          max={Math.max(1, selectedMediaVideoDuration || 1)}
+                          step="0.05"
+                          defaultValue="0"
+                          onChange={(e) => {
+                            const vid = selectedMediaVideoRef.current;
+                            if (!vid) return;
+                            const nextTime = Number(e.target.value);
+                            if (Number.isFinite(nextTime)) vid.currentTime = nextTime;
+                          }}
+                          className="w-full"
+                        />
+                        <div className="flex items-center justify-between gap-2">
+                          <button
+                            type="button"
+                            className="rounded-full bg-black px-3 py-2 text-xs font-medium text-white"
+                            onClick={async () => {
+                              setVideoThumbStatus("Capturing thumbnail…");
+                              try {
+                                const thumbnailUrl = await captureSelectedVideoThumbnail();
+                                setMediaDraftItems((prev) => prev.map((m) => m.id === selectedMediaItem.id ? { ...m, thumbnailUrl } : m));
+                                setVideoThumbStatus("Thumbnail saved ✅");
+                              } catch (err) {
+                                setVideoThumbStatus(err instanceof Error ? err.message : "Could not capture thumbnail.");
+                              }
+                            }}
+                          >
+                            Use current frame
+                          </button>
+                          <span className="text-[11px] text-gray-500">{videoThumbStatus || (selectedMediaItem.thumbnailUrl ? "Thumbnail selected" : "Pick a frame, then save it.")}</span>
+                        </div>
+                        {selectedMediaItem.thumbnailUrl ? (
+                          <div className="grid gap-1">
+                            <div className="text-xs text-gray-500">Current thumbnail</div>
+                            <img src={selectedMediaItem.thumbnailUrl} alt="Video thumbnail" className="w-full max-h-24 rounded-md object-cover" />
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
                   </div>
                 ) : null}
               </div>
