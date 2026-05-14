@@ -2265,13 +2265,13 @@ export default function Home() {
                     }}
                   >
                     {feedMediaItems.map((m, i) => (
-                      <div key={`${m.url}-${i}`} className={`relative w-full shrink-0 snap-start bg-black overflow-hidden ${feedViewMode === "list" ? "aspect-[10/7] sm:aspect-[10/7] lg:aspect-[10/7]" : "aspect-[4/3] lg:aspect-[4/3]"}`}>
+                      <div key={`${m.url}-${i}`} className={`relative w-full shrink-0 snap-start bg-black overflow-hidden ${feedViewMode === "list" ? "aspect-[4/5] sm:aspect-[10/7] lg:aspect-[10/7]" : "aspect-[4/3] lg:aspect-[4/3]"}`}>
                         {m.type === "image" ? (
                           <button type="button" className="w-full h-full block overflow-hidden" onClick={() => setExpandedMedia({ items: feedMediaItems, index: i })}>
                             <img
                               src={m.url}
                               alt={m.label || "Listing media"}
-                              className={`w-full h-full ${feedViewMode === "list" ? "object-contain object-center" : "object-cover object-center"}`}
+                              className={`w-full h-full ${feedViewMode === "list" ? "object-cover sm:object-contain object-center" : "object-cover object-center"}`}
                             />
                           </button>
                         ) : (
@@ -2281,7 +2281,7 @@ export default function Home() {
                                 feedVideoRefs.current[`${q.id}-${i}`] = el;
                               }}
                               src={m.url}
-                              className={`w-full h-full ${feedViewMode === "list" ? "object-contain object-center" : "object-cover object-center"}`}
+                              className={`w-full h-full ${feedViewMode === "list" ? "object-cover sm:object-contain object-center" : "object-cover object-center"}`}
                               preload="metadata"
                               playsInline
                               onClick={() => toggleFeedVideoPlayback(`${q.id}-${i}`)}
