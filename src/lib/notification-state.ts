@@ -1,6 +1,7 @@
 "use client";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { markDeliveredNotificationsSeen } from "@/lib/notifications";
 
 export const NOTIFICATION_LAST_SEEN_KEY = "sidequest_notifications_last_seen";
 
@@ -38,6 +39,7 @@ export async function markNotificationsSeen(supabase: SupabaseClient | null, use
   if (!supabase || !userId) return now;
 
   try {
+    await markDeliveredNotificationsSeen(supabase, userId);
     const { error } = await supabase.from("notification_state").upsert({
       user_id: userId,
       last_seen_at: now,

@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase";
 import { getPersistedNotificationLastSeen } from "@/lib/notification-state";
+import { getUnreadDeliveredNotificationCount } from "@/lib/notifications";
 
 export default function BottomNav() {
   const pathname = usePathname();
@@ -25,6 +26,11 @@ export default function BottomNav() {
   useEffect(() => {
     if (!supabase || !userId) return;
     const run = async () => {
+      const deliveredCount = await getUnreadDeliveredNotificationCount(supabase, userId);
+      if (deliveredCount !== null) {
+        setNotificationCount(deliveredCount);
+        return;
+      }
       const lastSeenRaw = await getPersistedNotificationLastSeen(supabase, userId);
       const lastSeen = lastSeenRaw ? new Date(lastSeenRaw).getTime() : 0;
       const [{ data: myMessages }, { data: joinedRows }] = await Promise.all([

@@ -4,10 +4,11 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase";
 import { getPersistedNotificationLastSeen, markNotificationsSeen } from "@/lib/notification-state";
+import { getDeliveredNotifications } from "@/lib/notifications";
 
 type NotificationItem = {
   id: string;
-  kind: "message" | "join_request" | "approval" | "created";
+  kind: "message" | "join_request" | "approval" | "declined" | "created" | "system";
   badge: string;
   title: string;
   body: string;
@@ -47,6 +48,33 @@ export default function NotificationsPage() {
 
       const seenAt = await getPersistedNotificationLastSeen(supabase, uid);
       setLastSeenAt(seenAt);
+
+      const delivered = await getDeliveredNotifications(supabase, uid);
+      if (delivered) {
+        setBlockedUserIds([]);
+        const mapped = delivered.map((row) => ({
+          id: row.id,
+          kind: row.kind,
+          badge: row.kind === "message"
+            ? ((row.meta as Record<string, unknown> | null)?.private ? "Direct message" : "Public comment")
+            : row.kind === "join_request"
+              ? "Join request"
+              : row.kind === "declined"
+                ? "Declined"
+                : row.kind === "approval"
+                  ? (((row.meta as Record<string, unknown> | null)?.status as string | undefined) === "approved" ? "Approved" : "Joined")
+                  : "Update",
+          title: row.title,
+          body: row.body,
+          href: row.href,
+          created_at: row.created_at,
+          senderName: (row.meta as Record<string, unknown> | null)?.sender_name as string | null | undefined,
+          senderAvatar: null,
+        }));
+        setItems(mapped);
+        setLoading(false);
+        return;
+      }
 
       const [{ data: myQuests }, { data: myMessages }, { data: joinedRows }, { data: blockRows }] = await Promise.all([
         supabase.from("quests").select("id,title,created_at").eq("creator_id", uid).order("created_at", { ascending: false }).limit(50),
@@ -119,7 +147,7 @@ export default function NotificationsPage() {
     const filtered = !activeFilters.length ? items : items.filter((item) => {
       if (activeFilters.includes("messages") && item.kind === "message" && item.badge === "Direct message") return true;
       if (activeFilters.includes("comments") && item.kind === "message" && item.badge === "Public comment") return true;
-      if (activeFilters.includes("joined") && (item.kind === "join_request" || item.kind === "approval")) return true;
+      if (activeFilters.includes("joined") && (item.kind === "join_request" || item.kind === "approval" || item.kind === "declined")) return true;
       if (activeFilters.includes("your_listings") && item.kind === "created") return true;
       return false;
     });
@@ -139,6 +167,7 @@ export default function NotificationsPage() {
     if (item.kind === "message" && item.badge === "Public comment") return "bg-emerald-50 text-emerald-700 border-emerald-200";
     if (item.kind === "join_request") return "bg-amber-50 text-amber-700 border-amber-200";
     if (item.kind === "approval") return "bg-teal-50 text-teal-700 border-teal-200";
+    if (item.kind === "declined") return "bg-rose-50 text-rose-700 border-rose-200";
     return "bg-slate-50 text-slate-700 border-slate-200";
   }
 
