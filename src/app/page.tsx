@@ -7,6 +7,7 @@ import { getSupabaseClient } from "@/lib/supabase";
 import { CANONICAL_CATEGORIES, resolveCanonicalCategory, suggestCanonicalCategories } from "@/lib/category-suggestions";
 import { isImageLikeFile, prepareImageForUpload } from "@/lib/media-optimize";
 import { compressVideoForUpload } from "@/lib/video-optimize";
+import { collectQuestStorageUrls, removeStoragePublicUrls } from "@/lib/storage";
 
 type Hobby = { id: string; name: string; category: string | null };
 type QuestMediaItem = {
@@ -1426,7 +1427,14 @@ export default function Home() {
     const draftItems = [...legacyVideo, ...existingItems];
     setMediaDraftItems(draftItems);
     setSelectedMediaId(draftItems[0]?.id || null);
-    setExistingMediaItems(q.media_items || []);
+    setExistingMediaItems(
+      draftItems.map((item) => ({
+        url: item.url,
+        type: item.type,
+        label: item.label || null,
+        thumbnailUrl: "thumbnailUrl" in item ? item.thumbnailUrl || null : null,
+      })),
+    );
     setRemoveExistingVideo(false);
     setShowCreateModal(true);
   }
@@ -1732,7 +1740,19 @@ export default function Home() {
           .eq("creator_id", activeUserId);
         if (error) throw new Error(error.message);
 
-        setStatus("Listing updated ✅");
+        try {
+          await cleanupQuestStorage(
+            {
+              media_video_url: null,
+              media_items: existingMediaItems,
+            },
+            nextMediaItems,
+          );
+          setStatus("Listing updated ✅");
+        } catch (cleanupErr) {
+          console.warn("Quest storage cleanup failed after update:", cleanupErr);
+          setStatus("Listing updated ✅ (storage cleanup partial)");
+        }
         setLastQuestCreateMs(Date.now());
       } else {
         const insertPayload: Record<string, unknown> = {
@@ -1945,13 +1965,50 @@ export default function Home() {
     return { emoji: "🖼️", title: "No media yet", note: "This quest has details below — ask for photos in comments/DM.", gradient: "linear-gradient(135deg,#ede9fe,#e0e7ff)" };
   }
 
+  function buildQuestStorageUrls(quest: Pick<Quest, "media_video_url" | "media_items">) {
+    return collectQuestStorageUrls(
+      (quest.media_items || []).map((item) => ({
+        url: item.url,
+        thumbnailUrl: item.thumbnailUrl || null,
+      })),
+      quest.media_video_url || null,
+    );
+  }
+
+  async function cleanupQuestStorage(quest: Pick<Quest, "media_video_url" | "media_items">, nextItems: QuestMediaItem[] = []) {
+    if (!supabase) return;
+    const originalUrls = new Set(buildQuestStorageUrls(quest));
+    const nextUrls = new Set(
+      collectQuestStorageUrls(
+        nextItems.map((item) => ({
+          url: item.url,
+          thumbnailUrl: item.thumbnailUrl || null,
+        })),
+      ),
+    );
+    const removed = Array.from(originalUrls).filter((url) => !nextUrls.has(url));
+    if (!removed.length) return;
+    await removeStoragePublicUrls(supabase, removed);
+  }
+
   async function deleteQuest(id: string) {
     if (!supabase || !userId) return;
     const ok = window.confirm("Delete this listing? This cannot be undone.");
     if (!ok) return;
 
+    const quest = quests.find((q) => q.id === id) || null;
     const { error } = await supabase.from("quests").delete().eq("id", id).eq("creator_id", userId);
     if (error) return setStatus(error.message);
+    if (quest) {
+      try {
+        await cleanupQuestStorage(quest, []);
+      } catch (cleanupErr) {
+        console.warn("Quest storage cleanup failed after delete:", cleanupErr);
+        setStatus("Listing deleted 🗑️ (storage cleanup partial)");
+        await loadQuests();
+        return;
+      }
+    }
     if (editingQuestId === id) {
       setShowCreateModal(false);
       resetQuestForm();
