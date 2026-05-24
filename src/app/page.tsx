@@ -4,10 +4,10 @@ import Link from "next/link";
 import { FormEvent, PointerEvent, UIEvent, useEffect, useMemo, useRef, useState } from "react";
 import CityAutocompleteInput from "@/components/city-autocomplete-input";
 import { getSupabaseClient } from "@/lib/supabase";
-import { CANONICAL_CATEGORIES, resolveCanonicalCategory, suggestCanonicalCategories } from "@/lib/category-suggestions";
+import { CANONICAL_CATEGORIES, resolveCanonicalCategory, suggestCanonicalCategories } from "@/lib/category-suggestions.js";
 import { isImageLikeFile, prepareImageForUpload } from "@/lib/media-optimize";
 import { compressVideoForUpload } from "@/lib/video-optimize";
-import { collectQuestStorageUrls, removeStoragePublicUrls } from "@/lib/storage";
+import { collectQuestStorageUrls, removeStoragePublicUrls } from "@/lib/storage.js";
 
 type Hobby = { id: string; name: string; category: string | null };
 type QuestMediaItem = {

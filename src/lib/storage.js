@@ -1,10 +1,6 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
-
-type StorageBucketId = "quest-media" | "quest-videos" | "profile-photos";
-
 const PUBLIC_OBJECT_PREFIX = "/object/public/";
 
-export function extractStorageObjectPath(publicUrl: string, bucketId: StorageBucketId) {
+export function extractStorageObjectPath(publicUrl, bucketId) {
   if (!publicUrl) return null;
   const cleaned = publicUrl.split("?")[0] || "";
   const marker = `${PUBLIC_OBJECT_PREFIX}${bucketId}/`;
@@ -14,7 +10,7 @@ export function extractStorageObjectPath(publicUrl: string, bucketId: StorageBuc
   return objectPath ? decodeURIComponent(objectPath) : null;
 }
 
-export function inferStorageBucketFromUrl(publicUrl: string): StorageBucketId | null {
+export function inferStorageBucketFromUrl(publicUrl) {
   if (!publicUrl) return null;
   if (publicUrl.includes("/object/public/quest-media/")) return "quest-media";
   if (publicUrl.includes("/object/public/quest-videos/")) return "quest-videos";
@@ -22,8 +18,8 @@ export function inferStorageBucketFromUrl(publicUrl: string): StorageBucketId | 
   return null;
 }
 
-export function collectQuestStorageUrls(items: Array<{ url: string; thumbnailUrl?: string | null }>, legacyVideoUrl?: string | null) {
-  const urls = new Set<string>();
+export function collectQuestStorageUrls(items, legacyVideoUrl) {
+  const urls = new Set();
   if (legacyVideoUrl) urls.add(legacyVideoUrl);
   for (const item of items) {
     if (item.url) urls.add(item.url);
@@ -32,12 +28,8 @@ export function collectQuestStorageUrls(items: Array<{ url: string; thumbnailUrl
   return Array.from(urls);
 }
 
-export async function removeStoragePublicUrls(
-  supabase: SupabaseClient,
-  urls: string[],
-  opts: { bucketId?: StorageBucketId | null } = {},
-) {
-  const grouped = new Map<StorageBucketId, string[]>();
+export async function removeStoragePublicUrls(supabase, urls, opts = {}) {
+  const grouped = new Map();
 
   for (const url of urls) {
     const bucketId = opts.bucketId || inferStorageBucketFromUrl(url);

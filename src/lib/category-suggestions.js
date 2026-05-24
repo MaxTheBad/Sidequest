@@ -11,43 +11,36 @@ export const CANONICAL_CATEGORIES = [
   "Music / Producer",
   "Lifestyle",
   "Wildcard",
-] as const;
+];
 
-const ALIAS_TO_CATEGORY: Array<{ alias: string; category: (typeof CANONICAL_CATEGORIES)[number] }> = [
+const ALIAS_TO_CATEGORY = [
   { alias: "project", category: "Build" },
   { alias: "product", category: "Build" },
   { alias: "startup", category: "Build" },
   { alias: "idea", category: "Build" },
-
   { alias: "study", category: "Learn" },
   { alias: "studying", category: "Learn" },
   { alias: "learning", category: "Learn" },
   { alias: "course", category: "Learn" },
   { alias: "class", category: "Learn" },
-
   { alias: "job", category: "Career" },
   { alias: "interview", category: "Career" },
   { alias: "resume", category: "Career" },
-
   { alias: "gym", category: "Healthy Lifestyle" },
   { alias: "cardio", category: "Healthy Lifestyle" },
   { alias: "fitness", category: "Healthy Lifestyle" },
   { alias: "workout", category: "Healthy Lifestyle" },
   { alias: "wellness", category: "Healthy Lifestyle" },
   { alias: "health", category: "Healthy Lifestyle" },
-
   { alias: "hike", category: "Outdoors" },
   { alias: "hiking", category: "Outdoors" },
   { alias: "camp", category: "Outdoors" },
-
   { alias: "relationship", category: "Social" },
   { alias: "communication", category: "Social" },
   { alias: "community", category: "Social" },
-
   { alias: "budget", category: "Money" },
   { alias: "finance", category: "Money" },
   { alias: "saving", category: "Money" },
-
   { alias: "writing", category: "Creative" },
   { alias: "photo", category: "Creative" },
   { alias: "art", category: "Arts & Crafts" },
@@ -58,21 +51,19 @@ const ALIAS_TO_CATEGORY: Array<{ alias: string; category: (typeof CANONICAL_CATE
   { alias: "producer", category: "Music / Producer" },
   { alias: "beat", category: "Music / Producer" },
   { alias: "song", category: "Music / Producer" },
-
   { alias: "habit", category: "Lifestyle" },
   { alias: "routine", category: "Lifestyle" },
   { alias: "productivity", category: "Lifestyle" },
-
   { alias: "other", category: "Wildcard" },
   { alias: "custom", category: "Wildcard" },
   { alias: "random", category: "Wildcard" },
 ];
 
-export function normalizeCategoryInput(input: string): string {
+export function normalizeCategoryInput(input) {
   return input.trim().toLowerCase();
 }
 
-export function resolveCanonicalCategory(input: string): string | null {
+export function resolveCanonicalCategory(input) {
   const normalized = normalizeCategoryInput(input);
   if (!normalized) return null;
 
@@ -83,7 +74,7 @@ export function resolveCanonicalCategory(input: string): string | null {
   return aliasHit?.category || null;
 }
 
-export function suggestCanonicalCategories(input: string): string[] {
+export function suggestCanonicalCategories(input) {
   const normalized = normalizeCategoryInput(input);
   if (!normalized) return [...CANONICAL_CATEGORIES];
 
