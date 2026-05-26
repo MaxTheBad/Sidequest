@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { isPrivilegedRole } from "@/lib/admin.js";
 import { getSupabaseClient } from "@/lib/supabase";
 import { getPersistedNotificationLastSeen } from "@/lib/notification-state";
 import { getUnreadDeliveredNotificationCount } from "@/lib/notifications";
@@ -12,6 +13,7 @@ export default function BottomNav() {
   const router = useRouter();
   const supabase = getSupabaseClient();
   const [userId, setUserId] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState("user");
   const [notificationCount, setNotificationCount] = useState(0);
 
   useEffect(() => {
@@ -24,7 +26,20 @@ export default function BottomNav() {
   }, [supabase]);
 
   useEffect(() => {
-    if (!supabase || !userId) return;
+    if (!supabase || !userId) {
+      setUserRole("user");
+      return;
+    }
+    const loadRole = async () => {
+      const { data, error } = await supabase.from("profiles").select("role").eq("id", userId).maybeSingle();
+      if (error) {
+        setUserRole("user");
+        return;
+      }
+      setUserRole((data as { role?: string | null } | null)?.role || "user");
+    };
+    void loadRole();
+
     const run = async () => {
       const deliveredCount = await getUnreadDeliveredNotificationCount(supabase, userId);
       if (deliveredCount !== null) {
@@ -68,7 +83,7 @@ export default function BottomNav() {
 
   return (
     <nav className="fixed bottom-0 inset-x-0 z-[90] border-t nav-shell md:hidden">
-      <div className="max-w-5xl mx-auto px-3 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] grid grid-cols-5 items-end">
+      <div className={`max-w-5xl mx-auto px-3 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] grid items-end ${isPrivilegedRole(userRole) ? "grid-cols-6" : "grid-cols-5"}`}>
         <Link href="/" className={`text-center text-xs py-2 transition ${isActive("/") ? "nav-item-active" : "nav-item"}`}>
           <div className="text-[20px] leading-none">⌂</div>
           <div className="text-[11px] mt-0.5">Home</div>
@@ -108,6 +123,13 @@ export default function BottomNav() {
           <div className="text-[20px] leading-none">⚙</div>
           <div className="text-[11px] mt-0.5">Settings</div>
         </button>
+
+        {isPrivilegedRole(userRole) ? (
+          <button type="button" onClick={() => requireAuthNavigate("/moderation")} className={`text-center text-xs py-2 transition ${isActive("/moderation") ? "nav-item-active" : "nav-item"}`}>
+            <div className="text-[20px] leading-none">🛡</div>
+            <div className="text-[11px] mt-0.5">Mod</div>
+          </button>
+        ) : null}
       </div>
     </nav>
   );

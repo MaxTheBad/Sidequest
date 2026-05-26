@@ -8,6 +8,7 @@ create table if not exists public.profiles (
   display_name text,
   city text,
   bio text,
+  role text not null default 'user' check (role in ('user','moderator','admin','super_admin')),
   skill_level text check (skill_level in ('beginner','returning','intermediate','advanced')) default 'beginner',
   availability text,
   radius_km int default 15,

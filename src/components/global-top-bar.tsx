@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { isPrivilegedRole } from "@/lib/admin.js";
 import { getSupabaseClient } from "@/lib/supabase";
 import { getPersistedNotificationLastSeen } from "@/lib/notification-state";
 import { getUnreadDeliveredNotificationCount } from "@/lib/notifications";
@@ -13,16 +14,19 @@ export default function GlobalTopBar() {
   const pathname = usePathname();
   const [userId, setUserId] = useState<string | null>(null);
   const [userLabel, setUserLabel] = useState("");
+  const [userRole, setUserRole] = useState("user");
   const [notificationCount, setNotificationCount] = useState(0);
 
   useEffect(() => {
     if (!supabase) return;
-    void supabase.auth.getSession().then(({ data }) => {
+    const syncSession = async () => {
+      const { data } = await supabase.auth.getSession();
       const u = data.session?.user;
       setUserId(u?.id ?? null);
       const name = (u?.user_metadata?.full_name as string | undefined) || (u?.user_metadata?.name as string | undefined) || "";
       setUserLabel((name || u?.email || "").toString());
-    });
+    };
+    void syncSession();
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
       const u = session?.user;
       setUserId(u?.id ?? null);
@@ -31,6 +35,22 @@ export default function GlobalTopBar() {
     });
     return () => sub.subscription.unsubscribe();
   }, [supabase]);
+
+  useEffect(() => {
+    if (!supabase || !userId) {
+      setUserRole("user");
+      return;
+    }
+    const loadRole = async () => {
+      const { data, error } = await supabase.from("profiles").select("role").eq("id", userId).maybeSingle();
+      if (error) {
+        setUserRole("user");
+        return;
+      }
+      setUserRole((data as { role?: string | null } | null)?.role || "user");
+    };
+    void loadRole();
+  }, [supabase, userId]);
 
   useEffect(() => {
     if (!supabase || !userId) return;
@@ -86,6 +106,11 @@ export default function GlobalTopBar() {
           <button type="button" onClick={() => router.push("/inbox")} className={`nav-item text-xs px-3 py-1 ${pathname === "/inbox" ? "nav-item-active" : ""}`}>Inbox</button>
           <button type="button" onClick={() => router.push("/joined")} className={`nav-item text-xs px-3 py-1 ${pathname === "/joined" ? "nav-item-active" : ""}`}>Joined</button>
           <button type="button" onClick={() => router.push("/settings")} className={`nav-item text-xs px-3 py-1 ${pathname === "/settings" ? "nav-item-active" : ""}`}>Settings</button>
+          {isPrivilegedRole(userRole) ? (
+            <button type="button" onClick={() => router.push("/moderation")} className={`nav-item text-xs px-3 py-1 ${pathname === "/moderation" ? "nav-item-active" : ""}`}>
+              Moderation
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={() => {
