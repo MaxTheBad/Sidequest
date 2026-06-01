@@ -64,6 +64,7 @@ export default function ListingPage() {
   const [comments, setComments] = useState<ListingComment[]>([]);
   const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
   const [expandedMediaIndex, setExpandedMediaIndex] = useState<number | null>(null);
+  const [generatedVideoThumbs, setGeneratedVideoThumbs] = useState<Record<string, string>>({});
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const [showReportModal, setShowReportModal] = useState(false);
   const [showBlockConfirm, setShowBlockConfirm] = useState(false);
@@ -111,6 +112,39 @@ export default function ListingPage() {
     }
     const rows = ((data || []) as ListingComment[]).filter((comment) => !blockedIds.includes(comment.sender_id));
     setComments(rows);
+  }
+
+  async function generateVideoThumbnail(video: HTMLVideoElement, key: string) {
+    if (generatedVideoThumbs[key]) return;
+    if (!video.videoWidth || !video.videoHeight) return;
+    try {
+      const targetTime = Number.isFinite(video.duration) && video.duration > 0 ? Math.min(0.1, Math.max(0, video.duration - 0.1)) : 0.1;
+      if (Math.abs(video.currentTime - targetTime) > 0.05) {
+        await new Promise<void>((resolve) => {
+          const onSeeked = () => {
+            video.removeEventListener("seeked", onSeeked);
+            resolve();
+          };
+          video.addEventListener("seeked", onSeeked, { once: true });
+          try {
+            video.currentTime = targetTime;
+          } catch {
+            video.removeEventListener("seeked", onSeeked);
+            resolve();
+          }
+        });
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.82);
+      setGeneratedVideoThumbs((prev) => (prev[key] ? prev : { ...prev, [key]: dataUrl }));
+    } catch {
+      // Ignore cross-origin canvas tainting or decode failures.
+    }
   }
 
   useEffect(() => {
@@ -479,12 +513,23 @@ export default function ListingPage() {
 
             {listing.media_video_url && (
               <div className="relative overflow-hidden rounded-xl border bg-black">
+                {generatedVideoThumbs[`listing-video-${listing.id}`] ? (
+                  <img
+                    src={generatedVideoThumbs[`listing-video-${listing.id}`]}
+                    alt="Video thumbnail"
+                    className="absolute inset-0 h-full w-full object-contain"
+                  />
+                ) : null}
                 <video
                   className="w-full max-h-80 object-contain bg-transparent opacity-0 transition-opacity duration-200"
                   src={listing.media_video_url}
+                  crossOrigin="anonymous"
                   controls
                   playsInline
                   preload="metadata"
+                  onLoadedMetadata={(e) => {
+                    void generateVideoThumbnail(e.currentTarget, `listing-video-${listing.id}`);
+                  }}
                   onLoadedData={(e) => {
                     e.currentTarget.classList.remove("opacity-0");
                     e.currentTarget.classList.add("opacity-100");
@@ -507,16 +552,20 @@ export default function ListingPage() {
                         <img src={m.url} alt={m.label || "Listing media"} className="w-full h-28 object-cover rounded" />
                       ) : (
                         <div className="relative w-full h-28 overflow-hidden rounded bg-black">
-                          {m.thumbnailUrl ? (
-                            <img src={m.thumbnailUrl} alt={m.label || "Video thumbnail"} className="absolute inset-0 h-full w-full object-cover" />
+                          {(m.thumbnailUrl || generatedVideoThumbs[m.url]) ? (
+                            <img src={m.thumbnailUrl || generatedVideoThumbs[m.url]} alt={m.label || "Video thumbnail"} className="absolute inset-0 h-full w-full object-cover" />
                           ) : null}
                           <video
                             src={m.url}
-                            poster={m.thumbnailUrl || undefined}
+                            crossOrigin="anonymous"
+                            poster={m.thumbnailUrl || generatedVideoThumbs[m.url] || undefined}
                             className="relative z-10 w-full h-full object-cover bg-transparent opacity-0 transition-opacity duration-200"
                             preload="metadata"
                             muted
                             playsInline
+                            onLoadedMetadata={(e) => {
+                              void generateVideoThumbnail(e.currentTarget, m.url);
+                            }}
                             onLoadedData={(e) => {
                               e.currentTarget.classList.remove("opacity-0");
                               e.currentTarget.classList.add("opacity-100");

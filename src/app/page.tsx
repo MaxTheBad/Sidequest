@@ -265,6 +265,7 @@ export default function Home() {
   const [joinedQuestIds, setJoinedQuestIds] = useState<string[]>([]);
   const [membershipStatusByQuest, setMembershipStatusByQuest] = useState<Record<string, "pending" | "approved" | "declined">>({});
   const [feedMediaIndexByQuest, setFeedMediaIndexByQuest] = useState<Record<string, number>>({});
+  const [generatedVideoThumbs, setGeneratedVideoThumbs] = useState<Record<string, string>>({});
   const [feedViewMode, setFeedViewMode] = useState<"list" | "map">("list");
   const [selectedMapQuestId, setSelectedMapQuestId] = useState<string | null>(null);
   const [openCardMenuQuestId, setOpenCardMenuQuestId] = useState<string | null>(null);
@@ -1562,6 +1563,39 @@ export default function Home() {
     }
   }
 
+  async function generateVideoThumbnail(video: HTMLVideoElement, key: string) {
+    if (generatedVideoThumbs[key]) return;
+    if (!video.videoWidth || !video.videoHeight) return;
+    try {
+      const targetTime = Number.isFinite(video.duration) && video.duration > 0 ? Math.min(0.1, Math.max(0, video.duration - 0.1)) : 0.1;
+      if (Math.abs(video.currentTime - targetTime) > 0.05) {
+        await new Promise<void>((resolve) => {
+          const onSeeked = () => {
+            video.removeEventListener("seeked", onSeeked);
+            resolve();
+          };
+          video.addEventListener("seeked", onSeeked, { once: true });
+          try {
+            video.currentTime = targetTime;
+          } catch {
+            video.removeEventListener("seeked", onSeeked);
+            resolve();
+          }
+        });
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.82);
+      setGeneratedVideoThumbs((prev) => (prev[key] ? prev : { ...prev, [key]: dataUrl }));
+    } catch {
+      // Ignore cross-origin canvas tainting or decode failures.
+    }
+  }
+
   async function openFeedVideoFullscreen(videoId: string) {
     const video = feedVideoRefs.current[videoId];
     if (!video) return;
@@ -2314,7 +2348,7 @@ export default function Home() {
               {loading ? <p>Loading...</p> : filteredQuests.map((q) => {
             const creatorProfile = getCreatorProfile(q);
             const feedMediaItems: QuestMediaItem[] = [
-              ...(q.media_video_url ? [{ url: q.media_video_url, type: "video" as const, label: q.media_source === "live" ? "Live video" : "Video" }] : []),
+              ...(q.media_video_url ? [{ url: q.media_video_url, type: "video" as const, label: q.media_source === "live" ? "Live video" : "Video", thumbnailUrl: undefined }] : []),
               ...((q.media_items || []).map((m) => ({ url: m.url, type: m.type, label: m.label || undefined, thumbnailUrl: m.thumbnailUrl || undefined }))),
             ];
             const feedIndex = feedMediaIndexByQuest[q.id] || 0;
@@ -2383,9 +2417,9 @@ export default function Home() {
                           </button>
                         ) : (
                           <>
-                            {m.thumbnailUrl ? (
+                            {(m.thumbnailUrl || generatedVideoThumbs[`${q.id}-${i}`]) ? (
                               <img
-                                src={m.thumbnailUrl}
+                                src={m.thumbnailUrl || generatedVideoThumbs[`${q.id}-${i}`]}
                                 alt={m.label || "Video thumbnail"}
                                 className={`absolute inset-0 h-full w-full ${feedViewMode === "list" ? "object-cover sm:object-contain object-center" : "object-cover object-center"}`}
                               />
@@ -2395,10 +2429,14 @@ export default function Home() {
                                 feedVideoRefs.current[`${q.id}-${i}`] = el;
                               }}
                               src={m.url}
-                              poster={m.thumbnailUrl || undefined}
+                              crossOrigin="anonymous"
+                              poster={m.thumbnailUrl || generatedVideoThumbs[`${q.id}-${i}`] || undefined}
                               className={`relative z-10 w-full h-full bg-transparent opacity-0 transition-opacity duration-200 ${feedViewMode === "list" ? "object-cover sm:object-contain object-center" : "object-cover object-center"}`}
                               preload="metadata"
                               playsInline
+                              onLoadedMetadata={(e) => {
+                                void generateVideoThumbnail(e.currentTarget, `${q.id}-${i}`);
+                              }}
                               onLoadedData={(e) => {
                                 e.currentTarget.classList.remove("opacity-0");
                                 e.currentTarget.classList.add("opacity-100");
