@@ -1149,6 +1149,52 @@ export default function Home() {
     return uploadQuestMediaThumbnail(thumbFile);
   }
 
+  async function createVideoThumbnailFromFile(file: File) {
+    const url = URL.createObjectURL(file);
+    try {
+      const video = document.createElement("video");
+      video.src = url;
+      video.muted = true;
+      video.playsInline = true;
+      video.preload = "auto";
+      video.crossOrigin = "anonymous";
+
+      await new Promise<void>((resolve, reject) => {
+        video.onloadedmetadata = () => resolve();
+        video.onerror = () => reject(new Error("Could not read video metadata."));
+      });
+
+      const targetTime = Number.isFinite(video.duration) && video.duration > 0 ? Math.min(0.2, Math.max(0, video.duration - 0.2)) : 0.2;
+      await new Promise<void>((resolve, reject) => {
+        const onSeeked = () => {
+          video.removeEventListener("seeked", onSeeked);
+          resolve();
+        };
+        video.addEventListener("seeked", onSeeked, { once: true });
+        try {
+          video.currentTime = targetTime;
+        } catch (err) {
+          video.removeEventListener("seeked", onSeeked);
+          reject(err);
+        }
+      });
+
+      const canvas = document.createElement("canvas");
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("Could not capture video frame.");
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.84));
+      if (!blob) throw new Error("Could not create thumbnail.");
+
+      return new File([blob], `thumb-${Date.now()}.jpg`, { type: "image/jpeg" });
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
+
   async function uploadQuestMediaFiles(items: Array<{ file: File; label: string; thumbnailUrl?: string | null }>) {
     if (!supabase || !userId) throw new Error("Not signed in.");
     const uploaded: QuestMediaItem[] = [];
@@ -1168,6 +1214,16 @@ export default function Home() {
       if (isImage && file.size > 8 * 1024 * 1024) throw new Error("Compressed images must be under 8MB.");
       if (isCompressedVideo && file.size > 60 * 1024 * 1024) throw new Error("Videos must be under 60MB.");
 
+      let thumbnailUrl = item.thumbnailUrl || null;
+      if (isCompressedVideo && !thumbnailUrl) {
+        try {
+          const thumbFile = await createVideoThumbnailFromFile(file);
+          thumbnailUrl = await uploadQuestMediaThumbnail(thumbFile);
+        } catch {
+          thumbnailUrl = null;
+        }
+      }
+
       const ext = (file.name.split(".").pop() || (isImage ? "jpg" : "mp4")).toLowerCase();
       const filePath = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
       const { error } = await supabase.storage
@@ -1180,7 +1236,7 @@ export default function Home() {
         url: data.publicUrl,
         type: isImage ? "image" : "video",
         label: item.label.trim() || null,
-        thumbnailUrl: item.thumbnailUrl || null,
+        thumbnailUrl,
       });
     }
 
