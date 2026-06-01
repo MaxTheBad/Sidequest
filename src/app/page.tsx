@@ -5,6 +5,7 @@ import { FormEvent, PointerEvent, UIEvent, useEffect, useMemo, useRef, useState 
 import CityAutocompleteInput from "@/components/city-autocomplete-input";
 import { getSupabaseClient } from "@/lib/supabase";
 import { CANONICAL_CATEGORIES, resolveCanonicalCategory, suggestCanonicalCategories } from "@/lib/category-suggestions.js";
+import { getCategoryFallbackMedia } from "@/lib/category-default-media";
 import { isImageLikeFile, prepareImageForUpload } from "@/lib/media-optimize";
 import { compressVideoForUpload } from "@/lib/video-optimize";
 import { collectQuestStorageUrls, removeStoragePublicUrls } from "@/lib/storage.js";
@@ -2042,17 +2043,7 @@ export default function Home() {
   }
 
   function getCategoryFallbackVisual(categoryRaw?: string | null) {
-    const category = (categoryRaw || "").toLowerCase();
-    if (category.includes("art") || category.includes("craft")) {
-      return { emoji: "🎨", title: "Arts & Crafts vibes", note: "Show your process or finished piece.", gradient: "linear-gradient(135deg,#ffe4e6,#f5d0fe)" };
-    }
-    if (category.includes("music") || category.includes("producer") || category.includes("beat")) {
-      return { emoji: "🎧", title: "Music session", note: "Drop a studio clip or beat preview.", gradient: "linear-gradient(135deg,#dbeafe,#e9d5ff)" };
-    }
-    if (category.includes("healthy") || category.includes("gym") || category.includes("cardio")) {
-      return { emoji: "💪", title: "Healthy Lifestyle", note: "Add a workout pic or plan screenshot.", gradient: "linear-gradient(135deg,#dcfce7,#ccfbf1)" };
-    }
-    return { emoji: "🖼️", title: "No media yet", note: "This quest has details below — ask for photos in comments/DM.", gradient: "linear-gradient(135deg,#ede9fe,#e0e7ff)" };
+    return getCategoryFallbackMedia(categoryRaw);
   }
 
   function buildQuestStorageUrls(quest: Pick<Quest, "media_video_url" | "media_items">) {
@@ -2534,12 +2525,16 @@ export default function Home() {
                   </div>
                 </div>
               ) : (
-                <div className={`relative border-y grid place-items-center overflow-hidden ${feedViewMode === "list" ? "aspect-[10/7] sm:aspect-[10/7] lg:aspect-[10/7]" : "h-[22vh] sm:h-[18vh] lg:h-[14vw] max-h-[220px]"}`} style={{ background: fallbackVisual.gradient, clipPath: feedViewMode === "list" ? "polygon(0 0, 100% 0, 100% 94%, 0 100%)" : undefined }}>
-                  <div className="absolute inset-0 opacity-50" style={{ background: "radial-gradient(circle at top, rgba(255,255,255,0.9), transparent 55%)" }} />
-                  <div className="relative text-center px-6 max-w-sm">
-                    <div className="mx-auto h-10 w-10 rounded-2xl border bg-white/90 shadow-sm grid place-items-center text-lg">{fallbackVisual.emoji}</div>
-                    <p className="mt-2 text-sm font-semibold text-slate-900">{fallbackVisual.title}</p>
-                    <p className="text-xs text-slate-500 leading-snug">{fallbackVisual.note}</p>
+                <div className={`relative border-y overflow-hidden ${feedViewMode === "list" ? "aspect-[10/7] sm:aspect-[10/7] lg:aspect-[10/7]" : "h-[22vh] sm:h-[18vh] lg:h-[14vw] max-h-[220px]"}`} style={{ background: fallbackVisual.gradient, clipPath: feedViewMode === "list" ? "polygon(0 0, 100% 0, 100% 94%, 0 100%)" : undefined }}>
+                  <img src={fallbackVisual.imageUrl} alt={fallbackVisual.title} className="absolute inset-0 h-full w-full object-cover" />
+                  <div className="absolute inset-0 bg-black/10" />
+                  <div className="absolute inset-0 opacity-60" style={{ background: "linear-gradient(180deg, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.45) 100%)" }} />
+                  <div className="relative z-10 flex h-full items-end p-5 sm:p-6">
+                    <div className="max-w-sm text-white">
+                      <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-white/15 backdrop-blur-sm text-lg">{fallbackVisual.emoji}</div>
+                      <p className="mt-2 text-sm font-semibold">{fallbackVisual.title}</p>
+                      <p className="text-xs text-white/80 leading-snug">{fallbackVisual.note}</p>
+                    </div>
                   </div>
                 </div>
               )}
