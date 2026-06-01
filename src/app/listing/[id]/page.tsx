@@ -478,8 +478,22 @@ export default function ListingPage() {
             </div>
 
             {listing.media_video_url && (
-              <div className="relative">
-                <video className="w-full max-h-80 rounded-xl border bg-black object-contain" src={listing.media_video_url} controls playsInline preload="metadata" />
+              <div className="relative overflow-hidden rounded-xl border bg-black">
+                <video
+                  className="w-full max-h-80 object-contain bg-transparent opacity-0 transition-opacity duration-200"
+                  src={listing.media_video_url}
+                  controls
+                  playsInline
+                  preload="metadata"
+                  onLoadedData={(e) => {
+                    e.currentTarget.classList.remove("opacity-0");
+                    e.currentTarget.classList.add("opacity-100");
+                  }}
+                  onCanPlay={(e) => {
+                    e.currentTarget.classList.remove("opacity-0");
+                    e.currentTarget.classList.add("opacity-100");
+                  }}
+                />
                 {listing.media_source === "live" && <span className="absolute top-2 left-2 text-xs bg-emerald-600 text-white px-2 py-1 rounded-full">Live video</span>}
               </div>
             )}
@@ -492,7 +506,27 @@ export default function ListingPage() {
                       {m.type === "image" ? (
                         <img src={m.url} alt={m.label || "Listing media"} className="w-full h-28 object-cover rounded" />
                       ) : (
-                        <video src={m.url} poster={m.thumbnailUrl || undefined} className="w-full h-28 object-cover rounded bg-black" preload="metadata" muted playsInline />
+                        <div className="relative w-full h-28 overflow-hidden rounded bg-black">
+                          {m.thumbnailUrl ? (
+                            <img src={m.thumbnailUrl} alt={m.label || "Video thumbnail"} className="absolute inset-0 h-full w-full object-cover" />
+                          ) : null}
+                          <video
+                            src={m.url}
+                            poster={m.thumbnailUrl || undefined}
+                            className="relative z-10 w-full h-full object-cover bg-transparent opacity-0 transition-opacity duration-200"
+                            preload="metadata"
+                            muted
+                            playsInline
+                            onLoadedData={(e) => {
+                              e.currentTarget.classList.remove("opacity-0");
+                              e.currentTarget.classList.add("opacity-100");
+                            }}
+                            onCanPlay={(e) => {
+                              e.currentTarget.classList.remove("opacity-0");
+                              e.currentTarget.classList.add("opacity-100");
+                            }}
+                          />
+                        </div>
                       )}
                         {m.label && <p className="text-xs mt-1 text-gray-600 truncate">{m.label}</p>}
                     </button>

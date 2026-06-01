@@ -2383,15 +2383,30 @@ export default function Home() {
                           </button>
                         ) : (
                           <>
+                            {m.thumbnailUrl ? (
+                              <img
+                                src={m.thumbnailUrl}
+                                alt={m.label || "Video thumbnail"}
+                                className={`absolute inset-0 h-full w-full ${feedViewMode === "list" ? "object-cover sm:object-contain object-center" : "object-cover object-center"}`}
+                              />
+                            ) : null}
                             <video
                               ref={(el) => {
                                 feedVideoRefs.current[`${q.id}-${i}`] = el;
                               }}
                               src={m.url}
                               poster={m.thumbnailUrl || undefined}
-                              className={`w-full h-full ${feedViewMode === "list" ? "object-cover sm:object-contain object-center" : "object-cover object-center"}`}
+                              className={`relative z-10 w-full h-full bg-transparent opacity-0 transition-opacity duration-200 ${feedViewMode === "list" ? "object-cover sm:object-contain object-center" : "object-cover object-center"}`}
                               preload="metadata"
                               playsInline
+                              onLoadedData={(e) => {
+                                e.currentTarget.classList.remove("opacity-0");
+                                e.currentTarget.classList.add("opacity-100");
+                              }}
+                              onCanPlay={(e) => {
+                                e.currentTarget.classList.remove("opacity-0");
+                                e.currentTarget.classList.add("opacity-100");
+                              }}
                               onClick={() => toggleFeedVideoPlayback(`${q.id}-${i}`)}
                             />
                             <button
