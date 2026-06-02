@@ -287,6 +287,7 @@ export default function Home() {
   const [categoryInput, setCategoryInput] = useState("");
   const [useCustomCategory, setUseCustomCategory] = useState(false);
   const [customCategory, setCustomCategory] = useState("");
+  const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
   const [countryCode, setCountryCode] = useState("US");
   const [countryQuery, setCountryQuery] = useState("United States");
   const [city, setCity] = useState("");
@@ -386,6 +387,10 @@ export default function Home() {
     () => pickTitleSuggestionByCategory(categoryInput || ""),
     [categoryInput]
   );
+  const categoryTitleSuggestions = useMemo(
+    () => getTitleSuggestionsByCategory(categoryInput || ""),
+    [categoryInput]
+  );
   const canonicalCategoryMatch = useMemo(
     () => resolveCanonicalCategory(categoryInput),
     [categoryInput]
@@ -441,6 +446,14 @@ export default function Home() {
       return pool[Math.floor(Math.random() * pool.length)];
     }
     return TITLE_SUGGESTIONS[Math.floor(Math.random() * TITLE_SUGGESTIONS.length)];
+  }
+
+  function getTitleSuggestionsByCategory(categoryName: string) {
+    const normalized = categoryName.trim().toLowerCase();
+    const direct = TITLE_SUGGESTIONS_BY_CATEGORY[normalized];
+    const matchedKey = Object.keys(TITLE_SUGGESTIONS_BY_CATEGORY).find((key) => normalized.includes(key));
+    const pool = direct || (matchedKey ? TITLE_SUGGESTIONS_BY_CATEGORY[matchedKey] : null) || TITLE_SUGGESTIONS;
+    return Array.from(new Set(pool)).slice(0, 3);
   }
 
   function flagFieldError(field: string, message: string) {
@@ -1258,6 +1271,7 @@ export default function Home() {
     setCategoryInput("");
     setUseCustomCategory(false);
     setCustomCategory("");
+    setCategoryDropdownOpen(false);
     setExactAddress("");
     setJoinMode("open");
     setExactLocationVisibility("approved_members");
@@ -3244,34 +3258,72 @@ export default function Home() {
 
       {showCreateModal && (
         <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="w-full max-w-xl rounded-2xl bg-white border p-4 space-y-3 max-h-[92vh] overflow-y-auto my-auto">
+          <div className="w-full max-w-xl rounded-2xl bg-white border p-4 space-y-3 max-h-[92vh] overflow-y-auto my-auto pb-24 md:pb-4">
             <div className="flex justify-between items-center"><h3 className="font-semibold">{editingQuestId ? "Edit Listing" : "Create Quest"}</h3><button disabled={savingQuest} onClick={() => { setShowCreateModal(false); resetQuestForm(); }} className="border rounded px-2 py-1 disabled:opacity-50">Close</button></div>
             <form ref={createQuestFormRef} onSubmit={createQuest} className="grid gap-3">
               {/* Core Fields */}
               <label className={`text-sm font-medium ${fieldErrors.category ? "text-red-600" : ""}`}>Category *</label>
-              <input
-                list="category-list"
-                className={`border rounded px-3 py-2 w-full ${fieldErrors.category ? "border-red-500 ring-1 ring-red-300" : ""}`}
-                value={categoryInput}
-                onChange={(e) => {
-                  const rawValue = e.target.value;
-                  const canonical = resolveCanonicalCategory(rawValue);
-                  const value = canonical || rawValue;
-                  setCategoryInput(value);
-                  clearFieldError("category");
-                  const matched = categoryOptions.find((o) => o.name.toLowerCase() === value.trim().toLowerCase());
-                  const nextHobbyId = matched?.id && !matched.id.startsWith("canonical:") ? matched.id : "";
-                  setHobbyId(nextHobbyId);
-                  if (!matched && value.trim()) {
-                    setUseCustomCategory(true);
-                    setCustomCategory(value.trim());
-                  } else {
-                    setUseCustomCategory(false);
-                    setCustomCategory("");
-                  }
-                }}
-                placeholder="Select from list or enter a custom category"
-              />
+              <div className="relative">
+                <button
+                  type="button"
+                  className={`border rounded px-3 py-2 w-full text-left bg-white flex items-center justify-between gap-3 ${fieldErrors.category ? "border-red-500 ring-1 ring-red-300" : ""}`}
+                  onClick={() => setCategoryDropdownOpen((open) => !open)}
+                >
+                  <span className={categoryInput.trim() ? "text-slate-900" : "text-slate-400"}>
+                    {categoryInput.trim() || "Select a category"}
+                  </span>
+                  <span aria-hidden="true">▾</span>
+                </button>
+                {categoryDropdownOpen ? (
+                  <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-72 overflow-auto rounded-xl border bg-white shadow-lg">
+                    <button
+                      type="button"
+                      className="block w-full px-3 py-2 text-left text-sm hover:bg-slate-100"
+                      onClick={() => {
+                        setUseCustomCategory(true);
+                        setCustomCategory("");
+                        setCategoryInput("");
+                        setHobbyId("");
+                        clearFieldError("category");
+                        setCategoryDropdownOpen(false);
+                      }}
+                    >
+                      Custom category...
+                    </button>
+                    {categoryOptions.map((option) => (
+                      <button
+                        key={option.id}
+                        type="button"
+                        className="block w-full px-3 py-2 text-left text-sm hover:bg-slate-100"
+                        onClick={() => {
+                          setCategoryInput(option.name);
+                          setUseCustomCategory(false);
+                          setCustomCategory("");
+                          setHobbyId(option.id.startsWith("canonical:") ? "" : option.id);
+                          clearFieldError("category");
+                          setCategoryDropdownOpen(false);
+                        }}
+                      >
+                        {option.name}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+              {useCustomCategory ? (
+                <input
+                  className={`border rounded px-3 py-2 w-full ${fieldErrors.category ? "border-red-500 ring-1 ring-red-300" : ""}`}
+                  value={customCategory}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setCustomCategory(value);
+                    setCategoryInput(value);
+                    clearFieldError("category");
+                    setHobbyId("");
+                  }}
+                  placeholder="Enter a custom category"
+                />
+              ) : null}
               <p className="text-xs text-gray-500">
                 {canonicalCategoryMatch && categoryInput.trim() && categoryInput.trim().toLowerCase() !== canonicalCategoryMatch.toLowerCase()
                   ? <>Mapped to: <span className="font-medium">{canonicalCategoryMatch}</span> · </>
@@ -3280,6 +3332,26 @@ export default function Home() {
                 <br />
                 Title suggestion: <span className="italic">{categoryTitleHint}</span>
               </p>
+              <div className="flex flex-wrap gap-2">
+                {categoryTitleSuggestions.map((suggestion, index) => (
+                  <button
+                    key={`${suggestion}-${index}`}
+                    type="button"
+                    className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition active:scale-[0.98] ${
+                      index === 0
+                        ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-800"
+                        : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
+                    }`}
+                    onClick={() => {
+                      setTitle(suggestion);
+                      clearFieldError("title");
+                    }}
+                  >
+                    <span className="text-sm leading-none">{index === 0 ? "✨" : "•"}</span>
+                    {suggestion}
+                  </button>
+                ))}
+              </div>
 
               <label className={`text-sm font-medium ${fieldErrors.title ? "text-red-600" : ""}`}>Title *</label>
               <input className={`border rounded px-3 py-2 ${fieldErrors.title ? "border-red-500 ring-1 ring-red-300" : ""}`} placeholder={titlePlaceholder} value={title} onChange={(e) => { setTitle(e.target.value); clearFieldError("title"); }} />
@@ -3528,9 +3600,9 @@ export default function Home() {
               )}
 
               {savingQuest && <div className="text-sm rounded border bg-blue-50 px-3 py-2">Working on it… uploading media and saving listing.</div>}
-              <div className="sticky bottom-0 -mx-4 px-4 py-3 bg-white/95 backdrop-blur border-t">
+              <div className="sticky bottom-24 md:bottom-0 -mx-4 px-4 py-3 bg-white/95 backdrop-blur border-t z-10">
                 <div className="flex gap-2 flex-wrap">
-                  <button className="bg-black text-white rounded px-3 py-2 disabled:opacity-50" disabled={savingQuest}>{savingQuest ? "Saving..." : (editingQuestId ? "Save changes" : "Post quest")}</button>
+                  <button type="submit" className="bg-black text-white rounded px-3 py-2 disabled:opacity-50" disabled={savingQuest}>{savingQuest ? "Saving..." : (editingQuestId ? "Save changes" : "Post quest")}</button>
                   {editingQuestId && (
                     <button type="button" className="border border-red-300 text-red-700 rounded px-3 py-2" onClick={() => void deleteQuest(editingQuestId)}>
                       Delete listing
@@ -3783,8 +3855,6 @@ export default function Home() {
       )}
 
       <datalist id="country-list">{countryOptions.map((c) => <option key={c.code} value={c.name} />)}</datalist>
-      <datalist id="category-list">{categoryOptions.map((c) => <option key={c.id} value={c.name} />)}</datalist>
-
       {status && (
         <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-[60] max-w-[92vw]">
           <div className="rounded-xl bg-black text-white px-4 py-3 text-sm shadow-lg border border-white/20 flex items-center gap-3">

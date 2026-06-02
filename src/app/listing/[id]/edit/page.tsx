@@ -64,10 +64,11 @@ export default function EditListingPage() {
   const [saving, setSaving] = useState(false);
 
   const [title, setTitle] = useState("");
-  const [titlePlaceholder, setTitlePlaceholder] = useState(TITLE_SUGGESTIONS[0]);
   const [hobbies, setHobbies] = useState<Hobby[]>([]);
   const [hobbyId, setHobbyId] = useState("");
   const [categoryInput, setCategoryInput] = useState("");
+  const [useCustomCategory, setUseCustomCategory] = useState(false);
+  const [customCategory, setCustomCategory] = useState("");
   const [description, setDescription] = useState("");
   const [city, setCity] = useState("");
   const [exactAddress, setExactAddress] = useState("");
@@ -90,11 +91,7 @@ export default function EditListingPage() {
     [categoryInput]
   );
   const canonicalCategorySuggestions = useMemo(() => suggestCanonicalCategories(categoryInput), [categoryInput]);
-
-  useEffect(() => {
-    if (!categoryInput.trim()) return;
-    setTitlePlaceholder(categoryTitleHint);
-  }, [categoryInput, categoryTitleHint]);
+  const titlePlaceholder = categoryInput.trim() ? categoryTitleHint : TITLE_SUGGESTIONS[0];
 
   useEffect(() => {
     if (!supabase || !listingId) return;
@@ -133,7 +130,6 @@ export default function EditListingPage() {
       setExactLocationVisibility((data.exact_location_visibility as "private" | "public" | "approved_members") || "private");
       setHobbyId(data.hobby_id || "");
       setCategoryInput(hobbyName || "");
-      if (hobbyName) setTitlePlaceholder(pickTitleSuggestionByCategory(hobbyName));
       setStatus("");
     };
     void run();
@@ -212,30 +208,59 @@ export default function EditListingPage() {
         {!status && (
           <form onSubmit={save} className="grid gap-2">
             <label className="text-sm">Category</label>
-            <input
-              list="category-list"
+            <select
               className="border rounded px-3 py-2"
-              value={categoryInput}
+              value={
+                categoryOptions.some((h) => h.name.toLowerCase() === categoryInput.trim().toLowerCase())
+                  ? categoryOptions.find((h) => h.name.toLowerCase() === categoryInput.trim().toLowerCase())?.id || "__custom__"
+                  : categoryInput.trim()
+                  ? "__custom__"
+                  : ""
+              }
               onChange={(e) => {
-                const rawValue = e.target.value;
-                const canonical = resolveCanonicalCategory(rawValue);
-                const value = canonical || rawValue;
-                setCategoryInput(value);
-                const matched = categoryOptions.find((h) => h.name.toLowerCase() === value.trim().toLowerCase());
-                const nextHobbyId = matched?.id && !matched.id.startsWith("canonical:") ? matched.id : "";
-                setHobbyId(nextHobbyId);
+                const value = e.target.value;
+                if (value === "__custom__") {
+                  setUseCustomCategory(true);
+                  setCustomCategory("");
+                  setCategoryInput("");
+                  setHobbyId("");
+                  return;
+                }
+                const matched = categoryOptions.find((h) => h.id === value);
+                if (!matched) return;
+                setCategoryInput(matched.name);
+                setUseCustomCategory(false);
+                setCustomCategory("");
+                setHobbyId(matched.id.startsWith("canonical:") ? "" : matched.id);
               }}
-              placeholder="Select from list or enter a custom category"
               required
-            />
+            >
+              <option value="">Select a category</option>
+              {categoryOptions.map((h) => (
+                <option key={h.id} value={h.id}>
+                  {h.name}
+                </option>
+              ))}
+              <option value="__custom__">Custom category...</option>
+            </select>
+            {useCustomCategory ? (
+              <input
+                className="border rounded px-3 py-2"
+                value={customCategory}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setCustomCategory(value);
+                  setCategoryInput(value);
+                  setHobbyId("");
+                }}
+                placeholder="Enter a custom category"
+              />
+            ) : null}
             <p className="text-xs text-gray-500">
               Category suggestions: <span className="italic">{canonicalCategorySuggestions.join(", ")}</span>
               <br />
               Title suggestion: <span className="italic">{categoryTitleHint}</span>
             </p>
-            <datalist id="category-list">
-              {categoryOptions.map((h) => <option key={h.id} value={h.name} />)}
-            </datalist>
 
             <label className="text-sm">Title</label>
             <input className="border rounded px-3 py-2" placeholder={titlePlaceholder} value={title} onChange={(e) => setTitle(e.target.value)} />
