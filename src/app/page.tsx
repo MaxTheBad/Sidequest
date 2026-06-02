@@ -45,9 +45,14 @@ type Quest = {
   media_video_url: string | null;
   media_source: "live" | "upload" | null;
   media_items?: QuestMediaItem[] | null;
-  hobbies?: { name: string | null }[] | null;
+  hobbies?: { name: string | null; category: string | null }[] | null;
   profiles?: { id: string; display_name: string | null; avatar_url: string | null }[] | { id: string; display_name: string | null; avatar_url: string | null } | null;
 };
+
+function getQuestCategoryLabel(q?: { hobbies?: { category: string | null }[] | null }) {
+  const category = q?.hobbies?.[0]?.category?.trim();
+  return category || "Category";
+}
 
 type AuthMode = "login" | "signup";
 type ProfilePhotoStep = "idle" | "ready" | "uploading";
@@ -627,7 +632,7 @@ export default function Home() {
       const blocked = Array.from(new Set(((blockRows || []) as Array<{ requester_id: string; addressee_id: string }>).flatMap((r) => [r.requester_id, r.addressee_id]).filter((id) => id !== uid)));
       setBlockedUserIds(blocked);
     }
-    let q = supabase.from("quests").select("id,creator_id,created_at,title,description,city,skill_level,group_size,availability,hobby_id,join_mode,exact_location_visibility,exact_address,media_video_url,media_source,media_items,hobbies(name),profiles:profiles!quests_creator_id_fkey(id,display_name,avatar_url)").order("created_at", { ascending: false }).limit(24);
+    let q = supabase.from("quests").select("id,creator_id,created_at,title,description,city,skill_level,group_size,availability,hobby_id,join_mode,exact_location_visibility,exact_address,media_video_url,media_source,media_items,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,avatar_url)").order("created_at", { ascending: false }).limit(24);
       const filterCategoryName = getFilterCategoryName(hobbyFilter);
       if (hobbyFilter !== "all") {
         if (filterCategoryName && hobbyFilter.startsWith("canonical:")) {
@@ -642,7 +647,7 @@ export default function Home() {
 
     // Backward compatibility if migration for media_items has not been applied yet
     if (error?.message?.includes("column quests.media_items does not exist")) {
-      let fallback = supabase.from("quests").select("id,creator_id,created_at,title,description,city,skill_level,group_size,availability,hobby_id,join_mode,exact_location_visibility,exact_address,media_video_url,media_source,hobbies(name),profiles:profiles!quests_creator_id_fkey(id,display_name,avatar_url)").order("created_at", { ascending: false }).limit(24);
+      let fallback = supabase.from("quests").select("id,creator_id,created_at,title,description,city,skill_level,group_size,availability,hobby_id,join_mode,exact_location_visibility,exact_address,media_video_url,media_source,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,avatar_url)").order("created_at", { ascending: false }).limit(24);
       if (hobbyFilter !== "all") {
         if (filterCategoryName && hobbyFilter.startsWith("canonical:")) {
           fallback = fallback.ilike("hobbies.name", filterCategoryName);
@@ -2626,11 +2631,11 @@ export default function Home() {
                             </p>
                             {distanceLabel ? <p className="text-xs font-medium text-white/80">{distanceLabel}</p> : null}
                             <div className="flex flex-wrap gap-2">
-                              <span className="text-[11px] font-semibold tracking-wide uppercase text-white">{q.hobbies?.[0]?.name || "Hobby"}</span>
+                              <span className="text-[11px] font-semibold tracking-wide uppercase text-white">{getQuestCategoryLabel(q)}</span>
                               <span className="text-[11px] font-semibold text-white/70">-</span>
                               <span className="text-[11px] font-semibold tracking-wide uppercase text-white">{q.skill_level || "all levels"}</span>
                               <span className="text-[11px] font-semibold text-white/70">-</span>
-                              <span className="text-[11px] font-semibold tracking-wide uppercase text-white">{q.hobbies?.[0]?.name || "Category"}</span>
+                              <span className="text-[11px] font-semibold tracking-wide uppercase text-white">{getQuestCategoryLabel(q)}</span>
                             </div>
                             {q.description ? <p className="text-sm text-white/85 leading-relaxed line-clamp-2">{q.description}</p> : null}
                           </div>
