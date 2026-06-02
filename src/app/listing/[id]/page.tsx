@@ -20,7 +20,7 @@ type Listing = {
   media_video_url: string | null;
   media_source: "live" | "upload" | null;
   media_items?: { url: string; type: "image" | "video"; label?: string | null; thumbnailUrl?: string | null }[] | null;
-  hobbies?: { name: string | null }[] | null;
+  hobbies?: { name: string | null; category: string | null }[] | null;
   profiles?: { id: string; display_name: string | null; avatar_url: string | null }[] | null;
 };
 
@@ -157,7 +157,7 @@ export default function ListingPage() {
 
       const withMedia = await supabase
         .from("quests")
-        .select("id,creator_id,title,description,city,join_mode,exact_location_visibility,exact_address,skill_level,group_size,availability,media_video_url,media_source,media_items,hobbies(name),profiles:profiles!quests_creator_id_fkey(id,display_name,avatar_url)")
+        .select("id,creator_id,title,description,city,join_mode,exact_location_visibility,exact_address,skill_level,group_size,availability,media_video_url,media_source,media_items,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,avatar_url)")
         .eq("id", listingId)
         .maybeSingle();
 
@@ -168,7 +168,7 @@ export default function ListingPage() {
       if (error?.message?.includes("column quests.media_items does not exist")) {
         const fallback = await supabase
           .from("quests")
-          .select("id,creator_id,title,description,city,join_mode,exact_location_visibility,exact_address,skill_level,group_size,availability,media_video_url,media_source,hobbies(name),profiles:profiles!quests_creator_id_fkey(id,display_name,avatar_url)")
+          .select("id,creator_id,title,description,city,join_mode,exact_location_visibility,exact_address,skill_level,group_size,availability,media_video_url,media_source,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,avatar_url)")
           .eq("id", listingId)
           .maybeSingle();
         data = fallback.data as Listing | null;
@@ -485,6 +485,12 @@ export default function ListingPage() {
     return Array.isArray(comment.profiles) ? (comment.profiles[0] || null) : comment.profiles;
   }
 
+  function listingCategoryLabel() {
+    const category = listing?.hobbies?.[0]?.category?.trim();
+    if (category) return category;
+    return "Category";
+  }
+
   const visibleMembers = members.filter((m) => !blockedUserIds.includes(m.user_id));
   const blockedMembers = members.filter((m) => blockedUserIds.includes(m.user_id));
 
@@ -584,7 +590,7 @@ export default function ListingPage() {
               </div>
             )}
 
-            <p className="text-sm text-gray-600">{listing.hobbies?.[0]?.name || "Hobby"} · {listing.skill_level} · group {listing.group_size}</p>
+            <p className="text-sm text-gray-600">{listing.skill_level} · {listingCategoryLabel()} · group {listing.group_size}</p>
             <p className="text-sm">{listing.description || "No description yet."}</p>
             <p className="text-xs text-gray-500">{listing.city || locationSummary(listing.exact_address) || "city tbd"} · {listing.availability || "availability tbd"}</p>
             {canViewExactAddress && listing.exact_address ? (
