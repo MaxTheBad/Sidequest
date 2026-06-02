@@ -22,6 +22,7 @@ const TITLE_SUGGESTIONS_BY_CATEGORY: Record<string, string[]> = {
   learn: ["Lock in for a focused study sprint", "Learn SQL with an accountability buddy", "Daily learning streak — no zero days"],
   career: ["Lock in on interview prep this weekend", "Resume glow-up + job hunt execution", "LinkedIn outreach sprint with accountability"],
   "healthy lifestyle": ["Lock in with a gym buddy", "Cardio accountability crew (3x/week)", "Healthy habits reset: sleep, food, movement"],
+  running: ["Morning run partners (3x/week)", "Easy pace run crew", "5K training accountability"],
   outdoors: ["Lock in for a sunrise hike", "Beginner-friendly trail day", "Weekend adventure squad"],
   social: ["Meet new people and actually follow through", "Communication skills practice circle", "Community hang + good vibes only"],
   money: ["Lock in and execute a money plan", "Budget reset sprint for this month", "Side hustle ideas to action"],

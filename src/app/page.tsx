@@ -83,6 +83,11 @@ const TITLE_SUGGESTIONS_BY_CATEGORY: Record<string, string[]> = {
     "Cardio accountability crew (3x/week)",
     "Healthy habits reset: sleep, food, movement",
   ],
+  running: [
+    "Morning run partners (3x/week)",
+    "Easy pace run crew",
+    "5K training accountability",
+  ],
   outdoors: [
     "Lock in for a sunrise hike",
     "Beginner-friendly trail day",
