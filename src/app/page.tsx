@@ -3265,7 +3265,7 @@ export default function Home() {
         <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center p-4 overflow-y-auto">
           <div className="w-full max-w-xl rounded-2xl bg-white border p-4 space-y-3 max-h-[92vh] overflow-y-auto my-auto pb-32 md:pb-4">
             <div className="flex justify-between items-center"><h3 className="font-semibold">{editingQuestId ? "Edit Listing" : "Create Quest"}</h3><button disabled={savingQuest} onClick={() => { setShowCreateModal(false); resetQuestForm(); }} className="border rounded px-2 py-1 disabled:opacity-50">Close</button></div>
-            <form ref={createQuestFormRef} onSubmit={createQuest} className="grid gap-3">
+            <form ref={createQuestFormRef} id="create-quest-form" onSubmit={createQuest} className="grid gap-3 pb-32 md:pb-4">
               {/* Core Fields */}
               <label className={`text-sm font-medium ${fieldErrors.category ? "text-red-600" : ""}`}>Category *</label>
               <div className="relative">
@@ -3605,21 +3605,21 @@ export default function Home() {
               )}
 
               {savingQuest && <div className="text-sm rounded border bg-blue-50 px-3 py-2">Working on it… uploading media and saving listing.</div>}
-              <div className="fixed bottom-0 left-0 right-0 z-[60] px-4 pb-[max(12px,env(safe-area-inset-bottom))] pt-3 md:pb-4">
-                <div className="mx-auto w-full max-w-xl rounded-t-2xl border border-slate-200 bg-white/95 px-4 py-3 shadow-[0_-10px_35px_rgba(15,23,42,0.14)] backdrop-blur-xl">
-                  <div className="flex gap-2 flex-wrap sm:flex-nowrap">
-                    <button type="submit" className="w-full sm:w-auto inline-flex items-center justify-center rounded-xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed" disabled={savingQuest}>
-                      {savingQuest ? "Saving..." : (editingQuestId ? "Save changes" : "Post quest")}
-                    </button>
-                    {editingQuestId && (
-                      <button type="button" className="w-full sm:w-auto rounded-xl border border-red-300 bg-white px-4 py-3 text-sm font-medium text-red-700 transition hover:bg-red-50 active:scale-[0.99]" onClick={() => void deleteQuest(editingQuestId)}>
-                        Delete listing
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
             </form>
+          </div>
+          <div className="fixed bottom-0 left-0 right-0 z-[60] px-4 pb-[max(12px,env(safe-area-inset-bottom))] pt-3 md:pb-4">
+            <div className="mx-auto w-full max-w-xl rounded-t-2xl border border-slate-200 bg-white/95 px-4 py-3 shadow-[0_-10px_35px_rgba(15,23,42,0.14)] backdrop-blur-xl">
+              <div className="flex gap-2 flex-wrap sm:flex-nowrap">
+                <button form="create-quest-form" type="submit" className="w-full sm:w-auto inline-flex items-center justify-center rounded-xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed" disabled={savingQuest}>
+                  {savingQuest ? "Saving..." : (editingQuestId ? "Save changes" : "Post quest")}
+                </button>
+                {editingQuestId && (
+                  <button type="button" className="w-full sm:w-auto rounded-xl border border-red-300 bg-white px-4 py-3 text-sm font-medium text-red-700 transition hover:bg-red-50 active:scale-[0.99]" onClick={() => void deleteQuest(editingQuestId)}>
+                    Delete listing
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       )}
