@@ -2070,6 +2070,10 @@ export default function Home() {
     return getCategoryFallbackMedia(categoryRaw);
   }
 
+  function getQuestCategoryRaw(q: Quest) {
+    return q.hobbies?.[0]?.category || q.hobbies?.[0]?.name || null;
+  }
+
   function buildQuestStorageUrls(quest: Pick<Quest, "media_video_url" | "media_items">) {
     return collectQuestStorageUrls(
       (quest.media_items || []).map((item) => ({
@@ -2423,7 +2427,7 @@ export default function Home() {
               ...((q.media_items || []).map((m) => ({ url: m.url, type: m.type, label: m.label || undefined, thumbnailUrl: m.thumbnailUrl || undefined }))),
             ];
             const feedIndex = feedMediaIndexByQuest[q.id] || 0;
-            const fallbackVisual = getCategoryFallbackVisual(q.hobbies?.[0]?.name);
+            const fallbackVisual = getCategoryFallbackVisual(getQuestCategoryRaw(q));
             const distanceLabel = distanceByQuestId[q.id];
 
             return (

@@ -87,11 +87,11 @@ export const CATEGORY_FALLBACK_MEDIA: Record<string, CategoryFallback> = {
     gradient: "linear-gradient(135deg,#f1f5f9,#e2e8f0)",
   },
   Wildcard: {
-    imageUrl: pexelsImage(36297809),
+    imageUrl: pexelsImage(31787444),
     emoji: "🖼️",
     title: "No media yet",
-    note: "A neutral abstract image keeps it from feeling empty.",
-    gradient: "linear-gradient(135deg,#ede9fe,#e0e7ff)",
+    note: "A neutral photo keeps it from feeling empty.",
+    gradient: "linear-gradient(135deg,#e2e8f0,#cbd5e1)",
   },
 };
 
