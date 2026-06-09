@@ -2071,7 +2071,19 @@ export default function Home() {
   }
 
   function getQuestCategoryRaw(q: Quest) {
-    return q.hobbies?.[0]?.category || q.hobbies?.[0]?.name || null;
+    const category = q.hobbies?.[0]?.category?.trim();
+    if (category && category.toLowerCase() !== "category") return category;
+    const name = q.hobbies?.[0]?.name?.trim();
+    if (name && name.toLowerCase() !== "hobby") return name;
+    return q.title || null;
+  }
+
+  function getQuestCategoryDisplay(q: Quest) {
+    const raw = q.hobbies?.[0]?.category?.trim() || q.hobbies?.[0]?.name?.trim() || q.title || "";
+    const canonical = resolveCanonicalCategory(raw);
+    if (canonical) return canonical;
+    if (raw && !/^category$/i.test(raw) && !/^hobby$/i.test(raw)) return raw;
+    return "Category";
   }
 
   function buildQuestStorageUrls(quest: Pick<Quest, "media_video_url" | "media_items">) {
@@ -2382,7 +2394,7 @@ export default function Home() {
                 <div className="space-y-3">
                   <div>
                     <p className="font-semibold leading-tight">{surprisePick.title}</p>
-                    <p className="text-sm text-gray-500">{surprisePick.hobbies?.[0]?.name || "Hobby"} · {surprisePick.city || "city tbd"}</p>
+                    <p className="text-sm text-gray-500">{getQuestCategoryDisplay(surprisePick)} · {surprisePick.city || "city tbd"}</p>
                   </div>
                   {userId !== surprisePick.creator_id && (
                     <button className="w-full border rounded-full px-3 py-2 bg-black text-white" onClick={() => void toggleJoinQuest(surprisePick.id)}>
@@ -2635,11 +2647,11 @@ export default function Home() {
                             </p>
                             {distanceLabel ? <p className="text-xs font-medium text-white/80">{distanceLabel}</p> : null}
                             <div className="flex flex-wrap gap-2">
-                              <span className="text-[11px] font-semibold tracking-wide uppercase text-white">{getQuestCategoryLabel(q)}</span>
+                              <span className="text-[11px] font-semibold tracking-wide uppercase text-white">{getQuestCategoryDisplay(q)}</span>
                               <span className="text-[11px] font-semibold text-white/70">-</span>
                               <span className="text-[11px] font-semibold tracking-wide uppercase text-white">{q.skill_level || "all levels"}</span>
                               <span className="text-[11px] font-semibold text-white/70">-</span>
-                              <span className="text-[11px] font-semibold tracking-wide uppercase text-white">{getQuestCategoryLabel(q)}</span>
+                              <span className="text-[11px] font-semibold tracking-wide uppercase text-white">{getQuestCategoryDisplay(q)}</span>
                             </div>
                             {q.description ? <p className="text-sm text-white/85 leading-relaxed line-clamp-2">{q.description}</p> : null}
                           </div>
@@ -2702,7 +2714,7 @@ export default function Home() {
                           View listing ↗
                         </Link>
                         <div className="flex flex-wrap gap-2">
-                          <span className="text-[11px] font-semibold tracking-wide uppercase text-slate-700">{q.hobbies?.[0]?.name || "Hobby"}</span>
+                          <span className="text-[11px] font-semibold tracking-wide uppercase text-slate-700">{getQuestCategoryDisplay(q)}</span>
                           <span className="text-[11px] font-semibold text-slate-700">-</span>
                           <span className="text-[11px] font-semibold tracking-wide uppercase text-slate-700">{q.skill_level || "all levels"}</span>
                           <span className="text-[11px] font-semibold text-slate-700">-</span>
@@ -2844,7 +2856,7 @@ export default function Home() {
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div>
-                            <h4 className={`font-semibold ${isActive ? "text-white" : "text-slate-900"}`}>{item.quest.hobbies?.[0]?.name || "Hobby"}</h4>
+                            <h4 className={`font-semibold ${isActive ? "text-white" : "text-slate-900"}`}>{getQuestCategoryDisplay(item.quest)}</h4>
                           </div>
                         </div>
                         <div className="mt-2 flex items-center justify-between gap-3">
@@ -2872,7 +2884,7 @@ export default function Home() {
                     <div className="rounded-2xl border bg-white p-4 shadow-sm">
                       <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Selected pin</p>
                       <h4 className="mt-1 font-semibold">{selectedMapQuest.title}</h4>
-                      <p className="text-sm text-slate-500">{selectedMapQuest.hobbies?.[0]?.name || "Hobby"} · {getQuestCityLabel(selectedMapQuest)}</p>
+                      <p className="text-sm text-slate-500">{getQuestCategoryDisplay(selectedMapQuest)} · {getQuestCityLabel(selectedMapQuest)}</p>
                       {distanceByQuestId[selectedMapQuest.id] ? <p className="mt-1 text-sm text-slate-500">{distanceByQuestId[selectedMapQuest.id]}</p> : null}
                       <Link href={`/listing/${selectedMapQuest.id}`} className="mt-3 inline-flex rounded-full border px-4 py-2 text-sm">
                         Open listing ↗
