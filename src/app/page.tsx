@@ -68,6 +68,16 @@ const TITLE_SUGGESTIONS = [
   "Morning run partners (3x/week)",
 ];
 const TITLE_SUGGESTIONS_BY_CATEGORY: Record<string, string[]> = {
+  sports: [
+    "Pick a sports buddy and get reps in",
+    "Weekend game plan: play, practice, repeat",
+    "Join a casual sports crew this week",
+  ],
+  "indoor games": [
+    "Table time with a regular crew",
+    "Casual game night with accountability",
+    "Find your next indoor game partner",
+  ],
   build: [
     "Lock in and ship your MVP in 14 days",
     "Build in public: validate your idea this week",
@@ -448,21 +458,23 @@ export default function Home() {
 
   function pickTitleSuggestionByCategory(categoryName: string) {
     const normalized = categoryName.trim().toLowerCase();
-    const direct = TITLE_SUGGESTIONS_BY_CATEGORY[normalized];
+    const canonical = resolveCanonicalCategory(categoryName)?.toLowerCase() || "";
+    const direct = TITLE_SUGGESTIONS_BY_CATEGORY[normalized] || (canonical ? TITLE_SUGGESTIONS_BY_CATEGORY[canonical] : null);
     if (direct?.length) return direct[Math.floor(Math.random() * direct.length)];
-    const matchedKey = Object.keys(TITLE_SUGGESTIONS_BY_CATEGORY).find((key) => normalized.includes(key));
+    const matchedKey = Object.keys(TITLE_SUGGESTIONS_BY_CATEGORY).find((key) => normalized.includes(key) || (canonical ? canonical.includes(key) : false));
     if (matchedKey) {
       const pool = TITLE_SUGGESTIONS_BY_CATEGORY[matchedKey];
       return pool[Math.floor(Math.random() * pool.length)];
     }
-    return TITLE_SUGGESTIONS[Math.floor(Math.random() * TITLE_SUGGESTIONS.length)];
+    return TITLE_SUGGESTIONS_BY_CATEGORY.wildcard[Math.floor(Math.random() * TITLE_SUGGESTIONS_BY_CATEGORY.wildcard.length)];
   }
 
   function getTitleSuggestionsByCategory(categoryName: string) {
     const normalized = categoryName.trim().toLowerCase();
-    const direct = TITLE_SUGGESTIONS_BY_CATEGORY[normalized];
-    const matchedKey = Object.keys(TITLE_SUGGESTIONS_BY_CATEGORY).find((key) => normalized.includes(key));
-    const pool = direct || (matchedKey ? TITLE_SUGGESTIONS_BY_CATEGORY[matchedKey] : null) || TITLE_SUGGESTIONS;
+    const canonical = resolveCanonicalCategory(categoryName)?.toLowerCase() || "";
+    const direct = TITLE_SUGGESTIONS_BY_CATEGORY[normalized] || (canonical ? TITLE_SUGGESTIONS_BY_CATEGORY[canonical] : null);
+    const matchedKey = Object.keys(TITLE_SUGGESTIONS_BY_CATEGORY).find((key) => normalized.includes(key) || (canonical ? canonical.includes(key) : false));
+    const pool = direct || (matchedKey ? TITLE_SUGGESTIONS_BY_CATEGORY[matchedKey] : null) || TITLE_SUGGESTIONS_BY_CATEGORY.wildcard;
     return Array.from(new Set(pool)).slice(0, 3);
   }
 
