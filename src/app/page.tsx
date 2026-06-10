@@ -3292,19 +3292,19 @@ export default function Home() {
               <div className="relative">
                 <button
                   type="button"
-                  className={`border rounded px-3 py-2 w-full text-left bg-white flex items-center justify-between gap-3 ${fieldErrors.category ? "border-red-500 ring-1 ring-red-300" : ""}`}
+                  className={`border rounded px-3 py-2 w-full text-left bg-white dark:bg-slate-900 flex items-center justify-between gap-3 ${fieldErrors.category ? "border-red-500 ring-1 ring-red-300" : ""}`}
                   onClick={() => setCategoryDropdownOpen((open) => !open)}
                 >
-                  <span className={categoryInput.trim() ? "text-slate-900" : "text-slate-400"}>
+                  <span className={categoryInput.trim() ? "text-slate-900 dark:text-white" : "text-slate-400 dark:text-slate-500"}>
                     {categoryInput.trim() || "Select a category"}
                   </span>
-                  <span aria-hidden="true">▾</span>
+                  <span aria-hidden="true" className="text-slate-500 dark:text-slate-300">▾</span>
                 </button>
                 {categoryDropdownOpen ? (
-                  <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-72 overflow-auto rounded-xl border bg-white shadow-lg">
+                  <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-72 overflow-auto rounded-xl border bg-white dark:bg-slate-900 shadow-lg">
                     <button
                       type="button"
-                      className="block w-full px-3 py-2 text-left text-sm hover:bg-slate-100"
+                      className="block w-full px-3 py-2 text-left text-sm text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800"
                       onClick={() => {
                         setUseCustomCategory(true);
                         setCustomCategory("");
@@ -3320,7 +3320,7 @@ export default function Home() {
                       <button
                         key={option.id}
                         type="button"
-                        className="block w-full px-3 py-2 text-left text-sm hover:bg-slate-100"
+                        className="block w-full px-3 py-2 text-left text-sm text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800"
                         onClick={() => {
                           setCategoryInput(option.name);
                           setUseCustomCategory(false);
@@ -3338,7 +3338,7 @@ export default function Home() {
               </div>
               {useCustomCategory ? (
                 <input
-                  className={`border rounded px-3 py-2 w-full ${fieldErrors.category ? "border-red-500 ring-1 ring-red-300" : ""}`}
+                  className={`border rounded px-3 py-2 w-full bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 ${fieldErrors.category ? "border-red-500 ring-1 ring-red-300" : ""}`}
                   value={customCategory}
                   onChange={(e) => {
                     const value = e.target.value;
