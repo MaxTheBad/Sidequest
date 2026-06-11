@@ -8,6 +8,7 @@ import { getSupabaseClient } from "@/lib/supabase";
 type Listing = {
   id: string;
   creator_id: string;
+  created_at?: string | null;
   join_mode?: "open" | "approval_required";
   exact_location_visibility?: "private" | "public" | "approved_members";
   exact_address?: string | null;
@@ -157,7 +158,7 @@ export default function ListingPage() {
 
       const withMedia = await supabase
         .from("quests")
-        .select("id,creator_id,title,description,city,join_mode,exact_location_visibility,exact_address,skill_level,group_size,availability,media_video_url,media_source,media_items,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,avatar_url)")
+        .select("id,creator_id,created_at,title,description,city,join_mode,exact_location_visibility,exact_address,skill_level,group_size,availability,media_video_url,media_source,media_items,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,avatar_url)")
         .eq("id", listingId)
         .maybeSingle();
 
@@ -168,7 +169,7 @@ export default function ListingPage() {
       if (error?.message?.includes("column quests.media_items does not exist")) {
         const fallback = await supabase
           .from("quests")
-          .select("id,creator_id,title,description,city,join_mode,exact_location_visibility,exact_address,skill_level,group_size,availability,media_video_url,media_source,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,avatar_url)")
+          .select("id,creator_id,created_at,title,description,city,join_mode,exact_location_visibility,exact_address,skill_level,group_size,availability,media_video_url,media_source,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,avatar_url)")
           .eq("id", listingId)
           .maybeSingle();
         data = fallback.data as Listing | null;
@@ -491,6 +492,28 @@ export default function ListingPage() {
     return "Category";
   }
 
+  function formatPostedLabel(createdAt?: string | null) {
+    if (!createdAt) return "Posted recently";
+    const created = new Date(createdAt);
+    if (Number.isNaN(created.getTime())) return "Posted recently";
+    const diffMs = Date.now() - created.getTime();
+    const diffHours = diffMs / (60 * 60 * 1000);
+    const diffDays = diffHours / 24;
+    if (diffHours < 24) {
+      const roundedMinutes = Math.max(1, Math.round(diffMs / (60 * 1000)));
+      if (roundedMinutes < 60) return `Posted ${roundedMinutes}m ago`;
+      return `Posted ${Math.max(1, Math.round(diffHours))} hrs ago`;
+    }
+    if (diffDays < 7) return `Posted ${created.toLocaleDateString(undefined, { weekday: "short" })}`;
+    return `Posted ${created.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`;
+  }
+
+  function getEventTimingLabel(availability?: string | null) {
+    const raw = (availability || "").trim();
+    if (!raw) return "Event time tbd";
+    return raw.replace(/^Start at:\s*/i, "Event: ");
+  }
+
   const visibleMembers = members.filter((m) => !blockedUserIds.includes(m.user_id));
   const blockedMembers = members.filter((m) => blockedUserIds.includes(m.user_id));
 
@@ -519,6 +542,14 @@ export default function ListingPage() {
 
             {listing.media_video_url && (
               <div className="relative overflow-hidden rounded-xl border bg-black">
+                {generatedVideoThumbs[`listing-video-${listing.id}`] ? null : (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black">
+                    <div className="flex flex-col items-center gap-2 text-white/80">
+                      <div className="h-12 w-12 rounded-full border border-white/30 bg-white/10 flex items-center justify-center text-xl">▶</div>
+                      <span className="text-xs">Loading video preview</span>
+                    </div>
+                  </div>
+                )}
                 {generatedVideoThumbs[`listing-video-${listing.id}`] ? (
                   <img
                     src={generatedVideoThumbs[`listing-video-${listing.id}`]}
@@ -530,6 +561,7 @@ export default function ListingPage() {
                   className="w-full max-h-80 object-contain bg-transparent opacity-0 transition-opacity duration-200"
                   src={listing.media_video_url}
                   crossOrigin="anonymous"
+                  poster={generatedVideoThumbs[`listing-video-${listing.id}`] || undefined}
                   controls
                   playsInline
                   preload="metadata"
@@ -592,7 +624,9 @@ export default function ListingPage() {
 
             <p className="text-sm text-gray-600">{listing.skill_level} · {listingCategoryLabel()} · group {listing.group_size}</p>
             <p className="text-sm">{listing.description || "No description yet."}</p>
-            <p className="text-xs text-gray-500">{listing.city || locationSummary(listing.exact_address) || "city tbd"} · {listing.availability || "availability tbd"}</p>
+            <p className="text-xs text-gray-500">{listing.city || locationSummary(listing.exact_address) || "city tbd"}</p>
+            <p className="text-xs text-gray-500">{getEventTimingLabel(listing.availability)}</p>
+            <p className="text-xs text-gray-500">{formatPostedLabel(listing.created_at)}</p>
             {canViewExactAddress && listing.exact_address ? (
               <p className="text-xs text-emerald-700">Exact address: {listing.exact_address}</p>
             ) : (

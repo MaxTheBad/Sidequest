@@ -1746,19 +1746,25 @@ export default function Home() {
   }
 
   function formatPostedLabel(createdAt?: string | null) {
-    if (!createdAt) return "";
+    if (!createdAt) return "Posted recently";
     const created = new Date(createdAt);
-    if (Number.isNaN(created.getTime())) return "";
+    if (Number.isNaN(created.getTime())) return "Posted recently";
     const diffMs = Date.now() - created.getTime();
     const diffHours = diffMs / (60 * 60 * 1000);
     const diffDays = diffHours / 24;
     if (diffHours < 24) {
       const roundedMinutes = Math.max(1, Math.round(diffMs / (60 * 1000)));
-      if (roundedMinutes < 60) return `${roundedMinutes}m ago`;
-      return `${Math.max(1, Math.round(diffHours))}hrs ago`;
+      if (roundedMinutes < 60) return `Posted ${roundedMinutes}m ago`;
+      return `Posted ${Math.max(1, Math.round(diffHours))} hrs ago`;
     }
-    if (diffDays < 7) return created.toLocaleDateString(undefined, { weekday: "short" });
-    return created.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+    if (diffDays < 7) return `Posted ${created.toLocaleDateString(undefined, { weekday: "short" })}`;
+    return `Posted ${created.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`;
+  }
+
+  function getEventTimingLabel(availability?: string | null) {
+    const raw = (availability || "").trim();
+    if (!raw) return "Event time tbd";
+    return raw.replace(/^Start at:\s*/i, "Event: ");
   }
 
   async function createQuest(e: FormEvent) {
@@ -2661,6 +2667,9 @@ export default function Home() {
                             <p className="text-xs font-medium text-white/80 leading-relaxed -mt-0.5">
                               {formatPostedLabel(q.created_at)}
                             </p>
+                            <p className="text-xs font-medium text-white/80 leading-relaxed">
+                              {getEventTimingLabel(q.availability)}
+                            </p>
                             {distanceLabel ? <p className="text-xs font-medium text-white/80">{distanceLabel}</p> : null}
                             <div className="flex flex-wrap gap-2">
                               <span className="text-[11px] font-semibold tracking-wide uppercase text-white">{getQuestCategoryDisplay(q)}</span>
@@ -2723,6 +2732,9 @@ export default function Home() {
                     </div>
                     <p className="text-xs font-medium text-slate-500 leading-relaxed">
                       {formatPostedLabel(q.created_at)}
+                    </p>
+                    <p className="text-xs font-medium text-slate-500 leading-relaxed">
+                      {getEventTimingLabel(q.availability)}
                     </p>
                     {expandedQuestIds[q.id] ? (
                       <>
