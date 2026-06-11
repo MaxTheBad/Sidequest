@@ -2282,7 +2282,6 @@ export default function Home() {
     });
   }, [quests, showSavedOnly, bookmarkedQuestIds, blockedUserIds, searchQuery, sortMode]);
 
-  const surprisePick = useMemo(() => (filteredQuests.length ? filteredQuests[Math.floor(Math.random() * filteredQuests.length)] : null), [filteredQuests]);
   const editingQuest = useMemo(() => quests.find((q) => q.id === editingQuestId) || null, [quests, editingQuestId]);
   const mapQuestItems = useMemo(() => {
     const items = filteredQuests
@@ -2423,30 +2422,6 @@ export default function Home() {
               </div>
             </section>
 
-            <section className="rounded-3xl bg-gradient-to-br from-white to-slate-50 border shadow-sm p-5 space-y-3 surprise-card">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Surprise me</p>
-                  <p className="text-sm text-gray-500">A quick pick when you do not want to scroll.</p>
-                </div>
-                <div className="h-10 w-10 rounded-full bg-black text-white grid place-items-center">?</div>
-              </div>
-              {surprisePick ? (
-                <div className="space-y-3">
-                  <div>
-                    <p className="font-semibold leading-tight">{surprisePick.title}</p>
-                    <p className="text-sm text-gray-500">{getQuestCategoryDisplay(surprisePick)} · {surprisePick.city || "city tbd"}</p>
-                  </div>
-                  {userId !== surprisePick.creator_id && (
-                    <button className="w-full border rounded-full px-3 py-2 bg-black text-white" onClick={() => void toggleJoinQuest(surprisePick.id)}>
-                      {membershipStatusByQuest[surprisePick.id] === "pending" ? "Cancel request" : (membershipStatusByQuest[surprisePick.id] === "declined" ? "Request again" : (joinedQuestIds.includes(surprisePick.id) ? "Leave" : ((surprisePick.join_mode || "open") === "approval_required" ? "Request to join" : "Join")))}
-                    </button>
-                  )}
-                </div>
-              ) : (
-                <p className="text-sm text-gray-500">No quests yet.</p>
-              )}
-            </section>
           </aside>
 
           <section className="space-y-4">
