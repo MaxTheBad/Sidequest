@@ -220,11 +220,11 @@ export default function Home() {
   const [cityMapTitle, setCityMapTitle] = useState("");
   const [cityMapUrl, setCityMapUrl] = useState("");
   const [cityMapLoading, setCityMapLoading] = useState(false);
-  const [mapViewUrl, setMapViewUrl] = useState("");
-  const [mapViewLoading, setMapViewLoading] = useState(false);
   const [mapViewTitle, setMapViewTitle] = useState("");
   const [userLocation, setUserLocation] = useState<{ lat: number; lon: number } | null>(null);
   const [userLocationStatus, setUserLocationStatus] = useState<"idle" | "loading" | "ready" | "denied" | "error">("idle");
+  const [showLocationPrompt, setShowLocationPrompt] = useState(false);
+  const [locationPromptSeen, setLocationPromptSeen] = useState(false);
   const [expandedMedia, setExpandedMedia] = useState<{ items: QuestMediaItem[]; index: number } | null>(null);
   const expandedMediaStripRef = useRef<HTMLDivElement | null>(null);
   const feedVideoRefs = useRef<Record<string, HTMLVideoElement | null>>({});
@@ -349,6 +349,7 @@ export default function Home() {
   const [snoozePublicLocationWarning, setSnoozePublicLocationWarning] = useState(false);
   const publicVisibilityBypassRef = useRef(false);
   const publicWarningMutedUntilRef = useRef<number>(0);
+  const locationPromptMutedUntilRef = useRef<number>(0);
   const locationVisibilityRef = useRef<HTMLDivElement | null>(null);
   const createQuestFormRef = useRef<HTMLFormElement | null>(null);
 
@@ -438,6 +439,24 @@ export default function Home() {
     const t = setTimeout(() => setHighlightLocationVisibility(false), 2200);
     return () => clearTimeout(t);
   }, [highlightLocationVisibility]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || locationPromptSeen) return;
+    const accepted = window.localStorage.getItem("sidequest_location_prompt_accepted") === "1";
+    const mutedRaw = window.localStorage.getItem("sidequest_location_prompt_muted_until");
+    const mutedUntil = mutedRaw ? Number(mutedRaw) : 0;
+    if (Number.isFinite(mutedUntil) && mutedUntil > Date.now()) {
+      locationPromptMutedUntilRef.current = mutedUntil;
+      setLocationPromptSeen(true);
+      return;
+    }
+    if (accepted) {
+      setLocationPromptSeen(true);
+      return;
+    }
+    const t = window.setTimeout(() => setShowLocationPrompt(true), 350);
+    return () => window.clearTimeout(t);
+  }, [locationPromptSeen]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -1646,6 +1665,26 @@ export default function Home() {
     );
   }
 
+  function acceptLocationPrompt() {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("sidequest_location_prompt_accepted", "1");
+      window.localStorage.removeItem("sidequest_location_prompt_muted_until");
+    }
+    setLocationPromptSeen(true);
+    setShowLocationPrompt(false);
+    void requestUserLocation();
+  }
+
+  function declineLocationPrompt() {
+    if (typeof window !== "undefined") {
+      const mutedUntil = Date.now() + 7 * 24 * 60 * 60 * 1000;
+      window.localStorage.setItem("sidequest_location_prompt_muted_until", String(mutedUntil));
+      locationPromptMutedUntilRef.current = mutedUntil;
+    }
+    setLocationPromptSeen(true);
+    setShowLocationPrompt(false);
+  }
+
   function toggleFeedVideoPlayback(videoId: string) {
     const video = feedVideoRefs.current[videoId];
     if (!video) return;
@@ -2278,13 +2317,19 @@ export default function Home() {
       lonMax: lonMax + padLon,
     };
   }, [mapQuestItems, userLocation]);
+  const mapViewEmbedUrl = useMemo(() => {
+    if (!mapBounds) return "";
+    const centerLat = (mapBounds.latMin + mapBounds.latMax) / 2;
+    const centerLon = (mapBounds.lonMin + mapBounds.lonMax) / 2;
+    const bbox = `${mapBounds.lonMin}%2C${mapBounds.latMin}%2C${mapBounds.lonMax}%2C${mapBounds.latMax}`;
+    return `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${centerLat}%2C${centerLon}`;
+  }, [mapBounds]);
 
   useEffect(() => {
     if (feedViewMode !== "map") return;
     const quest = selectedMapQuest;
     if (!quest) {
       setMapViewTitle("");
-      setMapViewLoading(false);
       return;
     }
     setMapViewTitle(formatQuestMeta(quest));
@@ -2327,28 +2372,6 @@ export default function Home() {
         <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)] xl:items-start">
           <aside className="space-y-4 xl:sticky xl:top-[76px]">
             <section className="rounded-3xl bg-white border shadow-sm p-5 space-y-4">
-              <div className="rounded-2xl border bg-slate-50 p-4 space-y-3">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Location</p>
-                  <p className="text-sm font-medium text-slate-900">Show distance from your location</p>
-                  <p className="text-xs text-slate-500">We use your browser location to show how far each event is from you.</p>
-                </div>
-                {userLocationStatus === "ready" ? (
-                  <p className="text-xs font-medium text-emerald-700">Location on. Distances are visible in list and map view.</p>
-                ) : userLocationStatus === "denied" ? (
-                  <p className="text-xs font-medium text-amber-700">Location blocked. You can enable it in your browser to see distances.</p>
-                ) : userLocationStatus === "error" ? (
-                  <p className="text-xs font-medium text-red-700">Could not read your location.</p>
-                ) : null}
-                <button
-                  type="button"
-                  className="w-full rounded-full border bg-black px-4 py-2 text-sm font-medium text-white"
-                  onClick={() => void requestUserLocation()}
-                  disabled={userLocationStatus === "loading"}
-                >
-                  {userLocationStatus === "loading" ? "Requesting location…" : (userLocationStatus === "ready" ? "Update location" : "Allow location")}
-                </button>
-              </div>
               <div className="space-y-1">
                 <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Discover</p>
                 <h2 className="text-xl font-semibold">Explore quests</h2>
@@ -2813,41 +2836,101 @@ export default function Home() {
                       <div className="rounded-full border px-3 py-1.5 text-xs text-slate-500">10 closest</div>
                     </div>
                     <div className="p-4">
-                      <div className="relative h-[60vh] overflow-hidden rounded-3xl border bg-gradient-to-br from-slate-100 via-slate-200 to-slate-100">
-                        <div className="absolute inset-0 opacity-70 pointer-events-none" style={{ backgroundImage: "radial-gradient(circle at 20% 20%, rgba(255,255,255,0.9), transparent 22%), radial-gradient(circle at 80% 30%, rgba(255,255,255,0.55), transparent 24%), linear-gradient(135deg, rgba(15,23,42,0.08), rgba(15,23,42,0.03))" }} />
+                      <div className="relative h-[60vh] rounded-3xl border bg-slate-100">
                         {mapBounds ? (
                           <>
-                            {userLocation ? (
+                            <div
+                              className="absolute inset-0 overflow-hidden rounded-3xl"
+                              onClick={() => setSelectedMapQuestId(null)}
+                            >
+                              <iframe
+                                title="Map view"
+                                src={mapViewEmbedUrl}
+                                className="absolute inset-0 h-full w-full pointer-events-none"
+                                loading="lazy"
+                              />
                               <div
-                                className="absolute -translate-x-1/2 -translate-y-1/2"
-                                style={{
-                                  left: `${((userLocation.lon - mapBounds.lonMin) / Math.max(0.0001, mapBounds.lonMax - mapBounds.lonMin)) * 100}%`,
-                                  top: `${(1 - ((userLocation.lat - mapBounds.latMin) / Math.max(0.0001, mapBounds.latMax - mapBounds.latMin))) * 100}%`,
-                                }}
-                              >
-                                <div className="flex flex-col items-center gap-1">
+                                className="absolute inset-0 pointer-events-none"
+                                style={{ backgroundImage: "linear-gradient(135deg, rgba(15,23,42,0.08), rgba(15,23,42,0.02))" }}
+                              />
+                              {userLocation ? (
+                                <div
+                                  className="absolute z-20 -translate-x-1/2 -translate-y-1/2"
+                                  style={{
+                                    left: `${((userLocation.lon - mapBounds.lonMin) / Math.max(0.0001, mapBounds.lonMax - mapBounds.lonMin)) * 100}%`,
+                                    top: `${(1 - ((userLocation.lat - mapBounds.latMin) / Math.max(0.0001, mapBounds.latMax - mapBounds.latMin))) * 100}%`,
+                                  }}
+                                >
                                   <span className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-black bg-black text-[11px] font-semibold text-white shadow-lg">You</span>
                                 </div>
-                              </div>
-                            ) : null}
-                            {mapQuestItems.map((item) => {
-                              const coords = item.coords!;
+                              ) : null}
+                              {mapQuestItems.map((item) => {
+                                const coords = item.coords!;
+                                const left = ((coords.lon - mapBounds.lonMin) / Math.max(0.0001, mapBounds.lonMax - mapBounds.lonMin)) * 100;
+                                const top = (1 - ((coords.lat - mapBounds.latMin) / Math.max(0.0001, mapBounds.latMax - mapBounds.latMin))) * 100;
+                                const isActive = selectedMapQuest?.id === item.quest.id;
+                                return (
+                                  <button
+                                    key={item.quest.id}
+                                    type="button"
+                                    title={`${item.quest.title} · ${item.distance}`}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedMapQuestId(item.quest.id);
+                                    }}
+                                    className="absolute z-20 -translate-x-1/2 -translate-y-1/2"
+                                    style={{ left: `${left}%`, top: `${top}%` }}
+                                  >
+                                    <span className={`flex h-9 w-9 items-center justify-center rounded-full border-2 ${isActive ? "border-black bg-black text-white" : "border-white bg-sky-500 text-white"} shadow-lg`}>📍</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            {selectedMapQuest ? (() => {
+                              const selectedItem = mapQuestItems.find((item) => item.quest.id === selectedMapQuest.id);
+                              if (!selectedItem) return null;
+                              const coords = selectedItem.coords!;
                               const left = ((coords.lon - mapBounds.lonMin) / Math.max(0.0001, mapBounds.lonMax - mapBounds.lonMin)) * 100;
                               const top = (1 - ((coords.lat - mapBounds.latMin) / Math.max(0.0001, mapBounds.latMax - mapBounds.latMin))) * 100;
-                              const isActive = selectedMapQuest?.id === item.quest.id;
+                              const placeBelow = top < 28;
                               return (
-                                <button
-                                  key={item.quest.id}
-                                  type="button"
-                                  title={`${item.quest.title} · ${item.distance}`}
-                                  onClick={() => setSelectedMapQuestId(item.quest.id)}
-                                  className="absolute -translate-x-1/2 -translate-y-1/2"
-                                  style={{ left: `${left}%`, top: `${top}%` }}
+                                <div
+                                  className={`absolute z-40 max-w-[min(260px,78vw)] -translate-x-1/2 ${placeBelow ? "translate-y-2" : "-translate-y-full"}`}
+                                  style={{ left: `${Math.min(92, Math.max(8, left))}%`, top: `${placeBelow ? Math.min(86, top + 8) : Math.min(92, Math.max(12, top - 4))}%` }}
+                                  onClick={(e) => e.stopPropagation()}
                                 >
-                                  <span className={`flex h-9 w-9 items-center justify-center rounded-full border-2 ${isActive ? "border-black bg-black text-white" : "border-white bg-sky-500 text-white"} shadow-lg`}>📍</span>
-                                </button>
+                                  <div className="rounded-2xl border border-slate-700 bg-[#2a1209] p-3 text-white shadow-2xl">
+                                    <div className="flex items-start justify-between gap-3">
+                                      <div className="min-w-0">
+                                        <p className="text-[10px] uppercase tracking-[0.2em] text-amber-200/80">Selected pin</p>
+                                        <h4 className="mt-1 text-sm font-semibold leading-tight">{selectedMapQuest.title}</h4>
+                                      </div>
+                                      <button
+                                        type="button"
+                                        aria-label="Dismiss popup"
+                                        className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/15 bg-black/20 text-base leading-none text-white"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setSelectedMapQuestId(null);
+                                        }}
+                                      >
+                                        ×
+                                      </button>
+                                    </div>
+                                    <p className="mt-1 text-xs text-white/75">{getQuestCityLabel(selectedMapQuest)}{selectedItem.distance ? ` · ${selectedItem.distance}` : ""}</p>
+                                    <div className="mt-3 flex items-center gap-2">
+                                      <Link
+                                        href={`/listing/${selectedMapQuest.id}`}
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="inline-flex rounded-full bg-[#6a3417] px-3 py-2 text-xs font-medium text-white shadow-sm ring-1 ring-white/10"
+                                      >
+                                        Open listing
+                                      </Link>
+                                    </div>
+                                  </div>
+                                </div>
                               );
-                            })}
+                            })() : null}
                           </>
                         ) : (
                           <div className="grid place-items-center h-full text-slate-600">Allow location to load nearby pins.</div>
@@ -3892,6 +3975,43 @@ export default function Home() {
             )}
             <textarea className="border rounded px-3 py-2 w-full" placeholder={questionMode === "public" ? "Write your comment..." : "Write your direct message..."} value={questionText} onChange={(e) => setQuestionText(e.target.value)} />
             <button className="bg-black text-white rounded px-3 py-2 disabled:opacity-50" disabled={sendingQuestion || !questionText.trim()} onClick={() => void sendQuestionFromModal()}>{sendingQuestion ? "Sending..." : "Send"}</button>
+          </div>
+        </div>
+      )}
+
+      {showLocationPrompt && (
+        <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-md rounded-3xl bg-white border shadow-2xl p-5 space-y-4">
+            <div>
+              <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Location</p>
+              <h3 className="mt-1 text-lg font-semibold text-slate-900">Show distance from your location</h3>
+              <p className="mt-2 text-sm text-slate-600">We use your browser location to show how far each listing is from you.</p>
+            </div>
+            {userLocationStatus === "ready" ? (
+              <p className="text-xs font-medium text-emerald-700">Location is on. Distances are visible in list and map view.</p>
+            ) : userLocationStatus === "denied" ? (
+              <p className="text-xs font-medium text-amber-700">Location was blocked. You can enable it later in your browser settings.</p>
+            ) : userLocationStatus === "error" ? (
+              <p className="text-xs font-medium text-red-700">Could not read your location.</p>
+            ) : null}
+            <div className="flex gap-3">
+              <button
+                type="button"
+                className="flex-1 rounded-full bg-black px-4 py-3 text-sm font-medium text-white"
+                onClick={acceptLocationPrompt}
+                disabled={userLocationStatus === "loading"}
+              >
+                {userLocationStatus === "loading" ? "Requesting…" : "Yes"}
+              </button>
+              <button
+                type="button"
+                className="flex-1 rounded-full border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700"
+                onClick={declineLocationPrompt}
+              >
+                No
+              </button>
+            </div>
+            <p className="text-xs text-slate-500">If you choose No, we’ll ask again later.</p>
           </div>
         </div>
       )}
