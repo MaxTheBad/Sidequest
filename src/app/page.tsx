@@ -1587,6 +1587,12 @@ export default function Home() {
     return [city, state].filter(Boolean).join(", ");
   }
 
+  function getQuestMapQuery(quest: Quest) {
+    const exactAddress = quest.exact_address?.trim();
+    if (exactAddress && quest.exact_location_visibility === "public") return exactAddress;
+    return getQuestCityQuery(quest);
+  }
+
   function getQuestCityLabel(quest: Quest) {
     const rawLocation = quest.city || deriveCityFromLocation(quest.exact_address || "") || "";
     const parts = rawLocation.split(",").map((p) => p.trim()).filter(Boolean);
@@ -2338,13 +2344,13 @@ export default function Home() {
   useEffect(() => {
     let cancelled = false;
     if (!filteredQuests.length) {
-      setDistanceByQuestId({});
-      setCoordsByQuestId({});
-      return;
+    setDistanceByQuestId({});
+    setCoordsByQuestId({});
+    return;
     }
     void (async () => {
       const entries = await Promise.all(filteredQuests.map(async (quest) => {
-        const coords = await fetchQuestCityCoordinates(getQuestCityQuery(quest));
+        const coords = await fetchQuestCityCoordinates(getQuestMapQuery(quest));
         return [quest.id, coords] as const;
       }));
       if (cancelled) return;
@@ -2853,6 +2859,34 @@ export default function Home() {
                                 className="absolute inset-0 pointer-events-none"
                                 style={{ backgroundImage: "linear-gradient(135deg, rgba(15,23,42,0.08), rgba(15,23,42,0.02))" }}
                               />
+                              <button
+                                type="button"
+                                className="absolute bottom-3 left-3 z-30 inline-flex items-center gap-2 rounded-full border border-slate-700 bg-[#2a1209] px-3 py-2 text-xs font-medium text-white shadow-xl"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (userLocationStatus === "ready" && userLocation) {
+                                    setSelectedMapQuestId(null);
+                                    return;
+                                  }
+                                  void requestUserLocation();
+                                }}
+                              >
+                                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-white/10">
+                                  <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                    <path d="M12 21s6-4.35 6-10a6 6 0 1 0-12 0c0 5.65 6 10 6 10Z" />
+                                    <circle cx="12" cy="11" r="2.5" />
+                                  </svg>
+                                </span>
+                                <span>
+                                  {userLocationStatus === "loading"
+                                    ? "Locating..."
+                                    : userLocationStatus === "ready"
+                                      ? "My location"
+                                      : userLocationStatus === "denied"
+                                        ? "Enable location"
+                                        : "Locate me"}
+                                </span>
+                              </button>
                               {userLocation ? (
                                 <div
                                   className="absolute z-20 -translate-x-1/2 -translate-y-1/2"
