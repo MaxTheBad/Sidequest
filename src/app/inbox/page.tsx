@@ -535,7 +535,14 @@ export default function InboxPage() {
                 </Link>
                 <div className="mt-1 flex items-center gap-2">
                   {t.mediaVideoUrl ? (
-                    <video src={t.mediaVideoUrl} className="h-12 w-16 rounded object-cover bg-black shrink-0" muted playsInline preload="metadata" />
+                    <video
+                      src={t.mediaVideoUrl}
+                      poster={t.mediaFallbackUrl || undefined}
+                      className="h-12 w-16 rounded object-cover bg-black shrink-0"
+                      muted
+                      playsInline
+                      preload="metadata"
+                    />
                   ) : t.mediaFallbackUrl ? (
                     <img src={t.mediaFallbackUrl} className="h-12 w-16 rounded object-cover shrink-0" alt="Listing preview" />
                   ) : null}

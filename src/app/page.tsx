@@ -2996,17 +2996,6 @@ export default function Home() {
                       </button>
                     );
                   }) : <p className="text-sm text-gray-500">No nearby quests yet.</p>}
-                  {selectedMapQuest ? (
-                    <div className="rounded-2xl border bg-white p-4 shadow-sm">
-                      <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Selected pin</p>
-                      <h4 className="mt-1 font-semibold">{selectedMapQuest.title}</h4>
-                      <p className="text-sm text-slate-500">{getQuestCategoryDisplay(selectedMapQuest)} · {getQuestCityLabel(selectedMapQuest)}</p>
-                      {distanceByQuestId[selectedMapQuest.id] ? <p className="mt-1 text-sm text-slate-500">{distanceByQuestId[selectedMapQuest.id]}</p> : null}
-                      <Link href={`/listing/${selectedMapQuest.id}`} className="mt-3 inline-flex rounded-full border px-4 py-2 text-sm">
-                        Open listing ↗
-                      </Link>
-                    </div>
-                  ) : null}
                 </div>
               </div>
             )}
