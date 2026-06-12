@@ -2306,8 +2306,8 @@ export default function Home() {
     return items;
   }, [coordsByQuestId, distanceByQuestId, filteredQuests]);
   const selectedMapQuest = useMemo(() => {
-    if (!mapQuestItems.length) return null;
-    return mapQuestItems.find((item) => item.quest.id === selectedMapQuestId)?.quest || mapQuestItems[0].quest;
+    if (!selectedMapQuestId) return null;
+    return mapQuestItems.find((item) => item.quest.id === selectedMapQuestId)?.quest || null;
   }, [mapQuestItems, selectedMapQuestId]);
   const mapBounds = useMemo(() => {
     const points = mapQuestItems.flatMap((item) => (item.coords ? [item.coords] : []));
