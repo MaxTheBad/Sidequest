@@ -2338,6 +2338,11 @@ export default function Home() {
 
   useEffect(() => {
     if (feedViewMode !== "map") return;
+    setSelectedMapQuestId(null);
+  }, [feedViewMode]);
+
+  useEffect(() => {
+    if (feedViewMode !== "map") return;
     const quest = selectedMapQuest;
     if (!quest) {
       setMapViewTitle("");
@@ -2834,7 +2839,11 @@ export default function Home() {
                           <>
                             <div
                               className="absolute inset-0 overflow-hidden rounded-3xl"
-                              onClick={() => setSelectedMapQuestId(null)}
+                              onPointerDown={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setSelectedMapQuestId(null);
+                              }}
                             >
                               <iframe
                                 title="Map view"
@@ -2930,7 +2939,8 @@ export default function Home() {
                                         type="button"
                                         aria-label="Dismiss popup"
                                         className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/15 bg-black/20 text-base leading-none text-white"
-                                        onClick={(e) => {
+                                        onPointerDown={(e) => {
+                                          e.preventDefault();
                                           e.stopPropagation();
                                           setSelectedMapQuestId(null);
                                         }}
