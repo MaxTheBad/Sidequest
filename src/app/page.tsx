@@ -223,6 +223,7 @@ export default function Home() {
   const [mapViewTitle, setMapViewTitle] = useState("");
   const [userLocation, setUserLocation] = useState<{ lat: number; lon: number } | null>(null);
   const [userLocationStatus, setUserLocationStatus] = useState<"idle" | "loading" | "ready" | "denied" | "error">("idle");
+  const [locationPermission, setLocationPermission] = useState<"unknown" | "prompt" | "granted" | "denied">("unknown");
   const [expandedMedia, setExpandedMedia] = useState<{ items: QuestMediaItem[]; index: number } | null>(null);
   const expandedMediaStripRef = useRef<HTMLDivElement | null>(null);
   const feedVideoRefs = useRef<Record<string, HTMLVideoElement | null>>({});
@@ -436,6 +437,21 @@ export default function Home() {
     const t = setTimeout(() => setHighlightLocationVisibility(false), 2200);
     return () => clearTimeout(t);
   }, [highlightLocationVisibility]);
+
+  useEffect(() => {
+    if (typeof navigator === "undefined" || !navigator.permissions?.query) return;
+    let cancelled = false;
+    void navigator.permissions.query({ name: "geolocation" as PermissionName }).then((result) => {
+      if (cancelled) return;
+      setLocationPermission(result.state as "prompt" | "granted" | "denied");
+      result.onchange = () => setLocationPermission(result.state as "prompt" | "granted" | "denied");
+    }).catch(() => {
+      if (!cancelled) setLocationPermission("unknown");
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -1647,6 +1663,10 @@ export default function Home() {
       setUserLocationStatus("error");
       return;
     }
+    if (locationPermission === "denied") {
+      setUserLocationStatus("denied");
+      return;
+    }
     setUserLocationStatus("loading");
     navigator.geolocation.getCurrentPosition(
       (position) => {
@@ -2834,10 +2854,6 @@ export default function Home() {
                                 className="absolute bottom-3 left-3 z-30 inline-flex items-center gap-2 rounded-full border border-slate-700 bg-[#2a1209] px-3 py-2 text-xs font-medium text-white shadow-xl"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  if (userLocationStatus === "ready" && userLocation) {
-                                    setSelectedMapQuestId(null);
-                                    return;
-                                  }
                                   void requestUserLocation();
                                 }}
                               >
@@ -2852,8 +2868,8 @@ export default function Home() {
                                     ? "Locating..."
                                     : userLocationStatus === "ready"
                                       ? "My location"
-                                      : userLocationStatus === "denied"
-                                        ? "Enable location"
+                                      : locationPermission === "denied"
+                                        ? "Enable in Settings"
                                         : "Locate me"}
                                 </span>
                               </button>
