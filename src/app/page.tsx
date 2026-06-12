@@ -2335,6 +2335,11 @@ export default function Home() {
     const bbox = `${mapBounds.lonMin}%2C${mapBounds.latMin}%2C${mapBounds.lonMax}%2C${mapBounds.latMax}`;
     return `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${centerLat}%2C${centerLon}`;
   }, [mapBounds]);
+  const locationLooksOff = useMemo(() => {
+    if (!userLocation || !mapQuestItems.length) return false;
+    const nearestMiles = Math.min(...mapQuestItems.map((item) => haversineMiles(userLocation.lat, userLocation.lon, item.coords!.lat, item.coords!.lon)));
+    return Number.isFinite(nearestMiles) && nearestMiles > 1500;
+  }, [mapQuestItems, userLocation]);
 
   useEffect(() => {
     if (feedViewMode !== "map") return;
@@ -2883,17 +2888,6 @@ export default function Home() {
                                         : "Locate me"}
                                 </span>
                               </button>
-                              {userLocation ? (
-                                <div
-                                  className="absolute z-20 -translate-x-1/2 -translate-y-1/2"
-                                  style={{
-                                    left: `${((userLocation.lon - mapBounds.lonMin) / Math.max(0.0001, mapBounds.lonMax - mapBounds.lonMin)) * 100}%`,
-                                    top: `${(1 - ((userLocation.lat - mapBounds.latMin) / Math.max(0.0001, mapBounds.latMax - mapBounds.latMin))) * 100}%`,
-                                  }}
-                                >
-                                  <span className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-black bg-black text-[11px] font-semibold text-white shadow-lg">You</span>
-                                </div>
-                              ) : null}
                               {mapQuestItems.map((item) => {
                                 const coords = item.coords!;
                                 const left = ((coords.lon - mapBounds.lonMin) / Math.max(0.0001, mapBounds.lonMax - mapBounds.lonMin)) * 100;
@@ -2915,6 +2909,11 @@ export default function Home() {
                                   </button>
                                 );
                               })}
+                              {locationLooksOff ? (
+                                <div className="absolute left-3 top-3 z-30 max-w-[220px] rounded-2xl border border-amber-300 bg-amber-50/95 px-3 py-2 shadow-lg backdrop-blur-sm">
+                                  <p className="text-xs font-medium text-amber-900">Location looks off. Tap Locate me again.</p>
+                                </div>
+                              ) : null}
                             </div>
                             {selectedMapQuest ? (() => {
                               const selectedItem = mapQuestItems.find((item) => item.quest.id === selectedMapQuest.id);
