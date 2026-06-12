@@ -2897,7 +2897,7 @@ export default function Home() {
                                     title={`${item.quest.title} · ${item.distance}`}
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      setSelectedMapQuestId(item.quest.id);
+                                      setSelectedMapQuestId((current) => (current === item.quest.id ? null : item.quest.id));
                                     }}
                                     className="absolute z-20 -translate-x-1/2 -translate-y-1/2"
                                     style={{ left: `${left}%`, top: `${top}%` }}
@@ -2967,7 +2967,7 @@ export default function Home() {
                       <button
                         key={item.quest.id}
                         type="button"
-                        onClick={() => setSelectedMapQuestId(item.quest.id)}
+                        onClick={() => setSelectedMapQuestId((current) => (current === item.quest.id ? null : item.quest.id))}
                         className={`w-full rounded-2xl border p-4 text-left transition ${isActive ? "bg-black text-white border-black" : "bg-white border-slate-200 hover:border-slate-300"}`}
                       >
                         <div className="flex items-start justify-between gap-3">
