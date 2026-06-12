@@ -223,8 +223,6 @@ export default function Home() {
   const [mapViewTitle, setMapViewTitle] = useState("");
   const [userLocation, setUserLocation] = useState<{ lat: number; lon: number } | null>(null);
   const [userLocationStatus, setUserLocationStatus] = useState<"idle" | "loading" | "ready" | "denied" | "error">("idle");
-  const [showLocationPrompt, setShowLocationPrompt] = useState(false);
-  const [locationPromptSeen, setLocationPromptSeen] = useState(false);
   const [expandedMedia, setExpandedMedia] = useState<{ items: QuestMediaItem[]; index: number } | null>(null);
   const expandedMediaStripRef = useRef<HTMLDivElement | null>(null);
   const feedVideoRefs = useRef<Record<string, HTMLVideoElement | null>>({});
@@ -349,7 +347,6 @@ export default function Home() {
   const [snoozePublicLocationWarning, setSnoozePublicLocationWarning] = useState(false);
   const publicVisibilityBypassRef = useRef(false);
   const publicWarningMutedUntilRef = useRef<number>(0);
-  const locationPromptMutedUntilRef = useRef<number>(0);
   const locationVisibilityRef = useRef<HTMLDivElement | null>(null);
   const createQuestFormRef = useRef<HTMLFormElement | null>(null);
 
@@ -439,24 +436,6 @@ export default function Home() {
     const t = setTimeout(() => setHighlightLocationVisibility(false), 2200);
     return () => clearTimeout(t);
   }, [highlightLocationVisibility]);
-
-  useEffect(() => {
-    if (typeof window === "undefined" || locationPromptSeen) return;
-    const accepted = window.localStorage.getItem("sidequest_location_prompt_accepted") === "1";
-    const mutedRaw = window.localStorage.getItem("sidequest_location_prompt_muted_until");
-    const mutedUntil = mutedRaw ? Number(mutedRaw) : 0;
-    if (Number.isFinite(mutedUntil) && mutedUntil > Date.now()) {
-      locationPromptMutedUntilRef.current = mutedUntil;
-      setLocationPromptSeen(true);
-      return;
-    }
-    if (accepted) {
-      setLocationPromptSeen(true);
-      return;
-    }
-    const t = window.setTimeout(() => setShowLocationPrompt(true), 350);
-    return () => window.clearTimeout(t);
-  }, [locationPromptSeen]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -1621,9 +1600,19 @@ export default function Home() {
     const cached = cityCoordinateCacheRef.current[query];
     if (cached) return cached;
     try {
-      const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=1&language=en&format=json`);
-      const json = (await res.json()) as { results?: Array<{ latitude: number; longitude: number }> };
-      const result = json.results?.[0];
+      const parts = query.split(",").map((p) => p.trim()).filter(Boolean);
+      const city = parts[0]?.toLowerCase() || "";
+      const state = parts[1]?.toLowerCase() || "";
+      const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=5&language=en&format=json`);
+      const json = (await res.json()) as { results?: Array<{ latitude: number; longitude: number; name?: string; admin1?: string; country?: string; country_code?: string }> };
+      const result = (json.results || []).find((candidate) => {
+        const name = (candidate.name || "").trim().toLowerCase();
+        const admin1 = (candidate.admin1 || "").trim().toLowerCase();
+        if (!name) return false;
+        if (city && !name.includes(city) && !city.includes(name)) return false;
+        if (state && admin1 && !admin1.includes(state) && !state.includes(admin1)) return false;
+        return true;
+      }) || null;
       if (!result) return null;
       const coords = { lat: result.latitude, lon: result.longitude };
       cityCoordinateCacheRef.current[query] = coords;
@@ -1669,26 +1658,6 @@ export default function Home() {
       },
       { enableHighAccuracy: false, timeout: 10000, maximumAge: 10 * 60 * 1000 },
     );
-  }
-
-  function acceptLocationPrompt() {
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem("sidequest_location_prompt_accepted", "1");
-      window.localStorage.removeItem("sidequest_location_prompt_muted_until");
-    }
-    setLocationPromptSeen(true);
-    setShowLocationPrompt(false);
-    void requestUserLocation();
-  }
-
-  function declineLocationPrompt() {
-    if (typeof window !== "undefined") {
-      const mutedUntil = Date.now() + 7 * 24 * 60 * 60 * 1000;
-      window.localStorage.setItem("sidequest_location_prompt_muted_until", String(mutedUntil));
-      locationPromptMutedUntilRef.current = mutedUntil;
-    }
-    setLocationPromptSeen(true);
-    setShowLocationPrompt(false);
   }
 
   function toggleFeedVideoPlayback(videoId: string) {
@@ -3994,43 +3963,6 @@ export default function Home() {
             )}
             <textarea className="border rounded px-3 py-2 w-full" placeholder={questionMode === "public" ? "Write your comment..." : "Write your direct message..."} value={questionText} onChange={(e) => setQuestionText(e.target.value)} />
             <button className="bg-black text-white rounded px-3 py-2 disabled:opacity-50" disabled={sendingQuestion || !questionText.trim()} onClick={() => void sendQuestionFromModal()}>{sendingQuestion ? "Sending..." : "Send"}</button>
-          </div>
-        </div>
-      )}
-
-      {showLocationPrompt && (
-        <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-md rounded-3xl bg-white border shadow-2xl p-5 space-y-4">
-            <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Location</p>
-              <h3 className="mt-1 text-lg font-semibold text-slate-900">Show distance from your location</h3>
-              <p className="mt-2 text-sm text-slate-600">We use your browser location to show how far each listing is from you.</p>
-            </div>
-            {userLocationStatus === "ready" ? (
-              <p className="text-xs font-medium text-emerald-700">Location is on. Distances are visible in list and map view.</p>
-            ) : userLocationStatus === "denied" ? (
-              <p className="text-xs font-medium text-amber-700">Location was blocked. You can enable it later in your browser settings.</p>
-            ) : userLocationStatus === "error" ? (
-              <p className="text-xs font-medium text-red-700">Could not read your location.</p>
-            ) : null}
-            <div className="flex gap-3">
-              <button
-                type="button"
-                className="flex-1 rounded-full bg-black px-4 py-3 text-sm font-medium text-white"
-                onClick={acceptLocationPrompt}
-                disabled={userLocationStatus === "loading"}
-              >
-                {userLocationStatus === "loading" ? "Requesting…" : "Yes"}
-              </button>
-              <button
-                type="button"
-                className="flex-1 rounded-full border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700"
-                onClick={declineLocationPrompt}
-              >
-                No
-              </button>
-            </div>
-            <p className="text-xs text-slate-500">If you choose No, we’ll ask again later.</p>
           </div>
         </div>
       )}
