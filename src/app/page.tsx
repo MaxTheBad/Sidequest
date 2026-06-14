@@ -2957,6 +2957,25 @@ export default function Home() {
                                   </button>
                                 );
                               })}
+                              {userLocation && userLocationStatus === "ready" ? (
+                                <div
+                                  className="absolute z-30 -translate-x-1/2 -translate-y-1/2"
+                                  style={{
+                                    left: `${((userLocation.lon - mapBounds.lonMin) / Math.max(0.0001, mapBounds.lonMax - mapBounds.lonMin)) * 100}%`,
+                                    top: `${(1 - ((userLocation.lat - mapBounds.latMin) / Math.max(0.0001, mapBounds.latMax - mapBounds.latMin))) * 100}%`,
+                                  }}
+                                >
+                                  <div className="relative">
+                                    <span className="absolute inset-0 rounded-full bg-sky-500/30 blur-md animate-ping" />
+                                    <span className="relative flex h-9 w-9 items-center justify-center rounded-full border-2 border-white bg-sky-600 text-white shadow-lg">
+                                      <span className="h-3 w-3 rounded-full bg-white" />
+                                    </span>
+                                  </div>
+                                  <div className="mt-1 whitespace-nowrap rounded-full bg-slate-950/85 px-2 py-1 text-[10px] font-medium text-white shadow-lg">
+                                    You are here
+                                  </div>
+                                </div>
+                              ) : null}
                               {locationLooksOff ? (
                                 <div className="absolute left-3 top-3 z-30 max-w-[220px] rounded-2xl border border-amber-300 bg-amber-50/95 px-3 py-2 shadow-lg backdrop-blur-sm">
                                   <p className="text-xs font-medium text-amber-900">Location looks off. Tap Locate me again.</p>
