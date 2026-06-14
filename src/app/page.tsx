@@ -2324,7 +2324,8 @@ export default function Home() {
   }, [mapQuestItems, selectedMapQuestId]);
   const mapBounds = useMemo(() => {
     const points = mapQuestItems.flatMap((item) => (item.coords ? [item.coords] : []));
-    if (userLocation) points.push(userLocation);
+    const userLocationIsUsable = !!userLocation && (!userLocation.accuracy || userLocation.accuracy <= 50000);
+    if (userLocationIsUsable) points.push(userLocation);
     if (!points.length) return null;
     const lats = points.map((p) => p.lat);
     const lons = points.map((p) => p.lon);
@@ -2905,13 +2906,10 @@ export default function Home() {
                               <iframe
                                 title="Map view"
                                 src={mapViewEmbedUrl}
-                                className="absolute inset-0 h-full w-full pointer-events-none"
+                                className="absolute inset-0 h-full w-full pointer-events-auto"
                                 loading="lazy"
                               />
-                              <div
-                                className="absolute inset-0 pointer-events-none"
-                                style={{ backgroundImage: "linear-gradient(135deg, rgba(15,23,42,0.08), rgba(15,23,42,0.02))" }}
-                              />
+                              <div className="absolute inset-0 pointer-events-none" style={{ backgroundImage: "linear-gradient(135deg, rgba(15,23,42,0.08), rgba(15,23,42,0.02))" }} />
                               <button
                                 type="button"
                                 className="absolute bottom-3 left-3 z-30 inline-flex items-center gap-2 rounded-full border border-slate-700 bg-[#2a1209] px-3 py-2 text-xs font-medium text-white shadow-xl"
