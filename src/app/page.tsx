@@ -2466,7 +2466,7 @@ export default function Home() {
             <div className="flex items-center justify-between gap-4 px-1">
               <div className="flex-1" />
               <div
-                className="relative inline-flex items-center rounded-full border border-white/10 bg-slate-900/85 p-1 shadow-lg shadow-black/20 backdrop-blur"
+                className="relative inline-grid grid-cols-2 items-stretch rounded-full border border-white/10 bg-slate-900/85 p-1 shadow-lg shadow-black/20 backdrop-blur"
                 role="switch"
                 aria-checked={feedViewMode === "map"}
                 aria-label="Toggle between list and map"
@@ -2491,24 +2491,24 @@ export default function Home() {
                   feedToggleDragStartRef.current = null;
                 }}
               >
-                <span
-                  className={`absolute inset-y-1 w-[calc(50%-0.25rem)] rounded-full bg-white shadow transition-transform duration-200 ease-out ${feedViewMode === "map" ? "translate-x-full" : "translate-x-0"}`}
-                  aria-hidden="true"
-                />
-                <button
-                  aria-pressed={feedViewMode === "list"}
-                  className={`relative z-10 rounded-full px-4 py-1.5 text-xs font-medium transition ${feedViewMode === "list" ? "text-slate-900" : "text-white/65 hover:text-white"}`}
-                  onClick={() => setFeedViewMode("list")}
-                  type="button"
-                >
-                  List
-                </button>
-                <button
-                  aria-pressed={feedViewMode === "map"}
-                  className={`relative z-10 rounded-full px-4 py-1.5 text-xs font-medium transition ${feedViewMode === "map" ? "text-slate-900" : "text-white/65 hover:text-white"}`}
-                  onClick={() => setFeedViewMode("map")}
-                  type="button"
-                >
+              <span
+                className={`absolute inset-y-1 w-[calc(50%-0.25rem)] rounded-full bg-white shadow transition-transform duration-200 ease-out ${feedViewMode === "map" ? "translate-x-full" : "translate-x-0"}`}
+                aria-hidden="true"
+              />
+              <button
+                aria-pressed={feedViewMode === "list"}
+                className={`relative z-10 w-full rounded-full px-4 py-1.5 text-center text-xs font-medium transition ${feedViewMode === "list" ? "text-slate-900" : "text-white/65 hover:text-white"}`}
+                onClick={() => setFeedViewMode("list")}
+                type="button"
+              >
+                List
+              </button>
+              <button
+                aria-pressed={feedViewMode === "map"}
+                className={`relative z-10 w-full rounded-full px-4 py-1.5 text-center text-xs font-medium transition ${feedViewMode === "map" ? "text-slate-900" : "text-white/65 hover:text-white"}`}
+                onClick={() => setFeedViewMode("map")}
+                type="button"
+              >
                   Map
                 </button>
               </div>
