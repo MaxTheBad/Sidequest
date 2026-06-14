@@ -118,8 +118,13 @@ export default function QuestMap({
         ...items.map((item) => [item.coords.lat, item.coords.lon] as [number, number]),
         ...(userLocation && !approximateLocation && !locationLooksOff ? ([[userLocation.lat, userLocation.lon] as [number, number]]) : []),
       ];
-      if (latLngs.length > 1) map.fitBounds(leaflet.latLngBounds(latLngs), { padding: [32, 32], maxZoom: 13 });
-      else if (latLngs[0]) map.setView(latLngs[0], 11);
+      if (userLocation && !approximateLocation && !locationLooksOff) {
+        map.setView([userLocation.lat, userLocation.lon], 15, { animate: true });
+      } else if (latLngs.length > 1) {
+        map.fitBounds(leaflet.latLngBounds(latLngs), { padding: [32, 32], maxZoom: 13 });
+      } else if (latLngs[0]) {
+        map.setView(latLngs[0], 11);
+      }
     }
   }, [approximateLocation, items, leaflet, locationLabel, locationLooksOff, onSelectQuest, selectedQuestId, userLocation]);
 
