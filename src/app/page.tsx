@@ -2525,7 +2525,7 @@ export default function Home() {
             </div>
 
             {feedViewMode === "list" ? (
-              <div className="grid gap-5 grid-cols-1 max-w-3xl mx-auto">
+              <div className="grid w-screen max-w-none gap-5 grid-cols-1 -mx-4 sm:w-full sm:mx-auto sm:max-w-3xl">
               {loading ? <p>Loading...</p> : filteredQuests.map((q) => {
             const creatorProfile = getCreatorProfile(q);
             const feedMediaItems: QuestMediaItem[] = [
@@ -2537,8 +2537,8 @@ export default function Home() {
             const distanceLabel = distanceByQuestId[q.id];
 
             return (
-            <article key={q.id} className={`quest-card w-full bg-white border border-slate-200 shadow-[0_14px_40px_rgba(15,23,42,0.08)] overflow-hidden ${feedViewMode === "list" ? "rounded-[1.75rem]" : "rounded-[2rem]"}`}>
-              <div className={`p-3 flex items-center justify-between gap-2 ${feedViewMode === "list" ? "sm:p-4" : ""}`}>
+            <article key={q.id} className={`quest-card w-full bg-white border border-slate-200 shadow-[0_14px_40px_rgba(15,23,42,0.08)] overflow-hidden ${feedViewMode === "list" ? "rounded-none sm:rounded-[1.75rem] h-[calc(100svh-10.75rem)] sm:h-auto flex flex-col" : "rounded-[2rem]"}`}>
+              <div className={`p-3 flex items-center justify-between gap-2 ${feedViewMode === "list" ? "sm:p-4 absolute top-0 left-0 right-0 z-30 bg-gradient-to-b from-black/55 via-black/20 to-transparent text-white border-0" : ""}`}>
                 <Link href={`/profile/${q.creator_id}`} className="flex items-center gap-2 min-w-0">
                   {creatorProfile?.avatar_url ? (
                     <img src={creatorProfile.avatar_url} alt="Creator" className="h-9 w-9 rounded-full object-cover border" />
@@ -2577,9 +2577,9 @@ export default function Home() {
               </div>
 
               {feedMediaItems.length > 0 ? (
-                <div className={feedViewMode === "list" ? "relative" : ""}>
+                <div className={feedViewMode === "list" ? "relative flex-1 min-h-0 bg-black" : ""}>
                   <div
-                    className={`w-full overflow-x-auto snap-x snap-mandatory flex ${feedViewMode === "list" ? "gap-0" : ""}`}
+                    className={`w-full h-full overflow-x-auto snap-x snap-mandatory flex ${feedViewMode === "list" ? "gap-0" : ""}`}
                     onScroll={(e) => {
                       const el = e.currentTarget;
                       const idx = Math.round(el.scrollLeft / Math.max(1, el.clientWidth));
@@ -2587,13 +2587,13 @@ export default function Home() {
                     }}
                   >
                     {feedMediaItems.map((m, i) => (
-                      <div key={`${m.url}-${i}`} className={`relative w-full shrink-0 snap-start bg-black overflow-hidden ${feedViewMode === "list" ? "aspect-[3/4] sm:aspect-[10/7] lg:aspect-[10/7]" : "aspect-[4/3] lg:aspect-[4/3]"}`}>
+                      <div key={`${m.url}-${i}`} className={`relative w-full h-full shrink-0 snap-start bg-black overflow-hidden ${feedViewMode === "list" ? "min-h-0" : "aspect-[4/3] lg:aspect-[4/3]"}`}>
                         {m.type === "image" ? (
                           <button type="button" className="w-full h-full block overflow-hidden" onClick={() => setExpandedMedia({ items: feedMediaItems, index: i })}>
                             <img
                               src={m.url}
                               alt={m.label || "Listing media"}
-                              className={`w-full h-full ${feedViewMode === "list" ? "object-cover sm:object-contain object-center" : "object-cover object-center"}`}
+                              className={`w-full h-full ${feedViewMode === "list" ? "object-contain object-center" : "object-cover object-center"}`}
                             />
                           </button>
                         ) : (
@@ -2602,7 +2602,7 @@ export default function Home() {
                               <img
                                 src={m.thumbnailUrl || generatedVideoThumbs[`${q.id}-${i}`]}
                                 alt={m.label || "Video thumbnail"}
-                                className={`absolute inset-0 h-full w-full ${feedViewMode === "list" ? "object-cover sm:object-contain object-center" : "object-cover object-center"}`}
+                                className={`absolute inset-0 h-full w-full ${feedViewMode === "list" ? "object-contain object-center" : "object-cover object-center"}`}
                               />
                             ) : null}
                             <video
@@ -2612,7 +2612,7 @@ export default function Home() {
                               src={m.url}
                               crossOrigin="anonymous"
                               poster={m.thumbnailUrl || generatedVideoThumbs[`${q.id}-${i}`] || undefined}
-                              className={`relative z-10 w-full h-full bg-transparent opacity-0 transition-opacity duration-200 ${feedViewMode === "list" ? "object-cover sm:object-contain object-center" : "object-cover object-center"}`}
+                              className={`relative z-10 w-full h-full bg-transparent opacity-0 transition-opacity duration-200 ${feedViewMode === "list" ? "object-contain object-center" : "object-cover object-center"}`}
                               preload="metadata"
                               playsInline
                               onLoadedMetadata={(e) => {
@@ -2648,7 +2648,7 @@ export default function Home() {
                           </>
                         )}
                         {feedViewMode === "list" && feedMediaItems.length > 1 ? (
-                          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1.5 rounded-full bg-black/30 px-2 py-1 backdrop-blur-sm pointer-events-none">
+                          <div className="absolute top-16 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1.5 rounded-full bg-black/30 px-2 py-1 backdrop-blur-sm pointer-events-none">
                             {feedMediaItems.map((_, dotIndex) => (
                               <span key={dotIndex} className={`h-1.5 w-1.5 rounded-full ${dotIndex === feedIndex ? "bg-white" : "bg-white/40"}`} />
                             ))}
@@ -2659,7 +2659,7 @@ export default function Home() {
                   </div>
                 </div>
               ) : (
-                <div className={`relative border-y overflow-hidden ${feedViewMode === "list" ? "aspect-[10/7] sm:aspect-[10/7] lg:aspect-[10/7]" : "h-[22vh] sm:h-[18vh] lg:h-[14vw] max-h-[220px]"}`} style={{ background: fallbackVisual.gradient, clipPath: feedViewMode === "list" ? "polygon(0 0, 100% 0, 100% 94%, 0 100%)" : undefined }}>
+                <div className={`relative border-y overflow-hidden ${feedViewMode === "list" ? "h-full min-h-0" : "h-[22vh] sm:h-[18vh] lg:h-[14vw] max-h-[220px]"}`} style={{ background: fallbackVisual.gradient, clipPath: feedViewMode === "list" ? "polygon(0 0, 100% 0, 100% 94%, 0 100%)" : undefined }}>
                   <img src={fallbackVisual.imageUrl} alt={fallbackVisual.title} className="absolute inset-0 h-full w-full object-cover" />
                   <div className="absolute inset-0 bg-black/10" />
                   <div className="absolute inset-0 opacity-60" style={{ background: "linear-gradient(180deg, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.45) 100%)" }} />
