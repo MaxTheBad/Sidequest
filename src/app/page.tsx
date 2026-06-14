@@ -292,7 +292,10 @@ export default function Home() {
   const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [sortMode, setSortMode] = useState<"newest" | "soonest" | "title">("newest");
-  const [showSavedOnly, setShowSavedOnly] = useState(false);
+  const [showSavedOnly, setShowSavedOnly] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem("sidequest_saved_only") === "1";
+  });
   const [hobbyFilter, setHobbyFilter] = useState("all");
   const [loading, setLoading] = useState(false);
   const cityCoordinateCacheRef = useRef<Record<string, { lat: number; lon: number }>>({});
@@ -621,6 +624,16 @@ export default function Home() {
     const t = setTimeout(() => setResendCooldown((x) => Math.max(0, x - 1)), 1000);
     return () => clearTimeout(t);
   }, [resendCooldown]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("sidequest_saved_only", showSavedOnly ? "1" : "0");
+    const syncSavedOnly = () => {
+      setShowSavedOnly(window.localStorage.getItem("sidequest_saved_only") === "1");
+    };
+    window.addEventListener("sidequest:saved-only-changed", syncSavedOnly as EventListener);
+    return () => window.removeEventListener("sidequest:saved-only-changed", syncSavedOnly as EventListener);
+  }, [showSavedOnly]);
 
   useEffect(() => {
     if (!status) return;
@@ -2414,16 +2427,6 @@ export default function Home() {
                     <option value="title">Title</option>
                   </select>
                 </div>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  className={`border rounded-full px-4 py-2 text-sm ${showSavedOnly ? "bg-black text-white" : "bg-white"}`}
-                  onClick={() => setShowSavedOnly((x) => !x)}
-                  type="button"
-                >
-                  {showSavedOnly ? "Showing saved" : "Saved"}
-                </button>
-                <button className="border rounded-full px-4 py-2 text-sm bg-white" onClick={() => void loadQuests()}>Refresh</button>
               </div>
             </section>
 

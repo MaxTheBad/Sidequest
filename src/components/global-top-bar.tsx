@@ -16,6 +16,7 @@ export default function GlobalTopBar() {
   const [userLabel, setUserLabel] = useState("");
   const [userRole, setUserRole] = useState("user");
   const [notificationCount, setNotificationCount] = useState(0);
+  const [showSavedOnly, setShowSavedOnly] = useState(false);
 
   useEffect(() => {
     if (!supabase) return;
@@ -77,6 +78,16 @@ export default function GlobalTopBar() {
     return () => window.clearInterval(id);
   }, [supabase, userId]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const syncSavedOnly = () => {
+      setShowSavedOnly(window.localStorage.getItem("sidequest_saved_only") === "1");
+    };
+    syncSavedOnly();
+    window.addEventListener("sidequest:saved-only-changed", syncSavedOnly);
+    return () => window.removeEventListener("sidequest:saved-only-changed", syncSavedOnly);
+  }, []);
+
   async function signOut() {
     if (!supabase) return;
     await supabase.auth.signOut();
@@ -130,6 +141,20 @@ export default function GlobalTopBar() {
         </nav>
         <div className="ml-auto flex items-center gap-2">
           {userId && userLabel ? <span className="text-xs text-gray-500 hidden md:inline">Signed in as {userLabel.split("@")[0]}</span> : null}
+          {pathname === "/" && userId ? (
+            <button
+              className={`nav-control ${showSavedOnly ? "bg-black text-white border-black" : ""}`}
+              onClick={() => {
+                if (typeof window === "undefined") return;
+                const next = !showSavedOnly;
+                window.localStorage.setItem("sidequest_saved_only", next ? "1" : "0");
+                window.dispatchEvent(new CustomEvent("sidequest:saved-only-changed"));
+              }}
+              type="button"
+            >
+              {showSavedOnly ? "Showing saved" : "Saved"}
+            </button>
+          ) : null}
           {userId ? (
             <button className="nav-control" onClick={() => void signOut()}>Sign out</button>
           ) : (
