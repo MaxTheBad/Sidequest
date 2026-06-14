@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Script from "next/script";
+import "leaflet/dist/leaflet.css";
 import "./globals.css";
 import BottomNav from "@/components/bottom-nav";
 import GlobalTopBar from "@/components/global-top-bar";

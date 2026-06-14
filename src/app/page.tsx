@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { FormEvent, PointerEvent, UIEvent, useEffect, useMemo, useRef, useState } from "react";
 import CityAutocompleteInput from "@/components/city-autocomplete-input";
+import QuestMap from "@/components/quest-map";
 import { getSupabaseClient } from "@/lib/supabase";
 import { CANONICAL_CATEGORIES, resolveCanonicalCategory, suggestCanonicalCategories } from "@/lib/category-suggestions.js";
 import { getCategoryFallbackMedia } from "@/lib/category-default-media";
@@ -2892,148 +2893,34 @@ export default function Home() {
                       <div className="rounded-full border px-3 py-1.5 text-xs text-slate-500">10 closest</div>
                     </div>
                     <div className="p-4">
-                      <div className="relative h-[60vh] rounded-3xl border bg-slate-100">
+                      <div className="relative">
                         {mapBounds ? (
-                          <>
-                            <div
-                              className="absolute inset-0 overflow-hidden rounded-3xl"
-                              onPointerDown={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                setSelectedMapQuestId(null);
-                              }}
-                            >
-                              <iframe
-                                title="Map view"
-                                src={mapViewEmbedUrl}
-                                className="absolute inset-0 h-full w-full pointer-events-auto"
-                                loading="lazy"
-                              />
-                              <div className="absolute inset-0 pointer-events-none" style={{ backgroundImage: "linear-gradient(135deg, rgba(15,23,42,0.08), rgba(15,23,42,0.02))" }} />
-                              <button
-                                type="button"
-                                className="absolute bottom-3 left-3 z-30 inline-flex items-center gap-2 rounded-full border border-slate-700 bg-[#2a1209] px-3 py-2 text-xs font-medium text-white shadow-xl"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  void requestUserLocation();
-                                }}
-                              >
-                                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-white/10">
-                                  <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                                    <path d="M12 21s6-4.35 6-10a6 6 0 1 0-12 0c0 5.65 6 10 6 10Z" />
-                                    <circle cx="12" cy="11" r="2.5" />
-                                  </svg>
-                                </span>
-                                <span>
-                                  {userLocationStatus === "loading"
-                                    ? "Locating..."
-                                    : userLocationStatus === "ready"
-                                      ? (userLocation?.accuracy && userLocation.accuracy > 50000 ? "Approximate location" : "My location")
-                                      : locationPermission === "denied"
-                                        ? "Enable in Settings"
-                                        : "Locate me"}
-                                </span>
-                              </button>
-                              {mapQuestItems.map((item) => {
-                                const coords = item.coords!;
-                                const left = ((coords.lon - mapBounds.lonMin) / Math.max(0.0001, mapBounds.lonMax - mapBounds.lonMin)) * 100;
-                                const top = (1 - ((coords.lat - mapBounds.latMin) / Math.max(0.0001, mapBounds.latMax - mapBounds.latMin))) * 100;
-                                const isActive = selectedMapQuest?.id === item.quest.id;
-                                return (
-                                  <button
-                                    key={item.quest.id}
-                                    type="button"
-                                    title={`${item.quest.title} · ${item.distance}`}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setSelectedMapQuestId((current) => (current === item.quest.id ? null : item.quest.id));
-                                    }}
-                                    className="absolute z-20 -translate-x-1/2 -translate-y-1/2"
-                                    style={{ left: `${left}%`, top: `${top}%` }}
-                                  >
-                                    <span className={`flex h-9 w-9 items-center justify-center rounded-full border-2 ${isActive ? "border-black bg-black text-white" : "border-white bg-sky-500 text-white"} shadow-lg`}>📍</span>
-                                  </button>
-                                );
-                              })}
-                              {userLocation && userLocationStatus === "ready" ? (
-                                <div
-                                  className="absolute z-30 -translate-x-1/2 -translate-y-1/2"
-                                  style={{
-                                    left: `${((userLocation.lon - mapBounds.lonMin) / Math.max(0.0001, mapBounds.lonMax - mapBounds.lonMin)) * 100}%`,
-                                    top: `${(1 - ((userLocation.lat - mapBounds.latMin) / Math.max(0.0001, mapBounds.latMax - mapBounds.latMin))) * 100}%`,
-                                  }}
-                                >
-                                  <div className="relative">
-                                    <span className="absolute inset-0 rounded-full bg-sky-500/30 blur-md animate-ping" />
-                                    <span className="relative flex h-9 w-9 items-center justify-center rounded-full border-2 border-white bg-sky-600 text-white shadow-lg">
-                                      <span className="h-3 w-3 rounded-full bg-white" />
-                                    </span>
-                                  </div>
-                                  <div className="mt-1 whitespace-nowrap rounded-full bg-slate-950/85 px-2 py-1 text-[10px] font-medium text-white shadow-lg">
-                                    {userLocation.accuracy && userLocation.accuracy > 50000 ? "Approximate location" : "You are here"}
-                                  </div>
-                                </div>
-                              ) : null}
-                              {userLocation?.accuracy && userLocation.accuracy > 50000 ? (
-                                <div className="absolute left-3 top-3 z-30 max-w-[250px] rounded-2xl border border-amber-300 bg-amber-50/95 px-3 py-2 shadow-lg backdrop-blur-sm">
-                                  <p className="text-xs font-medium text-amber-900">Location is approximate. On iPhone, turn on Precise Location for Safari to get a better fix.</p>
-                                </div>
-                              ) : null}
-                              {locationLooksOff ? (
-                                <div className="absolute left-3 top-3 z-30 max-w-[220px] rounded-2xl border border-amber-300 bg-amber-50/95 px-3 py-2 shadow-lg backdrop-blur-sm">
-                                  <p className="text-xs font-medium text-amber-900">Location looks off. Tap Locate me again.</p>
-                                </div>
-                              ) : null}
-                            </div>
-                            {selectedMapQuest ? (() => {
-                              const selectedItem = mapQuestItems.find((item) => item.quest.id === selectedMapQuest.id);
-                              if (!selectedItem) return null;
-                              const coords = selectedItem.coords!;
-                              const left = ((coords.lon - mapBounds.lonMin) / Math.max(0.0001, mapBounds.lonMax - mapBounds.lonMin)) * 100;
-                              const top = (1 - ((coords.lat - mapBounds.latMin) / Math.max(0.0001, mapBounds.latMax - mapBounds.latMin))) * 100;
-                              const placeBelow = top < 28;
-                              return (
-                                <div
-                                  className={`absolute z-40 max-w-[min(260px,78vw)] -translate-x-1/2 ${placeBelow ? "translate-y-2" : "-translate-y-full"}`}
-                                  style={{ left: `${Math.min(92, Math.max(8, left))}%`, top: `${placeBelow ? Math.min(86, top + 8) : Math.min(92, Math.max(12, top - 4))}%` }}
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  <div className="rounded-2xl border border-slate-700 bg-[#2a1209] p-3 text-white shadow-2xl">
-                                    <div className="flex items-start justify-between gap-3">
-                                      <div className="min-w-0">
-                                        <p className="text-[10px] uppercase tracking-[0.2em] text-amber-200/80">Selected pin</p>
-                                        <h4 className="mt-1 text-sm font-semibold leading-tight">{selectedMapQuest.title}</h4>
-                                      </div>
-                                      <button
-                                        type="button"
-                                        aria-label="Dismiss popup"
-                                        className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/15 bg-black/20 text-base leading-none text-white"
-                                        onPointerDown={(e) => {
-                                          e.preventDefault();
-                                          e.stopPropagation();
-                                          setSelectedMapQuestId(null);
-                                        }}
-                                      >
-                                        ×
-                                      </button>
-                                    </div>
-                                    <p className="mt-1 text-xs text-white/75">{getQuestCityLabel(selectedMapQuest)}{selectedItem.distance ? ` · ${selectedItem.distance}` : ""}</p>
-                                    <div className="mt-3 flex items-center gap-2">
-                                      <Link
-                                        href={`/listing/${selectedMapQuest.id}`}
-                                        onClick={(e) => e.stopPropagation()}
-                                        className="inline-flex rounded-full bg-[#6a3417] px-3 py-2 text-xs font-medium text-white shadow-sm ring-1 ring-white/10"
-                                      >
-                                        Open listing
-                                      </Link>
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            })() : null}
-                          </>
+                          <QuestMap
+                            items={mapQuestItems.map((item) => ({
+                              id: item.quest.id,
+                              title: item.quest.title,
+                              city: item.quest.city,
+                              coords: item.coords!,
+                              distance: item.distance,
+                            }))}
+                            userLocation={userLocation}
+                            locationLabel={
+                              userLocationStatus === "loading"
+                                ? "Locating..."
+                                : userLocationStatus === "ready"
+                                  ? (userLocation?.accuracy && userLocation.accuracy > 50000 ? "Approximate location" : "My location")
+                                  : locationPermission === "denied"
+                                    ? "Enable in Settings"
+                                    : "Locate me"
+                            }
+                            onLocateMe={() => void requestUserLocation()}
+                            onSelectQuest={(questId) => setSelectedMapQuestId((current) => (current === questId ? null : questId))}
+                            selectedQuestId={selectedMapQuest?.id || null}
+                            locationLooksOff={locationLooksOff}
+                            approximateLocation={!!(userLocation?.accuracy && userLocation.accuracy > 50000)}
+                          />
                         ) : (
-                          <div className="grid place-items-center h-full text-slate-600">Allow location to load nearby pins.</div>
+                          <div className="grid place-items-center h-[60vh] rounded-3xl border bg-slate-100 text-slate-600">Allow location to load nearby pins.</div>
                         )}
                       </div>
                     </div>
