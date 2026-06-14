@@ -2429,7 +2429,7 @@ export default function Home() {
                   <p className="text-sm text-gray-500">Tap to filter by category, sort, and search.</p>
                 </div>
                 <span className="mt-1 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border bg-white text-slate-700">
-                  <svg viewBox="0 0 24 24" className={`h-4 w-4 transition-transform ${showDiscoverFilters ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" className={`h-4 w-4 transition-transform ${showDiscoverFilters ? "rotate-180" : ""} wiggle-bounce`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                     <path d="m6 9 6 6 6-6" />
                   </svg>
                 </span>
@@ -2482,7 +2482,7 @@ export default function Home() {
                 aria-controls="discover-filters"
               >
                 <span className="mt-1 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border bg-white text-slate-700">
-                  <svg viewBox="0 0 24 24" className={`h-4 w-4 transition-transform ${showDiscoverFilters ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" className={`h-4 w-4 transition-transform ${showDiscoverFilters ? "rotate-180" : ""} wiggle-bounce`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                     <path d="m6 9 6 6 6-6" />
                   </svg>
                 </span>
