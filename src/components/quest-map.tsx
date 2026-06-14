@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
-import L from "leaflet";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 type Coord = { lat: number; lon: number };
 
@@ -12,6 +11,10 @@ type QuestMapItem = {
   coords: Coord;
   distance?: string;
 };
+
+type LeafletModule = typeof import("leaflet");
+type LeafletMap = ReturnType<LeafletModule["map"]>;
+type LeafletLayerGroup = ReturnType<LeafletModule["layerGroup"]>;
 
 type Props = {
   items: QuestMapItem[];
@@ -24,20 +27,6 @@ type Props = {
   approximateLocation: boolean;
 };
 
-const questIcon = L.divIcon({
-  className: "",
-  html: '<div style="width:36px;height:36px;border-radius:9999px;background:#0ea5e9;border:3px solid #fff;box-shadow:0 8px 24px rgba(15,23,42,.2);display:grid;place-items:center;color:#fff;font-size:18px;line-height:1">📍</div>',
-  iconSize: [36, 36],
-  iconAnchor: [18, 18],
-});
-
-const userIcon = L.divIcon({
-  className: "",
-  html: '<div style="width:34px;height:34px;border-radius:9999px;background:#2563eb;border:3px solid #fff;box-shadow:0 8px 24px rgba(15,23,42,.2);display:grid;place-items:center;color:#fff"><div style="width:12px;height:12px;border-radius:9999px;background:#fff"></div></div>',
-  iconSize: [34, 34],
-  iconAnchor: [17, 17],
-});
-
 export default function QuestMap({
   items,
   userLocation,
@@ -49,8 +38,9 @@ export default function QuestMap({
   approximateLocation,
 }: Props) {
   const mapRef = useRef<HTMLDivElement | null>(null);
-  const mapInstanceRef = useRef<L.Map | null>(null);
-  const markersRef = useRef<L.LayerGroup | null>(null);
+  const mapInstanceRef = useRef<LeafletMap | null>(null);
+  const markersRef = useRef<LeafletLayerGroup | null>(null);
+  const [leaflet, setLeaflet] = useState<LeafletModule | null>(null);
 
   const center = useMemo(() => {
     const pts = items.map((item) => item.coords);
@@ -62,42 +52,65 @@ export default function QuestMap({
   }, [approximateLocation, items, locationLooksOff, userLocation]);
 
   useEffect(() => {
-    if (!mapRef.current || mapInstanceRef.current) return;
-    const map = L.map(mapRef.current, { zoomControl: true, attributionControl: true }).setView([center.lat, center.lon], 5);
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    let cancelled = false;
+    void import("leaflet").then((mod) => {
+      if (!cancelled) setLeaflet(mod.default || mod);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!leaflet || !mapRef.current || mapInstanceRef.current) return;
+    const map = leaflet.map(mapRef.current, { zoomControl: true, attributionControl: true }).setView([center.lat, center.lon], 5);
+    leaflet.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 19,
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     }).addTo(map);
-    markersRef.current = L.layerGroup().addTo(map);
+    markersRef.current = leaflet.layerGroup().addTo(map);
     mapInstanceRef.current = map;
     return () => {
       map.remove();
       mapInstanceRef.current = null;
       markersRef.current = null;
     };
-  }, [center.lat, center.lon]);
+  }, [center.lat, center.lon, leaflet]);
 
   useEffect(() => {
     const map = mapInstanceRef.current;
     const markers = markersRef.current;
-    if (!map || !markers) return;
+    if (!map || !markers || !leaflet) return;
     markers.clearLayers();
+
+    const questIcon = leaflet.divIcon({
+      className: "",
+      html: '<div style="width:36px;height:36px;border-radius:9999px;background:#0ea5e9;border:3px solid #fff;box-shadow:0 8px 24px rgba(15,23,42,.2);display:grid;place-items:center;color:#fff;font-size:18px;line-height:1">📍</div>',
+      iconSize: [36, 36],
+      iconAnchor: [18, 18],
+    });
+    const userIcon = leaflet.divIcon({
+      className: "",
+      html: '<div style="width:34px;height:34px;border-radius:9999px;background:#2563eb;border:3px solid #fff;box-shadow:0 8px 24px rgba(15,23,42,.2);display:grid;place-items:center;color:#fff"><div style="width:12px;height:12px;border-radius:9999px;background:#fff"></div></div>',
+      iconSize: [34, 34],
+      iconAnchor: [17, 17],
+    });
 
     items.forEach((item) => {
       const isActive = selectedQuestId === item.id;
-      const activeIcon = L.divIcon({
+      const activeIcon = leaflet.divIcon({
         className: "",
         html: '<div style="width:42px;height:42px;border-radius:9999px;background:#111827;border:3px solid #fff;box-shadow:0 10px 28px rgba(15,23,42,.26);display:grid;place-items:center;color:#fff;font-size:18px;line-height:1">📍</div>',
         iconSize: [42, 42],
         iconAnchor: [21, 21],
       });
-      const marker = L.marker([item.coords.lat, item.coords.lon], { icon: isActive ? activeIcon : questIcon }).addTo(markers);
+      const marker = leaflet.marker([item.coords.lat, item.coords.lon], { icon: isActive ? activeIcon : questIcon }).addTo(markers);
       marker.on("click", () => onSelectQuest(item.id));
       marker.bindTooltip(item.title, { direction: "top", opacity: 0.9 });
     });
 
     if (userLocation && !approximateLocation && !locationLooksOff) {
-      L.marker([userLocation.lat, userLocation.lon], { icon: userIcon }).addTo(markers).bindTooltip(locationLabel, { direction: "top", opacity: 0.95, permanent: false });
+      leaflet.marker([userLocation.lat, userLocation.lon], { icon: userIcon }).addTo(markers).bindTooltip(locationLabel, { direction: "top", opacity: 0.95, permanent: false });
     }
 
     if (items.length || userLocation) {
@@ -105,10 +118,10 @@ export default function QuestMap({
         ...items.map((item) => [item.coords.lat, item.coords.lon] as [number, number]),
         ...(userLocation && !approximateLocation && !locationLooksOff ? ([[userLocation.lat, userLocation.lon] as [number, number]]) : []),
       ];
-      if (latLngs.length > 1) map.fitBounds(L.latLngBounds(latLngs), { padding: [32, 32], maxZoom: 13 });
+      if (latLngs.length > 1) map.fitBounds(leaflet.latLngBounds(latLngs), { padding: [32, 32], maxZoom: 13 });
       else if (latLngs[0]) map.setView(latLngs[0], 11);
     }
-  }, [approximateLocation, items, locationLabel, locationLooksOff, onSelectQuest, selectedQuestId, userLocation]);
+  }, [approximateLocation, items, leaflet, locationLabel, locationLooksOff, onSelectQuest, selectedQuestId, userLocation]);
 
   return (
     <div className="relative h-[60vh] overflow-hidden rounded-3xl border bg-slate-100">
