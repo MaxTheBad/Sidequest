@@ -2466,13 +2466,15 @@ export default function Home() {
               <div className="flex-1" />
               <div className="flex items-center gap-2">
                 <button
-                  className={`px-1 py-1 text-xs font-medium transition ${feedViewMode === "list" ? "text-black underline underline-offset-4" : "text-slate-500 hover:text-slate-700"}`}
+                  aria-pressed={feedViewMode === "list"}
+                  className={`rounded-full px-2.5 py-1 text-xs font-medium transition ${feedViewMode === "list" ? "bg-black/10 text-black" : "text-slate-500 hover:text-slate-700"}`}
                   onClick={() => setFeedViewMode("list")}
                 >
                   List
                 </button>
                 <button
-                  className={`px-1 py-1 text-xs font-medium transition ${feedViewMode === "map" ? "text-black underline underline-offset-4" : "text-slate-500 hover:text-slate-700"}`}
+                  aria-pressed={feedViewMode === "map"}
+                  className={`rounded-full px-2.5 py-1 text-xs font-medium transition ${feedViewMode === "map" ? "bg-black/10 text-black" : "text-slate-500 hover:text-slate-700"}`}
                   onClick={() => setFeedViewMode("map")}
                 >
                   Map
