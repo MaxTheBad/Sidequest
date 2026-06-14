@@ -296,6 +296,7 @@ export default function Home() {
     if (typeof window === "undefined") return false;
     return window.localStorage.getItem("sidequest_saved_only") === "1";
   });
+  const [showDiscoverFilters, setShowDiscoverFilters] = useState(true);
   const [hobbyFilter, setHobbyFilter] = useState("all");
   const [loading, setLoading] = useState(false);
   const cityCoordinateCacheRef = useRef<Record<string, { lat: number; lon: number }>>({});
@@ -634,6 +635,15 @@ export default function Home() {
     window.addEventListener("sidequest:saved-only-changed", syncSavedOnly as EventListener);
     return () => window.removeEventListener("sidequest:saved-only-changed", syncSavedOnly as EventListener);
   }, [showSavedOnly]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const sync = () => setShowDiscoverFilters(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
 
   useEffect(() => {
     if (!status) return;
@@ -2395,43 +2405,58 @@ export default function Home() {
         <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)] xl:items-start">
           <aside className="space-y-4 xl:sticky xl:top-[76px]">
             <section className="rounded-3xl bg-white border shadow-sm p-5 space-y-4">
-              <div className="space-y-1">
-                <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Discover</p>
-                <h2 className="text-xl font-semibold">Explore quests</h2>
-                <p className="text-sm text-gray-500">Find a group that fits your schedule, skill level, and energy.</p>
-              </div>
-              <div className="space-y-3">
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="grid gap-2">
-                    <label className="block text-xs font-medium text-gray-600">Category</label>
-                    <select className="w-full border rounded-xl px-3 py-2.5 bg-white" value={hobbyFilter} onChange={(e) => setHobbyFilter(e.target.value)}>
-                      <option value="all">All categories</option>
-                      {categoryOptions.map((option) => (
-                        <option key={option.id} value={option.id}>
-                          {option.name}
-                        </option>
-                      ))}
-                    </select>
+              <button
+                type="button"
+                onClick={() => setShowDiscoverFilters((current) => !current)}
+                className="w-full flex items-start justify-between gap-4 text-left"
+                aria-expanded={showDiscoverFilters}
+                aria-controls="discover-filters"
+              >
+                <div className="space-y-1">
+                  <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Discover</p>
+                  <h2 className="text-xl font-semibold">Explore quests</h2>
+                  <p className="text-sm text-gray-500">Find a group that fits your schedule, skill level, and energy.</p>
+                </div>
+                <span className="mt-1 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border bg-white text-slate-700">
+                  <svg viewBox="0 0 24 24" className={`h-4 w-4 transition-transform ${showDiscoverFilters ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="m6 9 6 6 6-6" />
+                  </svg>
+                </span>
+              </button>
+              {showDiscoverFilters ? (
+                <div id="discover-filters" className="space-y-3">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="grid gap-2">
+                      <label className="block text-xs font-medium text-gray-600">Category</label>
+                      <select className="w-full border rounded-xl px-3 py-2.5 bg-white" value={hobbyFilter} onChange={(e) => setHobbyFilter(e.target.value)}>
+                        <option value="all">All categories</option>
+                        {categoryOptions.map((option) => (
+                          <option key={option.id} value={option.id}>
+                            {option.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="grid gap-2">
+                      <label className="block text-xs font-medium text-gray-600">Sort by</label>
+                      <select className="w-full border rounded-xl px-3 py-2.5 bg-white" value={sortMode} onChange={(e) => setSortMode(e.target.value as "newest" | "soonest" | "title")}>
+                        <option value="newest">Newest</option>
+                        <option value="soonest">Soonest</option>
+                        <option value="title">Title</option>
+                      </select>
+                    </div>
                   </div>
                   <div className="grid gap-2">
-                    <label className="block text-xs font-medium text-gray-600">Sort by</label>
-                    <select className="w-full border rounded-xl px-3 py-2.5 bg-white" value={sortMode} onChange={(e) => setSortMode(e.target.value as "newest" | "soonest" | "title")}>
-                      <option value="newest">Newest</option>
-                      <option value="soonest">Soonest</option>
-                      <option value="title">Title</option>
-                    </select>
+                    <label className="block text-xs font-medium text-gray-600">Search</label>
+                    <input
+                      className="w-full border rounded-xl px-3 py-2.5 bg-white"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Search title, city, category..."
+                    />
                   </div>
                 </div>
-                <div className="grid gap-2">
-                  <label className="block text-xs font-medium text-gray-600">Search</label>
-                  <input
-                    className="w-full border rounded-xl px-3 py-2.5 bg-white"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search title, city, category..."
-                  />
-                </div>
-              </div>
+              ) : null}
             </section>
 
           </aside>
