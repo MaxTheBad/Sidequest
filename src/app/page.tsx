@@ -2556,7 +2556,7 @@ export default function Home() {
 
             return (
             <article key={q.id} className={`quest-card w-full bg-white border border-slate-200 shadow-[0_14px_40px_rgba(15,23,42,0.08)] overflow-hidden ${feedViewMode === "list" ? "rounded-none sm:rounded-[1.75rem] h-[calc(100svh-10.75rem)] sm:h-auto flex flex-col" : "rounded-[2rem]"}`}>
-              <div className={`p-3 flex items-center justify-between gap-2 ${feedViewMode === "list" ? "sm:p-4 absolute top-0 left-0 right-0 z-30 bg-gradient-to-b from-black/35 via-black/20 via-black/10 via-black/5 to-transparent pb-10 sm:pb-12 text-white border-0 backdrop-blur-[2px]" : ""}`}>
+              <div className={`p-3 flex items-center justify-between gap-2 ${feedViewMode === "list" ? "sm:p-4 absolute top-0 left-0 right-0 z-30 bg-gradient-to-b from-black/28 via-black/16 via-black/8 via-black/4 to-transparent pb-14 sm:pb-16 text-white border-0 backdrop-blur-[1px]" : ""}`}>
                 <Link href={`/profile/${q.creator_id}`} className="flex items-center gap-2 min-w-0">
                   {creatorProfile?.avatar_url ? (
                     <img src={creatorProfile.avatar_url} alt="Creator" className="h-9 w-9 rounded-full object-cover border" />
@@ -2695,7 +2695,7 @@ export default function Home() {
                 <div className="relative">
                   <div
                     aria-hidden="true"
-                    className="pointer-events-none absolute inset-x-0 top-0 z-20 h-24 bg-gradient-to-b from-black/20 via-black/10 to-transparent backdrop-blur-[1px]"
+                    className="soft-fade-layer pointer-events-none absolute inset-x-0 top-0 z-20 h-32 bg-gradient-to-b from-black/12 via-black/8 via-black/4 to-transparent"
                   />
                   <div
                     className={`absolute inset-x-0 bottom-0 z-10 px-4 text-white text-left ${expandedQuestIds[q.id] === false ? "pb-3" : "quest-list-overlay pt-8 pb-4"}`}

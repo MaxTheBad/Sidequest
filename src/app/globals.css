@@ -86,12 +86,12 @@ html[data-theme="dark"] .quest-card .text-slate-700 {
 }
 
 html[data-theme="dark"] .quest-list-overlay {
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.84) 0%, rgba(0, 0, 0, 0.56) 55%, rgba(0, 0, 0, 0) 100%);
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.72) 0%, rgba(0, 0, 0, 0.42) 40%, rgba(0, 0, 0, 0.18) 72%, rgba(0, 0, 0, 0) 100%);
 }
 
 html:not([data-theme="dark"]) .quest-list-overlay {
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.82) 0%, rgba(0, 0, 0, 0.56) 34%, rgba(0, 0, 0, 0.24) 64%, rgba(0, 0, 0, 0) 100%);
-  backdrop-filter: blur(3px);
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.68) 0%, rgba(0, 0, 0, 0.42) 34%, rgba(0, 0, 0, 0.18) 68%, rgba(0, 0, 0, 0.06) 84%, rgba(0, 0, 0, 0) 100%);
+  backdrop-filter: blur(1.5px);
 }
 
 html:not([data-theme="dark"]) .quest-list-overlay,
@@ -127,6 +127,11 @@ html:not([data-theme="dark"]) .quest-list-overlay svg {
 .blink-colors {
   animation: blink-colors 3s ease-in-out 1;
   transform-origin: center;
+}
+
+html[data-theme="dark"] .quest-list-overlay .soft-fade-layer,
+html:not([data-theme="dark"]) .quest-list-overlay .soft-fade-layer {
+  backdrop-filter: blur(1px);
 }
 
 /* ============================================
