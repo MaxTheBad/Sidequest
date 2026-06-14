@@ -2463,10 +2463,6 @@ export default function Home() {
 
           <section className="space-y-4">
             <div className="flex items-end justify-between gap-4 rounded-3xl bg-white border shadow-sm p-4 sm:p-5">
-              <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Feed</p>
-                <h3 className="text-base sm:text-lg font-semibold">Latest quests</h3>
-              </div>
               <div className="flex items-center gap-2">
                 <button
                   className={`px-1 py-1 text-xs font-medium transition ${feedViewMode === "list" ? "text-black underline underline-offset-4" : "text-slate-500 hover:text-slate-700"}`}
