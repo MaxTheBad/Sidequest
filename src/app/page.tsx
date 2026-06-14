@@ -2464,18 +2464,24 @@ export default function Home() {
           <section className="space-y-4">
             <div className="flex items-center justify-between gap-4 px-1">
               <div className="flex-1" />
-              <div className="flex items-center gap-2">
+              <div className="relative inline-flex items-center rounded-full border border-slate-200 bg-slate-100 p-1 shadow-sm">
+                <span
+                  className={`absolute inset-y-1 w-[calc(50%-0.25rem)] rounded-full bg-white shadow transition-transform duration-200 ease-out ${feedViewMode === "map" ? "translate-x-full" : "translate-x-0"}`}
+                  aria-hidden="true"
+                />
                 <button
                   aria-pressed={feedViewMode === "list"}
-                  className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${feedViewMode === "list" ? "bg-black text-white border-black" : "bg-white text-slate-700 border-slate-200"}`}
+                  className={`relative z-10 rounded-full px-4 py-1.5 text-xs font-medium transition ${feedViewMode === "list" ? "text-slate-900" : "text-slate-500 hover:text-slate-700"}`}
                   onClick={() => setFeedViewMode("list")}
+                  type="button"
                 >
                   List
                 </button>
                 <button
                   aria-pressed={feedViewMode === "map"}
-                  className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${feedViewMode === "map" ? "bg-black text-white border-black" : "bg-white text-slate-700 border-slate-200"}`}
+                  className={`relative z-10 rounded-full px-4 py-1.5 text-xs font-medium transition ${feedViewMode === "map" ? "text-slate-900" : "text-slate-500 hover:text-slate-700"}`}
                   onClick={() => setFeedViewMode("map")}
+                  type="button"
                 >
                   Map
                 </button>
