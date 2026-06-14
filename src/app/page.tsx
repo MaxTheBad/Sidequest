@@ -2404,7 +2404,7 @@ export default function Home() {
         )}
         <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)] xl:items-start">
           <aside className="space-y-4 xl:sticky xl:top-[76px]">
-            <section className="rounded-3xl bg-white border shadow-sm p-5 space-y-4">
+            <section className="space-y-4">
               <button
                 type="button"
                 onClick={() => setShowDiscoverFilters((current) => !current)}
