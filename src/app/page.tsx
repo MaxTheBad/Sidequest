@@ -2419,7 +2419,7 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => setShowDiscoverFilters((current) => !current)}
-                className="w-full flex items-start justify-between gap-4 text-left"
+                className="hidden w-full items-start justify-between gap-4 text-left sm:flex"
                 aria-expanded={showDiscoverFilters}
                 aria-controls="discover-filters"
               >
@@ -2473,8 +2473,26 @@ export default function Home() {
           </aside>
 
           <section className="space-y-4">
-            <div className="flex items-center justify-between gap-4 px-1">
-              <div className="flex-1" />
+            <div className="flex items-center justify-between gap-3 px-1 sm:px-1">
+              <button
+                type="button"
+                onClick={() => setShowDiscoverFilters((current) => !current)}
+                className="flex min-w-0 flex-1 items-start gap-3 text-left sm:hidden"
+                aria-expanded={showDiscoverFilters}
+                aria-controls="discover-filters"
+              >
+                <span className="mt-1 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border bg-white text-slate-700">
+                  <svg viewBox="0 0 24 24" className={`h-4 w-4 transition-transform ${showDiscoverFilters ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="m6 9 6 6 6-6" />
+                  </svg>
+                </span>
+                <div className="min-w-0">
+                  <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Filter quests</p>
+                  <h2 className="text-xl font-semibold">Find quests</h2>
+                  <p className="text-sm text-gray-500">Tap to filter by category, sort, and search.</p>
+                </div>
+              </button>
+              <div className="hidden sm:block flex-1" />
               <div
                 className="relative inline-grid grid-cols-2 items-stretch rounded-full border border-white/10 bg-slate-900/85 p-1 shadow-lg shadow-black/20 backdrop-blur"
                 role="switch"
@@ -2538,7 +2556,7 @@ export default function Home() {
 
             return (
             <article key={q.id} className={`quest-card w-full bg-white border border-slate-200 shadow-[0_14px_40px_rgba(15,23,42,0.08)] overflow-hidden ${feedViewMode === "list" ? "rounded-none sm:rounded-[1.75rem] h-[calc(100svh-10.75rem)] sm:h-auto flex flex-col" : "rounded-[2rem]"}`}>
-              <div className={`p-3 flex items-center justify-between gap-2 ${feedViewMode === "list" ? "sm:p-4 absolute top-0 left-0 right-0 z-30 bg-gradient-to-b from-black/55 via-black/20 to-transparent text-white border-0" : ""}`}>
+              <div className={`p-3 flex items-center justify-between gap-2 ${feedViewMode === "list" ? "sm:p-4 absolute top-0 left-0 right-0 z-30 bg-gradient-to-b from-black/45 via-black/20 via-black/10 to-transparent text-white border-0 backdrop-blur-[1px]" : ""}`}>
                 <Link href={`/profile/${q.creator_id}`} className="flex items-center gap-2 min-w-0">
                   {creatorProfile?.avatar_url ? (
                     <img src={creatorProfile.avatar_url} alt="Creator" className="h-9 w-9 rounded-full object-cover border" />
@@ -2648,7 +2666,7 @@ export default function Home() {
                           </>
                         )}
                         {feedViewMode === "list" && feedMediaItems.length > 1 ? (
-                          <div className="absolute top-16 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1.5 rounded-full bg-black/30 px-2 py-1 backdrop-blur-sm pointer-events-none">
+                          <div className="absolute top-16 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1.5 rounded-full bg-black/25 px-2 py-1 backdrop-blur-sm pointer-events-none">
                             {feedMediaItems.map((_, dotIndex) => (
                               <span key={dotIndex} className={`h-1.5 w-1.5 rounded-full ${dotIndex === feedIndex ? "bg-white" : "bg-white/40"}`} />
                             ))}
