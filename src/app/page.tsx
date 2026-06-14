@@ -221,7 +221,7 @@ export default function Home() {
   const [cityMapUrl, setCityMapUrl] = useState("");
   const [cityMapLoading, setCityMapLoading] = useState(false);
   const [mapViewTitle, setMapViewTitle] = useState("");
-  const [userLocation, setUserLocation] = useState<{ lat: number; lon: number } | null>(null);
+  const [userLocation, setUserLocation] = useState<{ lat: number; lon: number; accuracy?: number } | null>(null);
   const [userLocationStatus, setUserLocationStatus] = useState<"idle" | "loading" | "ready" | "denied" | "error">("idle");
   const [locationPermission, setLocationPermission] = useState<"unknown" | "prompt" | "granted" | "denied">("unknown");
   const [expandedMedia, setExpandedMedia] = useState<{ items: QuestMediaItem[]; index: number } | null>(null);
@@ -1688,13 +1688,13 @@ export default function Home() {
     setUserLocationStatus("loading");
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        setUserLocation({ lat: position.coords.latitude, lon: position.coords.longitude });
+        setUserLocation({ lat: position.coords.latitude, lon: position.coords.longitude, accuracy: position.coords.accuracy });
         setUserLocationStatus("ready");
       },
       (error) => {
         setUserLocationStatus(error.code === error.PERMISSION_DENIED ? "denied" : "error");
       },
-      { enableHighAccuracy: false, timeout: 10000, maximumAge: 10 * 60 * 1000 },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
     );
   }
 
@@ -2930,7 +2930,7 @@ export default function Home() {
                                   {userLocationStatus === "loading"
                                     ? "Locating..."
                                     : userLocationStatus === "ready"
-                                      ? "My location"
+                                      ? (userLocation?.accuracy && userLocation.accuracy > 50000 ? "Approximate location" : "My location")
                                       : locationPermission === "denied"
                                         ? "Enable in Settings"
                                         : "Locate me"}
@@ -2972,8 +2972,13 @@ export default function Home() {
                                     </span>
                                   </div>
                                   <div className="mt-1 whitespace-nowrap rounded-full bg-slate-950/85 px-2 py-1 text-[10px] font-medium text-white shadow-lg">
-                                    You are here
+                                    {userLocation.accuracy && userLocation.accuracy > 50000 ? "Approximate location" : "You are here"}
                                   </div>
+                                </div>
+                              ) : null}
+                              {userLocation?.accuracy && userLocation.accuracy > 50000 ? (
+                                <div className="absolute left-3 top-3 z-30 max-w-[250px] rounded-2xl border border-amber-300 bg-amber-50/95 px-3 py-2 shadow-lg backdrop-blur-sm">
+                                  <p className="text-xs font-medium text-amber-900">Location is approximate. On iPhone, turn on Precise Location for Safari to get a better fix.</p>
                                 </div>
                               ) : null}
                               {locationLooksOff ? (
