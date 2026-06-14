@@ -2556,7 +2556,7 @@ export default function Home() {
 
             return (
             <article key={q.id} className={`quest-card w-full bg-white border border-slate-200 shadow-[0_14px_40px_rgba(15,23,42,0.08)] overflow-hidden ${feedViewMode === "list" ? "rounded-none sm:rounded-[1.75rem] h-[calc(100svh-10.75rem)] sm:h-auto flex flex-col" : "rounded-[2rem]"}`}>
-              <div className={`p-3 flex items-center justify-between gap-2 ${feedViewMode === "list" ? "sm:p-4 absolute top-0 left-0 right-0 z-30 bg-gradient-to-b from-black/28 via-black/16 via-black/8 via-black/4 to-transparent pb-14 sm:pb-16 text-white border-0 backdrop-blur-[1px]" : ""}`}>
+              <div className={`p-3 flex items-center justify-between gap-2 ${feedViewMode === "list" ? "sm:p-4 absolute top-0 left-0 right-0 z-30 bg-gradient-to-b from-black/22 via-black/12 via-black/6 to-transparent py-2 sm:py-3 text-white border-0 backdrop-blur-[0.75px]" : ""}`}>
                 <Link href={`/profile/${q.creator_id}`} className="flex items-center gap-2 min-w-0">
                   {creatorProfile?.avatar_url ? (
                     <img src={creatorProfile.avatar_url} alt="Creator" className="h-9 w-9 rounded-full object-cover border" />
@@ -2576,7 +2576,7 @@ export default function Home() {
                     <div className="absolute right-0 mt-1 w-36 rounded-xl border bg-white shadow-md z-20 overflow-hidden">
                       {userId === q.creator_id && (
                         <>
-                          <button className="block w-full text-left px-3 py-2 text-sm hover:bg-gray-50" onClick={() => { setOpenCardMenuQuestId(null); openEditModal(q); }}>
+                          <button className="block w-full text-left px-3 py-2 text-sm text-slate-900 hover:bg-gray-50" onClick={() => { setOpenCardMenuQuestId(null); openEditModal(q); }}>
                             Edit listing
                           </button>
                           <button className="block w-full text-left px-3 py-2 text-sm text-red-700 hover:bg-red-50" onClick={() => { setOpenCardMenuQuestId(null); void deleteQuest(q.id); }}>
@@ -2695,7 +2695,7 @@ export default function Home() {
                 <div className="relative">
                   <div
                     aria-hidden="true"
-                    className="soft-fade-layer pointer-events-none absolute inset-x-0 top-0 z-20 h-32 bg-gradient-to-b from-black/12 via-black/8 via-black/4 to-transparent"
+                    className="soft-fade-layer pointer-events-none absolute inset-x-0 top-0 z-20 h-16 bg-gradient-to-b from-black/10 via-black/5 to-transparent"
                   />
                   <div
                     className={`absolute inset-x-0 bottom-0 z-10 px-4 text-white text-left ${expandedQuestIds[q.id] === false ? "pb-3" : "quest-list-overlay pt-8 pb-4"}`}
