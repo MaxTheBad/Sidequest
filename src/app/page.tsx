@@ -2709,7 +2709,7 @@ export default function Home() {
               )}
 
               {feedViewMode === "list" ? (
-                <div className="px-4 pt-4 pb-5 space-y-4 bg-white text-slate-900">
+                <div className="px-4 pt-4 pb-5 space-y-3 bg-white text-slate-900">
                   <div className="flex items-center justify-between gap-3">
                     <Link href={`/profile/${q.creator_id}`} className="flex items-center gap-2 min-w-0">
                       {creatorProfile?.avatar_url ? (
@@ -2719,22 +2719,18 @@ export default function Home() {
                       )}
                       <span className="text-sm font-semibold truncate">{creatorProfile?.display_name || "View profile"}</span>
                     </Link>
-                    <div className="flex items-center gap-2">
-                      <button className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-900 shadow-sm" aria-label={bookmarkedQuestIds.includes(q.id) ? "Saved" : "Save"} title={bookmarkedQuestIds.includes(q.id) ? "Saved" : "Save"} onClick={() => void toggleBookmark(q.id)}>
-                        <svg viewBox="0 0 24 24" className="h-5 w-5" fill={bookmarkedQuestIds.includes(q.id) ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                          <path d="M12 3.5 14.6 8.8l5.9.9-4.3 4.2 1 5.9L12 17.1 6.8 19.8l1-5.9-4.3-4.2 5.9-.9L12 3.5Z" />
-                        </svg>
-                      </button>
-                      <button className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-900 shadow-sm" aria-label="Share" title="Share" onClick={() => void shareQuest(q)}>
-                        <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                          <path d="M12 5v14" />
-                          <path d="m6 11 6-6 6 6" />
-                          <path d="M5 19h14" />
-                        </svg>
-                      </button>
-                    </div>
+                    <button
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-900 shadow-sm"
+                      aria-label={bookmarkedQuestIds.includes(q.id) ? "Saved" : "Save"}
+                      title={bookmarkedQuestIds.includes(q.id) ? "Saved" : "Save"}
+                      onClick={() => void toggleBookmark(q.id)}
+                    >
+                      <svg viewBox="0 0 24 24" className="h-5 w-5" fill={bookmarkedQuestIds.includes(q.id) ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M12 3.5 14.6 8.8l5.9.9-4.3 4.2 1 5.9L12 17.1 6.8 19.8l1-5.9-4.3-4.2 5.9-.9L12 3.5Z" />
+                      </svg>
+                    </button>
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-1">
                     <div className="flex items-start justify-between gap-3">
                       <h3 className="text-[11px] sm:text-xs font-semibold leading-tight tracking-tight text-slate-500 uppercase">
                         {getQuestCategoryDisplay(q)}
@@ -2749,11 +2745,8 @@ export default function Home() {
                       </Link>
                     </h2>
                     {q.description ? <p className="text-sm text-slate-700 leading-relaxed">{q.description}</p> : null}
-                    <p className="text-xs font-medium text-slate-500 leading-relaxed">{formatPostedLabel(q.created_at)}</p>
-                    <p className="text-xs font-medium text-slate-500 leading-relaxed">{getEventTimingLabel(q.availability)}</p>
-                    {distanceLabel ? <p className="text-xs font-medium text-slate-500">{distanceLabel}</p> : null}
                   </div>
-                  <div className="grid grid-cols-4 gap-2">
+                  <div className="grid grid-cols-5 gap-2">
                     {userId !== q.creator_id ? (
                       <button
                         className="inline-flex h-11 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-900 shadow-sm"
@@ -2778,6 +2771,13 @@ export default function Home() {
                     <button className="inline-flex h-11 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-900 shadow-sm" aria-label="Favorite" title="Favorite" onClick={() => void toggleBookmark(q.id)}>
                       <svg viewBox="0 0 24 24" className="h-5 w-5" fill={bookmarkedQuestIds.includes(q.id) ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                         <path d="M12 3.5 14.6 8.8l5.9.9-4.3 4.2 1 5.9L12 17.1 6.8 19.8l1-5.9-4.3-4.2 5.9-.9L12 3.5Z" />
+                      </svg>
+                    </button>
+                    <button className="inline-flex h-11 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-900 shadow-sm" aria-label="Share" title="Share" onClick={() => void shareQuest(q)}>
+                      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M12 5v14" />
+                        <path d="m6 11 6-6 6 6" />
+                        <path d="M5 19h14" />
                       </svg>
                     </button>
                   </div>
