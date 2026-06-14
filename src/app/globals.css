@@ -103,44 +103,29 @@ html:not([data-theme="dark"]) .quest-list-overlay svg {
   stroke: currentColor;
 }
 
-@keyframes wiggle-bounce {
+@keyframes blink-colors {
   0% {
-    transform: translateY(0) rotate(0deg);
-  }
-  10% {
-    transform: translateY(0) rotate(-10deg);
+    color: inherit;
   }
   20% {
-    transform: translateY(0) rotate(10deg);
-  }
-  30% {
-    transform: translateY(0) rotate(-8deg);
+    color: #ef4444;
   }
   40% {
-    transform: translateY(0) rotate(8deg);
-  }
-  50% {
-    transform: translateY(-2px) rotate(0deg);
+    color: #f59e0b;
   }
   60% {
-    transform: translateY(2px) rotate(0deg);
-  }
-  70% {
-    transform: translateY(-2px) rotate(0deg);
+    color: #22c55e;
   }
   80% {
-    transform: translateY(1px) rotate(0deg);
-  }
-  90% {
-    transform: translateY(0) rotate(0deg);
+    color: #38bdf8;
   }
   100% {
-    transform: translateY(0) rotate(0deg);
+    color: inherit;
   }
 }
 
-.wiggle-bounce {
-  animation: wiggle-bounce 3s ease-in-out 1;
+.blink-colors {
+  animation: blink-colors 3s ease-in-out 1;
   transform-origin: center;
 }
 

@@ -2429,7 +2429,7 @@ export default function Home() {
                   <p className="text-sm text-gray-500">Tap to filter by category, sort, and search.</p>
                 </div>
                 <span className="mt-1 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border bg-white text-slate-700">
-                  <svg viewBox="0 0 24 24" className={`h-4 w-4 transition-transform ${showDiscoverFilters ? "rotate-180" : ""} wiggle-bounce`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" className={`h-4 w-4 transition-transform ${showDiscoverFilters ? "rotate-180" : ""} blink-colors`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                     <path d="m6 9 6 6 6-6" />
                   </svg>
                 </span>
@@ -2482,7 +2482,7 @@ export default function Home() {
                 aria-controls="discover-filters"
               >
                 <span className="mt-1 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border bg-white text-slate-700">
-                  <svg viewBox="0 0 24 24" className={`h-4 w-4 transition-transform ${showDiscoverFilters ? "rotate-180" : ""} wiggle-bounce`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" className={`h-4 w-4 transition-transform ${showDiscoverFilters ? "rotate-180" : ""} blink-colors`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                     <path d="m6 9 6 6 6-6" />
                   </svg>
                 </span>
@@ -2556,7 +2556,7 @@ export default function Home() {
 
             return (
             <article key={q.id} className={`quest-card w-full bg-white border border-slate-200 shadow-[0_14px_40px_rgba(15,23,42,0.08)] overflow-hidden ${feedViewMode === "list" ? "rounded-none sm:rounded-[1.75rem] h-[calc(100svh-10.75rem)] sm:h-auto flex flex-col" : "rounded-[2rem]"}`}>
-              <div className={`p-3 flex items-center justify-between gap-2 ${feedViewMode === "list" ? "sm:p-4 absolute top-0 left-0 right-0 z-30 bg-gradient-to-b from-black/45 via-black/20 via-black/10 to-transparent text-white border-0 backdrop-blur-[1px]" : ""}`}>
+              <div className={`p-3 flex items-center justify-between gap-2 ${feedViewMode === "list" ? "sm:p-4 absolute top-0 left-0 right-0 z-30 bg-gradient-to-b from-black/35 via-black/20 via-black/10 via-black/5 to-transparent pb-10 sm:pb-12 text-white border-0 backdrop-blur-[2px]" : ""}`}>
                 <Link href={`/profile/${q.creator_id}`} className="flex items-center gap-2 min-w-0">
                   {creatorProfile?.avatar_url ? (
                     <img src={creatorProfile.avatar_url} alt="Creator" className="h-9 w-9 rounded-full object-cover border" />
@@ -2693,6 +2693,10 @@ export default function Home() {
 
               {feedViewMode === "list" ? (
                 <div className="relative">
+                  <div
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-x-0 top-0 z-20 h-24 bg-gradient-to-b from-black/20 via-black/10 to-transparent backdrop-blur-[1px]"
+                  />
                   <div
                     className={`absolute inset-x-0 bottom-0 z-10 px-4 text-white text-left ${expandedQuestIds[q.id] === false ? "pb-3" : "quest-list-overlay pt-8 pb-4"}`}
                     onClick={() => setExpandedQuestIds((prev) => ({ ...prev, [q.id]: !prev[q.id] }))}
