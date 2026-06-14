@@ -2401,15 +2401,27 @@ export default function Home() {
                 <p className="text-sm text-gray-500">Find a group that fits your schedule, skill level, and energy.</p>
               </div>
               <div className="space-y-3">
-                <label className="block text-xs font-medium text-gray-600">Category</label>
-                <select className="w-full border rounded-xl px-3 py-2.5 bg-white" value={hobbyFilter} onChange={(e) => setHobbyFilter(e.target.value)}>
-                  <option value="all">All categories</option>
-                  {categoryOptions.map((option) => (
-                    <option key={option.id} value={option.id}>
-                      {option.name}
-                    </option>
-                  ))}
-                </select>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="grid gap-2">
+                    <label className="block text-xs font-medium text-gray-600">Category</label>
+                    <select className="w-full border rounded-xl px-3 py-2.5 bg-white" value={hobbyFilter} onChange={(e) => setHobbyFilter(e.target.value)}>
+                      <option value="all">All categories</option>
+                      {categoryOptions.map((option) => (
+                        <option key={option.id} value={option.id}>
+                          {option.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="grid gap-2">
+                    <label className="block text-xs font-medium text-gray-600">Sort by</label>
+                    <select className="w-full border rounded-xl px-3 py-2.5 bg-white" value={sortMode} onChange={(e) => setSortMode(e.target.value as "newest" | "soonest" | "title")}>
+                      <option value="newest">Newest</option>
+                      <option value="soonest">Soonest</option>
+                      <option value="title">Title</option>
+                    </select>
+                  </div>
+                </div>
                 <div className="grid gap-2">
                   <label className="block text-xs font-medium text-gray-600">Search</label>
                   <input
@@ -2418,14 +2430,6 @@ export default function Home() {
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Search title, city, category..."
                   />
-                </div>
-                <div className="grid gap-2">
-                  <label className="block text-xs font-medium text-gray-600">Sort by</label>
-                  <select className="w-full border rounded-xl px-3 py-2.5 bg-white" value={sortMode} onChange={(e) => setSortMode(e.target.value as "newest" | "soonest" | "title")}>
-                    <option value="newest">Newest</option>
-                    <option value="soonest">Soonest</option>
-                    <option value="title">Title</option>
-                  </select>
                 </div>
               </div>
             </section>
