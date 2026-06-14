@@ -2413,9 +2413,9 @@ export default function Home() {
                 aria-controls="discover-filters"
               >
                 <div className="space-y-1">
-                  <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Discover</p>
-                  <h2 className="text-xl font-semibold">Explore quests</h2>
-                  <p className="text-sm text-gray-500">Find a group that fits your schedule, skill level, and energy.</p>
+                  <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Filter quests</p>
+                  <h2 className="text-xl font-semibold">Find quests</h2>
+                  <p className="text-sm text-gray-500">Tap to filter by category, sort, and search.</p>
                 </div>
                 <span className="mt-1 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border bg-white text-slate-700">
                   <svg viewBox="0 0 24 24" className={`h-4 w-4 transition-transform ${showDiscoverFilters ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
