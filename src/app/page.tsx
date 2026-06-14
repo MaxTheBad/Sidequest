@@ -287,7 +287,10 @@ export default function Home() {
   const [membershipStatusByQuest, setMembershipStatusByQuest] = useState<Record<string, "pending" | "approved" | "declined">>({});
   const [feedMediaIndexByQuest, setFeedMediaIndexByQuest] = useState<Record<string, number>>({});
   const [generatedVideoThumbs, setGeneratedVideoThumbs] = useState<Record<string, string>>({});
-  const [feedViewMode, setFeedViewMode] = useState<"list" | "map">("list");
+  const [feedViewMode, setFeedViewMode] = useState<"list" | "map">(() => {
+    if (typeof window === "undefined") return "list";
+    return window.localStorage.getItem("sidequest_feed_view_mode") === "map" ? "map" : "list";
+  });
   const [selectedMapQuestId, setSelectedMapQuestId] = useState<string | null>(null);
   const [openCardMenuQuestId, setOpenCardMenuQuestId] = useState<string | null>(null);
   const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
@@ -465,6 +468,11 @@ export default function Home() {
     const ts = raw ? Number(raw) : 0;
     if (Number.isFinite(ts) && ts > 0) publicWarningMutedUntilRef.current = ts;
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("sidequest_feed_view_mode", feedViewMode);
+  }, [feedViewMode]);
 
   function resolveCountryCodeByName(name: string) {
     const found = countryOptions.find((c) => c.name.toLowerCase() === name.trim().toLowerCase());
@@ -2939,6 +2947,9 @@ export default function Home() {
                         <div className="flex items-start justify-between gap-3">
                           <div>
                             <h4 className={`font-semibold ${isActive ? "text-white" : "text-slate-900"}`}>{getQuestCategoryDisplay(item.quest)}</h4>
+                            {item.distance ? (
+                              <p className={`mt-1 text-xs ${isActive ? "text-white/70" : "text-slate-500"}`}>{item.distance}</p>
+                            ) : null}
                           </div>
                         </div>
                         <div className="mt-2 flex items-center justify-between gap-3">
