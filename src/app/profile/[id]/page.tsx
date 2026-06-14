@@ -51,6 +51,12 @@ export default function ProfilePage() {
   const [reportDetails, setReportDetails] = useState("");
   const [submittingReport, setSubmittingReport] = useState(false);
 
+  function sanitizeLocationLabel(input?: string | null) {
+    const raw = (input || "").trim();
+    if (!raw) return "";
+    return raw.replace(/,\s*(Florida|FL)$/i, "").replace(/\s+\b(Florida|FL)\b$/i, "").trim();
+  }
+
   const isOwnProfile = useMemo(() => !!(viewerId && profileId && viewerId === profileId), [viewerId, profileId]);
   const blockEdge = useMemo(() => {
     if (!viewerId || !profileId) return null;
@@ -316,7 +322,7 @@ export default function ProfilePage() {
                 )}
                 <div>
                   <h1 className="text-2xl font-bold">{profile?.display_name || "SideQuest user"}</h1>
-                  <p className="text-sm text-gray-600">{profile?.city || "City not set"}</p>
+                  <p className="text-sm text-gray-600">{sanitizeLocationLabel(profile?.city) || "City not set"}</p>
                   {profile?.bio && <p className="text-sm mt-1">{profile.bio}</p>}
                 </div>
               </div>

@@ -76,6 +76,12 @@ export default function ListingPage() {
   const [reportDetails, setReportDetails] = useState("");
   const [submittingReport, setSubmittingReport] = useState(false);
 
+  function sanitizeLocationLabel(input?: string | null) {
+    const raw = (input || "").trim();
+    if (!raw) return "";
+    return raw.replace(/,\s*(Florida|FL)$/i, "").replace(/\s+\b(Florida|FL)\b$/i, "").trim();
+  }
+
   async function loadMembers(questId: string, uid: string | null) {
     if (!supabase) return;
     const { data, error } = await supabase
@@ -624,7 +630,7 @@ export default function ListingPage() {
 
             <p className="text-sm text-gray-600">{listing.skill_level} · {listingCategoryLabel()} · group {listing.group_size}</p>
             <p className="text-sm">{listing.description || "No description yet."}</p>
-            <p className="text-xs text-gray-500">{listing.city || locationSummary(listing.exact_address) || "city tbd"}</p>
+            <p className="text-xs text-gray-500">{sanitizeLocationLabel(listing.city) || sanitizeLocationLabel(locationSummary(listing.exact_address)) || "city tbd"}</p>
             <p className="text-xs text-gray-500">{getEventTimingLabel(listing.availability)}</p>
             <p className="text-xs text-gray-500">{formatPostedLabel(listing.created_at)}</p>
             {canViewExactAddress && listing.exact_address ? (

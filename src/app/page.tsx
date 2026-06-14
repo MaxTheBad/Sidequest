@@ -1591,15 +1591,14 @@ export default function Home() {
   }
 
   function formatQuestMeta(quest: Quest) {
-    const rawLocation = quest.city || deriveCityFromLocation(quest.exact_address || "") || "city tbd";
+    const rawLocation = sanitizeLocationLabel(quest.city) || sanitizeLocationLabel(deriveCityFromLocation(quest.exact_address || "")) || "city tbd";
     const parts = rawLocation.split(",").map((p) => p.trim()).filter(Boolean);
     const city = parts[0] || rawLocation;
-    const state = (parts.find((part, index) => index > 0 && /^[A-Z]{2}$/.test(part)) || "").toUpperCase();
-    return `📍 ${city}${state ? `, ${state}` : ""}`;
+    return `📍 ${city}`;
   }
 
   function getQuestCityQuery(quest: Quest) {
-    const rawLocation = quest.city || deriveCityFromLocation(quest.exact_address || "") || "";
+    const rawLocation = sanitizeLocationLabel(quest.city) || sanitizeLocationLabel(deriveCityFromLocation(quest.exact_address || "")) || "";
     const parts = rawLocation.split(",").map((p) => p.trim()).filter(Boolean);
     const city = parts[0] || rawLocation;
     const state = (parts.find((part, index) => index > 0 && /^[A-Z]{2}$/.test(part)) || "").toUpperCase();
@@ -1613,11 +1612,10 @@ export default function Home() {
   }
 
   function getQuestCityLabel(quest: Quest) {
-    const rawLocation = quest.city || deriveCityFromLocation(quest.exact_address || "") || "";
+    const rawLocation = sanitizeLocationLabel(quest.city) || sanitizeLocationLabel(deriveCityFromLocation(quest.exact_address || "")) || "";
     const parts = rawLocation.split(",").map((p) => p.trim()).filter(Boolean);
     const city = parts[0] || rawLocation || "city tbd";
-    const state = (parts.find((part, index) => index > 0 && /^[A-Z]{2}$/.test(part)) || "").toUpperCase();
-    return state ? `${city}, ${state}` : city;
+    return city;
   }
 
   function distanceLabelMiles(miles: number) {
@@ -1685,10 +1683,6 @@ export default function Home() {
   async function requestUserLocation() {
     if (!("geolocation" in navigator)) {
       setUserLocationStatus("error");
-      return;
-    }
-    if (locationPermission === "denied") {
-      setUserLocationStatus("denied");
       return;
     }
     setUserLocationStatus("loading");
@@ -1778,6 +1772,12 @@ export default function Home() {
     const raw = (availability || "").trim();
     if (!raw) return "Event time tbd";
     return raw.replace(/^Start at:\s*/i, "Event: ");
+  }
+
+  function sanitizeLocationLabel(input?: string | null) {
+    const raw = (input || "").trim();
+    if (!raw) return "";
+    return raw.replace(/,\s*(Florida|FL)$/i, "").replace(/\s+\b(Florida|FL)\b$/i, "").trim();
   }
 
   async function createQuest(e: FormEvent) {
@@ -3040,7 +3040,7 @@ export default function Home() {
                         </div>
                         <p className={`mt-2 text-xs ${isActive ? "text-white/75" : "text-slate-500"}`}>{item.quest.title}</p>
                         <div className="mt-3 flex items-center gap-2">
-                          <span className={`text-xs ${isActive ? "text-white/70" : "text-slate-500"}`}>{item.quest.city || "City tbd"}</span>
+                          <span className={`text-xs ${isActive ? "text-white/70" : "text-slate-500"}`}>{sanitizeLocationLabel(item.quest.city) || "City tbd"}</span>
                           <span className={`text-xs ${isActive ? "text-white/40" : "text-slate-400"}`}>•</span>
                           <Link
                             href={`/listing/${item.quest.id}`}

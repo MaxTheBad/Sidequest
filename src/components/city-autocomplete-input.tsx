@@ -49,7 +49,7 @@ export default function CityAutocompleteInput({
         const url = countryCode ? `${base}&countryCode=${countryCode.toUpperCase()}` : base;
         const res = await fetch(url);
         const json = (await res.json()) as { results?: Array<{ name: string; admin1?: string; country?: string }> };
-        const items = (json.results || []).map((r) => [r.name, r.admin1, r.country].filter(Boolean).join(", "));
+        const items = (json.results || []).map((r) => r.name).filter(Boolean);
         const unique = Array.from(new Set(items));
         if (unique.length > 0) {
           setSuggestions(unique);
@@ -60,7 +60,7 @@ export default function CityAutocompleteInput({
         if (countryCode) {
           const fallbackRes = await fetch(base);
           const fallbackJson = (await fallbackRes.json()) as { results?: Array<{ name: string; admin1?: string; country?: string }> };
-          const fallbackItems = (fallbackJson.results || []).map((r) => [r.name, r.admin1, r.country].filter(Boolean).join(", "));
+          const fallbackItems = (fallbackJson.results || []).map((r) => r.name).filter(Boolean);
           setSuggestions(Array.from(new Set(fallbackItems)));
           setOpen(true);
         } else {
