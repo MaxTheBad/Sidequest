@@ -297,6 +297,7 @@ export default function Home() {
     return window.localStorage.getItem("sidequest_saved_only") === "1";
   });
   const [showDiscoverFilters, setShowDiscoverFilters] = useState(true);
+  const feedToggleDragStartRef = useRef<number | null>(null);
   const [hobbyFilter, setHobbyFilter] = useState("all");
   const [loading, setLoading] = useState(false);
   const cityCoordinateCacheRef = useRef<Record<string, { lat: number; lon: number }>>({});
@@ -2464,7 +2465,32 @@ export default function Home() {
           <section className="space-y-4">
             <div className="flex items-center justify-between gap-4 px-1">
               <div className="flex-1" />
-              <div className="relative inline-flex items-center rounded-full border border-white/10 bg-slate-900/85 p-1 shadow-lg shadow-black/20 backdrop-blur">
+              <div
+                className="relative inline-flex items-center rounded-full border border-white/10 bg-slate-900/85 p-1 shadow-lg shadow-black/20 backdrop-blur"
+                role="switch"
+                aria-checked={feedViewMode === "map"}
+                aria-label="Toggle between list and map"
+                onClick={(e) => {
+                  if (feedToggleDragStartRef.current !== null) return;
+                  const target = e.target as HTMLElement;
+                  if (target.closest("button")) return;
+                  setFeedViewMode((current) => (current === "list" ? "map" : "list"));
+                }}
+                onPointerDown={(e) => {
+                  feedToggleDragStartRef.current = e.clientX;
+                }}
+                onPointerUp={(e) => {
+                  const start = feedToggleDragStartRef.current;
+                  feedToggleDragStartRef.current = null;
+                  if (start === null) return;
+                  const delta = e.clientX - start;
+                  if (Math.abs(delta) < 12) return;
+                  setFeedViewMode(delta > 0 ? "map" : "list");
+                }}
+                onPointerCancel={() => {
+                  feedToggleDragStartRef.current = null;
+                }}
+              >
                 <span
                   className={`absolute inset-y-1 w-[calc(50%-0.25rem)] rounded-full bg-white shadow transition-transform duration-200 ease-out ${feedViewMode === "map" ? "translate-x-full" : "translate-x-0"}`}
                   aria-hidden="true"
