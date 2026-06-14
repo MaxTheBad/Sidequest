@@ -2497,7 +2497,7 @@ export default function Home() {
                 />
                 <button
                   aria-pressed={feedViewMode === "list"}
-                  className={`relative z-10 rounded-full px-4 py-1.5 text-xs font-medium transition ${feedViewMode === "list" ? "text-slate-900" : "text-white/70 hover:text-white"}`}
+                  className={`relative z-10 rounded-full px-4 py-1.5 text-xs font-medium transition ${feedViewMode === "list" ? "text-slate-900" : "text-slate-200 hover:text-white"}`}
                   onClick={() => setFeedViewMode("list")}
                   type="button"
                 >
@@ -2505,7 +2505,7 @@ export default function Home() {
                 </button>
                 <button
                   aria-pressed={feedViewMode === "map"}
-                  className={`relative z-10 rounded-full px-4 py-1.5 text-xs font-medium transition ${feedViewMode === "map" ? "text-slate-900" : "text-white/70 hover:text-white"}`}
+                  className={`relative z-10 rounded-full px-4 py-1.5 text-xs font-medium transition ${feedViewMode === "map" ? "text-slate-900" : "text-slate-200 hover:text-white"}`}
                   onClick={() => setFeedViewMode("map")}
                   type="button"
                 >
