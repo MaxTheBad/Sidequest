@@ -2462,19 +2462,22 @@ export default function Home() {
           </aside>
 
           <section className="space-y-4">
-            <div className="flex items-center gap-2 px-1">
-              <button
-                className={`px-1 py-1 text-xs font-medium transition ${feedViewMode === "list" ? "text-black underline underline-offset-4" : "text-slate-500 hover:text-slate-700"}`}
-                onClick={() => setFeedViewMode("list")}
-              >
-                List
-              </button>
-              <button
-                className={`px-1 py-1 text-xs font-medium transition ${feedViewMode === "map" ? "text-black underline underline-offset-4" : "text-slate-500 hover:text-slate-700"}`}
-                onClick={() => setFeedViewMode("map")}
-              >
-                Map
-              </button>
+            <div className="flex items-center justify-between gap-4 px-1">
+              <div className="flex-1" />
+              <div className="flex items-center gap-2">
+                <button
+                  className={`px-1 py-1 text-xs font-medium transition ${feedViewMode === "list" ? "text-black underline underline-offset-4" : "text-slate-500 hover:text-slate-700"}`}
+                  onClick={() => setFeedViewMode("list")}
+                >
+                  List
+                </button>
+                <button
+                  className={`px-1 py-1 text-xs font-medium transition ${feedViewMode === "map" ? "text-black underline underline-offset-4" : "text-slate-500 hover:text-slate-700"}`}
+                  onClick={() => setFeedViewMode("map")}
+                >
+                  Map
+                </button>
+              </div>
             </div>
 
             {feedViewMode === "list" ? (
