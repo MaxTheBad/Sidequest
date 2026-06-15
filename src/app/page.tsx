@@ -2640,7 +2640,7 @@ export default function Home() {
                 </Link>
                 <div className="flex items-center gap-2">
                   <p className="text-sm font-medium whitespace-nowrap text-white/90 drop-shadow sm:text-base">
-                    {formatQuestMeta(q).replace(/^📍/, "📍 ")}
+                    📍 {getQuestCityQuery(q)}
                   </p>
                   <div className="relative">
                     <button
