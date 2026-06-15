@@ -285,6 +285,8 @@ export default function Home() {
   const [bookmarkedQuestIds, setBookmarkedQuestIds] = useState<string[]>([]);
   const [joinedQuestIds, setJoinedQuestIds] = useState<string[]>([]);
   const [membershipStatusByQuest, setMembershipStatusByQuest] = useState<Record<string, "pending" | "approved" | "declined">>({});
+  const [commentCountByQuestId, setCommentCountByQuestId] = useState<Record<string, number>>({});
+  const [shareCountByQuestId, setShareCountByQuestId] = useState<Record<string, number>>({});
   const [feedMediaIndexByQuest, setFeedMediaIndexByQuest] = useState<Record<string, number>>({});
   const [generatedVideoThumbs, setGeneratedVideoThumbs] = useState<Record<string, string>>({});
   const [feedViewMode, setFeedViewMode] = useState<"list" | "map">(() => {
@@ -721,7 +723,33 @@ export default function Home() {
 
     setLoading(false);
     if (error) return setStatus(error.message);
-    setQuests((data || []).filter((quest) => !blockedUserIds.includes(quest.creator_id)));
+    const visibleQuests = (data || []).filter((quest) => !blockedUserIds.includes(quest.creator_id));
+    setQuests(visibleQuests);
+
+    const questIds = visibleQuests.map((quest) => quest.id);
+    if (!questIds.length) {
+      setCommentCountByQuestId({});
+      setShareCountByQuestId({});
+      return;
+    }
+
+    const [commentRowsRes, shareRowsRes] = await Promise.all([
+      supabase.from("messages").select("quest_id").in("quest_id", questIds).like("body", "[PUBLIC] %"),
+      supabase.from("quest_shares").select("quest_id").in("quest_id", questIds),
+    ]);
+
+    if (!commentRowsRes.error) {
+      setCommentCountByQuestId((commentRowsRes.data || []).reduce<Record<string, number>>((acc, row: { quest_id: string }) => {
+        acc[row.quest_id] = (acc[row.quest_id] || 0) + 1;
+        return acc;
+      }, {}));
+    }
+    if (!shareRowsRes.error) {
+      setShareCountByQuestId((shareRowsRes.data || []).reduce<Record<string, number>>((acc, row: { quest_id: string }) => {
+        acc[row.quest_id] = (acc[row.quest_id] || 0) + 1;
+        return acc;
+      }, {}));
+    }
   }
 
   async function signInWithPassword(e: FormEvent) {
@@ -2048,6 +2076,10 @@ export default function Home() {
   async function shareQuest(q: Quest) {
     const url = typeof window !== "undefined" ? `${window.location.origin}/listing/${q.id}` : `/listing/${q.id}`;
     const text = `${q.title}${q.description ? ` - ${q.description}` : ""}`;
+    if (supabase) {
+      void supabase.from("quest_shares").insert({ quest_id: q.id, user_id: userId || null, shared_via: "native_share" });
+      setShareCountByQuestId((prev) => ({ ...prev, [q.id]: (prev[q.id] || 0) + 1 }));
+    }
     if (typeof navigator !== "undefined" && navigator.share) {
       try {
         await navigator.share({ title: q.title, text, url });
@@ -2791,12 +2823,13 @@ export default function Home() {
                         <span className="inline-flex h-7 w-7 items-center justify-center text-xl leading-none">{membershipStatusByQuest[q.id] === "pending" ? "⌛" : (membershipStatusByQuest[q.id] === "declined" ? "↺" : (joinedQuestIds.includes(q.id) ? "−" : "+"))}</span>
                       </button>
                     ) : null}
-                    <button className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-transparent text-sm font-medium text-slate-900 transition hover:opacity-80" aria-label="Comment" title="Comment" onClick={() => {
+                    <button className="inline-flex h-9 w-auto shrink-0 items-center justify-center gap-1 rounded-full bg-transparent px-1.5 text-sm font-medium text-slate-900 transition hover:opacity-80" aria-label={`Comment ${commentCountByQuestId[q.id] || 0}`} title="Comment" onClick={() => {
                       void askQuestion(q, "public");
                     }}>
                       <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                         <path d="M20 14a4 4 0 0 1-4 4H9l-5 3V8a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4v6Z" />
                       </svg>
+                      <span className="text-xs tabular-nums text-slate-700">{commentCountByQuestId[q.id] || 0}</span>
                     </button>
                     <button className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-transparent text-sm font-medium text-slate-900 transition hover:opacity-80" aria-label="Direct message" title="Direct message" onClick={() => {
                       void askQuestion(q, "private");
@@ -2806,12 +2839,13 @@ export default function Home() {
                         <path d="M5 7l7 5.5L19 7" />
                       </svg>
                     </button>
-                    <button className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-transparent text-sm font-medium text-slate-900 transition hover:opacity-80" aria-label="Share" title="Share" onClick={() => void shareQuest(q)}>
+                    <button className="inline-flex h-9 w-auto shrink-0 items-center justify-center gap-1 rounded-full bg-transparent px-1.5 text-sm font-medium text-slate-900 transition hover:opacity-80" aria-label={`Share ${shareCountByQuestId[q.id] || 0}`} title="Share" onClick={() => void shareQuest(q)}>
                       <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                         <path d="M12 5v14" />
                         <path d="m6 11 6-6 6 6" />
                         <path d="M5 19h14" />
                       </svg>
+                      <span className="text-xs tabular-nums text-slate-700">{shareCountByQuestId[q.id] || 0}</span>
                     </button>
                     </div>
                     <button className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-transparent text-sm font-medium text-slate-900 transition hover:opacity-80" aria-label={bookmarkedQuestIds.includes(q.id) ? "Saved" : "Save"} title={bookmarkedQuestIds.includes(q.id) ? "Saved" : "Save"} onClick={() => void toggleBookmark(q.id)}>
