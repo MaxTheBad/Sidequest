@@ -2093,11 +2093,15 @@ export default function Home() {
     const cooldownUntil = shareCountCooldownUntilByQuestId[q.id] || 0;
     const canIncrementShareCount = now >= cooldownUntil;
     if (supabase && canIncrementShareCount) {
-      void supabase.from("quest_shares").insert({ quest_id: q.id, user_id: userId || null, shared_via: "native_share" });
-      setShareCountByQuestId((prev) => ({ ...prev, [q.id]: (prev[q.id] || 0) + 1 }));
-      setShareCountCooldownUntilByQuestId((prev) => ({ ...prev, [q.id]: now + cooldownMs }));
-      if (typeof window !== "undefined") {
-        window.localStorage.setItem(`sidequest_share_count_cooldown:${q.id}`, String(now + cooldownMs));
+      const { error } = await supabase.from("quest_shares").insert({ quest_id: q.id, user_id: userId || null, shared_via: "native_share" });
+      if (error) {
+        setStatus(error.message);
+      } else {
+        setShareCountByQuestId((prev) => ({ ...prev, [q.id]: (prev[q.id] || 0) + 1 }));
+        setShareCountCooldownUntilByQuestId((prev) => ({ ...prev, [q.id]: now + cooldownMs }));
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem(`sidequest_share_count_cooldown:${q.id}`, String(now + cooldownMs));
+        }
       }
     }
     if (typeof navigator !== "undefined" && navigator.share) {
