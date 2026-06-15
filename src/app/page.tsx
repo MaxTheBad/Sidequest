@@ -3489,7 +3489,7 @@ export default function Home() {
 
       {showCreateModal && (
         <div className="fixed inset-0 z-50 bg-black/45 flex items-end sm:items-center justify-center p-2 sm:p-4 overflow-y-auto overflow-x-hidden">
-          <div className="w-[calc(100vw-1rem)] sm:w-full sm:max-w-xl rounded-2xl sm:rounded-2xl bg-white border sm:border p-4 sm:p-4 space-y-2.5 h-[92vh] sm:h-auto sm:max-h-[92vh] overflow-y-auto overflow-x-hidden my-0 sm:my-auto pb-28 md:pb-4">
+          <div className="w-[calc(100vw-1rem)] sm:w-full sm:max-w-xl rounded-2xl sm:rounded-2xl bg-white border sm:border p-4 sm:p-4 space-y-2.5 h-[92vh] sm:h-auto sm:max-h-[92vh] overflow-y-auto overflow-x-hidden my-0 sm:my-auto pb-28 md:pb-4 box-border">
             <div className="sticky top-0 z-10 -mx-4 sm:mx-0 px-4 sm:px-0 py-2 bg-white/95 backdrop-blur flex justify-between items-center gap-3 border-b border-slate-100">
               <h3 className="font-semibold text-lg sm:text-xl">{editingQuestId ? "Edit Listing" : "Create Quest"}</h3>
               <button disabled={savingQuest} onClick={() => { setShowCreateModal(false); resetQuestForm(); }} className="border rounded-full px-2.5 py-1 text-sm sm:text-base disabled:opacity-50">Close</button>
@@ -3558,20 +3558,20 @@ export default function Home() {
                   placeholder="Enter a custom category"
                 />
               ) : null}
-              <p className="text-[11px] leading-4 sm:text-xs text-gray-500 break-words">
+              <p className="w-full text-[11px] leading-4 sm:text-xs text-gray-500 break-words break-all">
                 {canonicalCategoryMatch && categoryInput.trim() && categoryInput.trim().toLowerCase() !== canonicalCategoryMatch.toLowerCase()
                   ? <>Mapped to: <span className="font-medium">{canonicalCategoryMatch}</span> · </>
                   : null}
-                <span className="block">Category suggestions: <span className="italic">{canonicalCategorySuggestions.join(", ")}</span></span>
+                <span className="block whitespace-normal">Category suggestions: <span className="italic">{canonicalCategorySuggestions.join(", ")}</span></span>
                 <br />
-                <span className="block">Title suggestion: <span className="italic">{categoryTitleHint}</span></span>
+                <span className="block whitespace-normal">Title suggestion: <span className="italic">{categoryTitleHint}</span></span>
               </p>
-              <div className="flex flex-wrap gap-2 min-w-0">
+              <div className="flex flex-wrap gap-2 min-w-0 max-w-full">
                 {categoryTitleSuggestions.map((suggestion, index) => (
                   <button
                     key={`${suggestion}-${index}`}
                     type="button"
-                    className={`inline-flex max-w-full items-center gap-2 rounded-full border px-2.5 py-1.25 text-[11px] sm:px-3 sm:py-1.5 sm:text-xs font-medium transition active:scale-[0.98] ${
+                    className={`inline-flex max-w-full min-w-0 items-center gap-2 rounded-full border px-2.5 py-1.25 text-[11px] sm:px-3 sm:py-1.5 sm:text-xs font-medium transition active:scale-[0.98] ${
                       index === 0
                         ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-800"
                         : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
