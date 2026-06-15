@@ -3492,7 +3492,7 @@ export default function Home() {
           <div className="w-[calc(100vw-1.5rem)] sm:w-full sm:max-w-xl rounded-2xl sm:rounded-2xl bg-white border sm:border p-3 sm:p-4 space-y-2.5 h-[92vh] sm:h-auto sm:max-h-[92vh] overflow-y-auto overflow-x-hidden my-0 sm:my-auto pb-28 md:pb-4">
             <div className="flex justify-between items-center gap-3">
               <h3 className="font-semibold text-lg sm:text-xl">{editingQuestId ? "Edit Listing" : "Create Quest"}</h3>
-              <button disabled={savingQuest} onClick={() => { setShowCreateModal(false); resetQuestForm(); }} className="border rounded-full px-2.5 py-1 text-sm disabled:opacity-50">Close</button>
+              <button disabled={savingQuest} onClick={() => { setShowCreateModal(false); resetQuestForm(); }} className="border rounded-full px-2.5 py-1 text-sm sm:text-base disabled:opacity-50">Close</button>
             </div>
             <form ref={createQuestFormRef} id="create-quest-form" onSubmit={createQuest} className="grid gap-2.5 pb-28 md:pb-4">
               {/* Core Fields */}
@@ -3500,7 +3500,7 @@ export default function Home() {
               <div className="relative">
                 <button
                   type="button"
-                  className={`border rounded-xl px-2.5 py-2 w-full text-left bg-white dark:bg-slate-900 flex items-center justify-between gap-3 text-sm sm:text-base ${fieldErrors.category ? "border-red-500 ring-1 ring-red-300" : ""}`}
+                  className={`border rounded-xl px-2.5 py-2 w-full text-left bg-white dark:bg-slate-900 flex items-center justify-between gap-3 text-sm sm:px-3 sm:py-2.5 sm:text-base ${fieldErrors.category ? "border-red-500 ring-1 ring-red-300" : ""}`}
                   onClick={() => setCategoryDropdownOpen((open) => !open)}
                 >
                   <span className={categoryInput.trim() ? "text-slate-900 dark:text-white" : "text-slate-400 dark:text-slate-500"}>
@@ -3546,7 +3546,7 @@ export default function Home() {
               </div>
                 {useCustomCategory ? (
                 <input
-                  className={`border rounded-xl px-2.5 py-2 w-full bg-white dark:bg-slate-900 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 ${fieldErrors.category ? "border-red-500 ring-1 ring-red-300" : ""}`}
+                  className={`border rounded-xl px-2.5 py-2 w-full bg-white dark:bg-slate-900 text-sm sm:px-3 sm:py-2.5 sm:text-base text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 ${fieldErrors.category ? "border-red-500 ring-1 ring-red-300" : ""}`}
                   value={customCategory}
                   onChange={(e) => {
                     const value = e.target.value;
@@ -3558,7 +3558,7 @@ export default function Home() {
                   placeholder="Enter a custom category"
                 />
               ) : null}
-              <p className="text-[11px] leading-4 text-gray-500">
+              <p className="text-[11px] leading-4 sm:text-xs text-gray-500">
                 {canonicalCategoryMatch && categoryInput.trim() && categoryInput.trim().toLowerCase() !== canonicalCategoryMatch.toLowerCase()
                   ? <>Mapped to: <span className="font-medium">{canonicalCategoryMatch}</span> · </>
                   : null}
@@ -3571,7 +3571,7 @@ export default function Home() {
                   <button
                     key={`${suggestion}-${index}`}
                     type="button"
-                    className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1.25 text-[11px] font-medium transition active:scale-[0.98] ${
+                    className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1.25 text-[11px] sm:px-3 sm:py-1.5 sm:text-xs font-medium transition active:scale-[0.98] ${
                       index === 0
                         ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-800"
                         : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
@@ -3588,51 +3588,51 @@ export default function Home() {
               </div>
 
               <label className={`text-xs font-medium uppercase tracking-wide ${fieldErrors.title ? "text-red-600" : "text-slate-600"}`}>Title *</label>
-              <input className={`border rounded-xl px-2.5 py-2 text-sm ${fieldErrors.title ? "border-red-500 ring-1 ring-red-300" : ""}`} placeholder={titlePlaceholder} value={title} onChange={(e) => { setTitle(e.target.value); clearFieldError("title"); }} />
+              <input className={`border rounded-xl px-2.5 py-2 text-sm sm:px-3 sm:py-2.5 sm:text-base ${fieldErrors.title ? "border-red-500 ring-1 ring-red-300" : ""}`} placeholder={titlePlaceholder} value={title} onChange={(e) => { setTitle(e.target.value); clearFieldError("title"); }} />
 
               <label className="text-xs font-medium uppercase tracking-wide text-slate-600">Availability *</label>
-              <div className="grid gap-1.5 text-sm">
-                <label className="flex items-center gap-2"><input type="radio" checked={availabilityMode === "specific_time"} onChange={() => setAvailabilityMode("specific_time")} className="scale-90" /> <span className="text-sm">Start at a specific time</span></label>
-                <label className="flex items-center gap-2"><input type="radio" checked={availabilityMode === "find_best_time"} onChange={() => setAvailabilityMode("find_best_time")} className="scale-90" /> <span className="text-sm">Let's see which time works best</span></label>
+              <div className="grid gap-1.5 text-sm sm:gap-2">
+                <label className="flex items-center gap-2"><input type="radio" checked={availabilityMode === "specific_time"} onChange={() => setAvailabilityMode("specific_time")} className="scale-90" /> <span className="text-sm sm:text-base">Start at a specific time</span></label>
+                <label className="flex items-center gap-2"><input type="radio" checked={availabilityMode === "find_best_time"} onChange={() => setAvailabilityMode("find_best_time")} className="scale-90" /> <span className="text-sm sm:text-base">Let's see which time works best</span></label>
               </div>
               {availabilityMode === "specific_time" && (
-                <input type="datetime-local" className="border rounded-xl px-2.5 py-2 text-sm" value={startAt} onChange={(e) => setStartAt(e.target.value)} />
+                <input type="datetime-local" className="border rounded-xl px-2.5 py-2 text-sm sm:px-3 sm:py-2.5 sm:text-base" value={startAt} onChange={(e) => setStartAt(e.target.value)} />
               )}
               <label className="flex items-center gap-2 text-sm">
                 <input type="checkbox" checked={isRecurring} onChange={(e) => setIsRecurring(e.target.checked)} className="scale-90" /> <span className="text-sm">Recurring</span>
               </label>
               {isRecurring && (
                 <div className="grid gap-2">
-                  <select className="border rounded-xl px-2.5 py-2 text-sm" value={recurringFrequency} onChange={(e) => setRecurringFrequency(e.target.value as "daily" | "weekly" | "monthly")}>
+                  <select className="border rounded-xl px-2.5 py-2 text-sm sm:px-3 sm:py-2.5 sm:text-base" value={recurringFrequency} onChange={(e) => setRecurringFrequency(e.target.value as "daily" | "weekly" | "monthly")}>
                     <option value="daily">Daily</option>
                     <option value="weekly">Weekly</option>
                     <option value="monthly">Monthly</option>
                   </select>
-                  <input type="date" className="border rounded-xl px-2.5 py-2 text-sm" value={recurringStartDate} onChange={(e) => setRecurringStartDate(e.target.value)} placeholder="Start date" />
+                  <input type="date" className="border rounded-xl px-2.5 py-2 text-sm sm:px-3 sm:py-2.5 sm:text-base" value={recurringStartDate} onChange={(e) => setRecurringStartDate(e.target.value)} placeholder="Start date" />
                 </div>
               )}
 
               <label className="text-xs font-medium uppercase tracking-wide text-slate-600">Join Mode *</label>
-              <select className="border rounded-xl px-2.5 py-2 text-sm" value={joinMode} onChange={(e) => setJoinMode(e.target.value as "open" | "approval_required")}>
+              <select className="border rounded-xl px-2.5 py-2 text-sm sm:px-3 sm:py-2.5 sm:text-base" value={joinMode} onChange={(e) => setJoinMode(e.target.value as "open" | "approval_required")}>
                 <option value="open">Anyone can join instantly</option>
                 <option value="approval_required">Host must approve members</option>
               </select>
 
               <div
                 ref={locationVisibilityRef}
-                className={`rounded-2xl border bg-slate-50 p-3 space-y-3 transition ${
+                className={`rounded-2xl border bg-slate-50 p-2.5 sm:p-3 space-y-2.5 sm:space-y-3 transition ${
                   highlightLocationVisibility || fieldErrors.locationVisibility || fieldErrors.location ? "border-red-200 bg-red-50" : "border-slate-200"
                 }`}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <label className={`text-sm font-medium ${fieldErrors.locationVisibility ? "text-red-600" : ""}`}>Location *</label>
-                    <p className="text-xs text-slate-500">Choose remote or in person, then add the details below.</p>
+                    <label className={`text-sm sm:text-base font-medium ${fieldErrors.locationVisibility ? "text-red-600" : ""}`}>Location *</label>
+                    <p className="text-[11px] leading-4 sm:text-xs text-slate-500">Choose remote or in person, then add the details below.</p>
                   </div>
                 </div>
                 <div className="grid gap-1">
                   <label className="text-[11px] font-medium uppercase tracking-wide text-slate-600">Meeting type</label>
-                  <div className="grid gap-2">
+                  <div className="grid gap-2 sm:gap-2.5">
                     <button
                       type="button"
                       className={`rounded-xl border px-2.5 py-2 text-left transition ${
@@ -3643,8 +3643,8 @@ export default function Home() {
                         clearFieldError("location");
                       }}
                     >
-                      <div className="font-medium text-sm">In person</div>
-                      <div className={`text-[11px] leading-4 ${locationMode === "in_person" ? "text-white/80" : "text-slate-500"}`}>Meet at a place you choose</div>
+                      <div className="font-medium text-sm sm:text-base">In person</div>
+                      <div className={`text-[11px] leading-4 sm:text-xs ${locationMode === "in_person" ? "text-white/80" : "text-slate-500"}`}>Meet at a place you choose</div>
                     </button>
                     <button
                       type="button"
@@ -3659,8 +3659,8 @@ export default function Home() {
                         clearFieldError("locationVisibility");
                       }}
                     >
-                      <div className="font-medium text-sm">Remote</div>
-                      <div className={`text-[11px] leading-4 ${locationMode === "remote" ? "text-white/80" : "text-slate-500"}`}>Paste a meeting link</div>
+                      <div className="font-medium text-sm sm:text-base">Remote</div>
+                      <div className={`text-[11px] leading-4 sm:text-xs ${locationMode === "remote" ? "text-white/80" : "text-slate-500"}`}>Paste a meeting link</div>
                     </button>
                   </div>
                 </div>
@@ -3668,7 +3668,7 @@ export default function Home() {
                   <div className="grid gap-1">
                     <label className={`text-[11px] font-medium uppercase tracking-wide ${fieldErrors.locationVisibility ? "text-red-600" : "text-slate-600"}`}>Privacy</label>
                     <select
-                      className={`border rounded-xl px-2.5 py-2 bg-white text-sm ${fieldErrors.locationVisibility ? "border-red-500 ring-1 ring-red-300" : ""}`}
+                      className={`border rounded-xl px-2.5 py-2 bg-white text-sm sm:px-3 sm:py-2.5 sm:text-base ${fieldErrors.locationVisibility ? "border-red-500 ring-1 ring-red-300" : ""}`}
                       value={exactLocationVisibility}
                       onChange={(e) => {
                         setExactLocationVisibility(e.target.value as "private" | "public" | "approved_members");
@@ -3688,7 +3688,7 @@ export default function Home() {
                   </label>
                   <div className="relative">
                     <input
-                      className={`border rounded-xl px-2.5 py-2 w-full bg-white text-sm ${fieldErrors.location ? "border-red-500 ring-1 ring-red-300" : ""}`}
+                      className={`border rounded-xl px-2.5 py-2 w-full bg-white text-sm sm:px-3 sm:py-2.5 sm:text-base ${fieldErrors.location ? "border-red-500 ring-1 ring-red-300" : ""}`}
                       placeholder={locationMode === "remote" ? "Paste a Google Meet, Zoom, or Teams link" : "We recommend a public place"}
                       value={exactAddress}
                       onChange={(e) => {
@@ -3712,12 +3712,12 @@ export default function Home() {
               <div className="grid gap-2 sm:grid-cols-2 sm:items-end">
                 <div className="grid gap-1">
                   <label className={`text-xs font-medium uppercase tracking-wide ${fieldErrors.country ? "text-red-600" : "text-slate-600"}`}>Country *</label>
-                  <input list="country-list" className={`border rounded-xl px-2.5 py-2 text-sm ${fieldErrors.country ? "border-red-500 ring-1 ring-red-300" : ""}`} value={countryQuery} onChange={(e) => { setCountryQuery(e.target.value); setCountryCode(resolveCountryCodeByName(e.target.value)); clearFieldError("country"); }} placeholder="Start typing country..." />
+                  <input list="country-list" className={`border rounded-xl px-2.5 py-2 text-sm sm:px-3 sm:py-2.5 sm:text-base ${fieldErrors.country ? "border-red-500 ring-1 ring-red-300" : ""}`} value={countryQuery} onChange={(e) => { setCountryQuery(e.target.value); setCountryCode(resolveCountryCodeByName(e.target.value)); clearFieldError("country"); }} placeholder="Start typing country..." />
                 </div>
               </div>
 
               <label className="text-xs font-medium uppercase tracking-wide text-slate-600">Media</label>
-              <div className="grid gap-2 rounded-xl border p-2.5 bg-gray-50">
+              <div className="grid gap-2 rounded-xl border p-2.5 sm:p-3 bg-gray-50">
                 <input
                   type="file"
                   accept="image/*,video/*"
@@ -3726,9 +3726,9 @@ export default function Home() {
                     void handleQuestMediaPicked(e.target.files);
                     e.currentTarget.value = "";
                   }}
-                  className="border rounded-xl px-2.5 py-2 text-sm"
+                  className="border rounded-xl px-2.5 py-2 text-sm sm:px-3 sm:py-2.5 sm:text-base"
                 />
-                <p className="text-[11px] leading-4 text-gray-500">Drag thumbnails to reorder. First item is Main. Tap an item to edit its caption below.</p>
+                <p className="text-[11px] leading-4 sm:text-xs text-gray-500">Drag thumbnails to reorder. First item is Main. Tap an item to edit its caption below.</p>
 
                 <div className="grid grid-cols-3 gap-2">
                   {mediaDraftItems.map((item, idx) => {
