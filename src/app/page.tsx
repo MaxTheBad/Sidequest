@@ -3488,8 +3488,8 @@ export default function Home() {
       )}
 
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 bg-black/45 flex items-end sm:items-center justify-center p-1.5 sm:p-4 overflow-y-auto overflow-x-hidden">
-          <div className="w-[calc(100vw-0.75rem)] sm:w-full sm:max-w-xl rounded-2xl sm:rounded-2xl bg-white border sm:border p-3 sm:p-4 space-y-2 h-[92vh] sm:h-auto sm:max-h-[92vh] overflow-y-auto overflow-x-hidden my-0 sm:my-auto pb-28 md:pb-4 box-border">
+        <div className="fixed inset-0 z-50 bg-black/45 flex items-end sm:items-center justify-center p-1.5 sm:p-4 overflow-y-auto">
+          <div className="w-[calc(100vw-0.75rem)] sm:w-full sm:max-w-xl rounded-2xl sm:rounded-2xl bg-white border sm:border p-3 sm:p-4 space-y-2 h-[92vh] sm:h-auto sm:max-h-[92vh] overflow-y-auto my-0 sm:my-auto pb-28 md:pb-4 box-border">
             <div className="sticky top-0 z-10 -mx-3 sm:mx-0 px-3 sm:px-0 py-2 bg-white/95 backdrop-blur flex justify-between items-center gap-3 border-b border-slate-100">
               <h3 className="font-semibold text-lg sm:text-xl">{editingQuestId ? "Edit Listing" : "Create Quest"}</h3>
               <button disabled={savingQuest} onClick={() => { setShowCreateModal(false); resetQuestForm(); }} className="border rounded-full px-2 py-1 text-sm sm:text-base disabled:opacity-50">Close</button>
