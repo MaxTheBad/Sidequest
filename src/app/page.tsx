@@ -3558,20 +3558,20 @@ export default function Home() {
                   placeholder="Enter a custom category"
                 />
               ) : null}
-              <p className="text-[11px] leading-4 sm:text-xs text-gray-500">
+              <p className="text-[11px] leading-4 sm:text-xs text-gray-500 break-words">
                 {canonicalCategoryMatch && categoryInput.trim() && categoryInput.trim().toLowerCase() !== canonicalCategoryMatch.toLowerCase()
                   ? <>Mapped to: <span className="font-medium">{canonicalCategoryMatch}</span> · </>
                   : null}
-                Category suggestions: <span className="italic">{canonicalCategorySuggestions.join(", ")}</span>
+                <span className="block">Category suggestions: <span className="italic">{canonicalCategorySuggestions.join(", ")}</span></span>
                 <br />
-                Title suggestion: <span className="italic">{categoryTitleHint}</span>
+                <span className="block">Title suggestion: <span className="italic">{categoryTitleHint}</span></span>
               </p>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2 min-w-0">
                 {categoryTitleSuggestions.map((suggestion, index) => (
                   <button
                     key={`${suggestion}-${index}`}
                     type="button"
-                    className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1.25 text-[11px] sm:px-3 sm:py-1.5 sm:text-xs font-medium transition active:scale-[0.98] ${
+                    className={`inline-flex max-w-full items-center gap-2 rounded-full border px-2.5 py-1.25 text-[11px] sm:px-3 sm:py-1.5 sm:text-xs font-medium transition active:scale-[0.98] ${
                       index === 0
                         ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-800"
                         : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
@@ -3581,8 +3581,8 @@ export default function Home() {
                       clearFieldError("title");
                     }}
                   >
-                    <span className="text-xs leading-none">{index === 0 ? "✨" : "•"}</span>
-                    {suggestion}
+                    <span className="text-xs leading-none shrink-0">{index === 0 ? "✨" : "•"}</span>
+                    <span className="min-w-0 whitespace-normal break-words">{suggestion}</span>
                   </button>
                 ))}
               </div>
