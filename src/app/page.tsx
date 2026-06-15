@@ -2639,7 +2639,7 @@ export default function Home() {
                   <span className="text-sm font-semibold truncate">{creatorProfile?.display_name || "View profile"}</span>
                 </Link>
                 <div className="flex items-center gap-2">
-                  <p className="text-[11px] font-medium whitespace-nowrap text-white/90 drop-shadow sm:text-xs">
+                  <p className="text-sm font-medium whitespace-nowrap text-white/90 drop-shadow sm:text-base">
                     {formatQuestMeta(q).replace(/^📍/, "📍 ")}
                   </p>
                   <div className="relative">
