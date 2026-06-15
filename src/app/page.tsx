@@ -287,6 +287,7 @@ export default function Home() {
   const [membershipStatusByQuest, setMembershipStatusByQuest] = useState<Record<string, "pending" | "approved" | "declined">>({});
   const [commentCountByQuestId, setCommentCountByQuestId] = useState<Record<string, number>>({});
   const [shareCountByQuestId, setShareCountByQuestId] = useState<Record<string, number>>({});
+  const [shareCountCooldownUntilByQuestId, setShareCountCooldownUntilByQuestId] = useState<Record<string, number>>({});
   const [feedMediaIndexByQuest, setFeedMediaIndexByQuest] = useState<Record<string, number>>({});
   const [generatedVideoThumbs, setGeneratedVideoThumbs] = useState<Record<string, string>>({});
   const [feedViewMode, setFeedViewMode] = useState<"list" | "map">(() => {
@@ -731,6 +732,17 @@ export default function Home() {
       setCommentCountByQuestId({});
       setShareCountByQuestId({});
       return;
+    }
+
+    if (typeof window !== "undefined") {
+      const cooldownEntries = questIds
+        .map((questId) => {
+          const raw = window.localStorage.getItem(`sidequest_share_count_cooldown:${questId}`);
+          const until = raw ? Number(raw) : 0;
+          return Number.isFinite(until) && until > Date.now() ? [questId, until] as const : null;
+        })
+        .filter((entry): entry is readonly [string, number] => !!entry);
+      setShareCountCooldownUntilByQuestId(Object.fromEntries(cooldownEntries));
     }
 
     const [commentRowsRes, shareRowsRes] = await Promise.all([
@@ -2076,9 +2088,17 @@ export default function Home() {
   async function shareQuest(q: Quest) {
     const url = typeof window !== "undefined" ? `${window.location.origin}/listing/${q.id}` : `/listing/${q.id}`;
     const text = `${q.title}${q.description ? ` - ${q.description}` : ""}`;
-    if (supabase) {
+    const cooldownMs = 5 * 60 * 1000;
+    const now = Date.now();
+    const cooldownUntil = shareCountCooldownUntilByQuestId[q.id] || 0;
+    const canIncrementShareCount = now >= cooldownUntil;
+    if (supabase && canIncrementShareCount) {
       void supabase.from("quest_shares").insert({ quest_id: q.id, user_id: userId || null, shared_via: "native_share" });
       setShareCountByQuestId((prev) => ({ ...prev, [q.id]: (prev[q.id] || 0) + 1 }));
+      setShareCountCooldownUntilByQuestId((prev) => ({ ...prev, [q.id]: now + cooldownMs }));
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(`sidequest_share_count_cooldown:${q.id}`, String(now + cooldownMs));
+      }
     }
     if (typeof navigator !== "undefined" && navigator.share) {
       try {
