@@ -2925,6 +2925,9 @@ export default function Home() {
                     <p className="text-xs font-medium text-slate-500 leading-relaxed">
                       {formatPostedLabel(q.created_at)}
                     </p>
+                    <p className="text-xs font-semibold tracking-wide uppercase text-slate-700">
+                      {getQuestCategoryDisplay(q)}
+                    </p>
                     <p className="text-xs font-medium text-slate-500 leading-relaxed">
                       {getEventTimingLabel(q.availability)}
                     </p>
