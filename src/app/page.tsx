@@ -3485,8 +3485,8 @@ export default function Home() {
       )}
 
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="w-full max-w-xl rounded-2xl bg-white border p-4 space-y-3 max-h-[92vh] overflow-y-auto my-auto pb-32 md:pb-4">
+        <div className="fixed inset-0 z-50 bg-black/45 flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-y-auto">
+          <div className="w-[100vw] sm:w-full sm:max-w-xl rounded-none sm:rounded-2xl bg-white border-0 sm:border p-4 sm:p-4 space-y-3 h-[92vh] sm:h-auto sm:max-h-[92vh] overflow-y-auto my-0 sm:my-auto pb-32 md:pb-4">
             <div className="flex justify-between items-center"><h3 className="font-semibold">{editingQuestId ? "Edit Listing" : "Create Quest"}</h3><button disabled={savingQuest} onClick={() => { setShowCreateModal(false); resetQuestForm(); }} className="border rounded px-2 py-1 disabled:opacity-50">Close</button></div>
             <form ref={createQuestFormRef} id="create-quest-form" onSubmit={createQuest} className="grid gap-3 pb-32 md:pb-4">
               {/* Core Fields */}
