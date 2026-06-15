@@ -2616,7 +2616,7 @@ export default function Home() {
             </div>
 
             {feedViewMode === "list" ? (
-              <div className="grid w-screen max-w-none gap-5 grid-cols-1 -mx-4 sm:w-full sm:mx-auto sm:max-w-3xl xl:relative xl:left-1/2 xl:-translate-x-1/2 xl:w-screen xl:max-w-none xl:px-4 xl:mx-0">
+              <div className="grid w-screen max-w-none gap-5 grid-cols-1 -mx-4 sm:w-full sm:mx-auto sm:max-w-3xl xl:mx-0 xl:w-full xl:max-w-none">
               {loading ? <p>Loading...</p> : filteredQuests.map((q) => {
             const creatorProfile = getCreatorProfile(q);
             const feedMediaItems: QuestMediaItem[] = [
