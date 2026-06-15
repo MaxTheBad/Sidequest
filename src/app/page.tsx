@@ -3488,8 +3488,8 @@ export default function Home() {
       )}
 
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 bg-black/45 flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-y-auto">
-          <div className="w-[100vw] sm:w-full sm:max-w-xl rounded-none sm:rounded-2xl bg-white border-0 sm:border p-4 sm:p-4 space-y-3 h-[92vh] sm:h-auto sm:max-h-[92vh] overflow-y-auto my-0 sm:my-auto pb-32 md:pb-4">
+        <div className="fixed inset-0 z-50 bg-black/45 flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-y-auto overflow-x-hidden">
+          <div className="w-full sm:w-full sm:max-w-xl rounded-none sm:rounded-2xl bg-white border-0 sm:border p-4 sm:p-4 space-y-3 h-[92vh] sm:h-auto sm:max-h-[92vh] overflow-y-auto overflow-x-hidden my-0 sm:my-auto pb-32 md:pb-4">
             <div className="flex justify-between items-center"><h3 className="font-semibold">{editingQuestId ? "Edit Listing" : "Create Quest"}</h3><button disabled={savingQuest} onClick={() => { setShowCreateModal(false); resetQuestForm(); }} className="border rounded px-2 py-1 disabled:opacity-50">Close</button></div>
             <form ref={createQuestFormRef} id="create-quest-form" onSubmit={createQuest} className="grid gap-3 pb-32 md:pb-4">
               {/* Core Fields */}
@@ -3629,7 +3629,7 @@ export default function Home() {
                 </div>
                 <div className="grid gap-1">
                   <label className="text-xs font-medium uppercase tracking-wide text-slate-600">Meeting type</label>
-                  <div className="grid gap-2 sm:grid-cols-2">
+                  <div className="grid gap-2">
                     <button
                       type="button"
                       className={`rounded-xl border px-3 py-2 text-left transition ${
