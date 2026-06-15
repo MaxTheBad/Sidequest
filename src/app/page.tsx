@@ -3602,32 +3602,46 @@ export default function Home() {
                 <option value="approval_required">Host must approve members</option>
               </select>
 
-              <div ref={locationVisibilityRef} className={`grid gap-1 rounded-lg p-1 transition ${highlightLocationVisibility || fieldErrors.locationVisibility ? "bg-red-50" : ""}`}>
-                <label className={`text-sm font-medium ${fieldErrors.locationVisibility ? "text-red-600" : ""}`}>Location Visibility *</label>
-                <select
-                  className={`border rounded px-3 py-2 ${fieldErrors.locationVisibility ? "border-red-500 ring-1 ring-red-300" : ""}`}
-                  value={exactLocationVisibility}
-                  onChange={(e) => {
-                    setExactLocationVisibility(e.target.value as "private" | "public" | "approved_members");
-                    clearFieldError("locationVisibility");
-                    setPublicVisibilityConfirmed(false);
-                  }}
-                >
-                  <option value="private">Private (manual share)</option>
-                  {joinMode !== "open" && <option value="approved_members">Auto-share with approved members</option>}
-                  <option value="public">Public (everyone)</option>
-                </select>
-              </div>
-
-              <div className="grid gap-2 sm:grid-cols-2 sm:items-end">
-                <div className="grid gap-1">
-                  <label className={`text-sm font-medium ${fieldErrors.country ? "text-red-600" : ""}`}>Country *</label>
-                  <input list="country-list" className={`border rounded px-3 py-2 ${fieldErrors.country ? "border-red-500 ring-1 ring-red-300" : ""}`} value={countryQuery} onChange={(e) => { setCountryQuery(e.target.value); setCountryCode(resolveCountryCodeByName(e.target.value)); clearFieldError("country"); }} placeholder="Start typing country..." />
+              <div
+                ref={locationVisibilityRef}
+                className={`rounded-2xl border bg-slate-50 p-3 space-y-3 transition ${
+                  highlightLocationVisibility || fieldErrors.locationVisibility || fieldErrors.location ? "border-red-200 bg-red-50" : "border-slate-200"
+                }`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <label className={`text-sm font-medium ${fieldErrors.locationVisibility ? "text-red-600" : ""}`}>Privacy & location *</label>
+                    <p className="text-xs text-slate-500">Choose who can see the meetup location, then enter the exact place.</p>
+                  </div>
                 </div>
                 <div className="grid gap-1">
-                  <label className={`text-sm font-medium ${fieldErrors.location ? "text-red-600" : ""}`}>Location *</label>
+                  <label className={`text-xs font-medium uppercase tracking-wide ${fieldErrors.locationVisibility ? "text-red-600" : "text-slate-600"}`}>Location visibility</label>
+                  <select
+                    className={`border rounded px-3 py-2 bg-white ${fieldErrors.locationVisibility ? "border-red-500 ring-1 ring-red-300" : ""}`}
+                    value={exactLocationVisibility}
+                    onChange={(e) => {
+                      setExactLocationVisibility(e.target.value as "private" | "public" | "approved_members");
+                      clearFieldError("locationVisibility");
+                      setPublicVisibilityConfirmed(false);
+                    }}
+                  >
+                    <option value="private">Private (manual share)</option>
+                    {joinMode !== "open" && <option value="approved_members">Auto-share with approved members</option>}
+                    <option value="public">Public (everyone)</option>
+                  </select>
+                </div>
+                <div className="grid gap-1">
+                  <label className={`text-xs font-medium uppercase tracking-wide ${fieldErrors.location ? "text-red-600" : "text-slate-600"}`}>Meetup location</label>
                   <div className="relative">
-                    <input className={`border rounded px-3 py-2 w-full ${fieldErrors.location ? "border-red-500 ring-1 ring-red-300" : ""}`} placeholder="We recommend a public place" value={exactAddress} onChange={(e) => { setExactAddress(e.target.value); clearFieldError("location"); }} />
+                    <input
+                      className={`border rounded px-3 py-2 w-full bg-white ${fieldErrors.location ? "border-red-500 ring-1 ring-red-300" : ""}`}
+                      placeholder="We recommend a public place"
+                      value={exactAddress}
+                      onChange={(e) => {
+                        setExactAddress(e.target.value);
+                        clearFieldError("location");
+                      }}
+                    />
                     {citySuggestions.length > 0 && (
                       <div className="absolute z-20 left-0 right-0 mt-1 border rounded bg-white shadow max-h-44 overflow-auto text-sm">
                         {citySuggestions.map((c) => (
@@ -3638,6 +3652,13 @@ export default function Home() {
                       </div>
                     )}
                   </div>
+                </div>
+              </div>
+
+              <div className="grid gap-2 sm:grid-cols-2 sm:items-end">
+                <div className="grid gap-1">
+                  <label className={`text-sm font-medium ${fieldErrors.country ? "text-red-600" : ""}`}>Country *</label>
+                  <input list="country-list" className={`border rounded px-3 py-2 ${fieldErrors.country ? "border-red-500 ring-1 ring-red-300" : ""}`} value={countryQuery} onChange={(e) => { setCountryQuery(e.target.value); setCountryCode(resolveCountryCodeByName(e.target.value)); clearFieldError("country"); }} placeholder="Start typing country..." />
                 </div>
               </div>
 
