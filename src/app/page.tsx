@@ -319,6 +319,7 @@ export default function Home() {
   const [useCustomCategory, setUseCustomCategory] = useState(false);
   const [customCategory, setCustomCategory] = useState("");
   const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
+  const [locationMode, setLocationMode] = useState<"in_person" | "remote">("in_person");
   const [countryCode, setCountryCode] = useState("US");
   const [countryQuery, setCountryQuery] = useState("United States");
   const [city, setCity] = useState("");
@@ -439,10 +440,14 @@ export default function Home() {
   }, [categoryInput, categoryTitleHint]);
 
   useEffect(() => {
+    if (locationMode === "remote") {
+      setExactLocationVisibility("private");
+      return;
+    }
     if (joinMode === "open" && exactLocationVisibility === "approved_members") {
       setExactLocationVisibility("private");
     }
-  }, [joinMode, exactLocationVisibility]);
+  }, [joinMode, exactLocationVisibility, locationMode]);
 
   useEffect(() => {
     if (!highlightLocationVisibility) return;
@@ -1381,6 +1386,7 @@ export default function Home() {
     setUseCustomCategory(false);
     setCustomCategory("");
     setCategoryDropdownOpen(false);
+    setLocationMode("in_person");
     setExactAddress("");
     setJoinMode("open");
     setExactLocationVisibility("approved_members");
@@ -1874,7 +1880,11 @@ export default function Home() {
     if (!categoryInput.trim()) return flagFieldError("category", "Please enter a category.");
     if (!title.trim()) return flagFieldError("title", "Please enter a title.");
     if (!countryQuery.trim()) return flagFieldError("country", "Please enter a country.");
-    if (!exactAddress.trim()) return flagFieldError("location", "Location is required.");
+    if (locationMode === "remote") {
+      if (!exactAddress.trim()) return flagFieldError("location", "Remote meeting link is required.");
+    } else if (!exactAddress.trim()) {
+      return flagFieldError("location", "Location is required.");
+    }
     if (!groupSizeChoice) return flagFieldError("groupSize", "Group size is required.");
     if (groupSizeChoice === "custom" && (!Number.isFinite(selectedGroupSize) || selectedGroupSize < 2 || selectedGroupSize > 50)) {
       return flagFieldError("groupSize", "Custom group size must be between 2 and 50.");
@@ -1883,12 +1893,12 @@ export default function Home() {
     if (isRecurring && !recurringStartDate) return setStatus("Pick a recurring start date.");
 
     const isPublicWarningMuted = Date.now() < publicWarningMutedUntilRef.current;
-    if (exactLocationVisibility === "public" && !isPublicWarningMuted && !publicVisibilityBypassRef.current && !publicVisibilityConfirmed) {
+    if (locationMode === "in_person" && exactLocationVisibility === "public" && !isPublicWarningMuted && !publicVisibilityBypassRef.current && !publicVisibilityConfirmed) {
       setShowPublicLocationConfirm(true);
       return;
     }
 
-    const derivedCity = deriveCityFromLocation(exactAddress) || city;
+    const derivedCity = locationMode === "remote" ? city : deriveCityFromLocation(exactAddress) || city;
     const availabilityParts = [
       availabilityMode === "specific_time" ? `Start at: ${new Date(startAt).toLocaleString()}` : "Let's find the best time",
       isRecurring ? `Recurring ${recurringFrequency} from ${recurringStartDate}` : null,
@@ -1978,7 +1988,7 @@ export default function Home() {
           city: derivedCity,
           exact_address: exactAddress || null,
           join_mode: joinMode,
-          exact_location_visibility: exactLocationVisibility,
+          exact_location_visibility: locationMode === "remote" ? "private" : exactLocationVisibility,
           availability: avail,
           group_size: selectedGroupSize,
           media_items: nextMediaItems,
@@ -2020,7 +2030,7 @@ export default function Home() {
           city: derivedCity,
           exact_address: exactAddress || null,
           join_mode: joinMode,
-          exact_location_visibility: exactLocationVisibility,
+          exact_location_visibility: locationMode === "remote" ? "private" : exactLocationVisibility,
           availability: avail,
           group_size: selectedGroupSize,
           media_video_url: null,
@@ -3610,39 +3620,77 @@ export default function Home() {
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <label className={`text-sm font-medium ${fieldErrors.locationVisibility ? "text-red-600" : ""}`}>Privacy & location *</label>
-                    <p className="text-xs text-slate-500">Choose who can see the meetup location, then enter the exact place.</p>
+                    <label className={`text-sm font-medium ${fieldErrors.locationVisibility ? "text-red-600" : ""}`}>Location *</label>
+                    <p className="text-xs text-slate-500">Choose remote or in person, then add the details below.</p>
                   </div>
                 </div>
                 <div className="grid gap-1">
-                  <label className={`text-xs font-medium uppercase tracking-wide ${fieldErrors.locationVisibility ? "text-red-600" : "text-slate-600"}`}>Location visibility</label>
-                  <select
-                    className={`border rounded px-3 py-2 bg-white ${fieldErrors.locationVisibility ? "border-red-500 ring-1 ring-red-300" : ""}`}
-                    value={exactLocationVisibility}
-                    onChange={(e) => {
-                      setExactLocationVisibility(e.target.value as "private" | "public" | "approved_members");
-                      clearFieldError("locationVisibility");
-                      setPublicVisibilityConfirmed(false);
-                    }}
-                  >
-                    <option value="private">Private (manual share)</option>
-                    {joinMode !== "open" && <option value="approved_members">Auto-share with approved members</option>}
-                    <option value="public">Public (everyone)</option>
-                  </select>
+                  <label className="text-xs font-medium uppercase tracking-wide text-slate-600">Meeting type</label>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      className={`rounded-xl border px-3 py-2 text-left transition ${
+                        locationMode === "in_person" ? "border-slate-950 bg-slate-950 text-white" : "border-slate-200 bg-white hover:bg-slate-100"
+                      }`}
+                      onClick={() => {
+                        setLocationMode("in_person");
+                        clearFieldError("location");
+                      }}
+                    >
+                      <div className="font-medium">In person</div>
+                      <div className={`text-xs ${locationMode === "in_person" ? "text-white/80" : "text-slate-500"}`}>Meet at a place you choose</div>
+                    </button>
+                    <button
+                      type="button"
+                      className={`rounded-xl border px-3 py-2 text-left transition ${
+                        locationMode === "remote" ? "border-slate-950 bg-slate-950 text-white" : "border-slate-200 bg-white hover:bg-slate-100"
+                      }`}
+                      onClick={() => {
+                        setLocationMode("remote");
+                        setExactLocationVisibility("private");
+                        setPublicVisibilityConfirmed(false);
+                        clearFieldError("location");
+                        clearFieldError("locationVisibility");
+                      }}
+                    >
+                      <div className="font-medium">Remote</div>
+                      <div className={`text-xs ${locationMode === "remote" ? "text-white/80" : "text-slate-500"}`}>Paste a meeting link</div>
+                    </button>
+                  </div>
                 </div>
+                {locationMode === "in_person" ? (
+                  <div className="grid gap-1">
+                    <label className={`text-xs font-medium uppercase tracking-wide ${fieldErrors.locationVisibility ? "text-red-600" : "text-slate-600"}`}>Privacy</label>
+                    <select
+                      className={`border rounded px-3 py-2 bg-white ${fieldErrors.locationVisibility ? "border-red-500 ring-1 ring-red-300" : ""}`}
+                      value={exactLocationVisibility}
+                      onChange={(e) => {
+                        setExactLocationVisibility(e.target.value as "private" | "public" | "approved_members");
+                        clearFieldError("locationVisibility");
+                        setPublicVisibilityConfirmed(false);
+                      }}
+                    >
+                      <option value="private">Private (manual share)</option>
+                      {joinMode !== "open" && <option value="approved_members">Auto-share with approved members</option>}
+                      <option value="public">Public (everyone)</option>
+                    </select>
+                  </div>
+                ) : null}
                 <div className="grid gap-1">
-                  <label className={`text-xs font-medium uppercase tracking-wide ${fieldErrors.location ? "text-red-600" : "text-slate-600"}`}>Meetup location</label>
+                  <label className={`text-xs font-medium uppercase tracking-wide ${fieldErrors.location ? "text-red-600" : "text-slate-600"}`}>
+                    {locationMode === "remote" ? "Meeting link" : "Meetup location"}
+                  </label>
                   <div className="relative">
                     <input
                       className={`border rounded px-3 py-2 w-full bg-white ${fieldErrors.location ? "border-red-500 ring-1 ring-red-300" : ""}`}
-                      placeholder="We recommend a public place"
+                      placeholder={locationMode === "remote" ? "Paste a Google Meet, Zoom, or Teams link" : "We recommend a public place"}
                       value={exactAddress}
                       onChange={(e) => {
                         setExactAddress(e.target.value);
                         clearFieldError("location");
                       }}
                     />
-                    {citySuggestions.length > 0 && (
+                    {locationMode === "in_person" && citySuggestions.length > 0 && (
                       <div className="absolute z-20 left-0 right-0 mt-1 border rounded bg-white shadow max-h-44 overflow-auto text-sm">
                         {citySuggestions.map((c) => (
                           <button key={c} type="button" className="block w-full text-left px-3 py-2 hover:bg-gray-100" onClick={() => { setExactAddress(c); setCitySuggestions([]); }}>
