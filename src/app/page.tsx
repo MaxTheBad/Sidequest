@@ -2692,6 +2692,7 @@ export default function Home() {
               )}
 
               {feedViewMode === "list" ? (
+                <>
                 <div className="relative">
                   <div
                     aria-hidden="true"
@@ -2801,6 +2802,7 @@ export default function Home() {
                     </button>
                   </div>
                 </div>
+                </>
               ) : (
                 <div className={`p-3 sm:p-4 space-y-3 flex h-full flex-col sm:p-5`}>
                   <div className="space-y-2 min-h-[112px]">
