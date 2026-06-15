@@ -2779,7 +2779,8 @@ export default function Home() {
                   </div>
                 </div>
                 <div className="px-4 py-3 bg-white">
-                  <div className="flex items-center justify-start gap-2">
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center justify-start gap-2 flex-1 min-w-0">
                     {userId !== q.creator_id ? (
                       <button
                         className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-transparent text-sm font-semibold text-slate-900 transition hover:opacity-80"
@@ -2812,6 +2813,7 @@ export default function Home() {
                         <path d="M5 19h14" />
                       </svg>
                     </button>
+                    </div>
                     <button className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-transparent text-sm font-medium text-slate-900 transition hover:opacity-80" aria-label={bookmarkedQuestIds.includes(q.id) ? "Saved" : "Save"} title={bookmarkedQuestIds.includes(q.id) ? "Saved" : "Save"} onClick={() => void toggleBookmark(q.id)}>
                       <svg viewBox="0 0 24 24" className="h-5 w-5" fill={bookmarkedQuestIds.includes(q.id) ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                         <path d="M12 3.5 14.6 8.8l5.9.9-4.3 4.2 1 5.9L12 17.1 6.8 19.8l1-5.9-4.3-4.2 5.9-.9L12 3.5Z" />
