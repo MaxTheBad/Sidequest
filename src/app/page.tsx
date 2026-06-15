@@ -2638,32 +2638,37 @@ export default function Home() {
                   )}
                   <span className="text-sm font-semibold truncate">{creatorProfile?.display_name || "View profile"}</span>
                 </Link>
-                <div className="relative">
-                  <button
-                    className="border rounded px-2 py-1 text-xs"
-                    onClick={() => setOpenCardMenuQuestId((v) => (v === q.id ? null : q.id))}
-                  >
-                    ⋯
-                  </button>
-                  {openCardMenuQuestId === q.id && (
-                    <div className="absolute right-0 mt-1 w-36 rounded-xl border bg-white shadow-md z-20 overflow-hidden">
-                      {userId === q.creator_id && (
-                        <>
-                          <button className="block w-full text-left px-3 py-2 text-sm text-slate-900 hover:bg-gray-50" onClick={() => { setOpenCardMenuQuestId(null); openEditModal(q); }}>
-                            Edit listing
+                <div className="flex items-center gap-2">
+                  <p className="text-[11px] font-medium whitespace-nowrap text-white/90 drop-shadow sm:text-xs">
+                    {formatQuestMeta(q).replace(/^📍/, "📍 ")}
+                  </p>
+                  <div className="relative">
+                    <button
+                      className="border rounded px-2 py-1 text-xs"
+                      onClick={() => setOpenCardMenuQuestId((v) => (v === q.id ? null : q.id))}
+                    >
+                      ⋯
+                    </button>
+                    {openCardMenuQuestId === q.id && (
+                      <div className="absolute right-0 mt-1 w-36 rounded-xl border bg-white shadow-md z-20 overflow-hidden">
+                        {userId === q.creator_id && (
+                          <>
+                            <button className="block w-full text-left px-3 py-2 text-sm text-slate-900 hover:bg-gray-50" onClick={() => { setOpenCardMenuQuestId(null); openEditModal(q); }}>
+                              Edit listing
+                            </button>
+                            <button className="block w-full text-left px-3 py-2 text-sm text-red-700 hover:bg-red-50" onClick={() => { setOpenCardMenuQuestId(null); void deleteQuest(q.id); }}>
+                              Delete listing
+                            </button>
+                          </>
+                        )}
+                        {userId !== q.creator_id && (
+                          <button className="block w-full text-left px-3 py-2 text-sm text-red-700 hover:bg-red-50" onClick={() => { setOpenCardMenuQuestId(null); openReportModal(q); }}>
+                            Report listing
                           </button>
-                          <button className="block w-full text-left px-3 py-2 text-sm text-red-700 hover:bg-red-50" onClick={() => { setOpenCardMenuQuestId(null); void deleteQuest(q.id); }}>
-                            Delete listing
-                          </button>
-                        </>
-                      )}
-                      {userId !== q.creator_id && (
-                        <button className="block w-full text-left px-3 py-2 text-sm text-red-700 hover:bg-red-50" onClick={() => { setOpenCardMenuQuestId(null); openReportModal(q); }}>
-                          Report listing
-                        </button>
-                      )}
-                    </div>
-                  )}
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -2889,9 +2894,6 @@ export default function Home() {
                           {q.title}
                         </Link>
                       </h3>
-                      <p className="text-xs font-medium text-slate-500 whitespace-nowrap pt-1">
-                        {formatQuestMeta(q).replace(/^📍/, "📍 ")}
-                      </p>
                     </div>
                     <p className="text-xs font-medium text-slate-500 leading-relaxed">
                       {formatPostedLabel(q.created_at)}
