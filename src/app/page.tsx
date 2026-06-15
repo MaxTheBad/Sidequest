@@ -1650,7 +1650,24 @@ export default function Home() {
     const rawLocation = sanitizeLocationLabel(quest.city) || sanitizeLocationLabel(deriveCityFromLocation(quest.exact_address || "")) || "";
     const parts = rawLocation.split(",").map((p) => p.trim()).filter(Boolean);
     const city = parts[0] || rawLocation;
-    const state = (parts.find((part, index) => index > 0 && /^[A-Z]{2}$/.test(part)) || "").toUpperCase();
+    const stateFromAddress = (() => {
+      const raw = (quest.exact_address || "").trim();
+      if (!raw) return "";
+      const statePart = raw.split(",").map((p) => p.trim()).reverse().find((part) => /^[A-Z]{2}$/.test(part) || /^(Alabama|Alaska|Arizona|Arkansas|California|Colorado|Connecticut|Delaware|Florida|Georgia|Hawaii|Idaho|Illinois|Indiana|Iowa|Kansas|Kentucky|Louisiana|Maine|Maryland|Massachusetts|Michigan|Minnesota|Mississippi|Missouri|Montana|Nebraska|Nevada|New Hampshire|New Jersey|New Mexico|New York|North Carolina|North Dakota|Ohio|Oklahoma|Oregon|Pennsylvania|Rhode Island|South Carolina|South Dakota|Tennessee|Texas|Utah|Vermont|Virginia|Washington|West Virginia|Wisconsin|Wyoming)$/i.test(part));
+      if (!statePart) return "";
+      if (/^[A-Z]{2}$/.test(statePart)) return statePart.toUpperCase();
+      const stateMap: Record<string, string> = {
+        alabama: "AL", alaska: "AK", arizona: "AZ", arkansas: "AR", california: "CA", colorado: "CO", connecticut: "CT", delaware: "DE",
+        florida: "FL", georgia: "GA", hawaii: "HI", idaho: "ID", illinois: "IL", indiana: "IN", iowa: "IA", kansas: "KS", kentucky: "KY",
+        louisiana: "LA", maine: "ME", maryland: "MD", massachusetts: "MA", michigan: "MI", minnesota: "MN", mississippi: "MS", missouri: "MO",
+        montana: "MT", nebraska: "NE", nevada: "NV", "new hampshire": "NH", "new jersey": "NJ", "new mexico": "NM", "new york": "NY",
+        "north carolina": "NC", "north dakota": "ND", ohio: "OH", oklahoma: "OK", oregon: "OR", pennsylvania: "PA", "rhode island": "RI",
+        "south carolina": "SC", "south dakota": "SD", tennessee: "TN", texas: "TX", utah: "UT", vermont: "VT", virginia: "VA",
+        washington: "WA", "west virginia": "WV", wisconsin: "WI", wyoming: "WY",
+      };
+      return stateMap[statePart.toLowerCase()] || "";
+    })();
+    const state = (parts.find((part, index) => index > 0 && /^[A-Z]{2}$/.test(part)) || stateFromAddress || "").toUpperCase();
     return [city, state].filter(Boolean).join(", ");
   }
 
