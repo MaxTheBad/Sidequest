@@ -2628,7 +2628,7 @@ export default function Home() {
             const distanceLabel = distanceByQuestId[q.id];
 
             return (
-            <article key={q.id} className={`quest-card w-full bg-white border border-slate-200 shadow-[0_14px_40px_rgba(15,23,42,0.08)] overflow-hidden ${feedViewMode === "list" ? "rounded-none sm:rounded-[1.75rem] h-[calc(100svh-10.75rem)] sm:h-auto flex flex-col xl:h-[calc(100dvh-10.75rem)] xl:flex xl:flex-col" : "rounded-[2rem]"}`}>
+            <article key={q.id} className={`quest-card w-full bg-white border border-slate-200 shadow-[0_14px_40px_rgba(15,23,42,0.08)] overflow-hidden ${feedViewMode === "list" ? "rounded-none sm:rounded-[1.75rem] h-[calc(100svh-10.75rem)] sm:h-auto flex flex-col xl:h-[calc(100dvh-8.25rem)] xl:flex xl:flex-col" : "rounded-[2rem]"}`}>
               <div className={`p-3 flex items-center justify-between gap-2 ${feedViewMode === "list" ? "sm:p-4 absolute top-0 left-0 right-0 z-30 bg-gradient-to-b from-black/22 via-black/12 via-black/6 to-transparent py-2 sm:py-3 text-white border-0 backdrop-blur-[0.75px]" : ""}`}>
                 <Link href={`/profile/${q.creator_id}`} className="flex items-center gap-2 min-w-0">
                   {creatorProfile?.avatar_url ? (
