@@ -2045,6 +2045,23 @@ export default function Home() {
     setStatus("Saved listing ✅");
   }
 
+  async function shareQuest(q: Quest) {
+    const url = typeof window !== "undefined" ? `${window.location.origin}/listing/${q.id}` : `/listing/${q.id}`;
+    const text = `${q.title}${q.description ? ` - ${q.description}` : ""}`;
+    if (typeof navigator !== "undefined" && navigator.share) {
+      try {
+        await navigator.share({ title: q.title, text, url });
+        return;
+      } catch {
+        // Fall through to clipboard copy.
+      }
+    }
+    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(url);
+      setStatus("Link copied to clipboard.");
+    }
+  }
+
   function askQuestion(quest: Quest, mode: "public" | "private" = "public") {
     if (!supabase || !userId) {
       setShowAuthModal(true);
