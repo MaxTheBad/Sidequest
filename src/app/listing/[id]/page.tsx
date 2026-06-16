@@ -463,6 +463,16 @@ export default function ListingPage() {
     return exactAccessUserIds.includes(userId);
   })());
 
+  function isVirtualListing() {
+    const exactAddress = (listing?.exact_address || "").trim();
+    if (!exactAddress) return false;
+    const lowered = exactAddress.toLowerCase();
+    if (/(https?:\/\/|www\.|:\/\/)/i.test(exactAddress)) return true;
+    if (/(zoom|google meet|meet\.google|teams\.microsoft|webex|gotomeeting|ringcentral|whereby|discord\.gg|discord|slack|jitsi|bluejeans|join)/i.test(lowered)) return true;
+    if (/\.[a-z]{2,}(?:\/|$)/i.test(exactAddress) && !/(street|st\.|road|rd\.|avenue|ave\.|boulevard|blvd\.|drive|dr\.|lane|ln\.|way|court|ct\.|place|pl\.|trail|trl\.|circle|cir\.)/i.test(lowered)) return true;
+    return false;
+  }
+
   function locationSummary(input?: string | null) {
     const raw = (input || "").trim();
     if (!raw) return "";
@@ -634,9 +644,9 @@ export default function ListingPage() {
             <p className="text-xs text-gray-500">{getEventTimingLabel(listing.availability)}</p>
             <p className="text-xs text-gray-500">{formatPostedLabel(listing.created_at)}</p>
             {canViewExactAddress && listing.exact_address ? (
-              <p className="text-xs text-emerald-700">Exact address: {listing.exact_address}</p>
+              <p className="text-xs text-emerald-700">{isVirtualListing() ? "Virtual" : "Exact address"}: {isVirtualListing() ? "Shared to you" : listing.exact_address}</p>
             ) : (
-              <p className="text-xs text-gray-500">Exact address is hidden by host privacy settings.</p>
+              <p className="text-xs text-gray-500">{isVirtualListing() ? "Virtual meeting details are hidden by host privacy settings." : "Exact address is hidden by host privacy settings."}</p>
             )}
 
             <div className="rounded-xl border bg-gray-50 p-3">
