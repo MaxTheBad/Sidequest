@@ -2638,12 +2638,12 @@ export default function Home() {
                 }}
               >
               <span
-                className={`absolute inset-y-1 w-[calc(50%-0.25rem)] rounded-full bg-white shadow transition-transform duration-200 ease-out ${feedViewMode === "map" ? "translate-x-full" : "translate-x-0"}`}
+                className={`absolute inset-y-1 left-1 w-[calc(50%-0.375rem)] rounded-full bg-white shadow transition-transform duration-200 ease-out ${feedViewMode === "map" ? "translate-x-full" : "translate-x-0"}`}
                 aria-hidden="true"
               />
               <button
                 aria-pressed={feedViewMode === "list"}
-                className={`relative z-10 w-full rounded-full px-4 py-1.5 text-center text-xs font-medium transition ${feedViewMode === "list" ? "text-slate-900 dark:text-white" : "text-slate-500 hover:text-slate-700 dark:text-white/65 dark:hover:text-white"}`}
+                className={`relative z-10 w-full rounded-full px-3.5 py-1.5 text-center text-xs font-medium transition ${feedViewMode === "list" ? "text-slate-900 dark:text-white" : "text-slate-500 hover:text-slate-700 dark:text-white/65 dark:hover:text-white"}`}
                 onClick={() => setFeedViewMode("list")}
                 type="button"
               >
@@ -2651,7 +2651,7 @@ export default function Home() {
               </button>
               <button
                 aria-pressed={feedViewMode === "map"}
-                className={`relative z-10 w-full rounded-full px-4 py-1.5 text-center text-xs font-medium transition ${feedViewMode === "map" ? "text-slate-900 dark:text-white" : "text-slate-500 hover:text-slate-700 dark:text-white/65 dark:hover:text-white"}`}
+                className={`relative z-10 w-full rounded-full px-3.5 py-1.5 text-center text-xs font-medium transition ${feedViewMode === "map" ? "text-slate-900 dark:text-white" : "text-slate-500 hover:text-slate-700 dark:text-white/65 dark:hover:text-white"}`}
                 onClick={() => setFeedViewMode("map")}
                 type="button"
               >
