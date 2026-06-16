@@ -2788,8 +2788,7 @@ export default function Home() {
                   <div className="absolute inset-0 opacity-60" style={{ background: "linear-gradient(180deg, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.45) 100%)" }} />
                   <div className="relative z-10 flex h-full items-end p-5 sm:p-6">
                     <div className="max-w-sm text-white">
-                      <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-white/15 backdrop-blur-sm text-lg">{fallbackVisual.emoji}</div>
-                      <p className="mt-2 text-sm font-semibold">{fallbackVisual.title}</p>
+                      <p className="text-sm font-semibold">{fallbackVisual.title}</p>
                       <p className="text-xs text-white/80 leading-snug">{fallbackVisual.note}</p>
                     </div>
                   </div>
@@ -2853,6 +2852,9 @@ export default function Home() {
                       ) : (
                         <>
                           <div className="space-y-1">
+                            <p className="text-[11px] font-semibold uppercase tracking-wide text-white/85">
+                              {getQuestCategoryDisplay(q)}
+                            </p>
                             <h3 className="text-[11px] sm:text-xs font-semibold leading-tight tracking-tight text-white max-w-[70%]">
                               <Link href={`/listing/${q.id}`} className="underline decoration-2 underline-offset-2" title="Open listing">
                                 {q.title}
@@ -2933,8 +2935,6 @@ export default function Home() {
                           View listing ↗
                         </Link>
                         <div className="flex flex-wrap gap-2">
-                          <span className="text-[11px] font-semibold tracking-wide uppercase text-slate-700">{getQuestCategoryDisplay(q)}</span>
-                          <span className="text-[11px] font-semibold text-slate-700">-</span>
                           <span className="text-[11px] font-semibold tracking-wide uppercase text-slate-700">{q.skill_level || "all levels"}</span>
                           <span className="text-[11px] font-semibold text-slate-700">-</span>
                           <span className="text-[11px] font-semibold tracking-wide uppercase text-slate-700">group {q.group_size > 0 ? q.group_size : "any"}</span>

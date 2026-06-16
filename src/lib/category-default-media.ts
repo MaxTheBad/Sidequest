@@ -87,7 +87,7 @@ export const CATEGORY_FALLBACK_MEDIA: Record<string, CategoryFallback> = {
   Wildcard: {
     imageUrl: "/category-fallbacks/wildcard.jpg",
     emoji: "🖼️",
-    title: "No media yet",
+    title: "Placeholder media",
     note: "A neutral photo keeps it from feeling empty.",
     gradient: "linear-gradient(135deg,#e2e8f0,#cbd5e1)",
   },
