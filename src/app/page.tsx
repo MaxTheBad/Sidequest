@@ -1661,7 +1661,11 @@ export default function Home() {
     const exactAddress = (quest.exact_address || "").trim();
     if (!exactAddress) return false;
     if (quest.exact_location_visibility !== "private") return false;
-    return /^(https?:\/\/|www\.|zoom\.us|meet\.google\.com|teams\.microsoft\.com|us02web\.zoom\.us)/i.test(exactAddress);
+    const lowered = exactAddress.toLowerCase();
+    if (/(https?:\/\/|www\.|:\/\/)/i.test(exactAddress)) return true;
+    if (/(zoom|google meet|meet\.google|teams\.microsoft|webex|gotomeeting|ringcentral|whereby|discord\.gg|discord|slack|jitsi|bluejeans|join)/i.test(lowered)) return true;
+    if (/\.[a-z]{2,}(?:\/|$)/i.test(exactAddress) && !/(street|st\.|road|rd\.|avenue|ave\.|boulevard|blvd\.|drive|dr\.|lane|ln\.|way|court|ct\.|place|pl\.|trail|trl\.|circle|cir\.)/i.test(lowered)) return true;
+    return false;
   }
 
   function getQuestCityQuery(quest: Quest) {
