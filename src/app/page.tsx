@@ -2918,7 +2918,7 @@ export default function Home() {
                       </svg>
                       <span className="text-xs tabular-nums text-slate-700">{commentCountByQuestId[q.id] || 0}</span>
                     </button>
-                    <button className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-transparent text-sm font-medium text-slate-900 transition hover:opacity-80" aria-label="Direct message" title="Direct message" onClick={() => {
+                    <button className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-transparent text-sm font-medium text-slate-900 transition hover:opacity-80" aria-label="Message" title="Message" onClick={() => {
                       void askQuestion(q, "private");
                     }}>
                       <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -3012,7 +3012,7 @@ export default function Home() {
                         <path d="M20 14a4 4 0 0 1-4 4H9l-5 3V8a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4v6Z" />
                       </svg>
                     </button>
-                    <button className="justify-self-center inline-flex h-10 w-10 items-center justify-center rounded-full bg-transparent text-sm font-medium text-black dark:text-white transition hover:opacity-80" aria-label="Direct message" title="Direct message" onClick={() => {
+                    <button className="justify-self-center inline-flex h-10 w-10 items-center justify-center rounded-full bg-transparent text-sm font-medium text-black dark:text-white transition hover:opacity-80" aria-label="Message" title="Message" onClick={() => {
                       void askQuestion(q, "private");
                     }}>
                       <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

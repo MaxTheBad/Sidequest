@@ -851,7 +851,7 @@ export default function ListingPage() {
                 </>
               )}
               <button className="border rounded px-3 py-2" onClick={() => void askQuestion("public")}>Comment</button>
-              <button className="border rounded px-3 py-2" onClick={() => void askQuestion("private")}>DM</button>
+              <button className="border rounded px-3 py-2" onClick={() => void askQuestion("private")}>Message</button>
               <button className="border rounded px-3 py-2" onClick={() => void toggleSave()}>{isSaved ? "★ Saved" : "☆ Save"}</button>
             </div>
 
