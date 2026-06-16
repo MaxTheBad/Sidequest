@@ -2264,10 +2264,10 @@ export default function Home() {
   }
 
   function getQuestCategoryDisplay(q: Quest) {
-    const raw = q.hobbies?.[0]?.name?.trim() || q.hobbies?.[0]?.category?.trim() || "";
+    const raw = q.hobbies?.[0]?.category?.trim() || "";
     const canonical = resolveCanonicalCategory(raw);
     if (canonical) return canonical;
-    if (raw && !/^category$/i.test(raw) && !/^hobby$/i.test(raw)) return raw;
+    if (raw && !/^category$/i.test(raw)) return raw;
     return "Category";
   }
 
