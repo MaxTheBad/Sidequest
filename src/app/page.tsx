@@ -2508,7 +2508,10 @@ export default function Home({ forceCreatePage = false }: { forceCreatePage?: bo
   }, [filteredQuests, userLocation]);
 
   return (
-    <main className="min-h-screen bg-transparent">
+<main className={`min-h-screen bg-transparent ${forceCreatePage ? "force-create-page" : ""}`}>
+      {forceCreatePage ? (
+        <style>{`.force-create-page > :not([data-create-shell]) { display: none !important; }`}</style>
+      ) : null}
       <div className="w-full mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-4 lg:py-8 space-y-6">
         {!!pendingVerifyEmail && (
           <div className="text-sm rounded bg-emerald-50 border p-2">Email sent to <b>{pendingVerifyEmail}</b>. <button className="underline" disabled={resendCooldown > 0} onClick={() => void resendVerification()}>{resendCooldown > 0 ? `Resend in ${resendCooldown}s` : "Resend"}</button></div>
@@ -3489,7 +3492,7 @@ export default function Home({ forceCreatePage = false }: { forceCreatePage?: bo
 
       {(showCreateModal || forceCreatePage) && (
         <div className={`${forceCreatePage ? "relative min-h-screen bg-[color:var(--background)]" : "fixed inset-0 z-50 bg-black/45 flex items-end sm:items-center justify-center p-1.5 sm:p-4 overflow-y-auto"}`}>
-          <div className={`${forceCreatePage ? "mx-auto w-full max-w-3xl min-h-screen rounded-none border-0" : "w-[calc(100vw-0.75rem)] sm:w-full sm:max-w-xl rounded-2xl sm:rounded-2xl border sm:border" } bg-white p-3 sm:p-4 space-y-2 h-[92vh] sm:h-auto sm:max-h-[92vh] overflow-y-auto my-0 sm:my-auto pb-28 md:pb-4 box-border`}>
+          <div data-create-shell={forceCreatePage ? "1" : undefined} className={`${forceCreatePage ? "mx-auto w-full max-w-3xl min-h-screen rounded-none border-0" : "w-[calc(100vw-0.75rem)] sm:w-full sm:max-w-xl rounded-2xl sm:rounded-2xl border sm:border" } bg-white p-3 sm:p-4 space-y-2 h-[92vh] sm:h-auto sm:max-h-[92vh] overflow-y-auto my-0 sm:my-auto pb-28 md:pb-4 box-border`}>
             <div className="sticky top-0 z-10 -mx-3 sm:mx-0 px-3 sm:px-0 py-2 bg-white/95 backdrop-blur flex justify-between items-center gap-3 border-b border-slate-100">
               <h3 className="font-semibold text-lg sm:text-xl">{editingQuestId ? "Edit Listing" : "Create Quest"}</h3>
               {!forceCreatePage ? (
