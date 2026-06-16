@@ -101,12 +101,8 @@ export default function BottomNav() {
           type="button"
           onClick={() => {
             if (typeof window === "undefined") return;
-            if (pathname === "/") {
-              window.dispatchEvent(new CustomEvent("sidequest:open-create"));
-              return;
-            }
-            sessionStorage.setItem("sidequest_open_create", "1");
-            void requireAuthNavigate("/");
+            if (pathname === "/create") return;
+            void requireAuthNavigate("/create");
           }}
           className="text-center -mt-6 bg-transparent border-0 shadow-none appearance-none p-0"
         >
