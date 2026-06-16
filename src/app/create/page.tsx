@@ -1,7 +1,15 @@
 "use client";
 
-import Home from "../page";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 export default function CreatePage() {
-  return <Home forceCreatePage />;
+  const router = useRouter();
+  useEffect(() => {
+    router.replace("/");
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("sidequest:open-create"));
+    }
+  }, [router]);
+  return null;
 }
