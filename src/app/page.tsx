@@ -3520,7 +3520,7 @@ export default function Home() {
                   <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-48 overflow-auto rounded-xl border bg-white dark:bg-slate-900 shadow-lg text-sm">
                     <button
                       type="button"
-                      className="block w-full px-3 py-1.75 text-left text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800"
+                      className="block w-full px-3 py-1.75 text-left text-black hover:bg-slate-100 dark:hover:bg-slate-800"
                       onClick={() => {
                         setUseCustomCategory(true);
                         setCustomCategory("");
@@ -3536,7 +3536,7 @@ export default function Home() {
                       <button
                         key={option.id}
                         type="button"
-                        className="block w-full px-3 py-1.75 text-left text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800"
+                        className="block w-full px-3 py-1.75 text-left text-black hover:bg-slate-100 dark:hover:bg-slate-800"
                         onClick={() => {
                           setCategoryInput(option.name);
                           setUseCustomCategory(false);
