@@ -78,6 +78,8 @@ export default function EditListingPage() {
   const [groupSize, setGroupSize] = useState(4);
   const [joinMode, setJoinMode] = useState<"open" | "approval_required">("open");
   const [exactLocationVisibility, setExactLocationVisibility] = useState<"private" | "public" | "approved_members">("private");
+  const [showManualShareConfirm, setShowManualShareConfirm] = useState(false);
+  const [pendingManualShareVisibility, setPendingManualShareVisibility] = useState<"private" | "public" | "approved_members" | null>(null);
 
   const categoryOptions = useMemo(() => {
     const existing = new Set(hobbies.map((h) => h.name.toLowerCase()));
@@ -290,7 +292,19 @@ export default function EditListingPage() {
             </select>
 
             <label className="text-sm">Location visibility</label>
-            <select className="border rounded px-3 py-2" value={exactLocationVisibility} onChange={(e) => setExactLocationVisibility(e.target.value as "private" | "public" | "approved_members")}> 
+            <select
+              className="border rounded px-3 py-2"
+              value={exactLocationVisibility}
+              onChange={(e) => {
+                const next = e.target.value as "private" | "public" | "approved_members";
+                if (next === "private") {
+                  setPendingManualShareVisibility(next);
+                  setShowManualShareConfirm(true);
+                  return;
+                }
+                setExactLocationVisibility(next);
+              }}
+            >
               <option value="private">Private (manual share)</option>
               <option value="approved_members">Auto-share with approved members</option>
               <option value="public">Public (everyone)</option>
@@ -298,6 +312,31 @@ export default function EditListingPage() {
 
             <button className="bg-black text-white rounded px-3 py-2 disabled:opacity-50" disabled={saving}>{saving ? "Saving..." : "Save changes"}</button>
           </form>
+        )}
+
+        {showManualShareConfirm && (
+          <div className="fixed inset-0 z-[80] bg-black/45 flex items-center justify-center p-4">
+            <div className="w-full max-w-md rounded-2xl bg-white border p-4 space-y-3">
+              <h3 className="font-semibold">Manual share warning</h3>
+              <p className="text-sm text-gray-700">
+                With <b>Private (manual share)</b>, joiners will not automatically see the location. This applies to both in-person meetups and virtual meetings.
+              </p>
+              <p className="text-sm text-gray-700">
+                You must share the details yourself with each person you want to invite.
+              </p>
+              <div className="flex gap-2 justify-end">
+                <button type="button" className="border rounded px-3 py-2" onClick={() => {
+                  setShowManualShareConfirm(false);
+                  setPendingManualShareVisibility(null);
+                }}>Go back</button>
+                <button type="button" className="bg-black text-white rounded px-3 py-2" onClick={() => {
+                  if (pendingManualShareVisibility) setExactLocationVisibility(pendingManualShareVisibility);
+                  setShowManualShareConfirm(false);
+                  setPendingManualShareVisibility(null);
+                }}>Proceed</button>
+              </div>
+            </div>
+          </div>
         )}
       </section>
     </main>

@@ -361,10 +361,14 @@ export default function Home() {
   const [editingQuestId, setEditingQuestId] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, boolean>>({});
   const [showPublicLocationConfirm, setShowPublicLocationConfirm] = useState(false);
+  const [showManualShareConfirm, setShowManualShareConfirm] = useState(false);
+  const [pendingManualShareVisibility, setPendingManualShareVisibility] = useState<"private" | "public" | "approved_members" | null>(null);
   const [highlightLocationVisibility, setHighlightLocationVisibility] = useState(false);
   const [publicVisibilityConfirmed, setPublicVisibilityConfirmed] = useState(false);
   const [snoozePublicLocationWarning, setSnoozePublicLocationWarning] = useState(false);
+  const [snoozeManualShareWarning, setSnoozeManualShareWarning] = useState(false);
   const publicVisibilityBypassRef = useRef(false);
+  const manualShareWarningBypassRef = useRef(false);
   const publicWarningMutedUntilRef = useRef<number>(0);
   const locationVisibilityRef = useRef<HTMLDivElement | null>(null);
   const createQuestFormRef = useRef<HTMLFormElement | null>(null);
@@ -3693,7 +3697,13 @@ export default function Home() {
                       className={`border rounded-xl px-2.5 py-2 bg-white text-sm sm:px-3 sm:py-2.5 sm:text-base ${fieldErrors.locationVisibility ? "border-red-500 ring-1 ring-red-300" : ""}`}
                       value={exactLocationVisibility}
                       onChange={(e) => {
-                        setExactLocationVisibility(e.target.value as "private" | "public" | "approved_members");
+                        const next = e.target.value as "private" | "public" | "approved_members";
+                        if (next === "private" && !manualShareWarningBypassRef.current) {
+                          setPendingManualShareVisibility(next);
+                          setShowManualShareConfirm(true);
+                          return;
+                        }
+                        setExactLocationVisibility(next);
                         clearFieldError("locationVisibility");
                         setPublicVisibilityConfirmed(false);
                       }}
@@ -4024,6 +4034,55 @@ export default function Home() {
                   setSnoozePublicLocationWarning(false);
                   clearFieldError("locationVisibility");
                   createQuestFormRef.current?.requestSubmit();
+                }}
+              >
+                Proceed
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showManualShareConfirm && (
+        <div className="fixed inset-0 z-[80] bg-black/45 flex items-center justify-center p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white border p-4 space-y-3">
+            <h3 className="font-semibold">Manual share warning</h3>
+            <p className="text-sm text-gray-700">
+              With <b>Private (manual share)</b>, joiners will not automatically see the location. This applies to both in-person meetups and virtual meetings.
+            </p>
+            <p className="text-sm text-gray-700">
+              You must share the details yourself with each person you want to invite.
+            </p>
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={snoozeManualShareWarning} onChange={(e) => setSnoozeManualShareWarning(e.target.checked)} />
+              Don’t remind me again for a month
+            </label>
+            <div className="flex gap-2 justify-end">
+              <button
+                type="button"
+                className="border rounded px-3 py-2"
+                onClick={() => {
+                  setShowManualShareConfirm(false);
+                  setPendingManualShareVisibility(null);
+                  setSnoozeManualShareWarning(false);
+                }}
+              >
+                Go back
+              </button>
+              <button
+                type="button"
+                className="bg-black text-white rounded px-3 py-2"
+                onClick={() => {
+                  if (snoozeManualShareWarning && typeof window !== "undefined") {
+                    const mutedUntil = Date.now() + 30 * 24 * 60 * 60 * 1000;
+                    window.localStorage.setItem("sidequest_manual_share_warning_muted_until", String(mutedUntil));
+                    manualShareWarningBypassRef.current = true;
+                  }
+                  if (pendingManualShareVisibility) setExactLocationVisibility(pendingManualShareVisibility);
+                  clearFieldError("locationVisibility");
+                  setShowManualShareConfirm(false);
+                  setPendingManualShareVisibility(null);
+                  setSnoozeManualShareWarning(false);
                 }}
               >
                 Proceed
