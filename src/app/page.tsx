@@ -46,12 +46,17 @@ type Quest = {
   media_video_url: string | null;
   media_source: "live" | "upload" | null;
   media_items?: QuestMediaItem[] | null;
-  hobbies?: { name: string | null; category: string | null }[] | null;
+  hobbies?: { name: string | null; category: string | null }[] | { name: string | null; category: string | null } | null;
   profiles?: { id: string; display_name: string | null; avatar_url: string | null }[] | { id: string; display_name: string | null; avatar_url: string | null } | null;
 };
 
-function getQuestCategoryLabel(q?: { hobbies?: { category: string | null }[] | null }) {
-  const category = q?.hobbies?.[0]?.category?.trim();
+function getQuestHobby(q?: { hobbies?: { name?: string | null; category?: string | null }[] | { name?: string | null; category?: string | null } | null }) {
+  if (!q?.hobbies) return null;
+  return Array.isArray(q.hobbies) ? (q.hobbies[0] ?? null) : q.hobbies;
+}
+
+function getQuestCategoryLabel(q?: { hobbies?: { category: string | null }[] | { category: string | null } | null }) {
+  const category = getQuestHobby(q)?.category?.trim();
   return category || "Category";
 }
 
@@ -2256,18 +2261,20 @@ export default function Home() {
   }
 
   function getQuestCategoryRaw(q: Quest) {
-    const category = q.hobbies?.[0]?.category?.trim();
+    const hobby = getQuestHobby(q);
+    const category = hobby?.category?.trim();
     if (category && category.toLowerCase() !== "category") return category;
-    const name = q.hobbies?.[0]?.name?.trim();
+    const name = hobby?.name?.trim();
     if (name && name.toLowerCase() !== "hobby") return name;
     return q.title || null;
   }
 
   function getQuestCategoryDisplay(q: Quest) {
+    const hobby = getQuestHobby(q);
     const title = q.title.trim().toLowerCase();
     const candidates = [
-      q.hobbies?.[0]?.name?.trim(),
-      q.hobbies?.[0]?.category?.trim(),
+      hobby?.name?.trim(),
+      hobby?.category?.trim(),
     ].filter((value): value is string => {
       if (!value) return false;
       const normalized = value.toLowerCase();
@@ -2397,7 +2404,7 @@ export default function Home() {
           q.description,
           q.city,
           q.availability,
-          q.hobbies?.[0]?.name,
+          getQuestHobby(q)?.name,
           q.skill_level,
         ].filter(Boolean).join(" ").toLowerCase();
         return haystack.includes(query);
