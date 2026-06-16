@@ -640,7 +640,7 @@ export default function ListingPage() {
 
             <p className="text-sm text-gray-600">{listing.skill_level} · {listingCategoryLabel()} · group {listing.group_size}</p>
             <p className="text-sm">{listing.description || "No description yet."}</p>
-            <p className="text-xs text-gray-500">{sanitizeLocationLabel(listing.city) || sanitizeLocationLabel(locationSummary(listing.exact_address)) || "city tbd"}</p>
+            <p className="text-xs text-gray-500">{isVirtualListing() ? "Virtual" : (sanitizeLocationLabel(listing.city) || sanitizeLocationLabel(locationSummary(listing.exact_address)) || "city tbd")}</p>
             <p className="text-xs text-gray-500">{getEventTimingLabel(listing.availability)}</p>
             <p className="text-xs text-gray-500">{formatPostedLabel(listing.created_at)}</p>
             {isVirtualListing() ? (
