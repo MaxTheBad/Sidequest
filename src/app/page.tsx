@@ -2854,6 +2854,9 @@ export default function Home() {
                       ) : (
                         <>
                           <div className="space-y-1">
+                            <p className="text-[11px] font-semibold uppercase tracking-wide text-white/85">
+                              {getQuestCategoryDisplay(q)}
+                            </p>
                             <h3 className="text-[11px] sm:text-xs font-semibold leading-tight tracking-tight text-white max-w-[70%]">
                               <Link href={`/listing/${q.id}`} className="underline decoration-2 underline-offset-2" title="Open listing">
                                 {q.title}
@@ -2924,9 +2927,6 @@ export default function Home() {
                     </div>
                     <p className="text-xs font-medium text-slate-500 leading-relaxed">
                       {formatPostedLabel(q.created_at)}
-                    </p>
-                    <p className="text-xs font-semibold tracking-wide uppercase text-slate-700">
-                      {getQuestCategoryDisplay(q)}
                     </p>
                     <p className="text-xs font-medium text-slate-500 leading-relaxed">
                       {getEventTimingLabel(q.availability)}
