@@ -652,12 +652,14 @@ export default function ListingPage() {
                     ? ": Approved members"
                     : canViewExactAddress
                       ? ": Shared to you"
-                      : ": Hidden by host privacy settings"}
+                      : ": The host will share this when ready"}
               </p>
             ) : canViewExactAddress && listing.exact_address ? (
               <p className="text-xs text-emerald-700">Exact address: {listing.exact_address}</p>
             ) : (
-              <p className="text-xs text-gray-500">Exact address is hidden by host privacy settings.</p>
+              <p className="text-xs text-gray-500">
+                The host will share this when they are ready, based on their privacy setting.
+              </p>
             )}
 
             <div className="rounded-xl border bg-gray-50 p-3">
