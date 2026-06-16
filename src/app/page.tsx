@@ -2847,16 +2847,12 @@ export default function Home() {
                               void openQuestCityMap(q);
                             }}
                           >
-                            <span>📍</span>
                             <span className="truncate">{getQuestCityLabel(q)}</span>
                           </button>
                         </div>
                       ) : (
                         <>
                           <div className="space-y-1">
-                            <p className="text-[11px] font-semibold uppercase tracking-wide text-white/85">
-                              {getQuestCategoryDisplay(q)}
-                            </p>
                             <h3 className="text-[11px] sm:text-xs font-semibold leading-tight tracking-tight text-white max-w-[70%]">
                               <Link href={`/listing/${q.id}`} className="underline decoration-2 underline-offset-2" title="Open listing">
                                 {q.title}
