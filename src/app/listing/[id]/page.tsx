@@ -643,10 +643,16 @@ export default function ListingPage() {
             <p className="text-xs text-gray-500">{sanitizeLocationLabel(listing.city) || sanitizeLocationLabel(locationSummary(listing.exact_address)) || "city tbd"}</p>
             <p className="text-xs text-gray-500">{getEventTimingLabel(listing.availability)}</p>
             <p className="text-xs text-gray-500">{formatPostedLabel(listing.created_at)}</p>
-            {canViewExactAddress && listing.exact_address ? (
-              <p className="text-xs text-emerald-700">{isVirtualListing() ? "Virtual" : "Exact address"}: {isVirtualListing() ? "Shared to you" : listing.exact_address}</p>
+            {isVirtualListing() ? (
+              canViewExactAddress ? (
+                <p className="text-xs text-emerald-700">Virtual: Shared to you</p>
+              ) : (
+                <p className="text-xs text-gray-500">Virtual meeting details are hidden by host privacy settings.</p>
+              )
+            ) : canViewExactAddress && listing.exact_address ? (
+              <p className="text-xs text-emerald-700">Exact address: {listing.exact_address}</p>
             ) : (
-              <p className="text-xs text-gray-500">{isVirtualListing() ? "Virtual meeting details are hidden by host privacy settings." : "Exact address is hidden by host privacy settings."}</p>
+              <p className="text-xs text-gray-500">Exact address is hidden by host privacy settings.</p>
             )}
 
             <div className="rounded-xl border bg-gray-50 p-3">
