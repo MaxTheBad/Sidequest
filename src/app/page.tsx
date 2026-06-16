@@ -1941,7 +1941,7 @@ export default function Home() {
       } else {
         const { data: created, error: hobbyErr } = await supabase
           .from("hobbies")
-          .insert({ slug: slugify(canonicalOrTyped), name: canonicalOrTyped, category: "Custom" })
+          .insert({ slug: slugify(canonicalOrTyped), name: canonicalOrTyped, category: canonicalOrTyped })
           .select("id")
           .single();
 
@@ -2264,10 +2264,21 @@ export default function Home() {
   }
 
   function getQuestCategoryDisplay(q: Quest) {
-    const raw = q.hobbies?.[0]?.category?.trim() || "";
-    const canonical = resolveCanonicalCategory(raw);
-    if (canonical) return canonical;
-    if (raw && !/^category$/i.test(raw)) return raw;
+    const title = q.title.trim().toLowerCase();
+    const candidates = [
+      q.hobbies?.[0]?.name?.trim(),
+      q.hobbies?.[0]?.category?.trim(),
+    ].filter((value): value is string => {
+      if (!value) return false;
+      const normalized = value.toLowerCase();
+      if (/^(category|hobby|custom)$/i.test(value)) return false;
+      return normalized !== title;
+    });
+    for (const raw of candidates) {
+      const canonical = resolveCanonicalCategory(raw);
+      if (canonical) return canonical;
+      return raw;
+    }
     return "Category";
   }
 
