@@ -1793,6 +1793,32 @@ export default function Home() {
     );
   }
 
+  function getCurrentPositionOnce() {
+    return new Promise<{ lat: number; lon: number; accuracy?: number }>((resolve, reject) => {
+      if (!("geolocation" in navigator)) {
+        reject(new Error("Geolocation is not available on this device."));
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          resolve({
+            lat: position.coords.latitude,
+            lon: position.coords.longitude,
+            accuracy: position.coords.accuracy,
+          });
+        },
+        (error) => {
+          if (error.code === error.PERMISSION_DENIED) {
+            reject(new Error("Location access is required to request or join this event."));
+            return;
+          }
+          reject(new Error("Could not read your location. Please try again."));
+        },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
+      );
+    });
+  }
+
   function toggleFeedVideoPlayback(videoId: string) {
     const video = feedVideoRefs.current[videoId];
     if (!video) return;
@@ -2370,6 +2396,17 @@ export default function Home() {
       return setStatus("You can't join your own listing.");
     }
 
+    let liveLocation: { lat: number; lon: number; accuracy?: number } | null = null;
+    try {
+      liveLocation = await getCurrentPositionOnce();
+      setUserLocation(liveLocation);
+      setUserLocationStatus("ready");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Location access is required to request or join this event.";
+      setUserLocationStatus("denied");
+      return setStatus(message);
+    }
+
     const membershipStatus = membershipStatusByQuest[id];
     const hasJoined = membershipStatus === "approved";
     const hasPending = membershipStatus === "pending";
@@ -2394,6 +2431,11 @@ export default function Home() {
     }
 
     const nextStatus = (quest?.join_mode || "open") === "approval_required" ? "pending" : "approved";
+    const questCoords = quest ? await fetchQuestCityCoordinates(getQuestMapQuery(quest)) : null;
+    const distanceMiles = questCoords ? haversineMiles(liveLocation!.lat, liveLocation!.lon, questCoords.lat, questCoords.lon) : null;
+    const distanceWarning = distanceMiles !== null && Number.isFinite(distanceMiles) && distanceMiles >= 15
+      ? ` This event is about ${distanceLabelMiles(distanceMiles)} from you.`
+      : "";
     const existingStatus = membershipStatusByQuest[id];
     if (existingStatus === "declined") {
       const { error: delErr } = await supabase
@@ -2408,7 +2450,7 @@ export default function Home() {
       if (error && !error.message.includes("duplicate") && !error.message.toLowerCase().includes("unique")) return setStatus(error.message);
     }
     await loadMemberships(userId);
-    setStatus(nextStatus === "pending" ? "Join request sent ⏳" : "Joined quest ✅");
+    setStatus(`${nextStatus === "pending" ? "Join request sent ⏳" : "Joined quest ✅"}${distanceWarning}`);
   }
 
   const filteredQuests = useMemo(() => {

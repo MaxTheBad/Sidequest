@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase";
 
 type Listing = {
@@ -26,12 +26,13 @@ type Listing = {
 };
 
 type MemberProfile = { id: string; display_name: string | null; avatar_url: string | null };
+type MemberLocationProfile = MemberProfile & { city?: string | null };
 
 type MemberRow = {
   user_id: string;
   role: "creator" | "cohost" | "member";
   status?: "pending" | "approved" | "declined";
-  profiles?: MemberProfile[] | MemberProfile | null;
+  profiles?: MemberLocationProfile[] | MemberLocationProfile | null;
 };
 
 type ListingComment = {
@@ -66,6 +67,7 @@ export default function ListingPage() {
   const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
   const [expandedMediaIndex, setExpandedMediaIndex] = useState<number | null>(null);
   const [generatedVideoThumbs, setGeneratedVideoThumbs] = useState<Record<string, string>>({});
+  const [memberDistanceByUserId, setMemberDistanceByUserId] = useState<Record<string, string>>({});
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const [showReportModal, setShowReportModal] = useState(false);
   const [showBlockConfirm, setShowBlockConfirm] = useState(false);
@@ -82,11 +84,48 @@ export default function ListingPage() {
     return raw.replace(/,\s*(Florida|FL)$/i, "").replace(/\s+\b(Florida|FL)\b$/i, "").trim();
   }
 
+  function haversineMiles(lat1: number, lon1: number, lat2: number, lon2: number) {
+    const toRad = (v: number) => (v * Math.PI) / 180;
+    const R = 3958.8;
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(a));
+  }
+
+  function distanceLabelMiles(miles: number) {
+    if (!Number.isFinite(miles)) return "";
+    if (miles < 1) return `${Math.max(0.1, Math.round(miles * 10) / 10)} mi away`;
+    if (miles < 10) return `${Math.round(miles * 10) / 10} mi away`;
+    return `${Math.round(miles)} mi away`;
+  }
+
+  const cityCoordinateCacheRef = useRef<Record<string, { lat: number; lon: number }>>({});
+
+  async function fetchCityCoordinates(query: string) {
+    const key = query.trim().toLowerCase();
+    if (!key) return null;
+    const cached = cityCoordinateCacheRef.current[key];
+    if (cached) return cached;
+
+    try {
+      const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=5&language=en&format=json`);
+      const json = (await res.json()) as { results?: Array<{ latitude: number; longitude: number; name?: string; admin1?: string }> };
+      const result = (json.results || [])[0];
+      if (!result) return null;
+      const coords = { lat: result.latitude, lon: result.longitude };
+      cityCoordinateCacheRef.current[key] = coords;
+      return coords;
+    } catch {
+      return null;
+    }
+  }
+
   async function loadMembers(questId: string, uid: string | null) {
     if (!supabase) return;
     const { data, error } = await supabase
       .from("quest_members")
-      .select("user_id,role,status,profiles:profiles!quest_members_user_id_fkey(id,display_name,avatar_url)")
+      .select("user_id,role,status,profiles:profiles!quest_members_user_id_fkey(id,display_name,avatar_url,city)")
       .eq("quest_id", questId)
       .order("joined_at", { ascending: true });
 
@@ -492,7 +531,7 @@ export default function ListingPage() {
     return [city, postal, country].filter(Boolean).join(", ");
   }
 
-  function memberProfileOf(member: MemberRow): MemberProfile | null {
+  function memberProfileOf(member: MemberRow): MemberLocationProfile | null {
     if (!member.profiles) return null;
     return Array.isArray(member.profiles) ? (member.profiles[0] || null) : member.profiles;
   }
@@ -501,6 +540,40 @@ export default function ListingPage() {
     if (!comment.profiles) return null;
     return Array.isArray(comment.profiles) ? (comment.profiles[0] || null) : comment.profiles;
   }
+
+  useEffect(() => {
+    if (!listing || !members.length) {
+      setMemberDistanceByUserId({});
+      return;
+    }
+
+    let cancelled = false;
+    const questLocation = sanitizeLocationLabel(listing.city) || sanitizeLocationLabel(listing.exact_address) || "";
+    if (!questLocation) {
+      setMemberDistanceByUserId({});
+      return;
+    }
+
+    void (async () => {
+      const questCoords = await fetchCityCoordinates(questLocation);
+      if (!questCoords || cancelled) return;
+
+      const next: Record<string, string> = {};
+      for (const member of members) {
+        const memberCity = sanitizeLocationLabel(memberProfileOf(member)?.city || null);
+        if (!memberCity) continue;
+        const memberCoords = await fetchCityCoordinates(memberCity);
+        if (!memberCoords || cancelled) continue;
+        const miles = haversineMiles(questCoords.lat, questCoords.lon, memberCoords.lat, memberCoords.lon);
+        if (Number.isFinite(miles)) next[member.user_id] = distanceLabelMiles(miles);
+      }
+      if (!cancelled) setMemberDistanceByUserId(next);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [listing, members]);
 
   function listingCategoryLabel() {
     const category = listing?.hobbies?.[0]?.category?.trim();
@@ -743,9 +816,13 @@ export default function ListingPage() {
                         {members.filter((m) => m.status === "pending").map((m) => {
                           const p = memberProfileOf(m);
                           const firstName = (p?.display_name || "Member").trim().split(/\s+/)[0] || "Member";
+                          const distanceHint = memberDistanceByUserId[m.user_id] || "";
                           return (
                             <div key={`pending-${m.user_id}`} className="flex items-center justify-between rounded border bg-white px-2 py-1">
-                              <Link href={`/profile/${m.user_id}`} className="text-xs underline">{firstName}</Link>
+                              <div className="min-w-0">
+                                <Link href={`/profile/${m.user_id}`} className="text-xs underline">{firstName}</Link>
+                                {distanceHint && <p className="text-[11px] text-gray-500 truncate">{distanceHint}</p>}
+                              </div>
                               <div className="flex gap-1">
                                 <button type="button" className="text-xs border rounded px-2 py-1" onClick={() => void setMemberApproval(m.user_id, "approved")}>Approve</button>
                                 <button type="button" className="text-xs border rounded px-2 py-1" onClick={() => void declineMember(m.user_id)}>Decline</button>
