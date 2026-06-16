@@ -2786,12 +2786,6 @@ export default function Home() {
                   <img src={fallbackVisual.imageUrl} alt={fallbackVisual.title} className="absolute inset-0 h-full w-full object-cover" />
                   <div className="absolute inset-0 bg-black/10" />
                   <div className="absolute inset-0 opacity-60" style={{ background: "linear-gradient(180deg, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.45) 100%)" }} />
-                  <div className="relative z-10 flex h-full items-end p-5 sm:p-6">
-                    <div className="max-w-sm text-white">
-                      <p className="text-sm font-semibold">{fallbackVisual.title}</p>
-                      <p className="text-xs text-white/80 leading-snug">{fallbackVisual.note}</p>
-                    </div>
-                  </div>
                 </div>
               )}
 
