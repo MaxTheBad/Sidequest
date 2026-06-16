@@ -644,11 +644,16 @@ export default function ListingPage() {
             <p className="text-xs text-gray-500">{getEventTimingLabel(listing.availability)}</p>
             <p className="text-xs text-gray-500">{formatPostedLabel(listing.created_at)}</p>
             {isVirtualListing() ? (
-              canViewExactAddress ? (
-                <p className="text-xs text-emerald-700">Virtual: Shared to you</p>
-              ) : (
-                <p className="text-xs text-gray-500">Virtual meeting details are hidden by host privacy settings.</p>
-              )
+              <p className="text-xs text-emerald-700">
+                Virtual
+                {listing.exact_location_visibility === "public"
+                  ? ": Everyone"
+                  : listing.exact_location_visibility === "approved_members"
+                    ? ": Approved members"
+                    : canViewExactAddress
+                      ? ": Shared to you"
+                      : ": Hidden by host privacy settings"}
+              </p>
             ) : canViewExactAddress && listing.exact_address ? (
               <p className="text-xs text-emerald-700">Exact address: {listing.exact_address}</p>
             ) : (
