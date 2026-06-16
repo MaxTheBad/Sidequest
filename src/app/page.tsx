@@ -1657,7 +1657,15 @@ export default function Home() {
     return `📍 ${city}`;
   }
 
+  function isVirtualQuest(quest: Quest) {
+    const exactAddress = (quest.exact_address || "").trim();
+    if (!exactAddress) return false;
+    if (quest.exact_location_visibility !== "private") return false;
+    return /^(https?:\/\/|www\.|zoom\.us|meet\.google\.com|teams\.microsoft\.com|us02web\.zoom\.us)/i.test(exactAddress);
+  }
+
   function getQuestCityQuery(quest: Quest) {
+    if (isVirtualQuest(quest)) return "Virtual";
     const rawLocation = sanitizeLocationLabel(quest.city) || sanitizeLocationLabel(deriveCityFromLocation(quest.exact_address || "")) || "";
     const parts = rawLocation.split(",").map((p) => p.trim()).filter(Boolean);
     const city = parts[0] || rawLocation;
@@ -1683,12 +1691,14 @@ export default function Home() {
   }
 
   function getQuestMapQuery(quest: Quest) {
+    if (isVirtualQuest(quest)) return "Virtual";
     const exactAddress = quest.exact_address?.trim();
     if (exactAddress && quest.exact_location_visibility === "public") return exactAddress;
     return getQuestCityQuery(quest);
   }
 
   function getQuestCityLabel(quest: Quest) {
+    if (isVirtualQuest(quest)) return "Virtual";
     const rawLocation = sanitizeLocationLabel(quest.city) || sanitizeLocationLabel(deriveCityFromLocation(quest.exact_address || "")) || "";
     const parts = rawLocation.split(",").map((p) => p.trim()).filter(Boolean);
     const city = parts[0] || rawLocation || "city tbd";
