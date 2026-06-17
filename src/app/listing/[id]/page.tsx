@@ -105,10 +105,24 @@ export default function ListingPage() {
 
   const cityCoordinateCacheRef = useRef<Record<string, { lat: number; lon: number }>>({});
 
-  function locationQueryForDistance() {
-    if (!listing || isVirtualListing()) return "";
-    const rawLocation = sanitizeLocationLabel(listing.city) || sanitizeLocationLabel(locationSummary(listing.exact_address)) || sanitizeLocationLabel(listing.exact_address);
-    return rawLocation.split(",").map((part) => part.trim()).filter(Boolean)[0] || rawLocation;
+  function normalizeDistanceLocationQuery(input?: string | null) {
+    const raw = sanitizeLocationLabel(input);
+    if (!raw) return "";
+    return raw
+      .split(",")
+      .map((part) => part.trim())
+      .filter(Boolean)[0]
+      ?.replace(/^(city|town|village)\s+of\s+/i, "")
+      .trim() || raw;
+  }
+
+  function locationQueriesForDistance() {
+    if (!listing || isVirtualListing()) return [];
+    return [
+      normalizeDistanceLocationQuery(listing.city),
+      normalizeDistanceLocationQuery(locationSummary(listing.exact_address)),
+      normalizeDistanceLocationQuery(listing.exact_address),
+    ].filter((query, index, queries) => query && queries.indexOf(query) === index);
   }
 
   async function fetchCityCoordinates(query: string) {
@@ -131,9 +145,10 @@ export default function ListingPage() {
   }
 
   async function updateDistanceFromLocation(location: { lat: number; lon: number }) {
-    const questLocation = locationQueryForDistance();
-    if (!questLocation) return;
-    const questCoords = await fetchCityCoordinates(questLocation);
+    const questLocations = locationQueriesForDistance();
+    if (!questLocations.length) return;
+    const coords = await Promise.all(questLocations.map((query) => fetchCityCoordinates(query)));
+    const questCoords = coords.find(Boolean);
     if (!questCoords) return;
     const miles = haversineMiles(location.lat, location.lon, questCoords.lat, questCoords.lon);
     if (Number.isFinite(miles)) setMyDistanceLabel(distanceLabelMiles(miles));
