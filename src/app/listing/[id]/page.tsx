@@ -70,6 +70,7 @@ export default function ListingPage() {
   const [generatedVideoThumbs, setGeneratedVideoThumbs] = useState<Record<string, string>>({});
   const [memberDistanceByUserId, setMemberDistanceByUserId] = useState<Record<string, string>>({});
   const [myDistanceLabel, setMyDistanceLabel] = useState("");
+  const [myDistanceMiles, setMyDistanceMiles] = useState<number | null>(null);
   const [myLocationStatus, setMyLocationStatus] = useState<"idle" | "loading" | "ready" | "denied" | "error">("idle");
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const [showReportModal, setShowReportModal] = useState(false);
@@ -197,7 +198,10 @@ export default function ListingPage() {
     const questCoords = coords.find(Boolean);
     if (!questCoords) return;
     const miles = haversineMiles(location.lat, location.lon, questCoords.lat, questCoords.lon);
-    if (Number.isFinite(miles)) setMyDistanceLabel(distanceLabelMiles(miles));
+    if (Number.isFinite(miles)) {
+      setMyDistanceMiles(miles);
+      setMyDistanceLabel(distanceLabelMiles(miles));
+    }
   }
 
   function requestMyLocation() {
@@ -379,6 +383,7 @@ export default function ListingPage() {
 
   useEffect(() => {
     setMyDistanceLabel("");
+    setMyDistanceMiles(null);
     const storedLocation = readStoredUserLocation();
     if (storedLocation) {
       setMyLocationStatus("ready");
@@ -423,6 +428,19 @@ export default function ListingPage() {
         .eq("user_id", userId);
       if (delErr) return setStatus(delErr.message);
     }
+
+    const distanceWarningThresholdMiles = 100;
+    if (
+      typeof myDistanceMiles === "number" &&
+      Number.isFinite(myDistanceMiles) &&
+      myDistanceMiles > distanceWarningThresholdMiles
+    ) {
+      const proceed = window.confirm(
+        `This listing is about ${distanceLabelMiles(myDistanceMiles)} from you. That is farther than our ${distanceWarningThresholdMiles} mile warning threshold. Continue anyway?`,
+      );
+      if (!proceed) return;
+    }
+
     {
       const { error } = await supabase.from("quest_members").insert({ quest_id: listing.id, user_id: userId, role: "member", status: nextStatus });
       if (error && !error.message.includes("duplicate") && !error.message.toLowerCase().includes("unique")) return setStatus(error.message);
