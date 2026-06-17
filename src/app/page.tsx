@@ -1713,6 +1713,34 @@ export default function Home() {
     return getQuestCityQuery(quest);
   }
 
+  function normalizeQuestDistanceQuery(input?: string | null) {
+    const raw = sanitizeLocationLabel(input);
+    if (!raw) return "";
+    return raw
+      .split(",")
+      .map((part) => part.trim())
+      .filter(Boolean)[0]
+      ?.replace(/^(city|town|village)\s+of\s+/i, "")
+      .trim() || raw;
+  }
+
+  function postalQuestDistanceQuery(input?: string | null) {
+    const raw = sanitizeLocationLabel(input);
+    return raw.split(",").map((part) => part.trim()).find((part) => /^\d{4,}$/.test(part)) || "";
+  }
+
+  function getQuestDistanceQueries(quest: Quest) {
+    if (isVirtualQuest(quest)) return [];
+    return [
+      getQuestMapQuery(quest),
+      normalizeQuestDistanceQuery(quest.city),
+      normalizeQuestDistanceQuery(deriveCityFromLocation(quest.exact_address || "")),
+      normalizeQuestDistanceQuery(quest.exact_address),
+      postalQuestDistanceQuery(quest.city),
+      postalQuestDistanceQuery(quest.exact_address),
+    ].filter((query, index, queries) => query && query !== "Virtual" && queries.indexOf(query) === index);
+  }
+
   function getQuestCityLabel(quest: Quest) {
     if (isVirtualQuest(quest)) return "Virtual";
     const rawLocation = sanitizeLocationLabel(quest.city) || sanitizeLocationLabel(deriveCityFromLocation(quest.exact_address || "")) || "";
@@ -1746,14 +1774,15 @@ export default function Home() {
       const state = parts[1]?.toLowerCase() || "";
       const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=5&language=en&format=json`);
       const json = (await res.json()) as { results?: Array<{ latitude: number; longitude: number; name?: string; admin1?: string; country?: string; country_code?: string }> };
-      const result = (json.results || []).find((candidate) => {
+      const results = json.results || [];
+      const result = (/^\d{4,}$/.test(query.trim()) ? results[0] : results.find((candidate) => {
         const name = (candidate.name || "").trim().toLowerCase();
         const admin1 = (candidate.admin1 || "").trim().toLowerCase();
         if (!name) return false;
         if (city && !name.includes(city) && !city.includes(name)) return false;
         if (state && admin1 && !admin1.includes(state) && !state.includes(admin1)) return false;
         return true;
-      }) || null;
+      })) || null;
       if (!result) return null;
       const coords = { lat: result.latitude, lon: result.longitude };
       cityCoordinateCacheRef.current[query] = coords;
@@ -2608,7 +2637,9 @@ export default function Home() {
     }
     void (async () => {
       const entries = await Promise.all(filteredQuests.map(async (quest) => {
-        const coords = await fetchQuestCityCoordinates(getQuestMapQuery(quest));
+        const queries = getQuestDistanceQueries(quest);
+        const results = await Promise.all(queries.map((query) => fetchQuestCityCoordinates(query)));
+        const coords = results.find(Boolean) || null;
         return [quest.id, coords] as const;
       }));
       if (cancelled) return;

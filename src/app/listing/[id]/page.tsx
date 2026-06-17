@@ -116,12 +116,19 @@ export default function ListingPage() {
       .trim() || raw;
   }
 
+  function postalDistanceLocationQuery(input?: string | null) {
+    const raw = sanitizeLocationLabel(input);
+    return raw.split(",").map((part) => part.trim()).find((part) => /^\d{4,}$/.test(part)) || "";
+  }
+
   function locationQueriesForDistance() {
     if (!listing || isVirtualListing()) return [];
     return [
       normalizeDistanceLocationQuery(listing.city),
       normalizeDistanceLocationQuery(locationSummary(listing.exact_address)),
       normalizeDistanceLocationQuery(listing.exact_address),
+      postalDistanceLocationQuery(listing.city),
+      postalDistanceLocationQuery(listing.exact_address),
     ].filter((query, index, queries) => query && queries.indexOf(query) === index);
   }
 
