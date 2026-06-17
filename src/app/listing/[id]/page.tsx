@@ -218,6 +218,31 @@ export default function ListingPage() {
     }
   }
 
+  async function enableLocationAndRetry() {
+    try {
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        if (!("geolocation" in navigator)) {
+          reject(new Error("Geolocation is not available on this device."));
+          return;
+        }
+        navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
+      });
+      setMyLocationStatus("ready");
+      const questLocation = sanitizeLocationLabel(listing?.city) || sanitizeLocationLabel(listing?.exact_address) || "";
+      if (questLocation) {
+        const questCoords = await fetchCityCoordinates(questLocation);
+        if (questCoords) {
+          const miles = haversineMiles(position.coords.latitude, position.coords.longitude, questCoords.lat, questCoords.lon);
+          if (Number.isFinite(miles)) setMyDistanceLabel(distanceLabelMiles(miles));
+        }
+      }
+      setStatus("Location enabled ✅");
+    } catch (err) {
+      setMyLocationStatus("denied");
+      setStatus(err instanceof Error ? err.message : "Location access is required to request or join this event.");
+    }
+  }
+
   useEffect(() => {
     if (!supabase || !listingId || !/^[0-9a-fA-F-]{36}$/.test(listingId)) return;
 
@@ -983,7 +1008,19 @@ export default function ListingPage() {
               <button className="border rounded px-3 py-2" onClick={() => void toggleSave()}>{isSaved ? "★ Saved" : "☆ Save"}</button>
             </div>
 
-            {status && <p className="text-xs text-gray-600">{status}</p>}
+            {status && (
+              <p className="text-xs text-gray-600">
+                {status}
+                {status === "Location access is required to request or join this event." ? (
+                  <>
+                    {" "}
+                    <button type="button" className="underline font-medium" onClick={() => void enableLocationAndRetry()}>
+                      Enable location
+                    </button>
+                  </>
+                ) : null}
+              </p>
+            )}
           </article>
         ) : null}
         {expandedMediaIndex !== null && !!listing?.media_items?.length && (

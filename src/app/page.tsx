@@ -1819,6 +1819,18 @@ export default function Home() {
     });
   }
 
+  async function enableLocationAndRetry() {
+    try {
+      const loc = await getCurrentPositionOnce();
+      setUserLocation(loc);
+      setUserLocationStatus("ready");
+      setStatus("Location enabled ✅");
+    } catch (err) {
+      setUserLocationStatus("denied");
+      setStatus(err instanceof Error ? err.message : "Location access is required to request or join this event.");
+    }
+  }
+
   function toggleFeedVideoPlayback(videoId: string) {
     const video = feedVideoRefs.current[videoId];
     if (!video) return;
@@ -4314,6 +4326,11 @@ export default function Home() {
         <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-[60] max-w-[92vw]">
           <div className="rounded-xl bg-black text-white px-4 py-3 text-sm shadow-lg border border-white/20 flex items-center gap-3">
             <span>{status}</span>
+            {status === "Location access is required to request or join this event." ? (
+              <button className="text-xs underline opacity-90" onClick={() => void enableLocationAndRetry()} type="button">
+                Enable location
+              </button>
+            ) : null}
             <button className="text-xs underline opacity-90" onClick={() => setStatus("")} type="button">dismiss</button>
           </div>
         </div>
