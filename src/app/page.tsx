@@ -2952,7 +2952,7 @@ export default function Home() {
                   </div>
                   {feedViewMode === "list" && distanceLabel ? (
                     <div className="pointer-events-none absolute inset-x-0 bottom-0 z-50 flex justify-end px-4 pb-4">
-                      <p className="inline-flex items-center rounded-full bg-black/70 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white shadow-lg backdrop-blur-sm ring-1 ring-white/10">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.75)]">
                         {distanceLabel}
                       </p>
                     </div>
@@ -2965,7 +2965,7 @@ export default function Home() {
                   <div className="absolute inset-0 opacity-60" style={{ background: "linear-gradient(180deg, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.45) 100%)" }} />
                   {feedViewMode === "list" && distanceLabel ? (
                     <div className="pointer-events-none absolute inset-x-0 bottom-0 z-50 flex justify-end px-4 pb-4">
-                      <p className="inline-flex items-center rounded-full bg-black/70 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white shadow-lg backdrop-blur-sm ring-1 ring-white/10">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.75)]">
                         {distanceLabel}
                       </p>
                     </div>
