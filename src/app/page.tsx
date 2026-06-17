@@ -2935,16 +2935,23 @@ export default function Home() {
                               <path d="m6 10 6 6 6-6" />
                             </svg>
                           </button>
-                          <button
-                            type="button"
-                            className="justify-self-end inline-flex items-center gap-1 underline decoration-2 underline-offset-2 text-white/95 truncate max-w-full"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              void openQuestCityMap(q);
-                            }}
-                          >
-                            <span className="truncate">{getQuestCityLabel(q)}</span>
-                          </button>
+                          <div className="justify-self-end flex flex-col items-end gap-0.5 min-w-0 max-w-full">
+                            {distanceLabel ? (
+                              <span className="text-[10px] font-semibold uppercase tracking-wide text-white/80 truncate max-w-full">
+                                {distanceLabel}
+                              </span>
+                            ) : null}
+                            <button
+                              type="button"
+                              className="inline-flex items-center gap-1 underline decoration-2 underline-offset-2 text-white/95 truncate max-w-full"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void openQuestCityMap(q);
+                              }}
+                            >
+                              <span className="truncate">{getQuestCityLabel(q)}</span>
+                            </button>
+                          </div>
                         </div>
                       ) : (
                         <>
