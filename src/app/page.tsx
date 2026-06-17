@@ -2953,20 +2953,25 @@ export default function Home() {
                                 {distanceLabel}
                               </span>
                             ) : null}
-                            <button
-                              type="button"
-                              className="inline-flex items-center gap-1 underline decoration-2 underline-offset-2 text-white/95 truncate max-w-full"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                void openQuestCityMap(q);
-                              }}
-                            >
-                              <span className="truncate">{getQuestCityLabel(q)}</span>
-                            </button>
-                          </div>
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-1 underline decoration-2 underline-offset-2 text-white/95 truncate max-w-full"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void openQuestCityMap(q);
+                            }}
+                          >
+                            <span className="truncate">{getQuestCityLabel(q)}</span>
+                          </button>
                         </div>
-                      ) : (
-                        <>
+                        {distanceLabel ? (
+                          <p className="absolute bottom-4 right-4 text-[10px] font-semibold uppercase tracking-wide text-white/80 drop-shadow-sm">
+                            {distanceLabel}
+                          </p>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <>
                           <div className="space-y-1">
                             <p className="text-[11px] font-semibold uppercase tracking-wide text-white/85">
                               {getQuestCategoryDisplay(q)}
@@ -2978,6 +2983,11 @@ export default function Home() {
                             </h3>
                             {q.description ? <p className="text-sm text-white/85 leading-relaxed line-clamp-2">{q.description}</p> : null}
                           </div>
+                          {distanceLabel ? (
+                            <p className="absolute bottom-4 right-4 text-[10px] font-semibold uppercase tracking-wide text-white/80 drop-shadow-sm">
+                              {distanceLabel}
+                            </p>
+                          ) : null}
                         </>
                       )}
                     </div>
