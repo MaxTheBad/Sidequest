@@ -2870,7 +2870,7 @@ export default function Home() {
               </div>
 
               {feedMediaItems.length > 0 ? (
-                <div className={feedViewMode === "list" ? "relative flex-1 min-h-0 bg-black" : ""}>
+                <div className="relative flex-1 min-h-0 bg-black">
                   <div
                     className={`w-full h-full overflow-x-auto snap-x snap-mandatory flex ${feedViewMode === "list" ? "gap-0" : ""}`}
                     onScroll={(e) => {
@@ -2950,10 +2950,12 @@ export default function Home() {
                       </div>
                     ))}
                   </div>
-                  {distanceLabel ? (
-                    <p className="pointer-events-none absolute bottom-4 right-4 z-40 inline-flex items-center rounded-full bg-black/65 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white shadow-lg backdrop-blur-sm">
-                      {distanceLabel}
-                    </p>
+                  {feedViewMode === "list" && distanceLabel ? (
+                    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-50 flex justify-end px-4 pb-4">
+                      <p className="inline-flex items-center rounded-full bg-black/70 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white shadow-lg backdrop-blur-sm ring-1 ring-white/10">
+                        {distanceLabel}
+                      </p>
+                    </div>
                   ) : null}
                 </div>
               ) : (
@@ -2961,10 +2963,12 @@ export default function Home() {
                   <img src={fallbackVisual.imageUrl} alt={fallbackVisual.title} className="absolute inset-0 h-full w-full object-cover" />
                   <div className="absolute inset-0 bg-black/10" />
                   <div className="absolute inset-0 opacity-60" style={{ background: "linear-gradient(180deg, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.45) 100%)" }} />
-                  {distanceLabel ? (
-                    <p className="pointer-events-none absolute bottom-4 right-4 z-40 inline-flex items-center rounded-full bg-black/65 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white shadow-lg backdrop-blur-sm">
-                      {distanceLabel}
-                    </p>
+                  {feedViewMode === "list" && distanceLabel ? (
+                    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-50 flex justify-end px-4 pb-4">
+                      <p className="inline-flex items-center rounded-full bg-black/70 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white shadow-lg backdrop-blur-sm ring-1 ring-white/10">
+                        {distanceLabel}
+                      </p>
+                    </div>
                   ) : null}
                 </div>
               )}
