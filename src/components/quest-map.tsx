@@ -44,7 +44,7 @@ export default function QuestMap({
 
   const center = useMemo(() => {
     const pts = items.map((item) => item.coords);
-    if (userLocation && !approximateLocation && !locationLooksOff) pts.push(userLocation);
+    if (userLocation) pts.push(userLocation);
     if (!pts.length) return { lat: 27.9944, lon: -81.7603 };
     const lat = pts.reduce((sum, p) => sum + p.lat, 0) / pts.length;
     const lon = pts.reduce((sum, p) => sum + p.lon, 0) / pts.length;
@@ -109,16 +109,16 @@ export default function QuestMap({
       marker.bindTooltip(item.title, { direction: "top", opacity: 0.9 });
     });
 
-    if (userLocation && !approximateLocation && !locationLooksOff) {
+    if (userLocation) {
       leaflet.marker([userLocation.lat, userLocation.lon], { icon: userIcon }).addTo(markers).bindTooltip(locationLabel, { direction: "top", opacity: 0.95, permanent: false });
     }
 
     if (items.length || userLocation) {
       const latLngs = [
         ...items.map((item) => [item.coords.lat, item.coords.lon] as [number, number]),
-        ...(userLocation && !approximateLocation && !locationLooksOff ? ([[userLocation.lat, userLocation.lon] as [number, number]]) : []),
+        ...(userLocation ? ([[userLocation.lat, userLocation.lon] as [number, number]]) : []),
       ];
-      if (userLocation && !approximateLocation && !locationLooksOff) {
+      if (userLocation) {
         const nearest = items
           .map((item) => ({
             item,
