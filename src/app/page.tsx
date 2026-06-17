@@ -2838,6 +2838,11 @@ export default function Home() {
                     <p className="text-sm font-semibold whitespace-nowrap text-white/90 drop-shadow sm:text-base">
                       📍 {getQuestCityQuery(q)}
                     </p>
+                    {distanceLabel ? (
+                      <p className="text-[11px] font-medium whitespace-nowrap text-white/80 drop-shadow sm:text-sm">
+                        {distanceLabel}
+                      </p>
+                    ) : null}
                   </div>
                   <div className="relative">
                     <button
@@ -2966,13 +2971,6 @@ export default function Home() {
                     aria-hidden="true"
                     className="soft-fade-layer pointer-events-none absolute inset-x-0 top-0 z-20 h-16 bg-gradient-to-b from-black/10 via-black/5 to-transparent"
                   />
-                  {feedViewMode === "list" && distanceLabel ? (
-                    <div className="pointer-events-none absolute inset-x-0 bottom-4 z-40 flex justify-end px-4">
-                      <p className="text-[11px] font-semibold uppercase tracking-wide text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.85)]">
-                        {distanceLabel}
-                      </p>
-                    </div>
-                  ) : null}
                   <div
                     className={`absolute inset-x-0 bottom-0 z-10 px-4 text-white text-left ${expandedQuestIds[q.id] === false ? "pb-3" : "quest-list-overlay pt-8 pb-4"}`}
                     onClick={() => setExpandedQuestIds((prev) => ({ ...prev, [q.id]: !prev[q.id] }))}
