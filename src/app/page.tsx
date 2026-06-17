@@ -1771,18 +1771,34 @@ export default function Home() {
     try {
       const parts = query.split(",").map((p) => p.trim()).filter(Boolean);
       const city = parts[0]?.toLowerCase() || "";
-      const state = parts[1]?.toLowerCase() || "";
+      const state = parts.find((part) => /^[A-Z]{2}$/.test(part))?.toLowerCase() || "";
+      const postal = parts.find((part) => /^\d{4,}$/.test(part)) || "";
       const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=5&language=en&format=json`);
       const json = (await res.json()) as { results?: Array<{ latitude: number; longitude: number; name?: string; admin1?: string; country?: string; country_code?: string }> };
       const results = json.results || [];
-      const result = (/^\d{4,}$/.test(query.trim()) ? results[0] : results.find((candidate) => {
+      const scoreCandidate = (candidate: { name?: string; admin1?: string; country?: string; country_code?: string }) => {
         const name = (candidate.name || "").trim().toLowerCase();
         const admin1 = (candidate.admin1 || "").trim().toLowerCase();
-        if (!name) return false;
-        if (city && !name.includes(city) && !city.includes(name)) return false;
-        if (state && admin1 && !admin1.includes(state) && !state.includes(admin1)) return false;
-        return true;
-      })) || null;
+        const country = (candidate.country || "").trim().toLowerCase();
+        let score = 0;
+        if (!name) return -1;
+        if (/^\d{4,}$/.test(query.trim())) score += name ? 40 : 0;
+        if (postal && candidate.country_code?.toLowerCase() === "us") score += 30;
+        if (city) {
+          if (name === city) score += 30;
+          else if (name.includes(city) || city.includes(name)) score += 18;
+        }
+        if (state) {
+          if (admin1 === state) score += 25;
+          else if (admin1.includes(state) || state.includes(admin1)) score += 12;
+        }
+        if (country === "united states") score += 4;
+        return score;
+      };
+      const result = results
+        .map((candidate) => ({ candidate, score: scoreCandidate(candidate) }))
+        .filter(({ score }) => score >= 0)
+        .sort((a, b) => b.score - a.score)[0]?.candidate || null;
       if (!result) return null;
       const coords = { lat: result.latitude, lon: result.longitude };
       cityCoordinateCacheRef.current[query] = coords;

@@ -141,7 +141,31 @@ export default function ListingPage() {
     try {
       const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=5&language=en&format=json`);
       const json = (await res.json()) as { results?: Array<{ latitude: number; longitude: number; name?: string; admin1?: string }> };
-      const result = (json.results || [])[0];
+      const parts = query.split(",").map((p) => p.trim()).filter(Boolean);
+      const city = parts[0]?.toLowerCase() || "";
+      const state = parts.find((part) => /^[A-Z]{2}$/.test(part))?.toLowerCase() || "";
+      const postal = parts.find((part) => /^\d{4,}$/.test(part)) || "";
+      const results = json.results || [];
+      const result = results
+        .map((candidate) => {
+          const name = (candidate.name || "").trim().toLowerCase();
+          const admin1 = (candidate.admin1 || "").trim().toLowerCase();
+          let score = 0;
+          if (!name) return { candidate, score: -1 };
+          if (/^\d{4,}$/.test(query.trim())) score += 40;
+          if (postal) score += 25;
+          if (city) {
+            if (name === city) score += 30;
+            else if (name.includes(city) || city.includes(name)) score += 18;
+          }
+          if (state) {
+            if (admin1 === state) score += 25;
+            else if (admin1.includes(state) || state.includes(admin1)) score += 12;
+          }
+          return { candidate, score };
+        })
+        .filter(({ score }) => score >= 0)
+        .sort((a, b) => b.score - a.score)[0]?.candidate || null;
       if (!result) return null;
       const coords = { lat: result.latitude, lon: result.longitude };
       cityCoordinateCacheRef.current[key] = coords;
