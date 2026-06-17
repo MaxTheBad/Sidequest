@@ -7,6 +7,7 @@ import QuestMap from "@/components/quest-map";
 import { getSupabaseClient } from "@/lib/supabase";
 import { CANONICAL_CATEGORIES, resolveCanonicalCategory, suggestCanonicalCategories } from "@/lib/category-suggestions.js";
 import { getCategoryFallbackMedia } from "@/lib/category-default-media";
+import { readStoredUserLocation, writeStoredUserLocation } from "@/lib/location-distance";
 import { isImageLikeFile, prepareImageForUpload } from "@/lib/media-optimize";
 import { compressVideoForUpload } from "@/lib/video-optimize";
 import { collectQuestStorageUrls, removeStoragePublicUrls } from "@/lib/storage.js";
@@ -477,6 +478,13 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  useEffect(() => {
+    const storedLocation = readStoredUserLocation();
+    if (!storedLocation) return;
+    setUserLocation({ lat: storedLocation.lat, lon: storedLocation.lon, accuracy: storedLocation.accuracy });
+    setUserLocationStatus("ready");
   }, []);
 
   useEffect(() => {
@@ -1783,7 +1791,9 @@ export default function Home() {
     setUserLocationStatus("loading");
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        setUserLocation({ lat: position.coords.latitude, lon: position.coords.longitude, accuracy: position.coords.accuracy });
+        const nextLocation = { lat: position.coords.latitude, lon: position.coords.longitude, accuracy: position.coords.accuracy };
+        writeStoredUserLocation(nextLocation);
+        setUserLocation(nextLocation);
         setUserLocationStatus("ready");
       },
       (error) => {
@@ -1801,11 +1811,13 @@ export default function Home() {
       }
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          resolve({
+          const nextLocation = {
             lat: position.coords.latitude,
             lon: position.coords.longitude,
             accuracy: position.coords.accuracy,
-          });
+          };
+          writeStoredUserLocation(nextLocation);
+          resolve(nextLocation);
         },
         (error) => {
           if (error.code === error.PERMISSION_DENIED) {
@@ -2760,7 +2772,8 @@ export default function Home() {
             ];
             const feedIndex = feedMediaIndexByQuest[q.id] || 0;
             const fallbackVisual = getCategoryFallbackVisual(getQuestCategoryRaw(q));
-            const distanceLabel = distanceByQuestId[q.id];
+            const questCoords = coordsByQuestId[q.id];
+            const distanceLabel = distanceByQuestId[q.id] || (userLocation && questCoords ? distanceLabelMiles(haversineMiles(userLocation.lat, userLocation.lon, questCoords.lat, questCoords.lon)) : "");
 
             return (
             <article key={q.id} className={`quest-card w-full bg-white border border-slate-200 shadow-[0_14px_40px_rgba(15,23,42,0.08)] overflow-hidden ${feedViewMode === "list" ? "rounded-none sm:rounded-[1.75rem] h-[calc(100svh-10.75rem)] sm:h-auto flex flex-col xl:h-[calc(100dvh-8.25rem)] xl:flex xl:flex-col" : "rounded-[2rem]"}`}>

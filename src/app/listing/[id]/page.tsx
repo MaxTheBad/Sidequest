@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { readStoredUserLocation, writeStoredUserLocation } from "@/lib/location-distance";
 import { getSupabaseClient } from "@/lib/supabase";
 
 type Listing = {
@@ -123,6 +124,15 @@ export default function ListingPage() {
     }
   }
 
+  async function updateDistanceFromLocation(location: { lat: number; lon: number }) {
+    const questLocation = sanitizeLocationLabel(listing?.city) || sanitizeLocationLabel(listing?.exact_address) || "";
+    if (!questLocation) return;
+    const questCoords = await fetchCityCoordinates(questLocation);
+    if (!questCoords) return;
+    const miles = haversineMiles(location.lat, location.lon, questCoords.lat, questCoords.lon);
+    if (Number.isFinite(miles)) setMyDistanceLabel(distanceLabelMiles(miles));
+  }
+
   function requestMyLocation() {
     if (!("geolocation" in navigator)) {
       setMyLocationStatus("error");
@@ -131,13 +141,10 @@ export default function ListingPage() {
     setMyLocationStatus("loading");
     navigator.geolocation.getCurrentPosition(
       async (position) => {
+        const nextLocation = { lat: position.coords.latitude, lon: position.coords.longitude, accuracy: position.coords.accuracy };
+        writeStoredUserLocation(nextLocation);
         setMyLocationStatus("ready");
-        const questLocation = sanitizeLocationLabel(listing?.city) || sanitizeLocationLabel(listing?.exact_address) || "";
-        if (!questLocation) return;
-        const questCoords = await fetchCityCoordinates(questLocation);
-        if (!questCoords) return;
-        const miles = haversineMiles(position.coords.latitude, position.coords.longitude, questCoords.lat, questCoords.lon);
-        if (Number.isFinite(miles)) setMyDistanceLabel(distanceLabelMiles(miles));
+        await updateDistanceFromLocation(nextLocation);
       },
       (error) => {
         setMyLocationStatus(error.code === error.PERMISSION_DENIED ? "denied" : "error");
@@ -227,15 +234,10 @@ export default function ListingPage() {
         }
         navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
       });
+      const nextLocation = { lat: position.coords.latitude, lon: position.coords.longitude, accuracy: position.coords.accuracy };
+      writeStoredUserLocation(nextLocation);
       setMyLocationStatus("ready");
-      const questLocation = sanitizeLocationLabel(listing?.city) || sanitizeLocationLabel(listing?.exact_address) || "";
-      if (questLocation) {
-        const questCoords = await fetchCityCoordinates(questLocation);
-        if (questCoords) {
-          const miles = haversineMiles(position.coords.latitude, position.coords.longitude, questCoords.lat, questCoords.lon);
-          if (Number.isFinite(miles)) setMyDistanceLabel(distanceLabelMiles(miles));
-        }
-      }
+      await updateDistanceFromLocation(nextLocation);
       setStatus("Location enabled ✅");
     } catch (err) {
       setMyLocationStatus("denied");
@@ -309,6 +311,13 @@ export default function ListingPage() {
   }, [supabase, listingId]);
 
   useEffect(() => {
+    setMyDistanceLabel("");
+    const storedLocation = readStoredUserLocation();
+    if (storedLocation) {
+      setMyLocationStatus("ready");
+      void updateDistanceFromLocation(storedLocation);
+      return;
+    }
     requestMyLocation();
   }, [listing?.id]);
 
