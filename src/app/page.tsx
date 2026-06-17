@@ -2950,26 +2950,12 @@ export default function Home() {
                       </div>
                     ))}
                   </div>
-                  {feedViewMode === "list" && distanceLabel ? (
-                    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-50 flex justify-end px-4 pb-4">
-                      <p className="text-[11px] font-semibold uppercase tracking-wide text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.75)]">
-                        {distanceLabel}
-                      </p>
-                    </div>
-                  ) : null}
                 </div>
               ) : (
                 <div className={`relative border-y overflow-hidden ${feedViewMode === "list" ? "h-full min-h-0 xl:flex-1 xl:min-h-0" : "h-[22vh] sm:h-[18vh] lg:h-[14vw] max-h-[220px]"}`} style={{ background: fallbackVisual.gradient, clipPath: feedViewMode === "list" ? "polygon(0 0, 100% 0, 100% 94%, 0 100%)" : undefined }}>
                   <img src={fallbackVisual.imageUrl} alt={fallbackVisual.title} className="absolute inset-0 h-full w-full object-cover" />
                   <div className="absolute inset-0 bg-black/10" />
                   <div className="absolute inset-0 opacity-60" style={{ background: "linear-gradient(180deg, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.45) 100%)" }} />
-                  {feedViewMode === "list" && distanceLabel ? (
-                    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-50 flex justify-end px-4 pb-4">
-                      <p className="text-[11px] font-semibold uppercase tracking-wide text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.75)]">
-                        {distanceLabel}
-                      </p>
-                    </div>
-                  ) : null}
                 </div>
               )}
 
@@ -2980,6 +2966,13 @@ export default function Home() {
                     aria-hidden="true"
                     className="soft-fade-layer pointer-events-none absolute inset-x-0 top-0 z-20 h-16 bg-gradient-to-b from-black/10 via-black/5 to-transparent"
                   />
+                  {feedViewMode === "list" && distanceLabel ? (
+                    <div className="pointer-events-none absolute inset-x-0 bottom-4 z-40 flex justify-end px-4">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.85)]">
+                        {distanceLabel}
+                      </p>
+                    </div>
+                  ) : null}
                   <div
                     className={`absolute inset-x-0 bottom-0 z-10 px-4 text-white text-left ${expandedQuestIds[q.id] === false ? "pb-3" : "quest-list-overlay pt-8 pb-4"}`}
                     onClick={() => setExpandedQuestIds((prev) => ({ ...prev, [q.id]: !prev[q.id] }))}
