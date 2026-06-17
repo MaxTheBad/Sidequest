@@ -1729,11 +1729,26 @@ export default function Home() {
     return raw.split(",").map((part) => part.trim()).find((part) => /^\d{4,}$/.test(part)) || "";
   }
 
+  function isStateOnlyQuestLocation(input?: string | null) {
+    const raw = sanitizeLocationLabel(input);
+    if (!raw) return false;
+    const parts = raw.split(",").map((part) => part.trim()).filter(Boolean);
+    if (parts.length !== 1) return false;
+    const value = parts[0].toLowerCase();
+    const stateNames = new Set([
+      "alabama","alaska","arizona","arkansas","california","colorado","connecticut","delaware","florida","georgia","hawaii","idaho","illinois","indiana","iowa","kansas","kentucky","louisiana","maine","maryland","massachusetts","michigan","minnesota","mississippi","missouri","montana","nebraska","nevada","new hampshire","new jersey","new mexico","new york","north carolina","north dakota","ohio","oklahoma","oregon","pennsylvania","rhode island","south carolina","south dakota","tennessee","texas","utah","vermont","virginia","washington","west virginia","wisconsin","wyoming","district of columbia","dc"
+    ]);
+    const stateAbbrevs = new Set([
+      "al","ak","az","ar","ca","co","ct","de","fl","ga","hi","id","il","in","ia","ks","ky","la","me","md","ma","mi","mn","ms","mo","mt","ne","nv","nh","nj","nm","ny","nc","nd","oh","ok","or","pa","ri","sc","sd","tn","tx","ut","vt","va","wa","wv","wi","wy","dc"
+    ]);
+    return stateNames.has(value) || stateAbbrevs.has(value);
+  }
+
   function getQuestDistanceQueries(quest: Quest) {
     if (isVirtualQuest(quest)) return [];
     return [
       getQuestMapQuery(quest),
-      normalizeQuestDistanceQuery(quest.city),
+      isStateOnlyQuestLocation(quest.city) ? "" : normalizeQuestDistanceQuery(quest.city),
       normalizeQuestDistanceQuery(deriveCityFromLocation(quest.exact_address || "")),
       normalizeQuestDistanceQuery(quest.exact_address),
       postalQuestDistanceQuery(quest.city),
