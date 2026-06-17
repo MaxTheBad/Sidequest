@@ -797,14 +797,19 @@ export default function ListingPage() {
                     const hasExactAccess = exactAccessUserIds.includes(m.user_id);
                     return (
                       <div key={`${m.user_id}-${m.role}`} className="inline-flex items-center gap-2 border rounded-full bg-white px-2 py-1 mr-2 mb-2">
-                        <Link href={`/profile/${m.user_id}`} className="inline-flex items-center gap-2">
-                          {p?.avatar_url ? (
-                            <img src={p.avatar_url} alt={p?.display_name || "Member"} className="h-6 w-6 rounded-full object-cover border" />
-                          ) : (
-                            <div className="h-6 w-6 rounded-full bg-gray-100 border" />
-                          )}
-                          <span className="text-xs">{firstName}</span>
-                        </Link>
+                        <div className="inline-flex items-center gap-2 min-w-0">
+                          <Link href={`/profile/${m.user_id}`} className="inline-flex items-center gap-2 min-w-0">
+                            {p?.avatar_url ? (
+                              <img src={p.avatar_url} alt={p?.display_name || "Member"} className="h-6 w-6 rounded-full object-cover border" />
+                            ) : (
+                              <div className="h-6 w-6 rounded-full bg-gray-100 border" />
+                            )}
+                            <span className="text-xs">{firstName}</span>
+                          </Link>
+                          {memberDistanceByUserId[m.user_id] ? (
+                            <span className="text-[11px] text-gray-500 truncate">{memberDistanceByUserId[m.user_id]}</span>
+                          ) : null}
+                        </div>
                         {m.role === "creator" && <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">⭐ Organizer</span>}
                         {m.role === "cohost" && <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">⭐ Co-host</span>}
                         {blockedUserIds.includes(m.user_id) && <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-100 text-red-700">Blocked</span>}

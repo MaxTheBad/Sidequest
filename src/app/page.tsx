@@ -1955,6 +1955,24 @@ export default function Home() {
     ].filter(Boolean);
     const avail = availabilityParts.join(" · ");
 
+    let creatorLocationWarning = "";
+    try {
+      const hostLocation = await getCurrentPositionOnce();
+      setUserLocation(hostLocation);
+      setUserLocationStatus("ready");
+      const locationQuery = locationMode === "remote" ? city : (derivedCity || exactAddress);
+      const questCoords = await fetchQuestCityCoordinates(locationQuery);
+      if (questCoords) {
+        const miles = haversineMiles(hostLocation.lat, hostLocation.lon, questCoords.lat, questCoords.lon);
+        if (Number.isFinite(miles) && miles > 20) {
+          creatorLocationWarning = ` Your listing is about ${distanceLabelMiles(miles)} from you.`;
+        }
+      }
+    } catch {
+      setUserLocationStatus("denied");
+      return setStatus("Location access is required to create a listing.");
+    }
+
     // Ensure profile row exists (required by quests.creator_id FK)
     const profileUpdate: any = {
       id: activeUserId,
@@ -2064,10 +2082,10 @@ export default function Home() {
             },
             nextMediaItems,
           );
-          setStatus("Listing updated ✅");
+          setStatus(`Listing updated ✅${creatorLocationWarning}`);
         } catch (cleanupErr) {
           console.warn("Quest storage cleanup failed after update:", cleanupErr);
-          setStatus("Listing updated ✅ (storage cleanup partial)");
+          setStatus(`Listing updated ✅ (storage cleanup partial)${creatorLocationWarning}`);
         }
         setLastQuestCreateMs(Date.now());
       } else {
@@ -2093,7 +2111,7 @@ export default function Home() {
         const { data, error } = await supabase.from("quests").insert(insertPayload).select("id").single();
         if (error) throw new Error(error.message);
         if (data?.id) await supabase.from("quest_members").insert({ quest_id: data.id, user_id: activeUserId, role: "creator" });
-        setStatus("Quest posted ✅");
+        setStatus(`Quest posted ✅${creatorLocationWarning}`);
         setLastQuestCreateMs(Date.now());
       }
 
