@@ -68,6 +68,8 @@ export default function ListingPage() {
   const [expandedMediaIndex, setExpandedMediaIndex] = useState<number | null>(null);
   const [generatedVideoThumbs, setGeneratedVideoThumbs] = useState<Record<string, string>>({});
   const [memberDistanceByUserId, setMemberDistanceByUserId] = useState<Record<string, string>>({});
+  const [myDistanceLabel, setMyDistanceLabel] = useState("");
+  const [myLocationStatus, setMyLocationStatus] = useState<"idle" | "loading" | "ready" | "denied" | "error">("idle");
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const [showReportModal, setShowReportModal] = useState(false);
   const [showBlockConfirm, setShowBlockConfirm] = useState(false);
@@ -119,6 +121,29 @@ export default function ListingPage() {
     } catch {
       return null;
     }
+  }
+
+  function requestMyLocation() {
+    if (!("geolocation" in navigator)) {
+      setMyLocationStatus("error");
+      return;
+    }
+    setMyLocationStatus("loading");
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        setMyLocationStatus("ready");
+        const questLocation = sanitizeLocationLabel(listing?.city) || sanitizeLocationLabel(listing?.exact_address) || "";
+        if (!questLocation) return;
+        const questCoords = await fetchCityCoordinates(questLocation);
+        if (!questCoords) return;
+        const miles = haversineMiles(position.coords.latitude, position.coords.longitude, questCoords.lat, questCoords.lon);
+        if (Number.isFinite(miles)) setMyDistanceLabel(distanceLabelMiles(miles));
+      },
+      (error) => {
+        setMyLocationStatus(error.code === error.PERMISSION_DENIED ? "denied" : "error");
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
+    );
   }
 
   async function loadMembers(questId: string, uid: string | null) {
@@ -257,6 +282,10 @@ export default function ListingPage() {
 
     void init();
   }, [supabase, listingId]);
+
+  useEffect(() => {
+    requestMyLocation();
+  }, [listing?.id]);
 
   async function toggleJoin() {
     if (!supabase || !userId || !listing) return setStatus("Log in to join.");
@@ -576,9 +605,20 @@ export default function ListingPage() {
   }, [listing, members]);
 
   function listingCategoryLabel() {
-    const category = listing?.hobbies?.[0]?.category?.trim();
-    if (category) return category;
-    return "Category";
+    const hobby = listing?.hobbies?.[0];
+    const title = listing?.title.trim().toLowerCase() || "";
+    const candidates = [hobby?.name?.trim(), hobby?.category?.trim()].filter((value): value is string => {
+      if (!value) return false;
+      const normalized = value.toLowerCase();
+      if (/^(category|hobby|custom)$/i.test(value)) return false;
+      return normalized !== title;
+    });
+    for (const raw of candidates) {
+      if (/^creative$/i.test(raw)) return "Creative";
+      if (/^social$/i.test(raw)) return "Social";
+      return raw;
+    }
+    return "";
   }
 
   function formatPostedLabel(createdAt?: string | null) {
@@ -713,7 +753,11 @@ export default function ListingPage() {
 
             <p className="text-sm text-gray-600">{listing.skill_level} · {listingCategoryLabel()} · group {listing.group_size}</p>
             <p className="text-sm">{listing.description || "No description yet."}</p>
-            <p className="text-xs text-gray-500">{isVirtualListing() ? "Virtual" : (sanitizeLocationLabel(listing.city) || sanitizeLocationLabel(locationSummary(listing.exact_address)) || "city tbd")}</p>
+            <p className="text-xs text-gray-500">
+              {isVirtualListing() ? "Virtual" : (sanitizeLocationLabel(listing.city) || sanitizeLocationLabel(locationSummary(listing.exact_address)) || "city tbd")}
+              {myDistanceLabel ? ` · ${myDistanceLabel}` : null}
+              {myLocationStatus === "denied" ? " · location off" : null}
+            </p>
             <p className="text-xs text-gray-500">{getEventTimingLabel(listing.availability)}</p>
             <p className="text-xs text-gray-500">{formatPostedLabel(listing.created_at)}</p>
             {isVirtualListing() ? (
