@@ -2839,7 +2839,7 @@ export default function Home() {
                       📍 {getQuestCityQuery(q)}
                     </p>
                     {distanceLabel ? (
-                      <p className="text-[11px] font-medium whitespace-nowrap text-white/80 drop-shadow sm:text-sm">
+                      <p className="pl-5 text-[11px] font-medium whitespace-nowrap text-white/80 drop-shadow sm:text-sm">
                         {distanceLabel}
                       </p>
                     ) : null}
