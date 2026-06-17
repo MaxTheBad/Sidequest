@@ -105,6 +105,12 @@ export default function ListingPage() {
 
   const cityCoordinateCacheRef = useRef<Record<string, { lat: number; lon: number }>>({});
 
+  function locationQueryForDistance() {
+    if (!listing || isVirtualListing()) return "";
+    const rawLocation = sanitizeLocationLabel(listing.city) || sanitizeLocationLabel(locationSummary(listing.exact_address)) || sanitizeLocationLabel(listing.exact_address);
+    return rawLocation.split(",").map((part) => part.trim()).filter(Boolean)[0] || rawLocation;
+  }
+
   async function fetchCityCoordinates(query: string) {
     const key = query.trim().toLowerCase();
     if (!key) return null;
@@ -125,7 +131,7 @@ export default function ListingPage() {
   }
 
   async function updateDistanceFromLocation(location: { lat: number; lon: number }) {
-    const questLocation = sanitizeLocationLabel(listing?.city) || sanitizeLocationLabel(listing?.exact_address) || "";
+    const questLocation = locationQueryForDistance();
     if (!questLocation) return;
     const questCoords = await fetchCityCoordinates(questLocation);
     if (!questCoords) return;
