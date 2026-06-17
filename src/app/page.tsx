@@ -2778,11 +2778,6 @@ export default function Home() {
                     <p className="text-sm font-semibold whitespace-nowrap text-white/90 drop-shadow sm:text-base">
                       📍 {getQuestCityQuery(q)}
                     </p>
-                    {distanceLabel ? (
-                      <p className="text-xs font-medium whitespace-nowrap text-white/75 drop-shadow sm:text-sm">
-                        {distanceLabel}
-                      </p>
-                    ) : null}
                   </div>
                   <div className="relative">
                     <button
@@ -2895,12 +2890,22 @@ export default function Home() {
                       </div>
                     ))}
                   </div>
+                  {distanceLabel ? (
+                    <p className="pointer-events-none absolute bottom-4 right-4 z-40 inline-flex items-center rounded-full bg-black/65 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white shadow-lg backdrop-blur-sm">
+                      {distanceLabel}
+                    </p>
+                  ) : null}
                 </div>
               ) : (
                 <div className={`relative border-y overflow-hidden ${feedViewMode === "list" ? "h-full min-h-0 xl:flex-1 xl:min-h-0" : "h-[22vh] sm:h-[18vh] lg:h-[14vw] max-h-[220px]"}`} style={{ background: fallbackVisual.gradient, clipPath: feedViewMode === "list" ? "polygon(0 0, 100% 0, 100% 94%, 0 100%)" : undefined }}>
                   <img src={fallbackVisual.imageUrl} alt={fallbackVisual.title} className="absolute inset-0 h-full w-full object-cover" />
                   <div className="absolute inset-0 bg-black/10" />
                   <div className="absolute inset-0 opacity-60" style={{ background: "linear-gradient(180deg, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.45) 100%)" }} />
+                  {distanceLabel ? (
+                    <p className="pointer-events-none absolute bottom-4 right-4 z-40 inline-flex items-center rounded-full bg-black/65 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white shadow-lg backdrop-blur-sm">
+                      {distanceLabel}
+                    </p>
+                  ) : null}
                 </div>
               )}
 
@@ -2948,11 +2953,6 @@ export default function Home() {
                             </svg>
                           </button>
                           <div className="justify-self-end flex flex-col items-end gap-0.5 min-w-0 max-w-full">
-                            {distanceLabel ? (
-                              <span className="text-[10px] font-semibold uppercase tracking-wide text-white/80 truncate max-w-full">
-                                {distanceLabel}
-                              </span>
-                            ) : null}
                           <button
                             type="button"
                             className="inline-flex items-center gap-1 underline decoration-2 underline-offset-2 text-white/95 truncate max-w-full"
@@ -2964,11 +2964,6 @@ export default function Home() {
                             <span className="truncate">{getQuestCityLabel(q)}</span>
                           </button>
                         </div>
-                        {distanceLabel ? (
-                          <p className="absolute bottom-4 right-4 z-30 inline-flex items-center rounded-full bg-black/55 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-white shadow-lg backdrop-blur-sm">
-                            {distanceLabel}
-                          </p>
-                        ) : null}
                       </div>
                     ) : (
                       <>
@@ -2983,11 +2978,6 @@ export default function Home() {
                             </h3>
                             {q.description ? <p className="text-sm text-white/85 leading-relaxed line-clamp-2">{q.description}</p> : null}
                           </div>
-                          {distanceLabel ? (
-                            <p className="absolute bottom-4 right-4 z-30 inline-flex items-center rounded-full bg-black/55 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-white shadow-lg backdrop-blur-sm">
-                              {distanceLabel}
-                            </p>
-                          ) : null}
                         </>
                       )}
                     </div>
