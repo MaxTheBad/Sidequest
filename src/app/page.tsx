@@ -3185,9 +3185,6 @@ export default function Home() {
                         <div className="flex items-start justify-between gap-3">
                           <div>
                             <h4 className={`font-semibold ${isActive ? "text-white" : "text-slate-900"}`}>{getQuestCategoryDisplay(item.quest)}</h4>
-                            {item.distance ? (
-                              <p className={`mt-1 text-xs ${isActive ? "text-white/70" : "text-slate-500"}`}>{item.distance}</p>
-                            ) : null}
                           </div>
                         </div>
                         <div className="mt-2 flex items-center justify-between gap-3">
