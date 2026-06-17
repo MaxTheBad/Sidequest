@@ -2965,7 +2965,7 @@ export default function Home() {
                           </button>
                         </div>
                         {distanceLabel ? (
-                          <p className="absolute bottom-4 right-4 text-[10px] font-semibold uppercase tracking-wide text-white/80 drop-shadow-sm">
+                          <p className="absolute bottom-4 right-4 z-30 inline-flex items-center rounded-full bg-black/55 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-white shadow-lg backdrop-blur-sm">
                             {distanceLabel}
                           </p>
                         ) : null}
@@ -2984,7 +2984,7 @@ export default function Home() {
                             {q.description ? <p className="text-sm text-white/85 leading-relaxed line-clamp-2">{q.description}</p> : null}
                           </div>
                           {distanceLabel ? (
-                            <p className="absolute bottom-4 right-4 text-[10px] font-semibold uppercase tracking-wide text-white/80 drop-shadow-sm">
+                            <p className="absolute bottom-4 right-4 z-30 inline-flex items-center rounded-full bg-black/55 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-white shadow-lg backdrop-blur-sm">
                               {distanceLabel}
                             </p>
                           ) : null}
