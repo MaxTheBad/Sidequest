@@ -130,9 +130,9 @@ export default function QuestMap({
             [userLocation.lat, userLocation.lon],
             [nearest.coords.lat, nearest.coords.lon],
           ]);
-          map.fitBounds(bounds, { padding: [56, 56], maxZoom: 16, animate: true });
+          map.fitBounds(bounds, { padding: [96, 96], maxZoom: 13, animate: true });
         } else {
-          map.setView([userLocation.lat, userLocation.lon], 16, { animate: true });
+          map.setView([userLocation.lat, userLocation.lon], 13, { animate: true });
         }
       } else if (latLngs.length > 1) {
         map.fitBounds(leaflet.latLngBounds(latLngs), { padding: [32, 32], maxZoom: 13 });
