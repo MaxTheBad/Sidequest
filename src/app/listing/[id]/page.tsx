@@ -752,7 +752,7 @@ export default function ListingPage() {
       if (/^social$/i.test(raw)) return "Social";
       return raw;
     }
-    return "";
+    return "Category";
   }
 
   function getSkillLevelLabel(skillLevel?: string | null) {
