@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { readStoredUserLocation, writeStoredUserLocation } from "@/lib/location-distance";
 import { getSupabaseClient } from "@/lib/supabase";
+import { resolveCanonicalCategory } from "@/lib/category-suggestions.js";
 
 type Listing = {
   id: string;
@@ -739,7 +740,7 @@ export default function ListingPage() {
   }, [listing, members]);
 
   function listingCategoryLabel() {
-    const hobby = listing?.hobbies?.[0];
+    const hobby = Array.isArray(listing?.hobbies) ? (listing?.hobbies[0] ?? null) : listing?.hobbies ?? null;
     const title = listing?.title.trim().toLowerCase() || "";
     const candidates = [hobby?.name?.trim(), hobby?.category?.trim()].filter((value): value is string => {
       if (!value) return false;
@@ -750,7 +751,7 @@ export default function ListingPage() {
     for (const raw of candidates) {
       if (/^creative$/i.test(raw)) return "Creative";
       if (/^social$/i.test(raw)) return "Social";
-      return raw;
+      return resolveCanonicalCategory(raw) || raw;
     }
     return "Category";
   }
