@@ -2685,7 +2685,7 @@ export default function Home() {
               name: creator.display_name,
               avatarUrl: creator.avatar_url || null,
             }
-          : null;
+          : undefined;
       })(),
       coords: item.coords!,
       distance: item.distance,
