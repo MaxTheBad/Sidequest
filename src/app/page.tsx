@@ -3277,6 +3277,7 @@ export default function Home() {
                               id: item.quest.id,
                               title: item.quest.title,
                               city: item.quest.city,
+                              category: getQuestCategoryDisplay(item.quest),
                               coords: item.coords!,
                               distance: item.distance,
                             }))}

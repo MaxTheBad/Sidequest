@@ -8,6 +8,7 @@ type QuestMapItem = {
   id: string;
   title: string;
   city: string | null;
+  category?: string;
   coords: Coord;
   distance?: string;
 };
@@ -150,20 +151,24 @@ export default function QuestMap({
     }
   }, [approximateLocation, items, leaflet, locationLabel, locationLooksOff, onSelectQuest, selectedQuestId, userLocation]);
 
-  useEffect(() => {
-    const map = mapInstanceRef.current;
-    if (!map || !selectedQuestId) return;
-    const selected = items.find((item) => item.id === selectedQuestId);
-    if (!selected) return;
-    map.flyTo([selected.coords.lat, selected.coords.lon], Math.max(map.getZoom(), 13), {
-      animate: true,
-      duration: 0.8,
-    });
-  }, [items, selectedQuestId]);
+  const selectedItem = selectedQuestId ? items.find((item) => item.id === selectedQuestId) || null : null;
 
   return (
     <div className="relative h-[60vh] overflow-hidden rounded-3xl border border-slate-200 bg-slate-100 shadow-[0_16px_40px_rgba(15,23,42,0.12)]">
       <div ref={mapRef} className="h-full w-full" />
+      {selectedItem ? (
+        <div className="pointer-events-none absolute left-1/2 top-4 z-[520] w-[min(92vw,340px)] -translate-x-1/2">
+          <div className="rounded-2xl border border-white/70 bg-white/72 px-4 py-3 shadow-lg backdrop-blur-md">
+            <div className="space-y-1">
+              <p className="text-sm font-semibold text-slate-900">{selectedItem.title}</p>
+              <p className="text-xs text-slate-700">
+                {selectedItem.city || "City tbd"}{selectedItem.distance ? ` · ${selectedItem.distance}` : ""}
+              </p>
+              {selectedItem.category ? <p className="text-xs text-slate-600">{selectedItem.category}</p> : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
       <div className="pointer-events-none absolute left-3 top-3 z-[500] max-w-[250px] rounded-2xl border border-white/70 bg-white/88 px-3 py-2 shadow-lg backdrop-blur-md">
         <p className="text-xs font-medium text-slate-700">
           {approximateLocation
