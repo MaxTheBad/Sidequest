@@ -24,6 +24,7 @@ type Props = {
   locationLabel: string;
   onSelectQuest: (id: string) => void;
   selectedQuestId: string | null;
+  focusQuestId: string | null;
   locationLooksOff: boolean;
   approximateLocation: boolean;
 };
@@ -35,6 +36,7 @@ export default function QuestMap({
   locationLabel,
   onSelectQuest,
   selectedQuestId,
+  focusQuestId,
   locationLooksOff,
   approximateLocation,
 }: Props) {
@@ -152,6 +154,17 @@ export default function QuestMap({
   }, [approximateLocation, items, leaflet, locationLabel, locationLooksOff, userLocation]);
 
   const selectedItem = selectedQuestId ? items.find((item) => item.id === selectedQuestId) || null : null;
+
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map || !focusQuestId) return;
+    const focus = items.find((item) => item.id === focusQuestId);
+    if (!focus) return;
+    map.flyTo([focus.coords.lat, focus.coords.lon], Math.max(map.getZoom(), 13), {
+      animate: true,
+      duration: 0.8,
+    });
+  }, [focusQuestId, items]);
 
   return (
     <div className="relative h-[60vh] overflow-hidden rounded-3xl border border-slate-200 bg-slate-100 shadow-[0_16px_40px_rgba(15,23,42,0.12)]">

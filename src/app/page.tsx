@@ -301,6 +301,7 @@ export default function Home() {
     return window.localStorage.getItem("sidequest_feed_view_mode") === "map" ? "map" : "list";
   });
   const [selectedMapQuestId, setSelectedMapQuestId] = useState<string | null>(null);
+  const [focusedMapQuestId, setFocusedMapQuestId] = useState<string | null>(null);
   const [openCardMenuQuestId, setOpenCardMenuQuestId] = useState<string | null>(null);
   const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -2714,6 +2715,7 @@ export default function Home() {
   useEffect(() => {
     if (feedViewMode !== "map") return;
     setSelectedMapQuestId(null);
+    setFocusedMapQuestId(null);
   }, [feedViewMode]);
 
   useEffect(() => {
@@ -3296,10 +3298,12 @@ export default function Home() {
                             }
                             onLocateMe={() => {
                               setSelectedMapQuestId(null);
+                              setFocusedMapQuestId(null);
                               void requestUserLocation();
                             }}
                             onSelectQuest={(questId) => setSelectedMapQuestId((current) => (current === questId ? null : questId))}
                             selectedQuestId={selectedMapQuest?.id || null}
+                            focusQuestId={focusedMapQuestId}
                             locationLooksOff={locationLooksOff}
                             approximateLocation={!!(userLocation?.accuracy && userLocation.accuracy > 50000)}
                           />
@@ -3318,11 +3322,15 @@ export default function Home() {
                         key={item.quest.id}
                         role="button"
                         tabIndex={0}
-                        onClick={() => setSelectedMapQuestId((current) => (current === item.quest.id ? null : item.quest.id))}
+                        onClick={() => {
+                          setSelectedMapQuestId((current) => (current === item.quest.id ? null : item.quest.id));
+                          setFocusedMapQuestId(item.quest.id);
+                        }}
                         onKeyDown={(e) => {
                           if (e.key === "Enter" || e.key === " ") {
                             e.preventDefault();
                             setSelectedMapQuestId((current) => (current === item.quest.id ? null : item.quest.id));
+                            setFocusedMapQuestId(item.quest.id);
                           }
                         }}
                         className={`w-full rounded-2xl border p-4 text-left transition ${isActive ? "bg-black text-white border-black" : "bg-white border-slate-200 hover:border-slate-300"}`}
