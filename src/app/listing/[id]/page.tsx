@@ -1234,7 +1234,7 @@ export default function ListingPage() {
             <div className="space-y-1">
               <h3 className="font-semibold">Long-distance join</h3>
               <p className="text-sm text-gray-700">
-                This listing is about {myDistanceLabel || "this far"} away from you. It is more than 15 miles away.
+                This quest is about {myDistanceLabel || "this far"} away from you. It is more than 15 miles away.
                 Do you want to continue?
               </p>
             </div>
