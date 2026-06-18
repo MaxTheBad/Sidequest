@@ -142,6 +142,17 @@ export default function QuestMap({
     }
   }, [approximateLocation, items, leaflet, locationLabel, locationLooksOff, onSelectQuest, selectedQuestId, userLocation]);
 
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map || !selectedQuestId) return;
+    const selected = items.find((item) => item.id === selectedQuestId);
+    if (!selected) return;
+    map.flyTo([selected.coords.lat, selected.coords.lon], Math.max(map.getZoom(), 13), {
+      animate: true,
+      duration: 0.8,
+    });
+  }, [items, selectedQuestId]);
+
   return (
     <div className="relative h-[60vh] overflow-hidden rounded-3xl border bg-slate-100">
       <div ref={mapRef} className="h-full w-full" />
