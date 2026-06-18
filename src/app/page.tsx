@@ -3343,17 +3343,16 @@ export default function Home() {
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div>
-                            <h4 className={`font-semibold ${isActive ? "text-white" : "text-slate-900"}`}>{getQuestCategoryDisplay(item.quest)}</h4>
+                            <h4 className={`font-semibold ${isActive ? "text-white" : "text-slate-900"}`}>{item.quest.title}</h4>
                           </div>
                         </div>
                         <div className="mt-2 flex items-center justify-between gap-3">
-                          <p className={`text-xs ${isActive ? "text-white/75" : "text-slate-500"}`}>{getQuestCityLabel(item.quest)}</p>
+                          <p className={`text-xs font-medium ${isActive ? "text-white/75" : "text-slate-500"}`}>{getQuestCategoryDisplay(item.quest)}</p>
                           {userLocationStatus === "ready" && item.distance ? (
                             <span className={`text-xs font-medium ${isActive ? "text-white/80" : "text-slate-500"}`}>{item.distance}</span>
                           ) : null}
                         </div>
-                        <p className={`mt-2 text-xs ${isActive ? "text-white/75" : "text-slate-500"}`}>{item.quest.title}</p>
-                        <div className="mt-3 flex items-center gap-2">
+                        <div className="mt-2 flex items-center gap-1 flex-wrap">
                           <span className={`text-xs ${isActive ? "text-white/70" : "text-slate-500"}`}>{formatQuestCityState(item.quest)}</span>
                           <span className={`text-xs ${isActive ? "text-white/40" : "text-slate-400"}`}>•</span>
                           <Link
