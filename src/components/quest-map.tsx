@@ -10,6 +10,11 @@ type QuestMapItem = {
   title: string;
   location: string;
   category?: string;
+  host?: {
+    id: string;
+    name: string;
+    avatarUrl: string | null;
+  };
   coords: Coord;
   distance?: string;
 };
@@ -175,10 +180,20 @@ export default function QuestMap({
           <div className="rounded-2xl border border-white/65 bg-white/70 px-4 py-3 shadow-lg backdrop-blur-md">
             <div className="space-y-1">
               <p className="text-sm font-semibold text-slate-900">{selectedItem.title}</p>
+              {selectedItem.category ? <p className="text-xs text-slate-600">{selectedItem.category}</p> : null}
+              {selectedItem.host ? (
+                <Link href={`/profile/${selectedItem.host.id}`} className="pointer-events-auto mt-1 flex items-center gap-2">
+                  {selectedItem.host.avatarUrl ? (
+                    <img src={selectedItem.host.avatarUrl} alt={selectedItem.host.name} className="h-6 w-6 rounded-full object-cover border border-white/70" />
+                  ) : (
+                    <div className="h-6 w-6 rounded-full border border-white/70 bg-slate-200" />
+                  )}
+                  <span className="text-xs font-medium text-slate-700 underline underline-offset-2">{selectedItem.host.name}</span>
+                </Link>
+              ) : null}
               <p className="text-xs text-slate-700">
                 {selectedItem.location || "City tbd"}{selectedItem.distance ? ` • ${selectedItem.distance}` : ""}
               </p>
-              {selectedItem.category ? <p className="text-xs text-slate-600">{selectedItem.category}</p> : null}
               <Link href={`/listing/${selectedItem.id}`} className="pointer-events-auto text-xs text-slate-600 underline underline-offset-2">
                 View quest
               </Link>

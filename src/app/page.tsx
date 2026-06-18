@@ -2677,6 +2677,16 @@ export default function Home() {
       city: item.quest.city,
       location: formatQuestCityState(item.quest),
       category: getQuestCategoryDisplay(item.quest),
+      host: (() => {
+        const creator = getCreatorProfile(item.quest);
+        return creator?.display_name
+          ? {
+              id: item.quest.creator_id,
+              name: creator.display_name,
+              avatarUrl: creator.avatar_url || null,
+            }
+          : null;
+      })(),
       coords: item.coords!,
       distance: item.distance,
     }));
@@ -3322,6 +3332,7 @@ export default function Home() {
                 </div>
                 <div className="space-y-3">
                   {mapQuestItems.length ? mapQuestItems.map((item) => {
+                    const creatorProfile = getCreatorProfile(item.quest);
                     const isActive = selectedMapQuest?.id === item.quest.id;
                     return (
                       <div
@@ -3348,13 +3359,27 @@ export default function Home() {
                         </div>
                         <div className="mt-2 flex items-center justify-between gap-3">
                           <p className={`text-xs font-medium ${isActive ? "text-white/75" : "text-slate-500"}`}>{getQuestCategoryDisplay(item.quest)}</p>
+                        </div>
+                        {creatorProfile ? (
+                          <Link href={`/profile/${item.quest.creator_id}`} onClick={(e) => e.stopPropagation()} className="mt-2 flex items-center gap-2">
+                            {creatorProfile.avatar_url ? (
+                              <img src={creatorProfile.avatar_url} alt={creatorProfile.display_name || "Host"} className="h-6 w-6 rounded-full object-cover border border-white/60" />
+                            ) : (
+                              <div className="h-6 w-6 rounded-full border border-white/60 bg-white/40" />
+                            )}
+                            <span className={`text-xs font-medium ${isActive ? "text-white/80" : "text-slate-700"}`}>{creatorProfile.display_name || "Host"}</span>
+                          </Link>
+                        ) : null}
+                        <div className="mt-2 flex items-center gap-1 flex-wrap">
+                          <span className={`text-xs ${isActive ? "text-white/70" : "text-slate-500"}`}>{formatQuestCityState(item.quest)}</span>
                           {userLocationStatus === "ready" && item.distance ? (
-                            <span className={`text-xs font-medium ${isActive ? "text-white/80" : "text-slate-500"}`}>{item.distance}</span>
+                            <>
+                              <span className={`text-xs ${isActive ? "text-white/40" : "text-slate-400"}`}>•</span>
+                              <span className={`text-xs font-medium ${isActive ? "text-white/80" : "text-slate-500"}`}>{item.distance}</span>
+                            </>
                           ) : null}
                         </div>
                         <div className="mt-2 flex items-center gap-1 flex-wrap">
-                          <span className={`text-xs ${isActive ? "text-white/70" : "text-slate-500"}`}>{formatQuestCityState(item.quest)}</span>
-                          <span className={`text-xs ${isActive ? "text-white/40" : "text-slate-400"}`}>•</span>
                           <Link
                             href={`/listing/${item.quest.id}`}
                             onClick={(e) => e.stopPropagation()}
