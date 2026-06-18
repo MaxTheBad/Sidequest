@@ -3353,40 +3353,32 @@ export default function Home() {
                         className={`w-full rounded-2xl border p-4 text-left transition ${isActive ? "bg-black text-white border-black" : "bg-white border-slate-200 hover:border-slate-300"}`}
                       >
                         <div className="flex items-start justify-between gap-3">
-                          <div>
+                          <div className="min-w-0 flex-1">
                             <h4 className={`font-semibold ${isActive ? "text-white" : "text-slate-900"}`}>{item.quest.title}</h4>
+                            <p className={`mt-1 text-xs font-medium ${isActive ? "text-white/75" : "text-slate-500"}`}>{getQuestCategoryDisplay(item.quest)}</p>
+                            <div className="mt-2 flex items-center gap-1 flex-wrap">
+                              <Link
+                                href={`/listing/${item.quest.id}`}
+                                onClick={(e) => e.stopPropagation()}
+                                className={`text-xs underline underline-offset-2 ${isActive ? "text-white/80" : "text-slate-600"}`}
+                              >
+                                Open listing ↗
+                              </Link>
+                            </div>
                           </div>
-                        </div>
-                        <div className="mt-2 flex items-center justify-between gap-3">
-                          <p className={`text-xs font-medium ${isActive ? "text-white/75" : "text-slate-500"}`}>{getQuestCategoryDisplay(item.quest)}</p>
-                        </div>
-                        {creatorProfile ? (
-                          <Link href={`/profile/${item.quest.creator_id}`} onClick={(e) => e.stopPropagation()} className="mt-2 flex items-center gap-2">
-                            {creatorProfile.avatar_url ? (
-                              <img src={creatorProfile.avatar_url} alt={creatorProfile.display_name || "Host"} className="h-6 w-6 rounded-full object-cover border border-white/60" />
-                            ) : (
-                              <div className="h-6 w-6 rounded-full border border-white/60 bg-white/40" />
-                            )}
-                            <span className={`text-xs font-medium ${isActive ? "text-white/80" : "text-slate-700"}`}>{creatorProfile.display_name || "Host"}</span>
-                          </Link>
-                        ) : null}
-                        <div className="mt-2 flex items-center gap-1 flex-wrap">
-                          <span className={`text-xs ${isActive ? "text-white/70" : "text-slate-500"}`}>{formatQuestCityState(item.quest)}</span>
-                          {userLocationStatus === "ready" && item.distance ? (
-                            <>
-                              <span className={`text-xs ${isActive ? "text-white/40" : "text-slate-400"}`}>•</span>
-                              <span className={`text-xs font-medium ${isActive ? "text-white/80" : "text-slate-500"}`}>{item.distance}</span>
-                            </>
-                          ) : null}
-                        </div>
-                        <div className="mt-2 flex items-center gap-1 flex-wrap">
-                          <Link
-                            href={`/listing/${item.quest.id}`}
-                            onClick={(e) => e.stopPropagation()}
-                            className={`text-xs underline underline-offset-2 ${isActive ? "text-white/80" : "text-slate-600"}`}
-                          >
-                            Open listing ↗
-                          </Link>
+                          <div className="flex min-w-0 max-w-[45%] flex-col items-end gap-1 text-right">
+                            {creatorProfile ? (
+                              <Link href={`/profile/${item.quest.creator_id}`} onClick={(e) => e.stopPropagation()} className="flex items-center gap-2">
+                                <span className={`text-xs font-medium ${isActive ? "text-white/80" : "text-slate-700"}`}>{creatorProfile.display_name || "Host"}</span>
+                                {creatorProfile.avatar_url ? (
+                                  <img src={creatorProfile.avatar_url} alt={creatorProfile.display_name || "Host"} className="h-6 w-6 rounded-full object-cover border border-white/60" />
+                                ) : (
+                                  <div className="h-6 w-6 rounded-full border border-white/60 bg-white/40" />
+                                )}
+                              </Link>
+                            ) : null}
+                            <p className={`text-xs ${isActive ? "text-white/70" : "text-slate-500"}`}>{formatQuestCityState(item.quest)}{userLocationStatus === "ready" && item.distance ? ` • ${item.distance}` : ""}</p>
+                          </div>
                         </div>
                         <div className="mt-4 flex items-center gap-3">
                           {!(joinedQuestIds.includes(item.quest.id) || membershipStatusByQuest[item.quest.id] === "approved" || membershipStatusByQuest[item.quest.id] === "pending") ? (
