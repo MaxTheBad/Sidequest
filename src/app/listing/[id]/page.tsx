@@ -429,7 +429,7 @@ export default function ListingPage() {
       if (delErr) return setStatus(delErr.message);
     }
 
-    const distanceWarningThresholdMiles = 100;
+    const distanceWarningThresholdMiles = 15;
     if (
       typeof myDistanceMiles === "number" &&
       Number.isFinite(myDistanceMiles) &&
