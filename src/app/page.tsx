@@ -305,10 +305,6 @@ export default function Home() {
   const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [sortMode, setSortMode] = useState<"newest" | "soonest" | "title">("newest");
-  const [showSavedOnly, setShowSavedOnly] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return window.localStorage.getItem("sidequest_saved_only") === "1";
-  });
   const [showDiscoverFilters, setShowDiscoverFilters] = useState(true);
   const [showDistanceJoinModal, setShowDistanceJoinModal] = useState(false);
   const [pendingDistanceJoinQuestId, setPendingDistanceJoinQuestId] = useState<string | null>(null);
@@ -663,16 +659,6 @@ export default function Home() {
     const t = setTimeout(() => setResendCooldown((x) => Math.max(0, x - 1)), 1000);
     return () => clearTimeout(t);
   }, [resendCooldown]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    window.localStorage.setItem("sidequest_saved_only", showSavedOnly ? "1" : "0");
-    const syncSavedOnly = () => {
-      setShowSavedOnly(window.localStorage.getItem("sidequest_saved_only") === "1");
-    };
-    window.addEventListener("sidequest:saved-only-changed", syncSavedOnly as EventListener);
-    return () => window.removeEventListener("sidequest:saved-only-changed", syncSavedOnly as EventListener);
-  }, [showSavedOnly]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -2607,8 +2593,7 @@ export default function Home() {
         ].filter(Boolean).join(" ").toLowerCase();
         return haystack.includes(query);
       });
-    const savedOnly = showSavedOnly ? visible.filter((q) => bookmarkedQuestIds.includes(q.id)) : visible;
-    return [...savedOnly].sort((a, b) => {
+    return [...visible].sort((a, b) => {
       if (sortMode === "title") return (a.title || "").localeCompare(b.title || "");
       const parseStart = (availability?: string | null) => {
         const match = availability?.match(/Start at:\s*(.+?)(?:\s*·\s*Notes:|$)/i);
@@ -2624,7 +2609,7 @@ export default function Home() {
       }
       return +new Date(b.created_at || 0) - +new Date(a.created_at || 0);
     });
-  }, [quests, showSavedOnly, bookmarkedQuestIds, blockedUserIds, searchQuery, sortMode]);
+  }, [quests, blockedUserIds, searchQuery, sortMode]);
 
   const editingQuest = useMemo(() => quests.find((q) => q.id === editingQuestId) || null, [quests, editingQuestId]);
   const mapQuestItems = useMemo(() => {
@@ -3317,7 +3302,7 @@ export default function Home() {
                 </div>
               </div>
             )}
-            {!loading && filteredQuests.length === 0 && <p className="text-sm text-gray-500">{showSavedOnly ? "No saved listings yet." : "No quests yet - create the first one."}</p>}
+            {!loading && filteredQuests.length === 0 && <p className="text-sm text-gray-500">No quests yet - create the first one.</p>}
           </section>
         </div>
       </div>
