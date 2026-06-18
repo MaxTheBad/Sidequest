@@ -61,6 +61,15 @@ function getQuestCategoryLabel(q?: { hobbies?: { category: string | null }[] | {
   return category || "Category";
 }
 
+function getQuestCategoryDisplay(q?: { hobbies?: { name?: string | null; category?: string | null }[] | { name?: string | null; category?: string | null } | null; title?: string | null }) {
+  const hobby = getQuestHobby(q);
+  const raw = hobby?.category?.trim() || hobby?.name?.trim() || q?.title || "";
+  const canonical = resolveCanonicalCategory(raw);
+  if (canonical) return canonical;
+  if (raw && !/^category$/i.test(raw) && !/^hobby$/i.test(raw)) return raw;
+  return "Category";
+}
+
 type AuthMode = "login" | "signup";
 type ProfilePhotoStep = "idle" | "ready" | "uploading";
 type Bookmark = { quest_id: string };
@@ -84,6 +93,11 @@ const TITLE_SUGGESTIONS_BY_CATEGORY: Record<string, string[]> = {
     "Table time with a regular crew",
     "Casual game night with accountability",
     "Find your next indoor game partner",
+  ],
+  community: [
+    "Find a community event partner",
+    "Volunteer together this weekend",
+    "Join the neighborhood effort and follow through",
   ],
   build: [
     "Lock in and ship your MVP in 14 days",
