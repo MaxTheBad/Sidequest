@@ -149,7 +149,7 @@ export default function QuestMap({
         map.setView(latLngs[0], 11);
       }
     }
-  }, [approximateLocation, items, leaflet, locationLabel, locationLooksOff, onSelectQuest, selectedQuestId, userLocation]);
+  }, [approximateLocation, items, leaflet, locationLabel, locationLooksOff, userLocation]);
 
   const selectedItem = selectedQuestId ? items.find((item) => item.id === selectedQuestId) || null : null;
 
