@@ -2424,6 +2424,15 @@ export default function Home() {
     return "Category";
   }
 
+  function getSkillLevelLabel(skillLevel?: string | null) {
+    const raw = (skillLevel || "").trim();
+    if (!raw || raw.toLowerCase() === "any") return "Any level";
+    if (/^beginner$/i.test(raw)) return "Beginner";
+    if (/^intermediate$/i.test(raw)) return "Intermediate";
+    if (/^advanced$/i.test(raw)) return "Advanced";
+    return raw;
+  }
+
   function buildQuestStorageUrls(quest: Pick<Quest, "media_video_url" | "media_items">) {
     return collectQuestStorageUrls(
       (quest.media_items || []).map((item) => ({
@@ -3142,12 +3151,15 @@ export default function Home() {
                           View listing ↗
                         </Link>
                         <div className="flex flex-wrap gap-2">
-                          <span className="text-[11px] font-semibold tracking-wide uppercase text-slate-700">{q.skill_level || "all levels"}</span>
-                          <span className="text-[11px] font-semibold text-slate-700">-</span>
+                          <span className="text-[11px] font-semibold tracking-wide uppercase text-slate-700">{getSkillLevelLabel(q.skill_level)}</span>
+                          <span className="text-[11px] font-semibold text-slate-700">·</span>
+                          <span className="text-[11px] font-semibold tracking-wide uppercase text-slate-700">{getQuestCategoryDisplay(q)}</span>
+                          <span className="text-[11px] font-semibold text-slate-700">·</span>
                           <span className="text-[11px] font-semibold tracking-wide uppercase text-slate-700">group {q.group_size > 0 ? q.group_size : "any"}</span>
                         </div>
                         {q.description ? <p className="text-sm text-slate-700 leading-relaxed line-clamp-2">{q.description}</p> : null}
-                        <p className="text-xs text-slate-500 leading-relaxed">{formatQuestMeta(q)}</p>
+                        <p className="text-xs text-slate-500 leading-relaxed">Where: {formatQuestMeta(q).replace(/^📍\s*/, "")}{distanceLabel ? ` · ${distanceLabel}` : ""}</p>
+                        <p className="text-xs text-slate-500 leading-relaxed">When: {getEventTimingLabel(q.availability)}</p>
                         <button
                           className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 underline underline-offset-2"
                           onClick={() => setExpandedQuestIds((prev) => ({ ...prev, [q.id]: false }))}
@@ -3209,9 +3221,10 @@ export default function Home() {
                       {q.description}
                     </p>
                   ) : null}
-                  {distanceLabel ? (
-                    <p className="text-xs font-medium text-slate-500 leading-relaxed">{distanceLabel}</p>
-                  ) : null}
+                  <p className="text-xs font-medium text-slate-500 leading-relaxed">
+                    Where: {formatQuestMeta(q).replace(/^📍\s*/, "")}{distanceLabel ? ` · ${distanceLabel}` : ""}
+                  </p>
+                  <p className="text-xs font-medium text-slate-500 leading-relaxed">When: {getEventTimingLabel(q.availability)}</p>
                 </div>
               )}
             </article>

@@ -755,6 +755,15 @@ export default function ListingPage() {
     return "";
   }
 
+  function getSkillLevelLabel(skillLevel?: string | null) {
+    const raw = (skillLevel || "").trim();
+    if (!raw || raw.toLowerCase() === "any") return "Any level";
+    if (/^beginner$/i.test(raw)) return "Beginner";
+    if (/^intermediate$/i.test(raw)) return "Intermediate";
+    if (/^advanced$/i.test(raw)) return "Advanced";
+    return raw;
+  }
+
   function formatPostedLabel(createdAt?: string | null) {
     if (!createdAt) return "Posted recently";
     const created = new Date(createdAt);
@@ -885,14 +894,14 @@ export default function ListingPage() {
               </div>
             )}
 
-            <p className="text-sm text-gray-600">{listing.skill_level} · {listingCategoryLabel()} · group {listing.group_size}</p>
+            <p className="text-sm text-gray-600">{getSkillLevelLabel(listing.skill_level)} · {listingCategoryLabel()} · group {listing.group_size}</p>
             <p className="text-sm">{listing.description || "No description yet."}</p>
             <p className="text-xs text-gray-500">
-              {isVirtualListing() ? "Virtual" : (sanitizeLocationLabel(listing.city) || sanitizeLocationLabel(locationSummary(listing.exact_address)) || "city tbd")}
+              Where: {isVirtualListing() ? "Virtual" : (sanitizeLocationLabel(listing.city) || sanitizeLocationLabel(locationSummary(listing.exact_address)) || "city tbd")}
               {myDistanceLabel ? ` · ${myDistanceLabel}` : null}
               {myLocationStatus === "denied" ? " · location off" : null}
             </p>
-            <p className="text-xs text-gray-500">{getEventTimingLabel(listing.availability)}</p>
+            <p className="text-xs text-gray-500">When: {getEventTimingLabel(listing.availability)}</p>
             <p className="text-xs text-gray-500">{formatPostedLabel(listing.created_at)}</p>
             {isVirtualListing() ? (
               <p className="text-xs text-emerald-700">
