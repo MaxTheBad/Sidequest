@@ -2537,7 +2537,11 @@ export default function Home() {
 
     const nextStatus = (quest?.join_mode || "open") === "approval_required" ? "pending" : "approved";
     const questCoords = quest ? await fetchQuestCityCoordinates(getQuestMapQuery(quest)) : null;
-    const distanceMiles = questCoords ? haversineMiles(liveLocation!.lat, liveLocation!.lon, questCoords.lat, questCoords.lon) : null;
+    const cachedDistance = distanceByQuestId[id];
+    const parsedCachedDistance = cachedDistance ? Number.parseFloat(cachedDistance) : NaN;
+    const distanceMiles = Number.isFinite(parsedCachedDistance)
+      ? parsedCachedDistance
+      : (questCoords ? haversineMiles(liveLocation!.lat, liveLocation!.lon, questCoords.lat, questCoords.lon) : null);
     const existingStatus = membershipStatusByQuest[id];
     if (existingStatus === "declined") {
       const { error: delErr } = await supabase
@@ -2559,34 +2563,6 @@ export default function Home() {
     }
     await loadMemberships(userId);
     setStatus(`${nextStatus === "pending" ? "Join request sent ⏳" : "Joined quest ✅"}`);
-  }
-
-  async function confirmDistanceJoinQuest() {
-    if (!supabase || !userId || !pendingDistanceJoinQuestId) return;
-    const id = pendingDistanceJoinQuestId;
-    const quest = quests.find((q) => q.id === id);
-    if (!quest) return;
-    const nextStatus = (quest.join_mode || "open") === "approval_required" ? "pending" : "approved";
-    const existingStatus = membershipStatusByQuest[id];
-
-    setShowDistanceJoinModal(false);
-    setPendingDistanceJoinQuestId(null);
-    setPendingDistanceJoinLabel("");
-
-    if (existingStatus === "declined") {
-      const { error: delErr } = await supabase
-        .from("quest_members")
-        .delete()
-        .eq("quest_id", id)
-        .eq("user_id", userId);
-      if (delErr) return setStatus(delErr.message);
-    }
-    {
-      const { error } = await supabase.from("quest_members").insert({ quest_id: id, user_id: userId, role: "member", status: nextStatus });
-      if (error && !error.message.includes("duplicate") && !error.message.toLowerCase().includes("unique")) return setStatus(error.message);
-    }
-    await loadMemberships(userId);
-    setStatus(`${nextStatus === "pending" ? "Join request sent ⏳" : "Joined quest ✅"} This event is about ${pendingDistanceJoinLabel} from you.`);
   }
 
   async function confirmDistanceJoinQuest() {
