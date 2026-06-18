@@ -2664,6 +2664,16 @@ export default function Home() {
       .slice(0, 10);
     return items;
   }, [coordsByQuestId, distanceByQuestId, filteredQuests]);
+  const mapQuestMarkers = useMemo(() => {
+    return mapQuestItems.map((item) => ({
+      id: item.quest.id,
+      title: item.quest.title,
+      city: item.quest.city,
+      category: getQuestCategoryDisplay(item.quest),
+      coords: item.coords!,
+      distance: item.distance,
+    }));
+  }, [mapQuestItems]);
   const selectedMapQuest = useMemo(() => {
     if (!selectedMapQuestId) return null;
     return mapQuestItems.find((item) => item.quest.id === selectedMapQuestId)?.quest || null;
@@ -3273,14 +3283,7 @@ export default function Home() {
                       <div className="relative">
                         {mapBounds ? (
                           <QuestMap
-                            items={mapQuestItems.map((item) => ({
-                              id: item.quest.id,
-                              title: item.quest.title,
-                              city: item.quest.city,
-                              category: getQuestCategoryDisplay(item.quest),
-                              coords: item.coords!,
-                              distance: item.distance,
-                            }))}
+                            items={mapQuestMarkers}
                             userLocation={userLocation}
                             locationLabel={
                               userLocationStatus === "loading"
