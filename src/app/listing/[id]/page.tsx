@@ -793,16 +793,19 @@ export default function ListingPage() {
   return (
     <main className="min-h-screen bg-transparent p-4">
       <div className="max-w-4xl mx-auto space-y-3">
-        <Link
-          href="/"
-          className="inline-block border rounded px-3 py-2"
+        <button
+          type="button"
+          className="inline-block border rounded px-3 py-2 text-left"
           onClick={() => {
-            if (typeof window === "undefined") return;
-            window.sessionStorage.setItem("sidequest_home_scroll_y", String(window.scrollY || window.pageYOffset || 0));
+            if (window.history.length > 1) {
+              router.back();
+              return;
+            }
+            router.push("/");
           }}
         >
           ← Back to listings
-        </Link>
+        </button>
 
         {!listing && status ? (
           <div className="rounded-2xl border bg-white p-4 text-sm">{status}</div>
