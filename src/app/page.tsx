@@ -3310,10 +3310,17 @@ export default function Home() {
                   {mapQuestItems.length ? mapQuestItems.map((item) => {
                     const isActive = selectedMapQuest?.id === item.quest.id;
                     return (
-                      <button
+                      <div
                         key={item.quest.id}
-                        type="button"
+                        role="button"
+                        tabIndex={0}
                         onClick={() => setSelectedMapQuestId((current) => (current === item.quest.id ? null : item.quest.id))}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            setSelectedMapQuestId((current) => (current === item.quest.id ? null : item.quest.id));
+                          }
+                        }}
                         className={`w-full rounded-2xl border p-4 text-left transition ${isActive ? "bg-black text-white border-black" : "bg-white border-slate-200 hover:border-slate-300"}`}
                       >
                         <div className="flex items-start justify-between gap-3">
@@ -3339,7 +3346,27 @@ export default function Home() {
                             Open listing ↗
                           </Link>
                         </div>
-                      </button>
+                        <div className="mt-4 flex items-center gap-3">
+                          {!(joinedQuestIds.includes(item.quest.id) || membershipStatusByQuest[item.quest.id] === "approved" || membershipStatusByQuest[item.quest.id] === "pending") ? (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void toggleJoinQuest(item.quest.id);
+                              }}
+                              className={`inline-flex items-center justify-center rounded-full px-4 py-2 text-sm font-semibold transition ${
+                                isActive
+                                  ? "bg-white text-black"
+                                  : "bg-slate-900 text-white"
+                              }`}
+                            >
+                              Join
+                            </button>
+                          ) : (
+                            <span className={`text-xs font-medium ${isActive ? "text-white/75" : "text-slate-500"}`}>Joined</span>
+                          )}
+                        </div>
+                      </div>
                     );
                   }) : <p className="text-sm text-gray-500">No nearby quests yet.</p>}
                 </div>
