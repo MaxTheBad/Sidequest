@@ -75,6 +75,7 @@ export default function ListingPage() {
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const [showReportModal, setShowReportModal] = useState(false);
   const [showBlockConfirm, setShowBlockConfirm] = useState(false);
+  const [showDistanceJoinModal, setShowDistanceJoinModal] = useState(false);
   const [reportTargetUserId, setReportTargetUserId] = useState<string | null>(null);
   const [blockTargetUserId, setBlockTargetUserId] = useState<string | null>(null);
   const [reportContext, setReportContext] = useState<"listing_content" | "chat_behavior" | "profile_account" | "in_person">("in_person");
@@ -435,12 +436,26 @@ export default function ListingPage() {
       Number.isFinite(myDistanceMiles) &&
       myDistanceMiles > distanceWarningThresholdMiles
     ) {
-      const proceed = window.confirm(
-        `This listing is about ${distanceLabelMiles(myDistanceMiles)} from you. That is farther than our ${distanceWarningThresholdMiles} mile warning threshold. Continue anyway?`,
-      );
-      if (!proceed) return;
+      setShowDistanceJoinModal(true);
+      return;
     }
 
+    {
+      const { error } = await supabase.from("quest_members").insert({ quest_id: listing.id, user_id: userId, role: "member", status: nextStatus });
+      if (error && !error.message.includes("duplicate") && !error.message.toLowerCase().includes("unique")) return setStatus(error.message);
+    }
+
+    setStatus(nextStatus === "pending" ? "Join request sent ⏳" : "Joined listing ✅");
+    setHasJoined(nextStatus === "approved");
+    setMyMembershipStatus(nextStatus);
+    await loadMembers(listing.id, userId);
+  }
+
+  async function confirmDistanceJoin() {
+    if (!supabase || !userId || !listing) return;
+    setShowDistanceJoinModal(false);
+
+    const nextStatus = (listing.join_mode || "open") === "approval_required" ? "pending" : "approved";
     {
       const { error } = await supabase.from("quest_members").insert({ quest_id: listing.id, user_id: userId, role: "member", status: nextStatus });
       if (error && !error.message.includes("duplicate") && !error.message.toLowerCase().includes("unique")) return setStatus(error.message);
@@ -1188,6 +1203,24 @@ export default function ListingPage() {
           <button className="bg-red-600 text-white rounded px-3 py-2" onClick={() => void blockMemberFromQuest(blockTargetUserId)}>Block user</button>
         </div>
       </div>
+        </div>
+      )}
+
+      {showDistanceJoinModal && listing && (
+        <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white border p-4 space-y-4">
+            <div className="space-y-1">
+              <h3 className="font-semibold">Long-distance join</h3>
+              <p className="text-sm text-gray-700">
+                This listing is about {myDistanceLabel || "this far"} away from you. It is more than 15 miles away.
+                Do you want to continue?
+              </p>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button className="border rounded px-3 py-2" onClick={() => setShowDistanceJoinModal(false)}>Cancel</button>
+              <button className="bg-black text-white rounded px-3 py-2" onClick={() => void confirmDistanceJoin()}>OK</button>
+            </div>
+          </div>
         </div>
       )}
 
