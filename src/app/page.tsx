@@ -332,6 +332,7 @@ export default function Home() {
   const [joinMode, setJoinMode] = useState<"open" | "approval_required">("open");
   const [exactLocationVisibility, setExactLocationVisibility] = useState<"private" | "public" | "approved_members">("approved_members");
   const [citySuggestions, setCitySuggestions] = useState<string[]>([]);
+  const [restoreScrollY, setRestoreScrollY] = useState<number | null>(null);
   const [availabilityMode, setAvailabilityMode] = useState<"specific_time" | "find_best_time">("find_best_time");
   const [availability, setAvailability] = useState("");
   const [startAt, setStartAt] = useState("");
@@ -667,6 +668,19 @@ export default function Home() {
     sync();
     mq.addEventListener("change", sync);
     return () => mq.removeEventListener("change", sync);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const saved = window.sessionStorage.getItem("sidequest_home_scroll_y");
+    if (saved && /^-?\d+$/.test(saved)) {
+      setRestoreScrollY(Number(saved));
+    }
+    const onScroll = () => {
+      window.sessionStorage.setItem("sidequest_home_scroll_y", String(window.scrollY || window.pageYOffset || 0));
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
   useEffect(() => {
@@ -2619,6 +2633,19 @@ export default function Home() {
       return +new Date(b.created_at || 0) - +new Date(a.created_at || 0);
     });
   }, [quests, blockedUserIds, searchQuery, sortMode]);
+
+  useEffect(() => {
+    if (loading) return;
+    if (restoreScrollY === null) return;
+    const y = restoreScrollY;
+    setRestoreScrollY(null);
+    window.sessionStorage.removeItem("sidequest_home_scroll_y");
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        window.scrollTo({ top: y, behavior: "auto" });
+      });
+    });
+  }, [loading, restoreScrollY, filteredQuests.length]);
 
   const editingQuest = useMemo(() => quests.find((q) => q.id === editingQuestId) || null, [quests, editingQuestId]);
   const mapQuestItems = useMemo(() => {
