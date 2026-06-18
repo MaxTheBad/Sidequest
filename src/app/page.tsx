@@ -3354,7 +3354,7 @@ export default function Home() {
                         </div>
                         <p className={`mt-2 text-xs ${isActive ? "text-white/75" : "text-slate-500"}`}>{item.quest.title}</p>
                         <div className="mt-3 flex items-center gap-2">
-                          <span className={`text-xs ${isActive ? "text-white/70" : "text-slate-500"}`}>{sanitizeLocationLabel(item.quest.city) || "City tbd"}</span>
+                          <span className={`text-xs ${isActive ? "text-white/70" : "text-slate-500"}`}>{formatQuestCityState(item.quest)}</span>
                           <span className={`text-xs ${isActive ? "text-white/40" : "text-slate-400"}`}>•</span>
                           <Link
                             href={`/listing/${item.quest.id}`}
