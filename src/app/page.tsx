@@ -3106,7 +3106,7 @@ export default function Home() {
                               void openQuestCityMap(q);
                             }}
                           >
-                            <span className="truncate">{getQuestCityLabel(q)}</span>
+                            <span className="truncate">{formatQuestCityState(q)}</span>
                           </button>
                         </div>
                       </div>
@@ -3203,7 +3203,7 @@ export default function Home() {
                           <span className="text-[11px] font-semibold tracking-wide uppercase text-slate-700">group {q.group_size > 0 ? q.group_size : "any"}</span>
                         </div>
                         {q.description ? <p className="text-sm text-slate-700 leading-relaxed line-clamp-2">{q.description}</p> : null}
-                        <p className="text-xs text-slate-500 leading-relaxed">Where: {formatQuestMeta(q).replace(/^📍\s*/, "")}{distanceLabel ? ` · ${distanceLabel}` : ""}</p>
+                        <p className="text-xs text-slate-500 leading-relaxed">Where: {formatQuestCityState(q)}{distanceLabel ? ` · ${distanceLabel}` : ""}</p>
                         <p className="text-xs text-slate-500 leading-relaxed">When: {getEventTimingLabel(q.availability)}</p>
                         <button
                           className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 underline underline-offset-2"
@@ -3267,7 +3267,7 @@ export default function Home() {
                     </p>
                   ) : null}
                   <p className="text-xs font-medium text-slate-500 leading-relaxed">
-                    Where: {formatQuestMeta(q).replace(/^📍\s*/, "")}{distanceLabel ? ` · ${distanceLabel}` : ""}
+                    Where: {formatQuestCityState(q)}{distanceLabel ? ` · ${distanceLabel}` : ""}
                   </p>
                   <p className="text-xs font-medium text-slate-500 leading-relaxed">When: {getEventTimingLabel(q.availability)}</p>
                 </div>
