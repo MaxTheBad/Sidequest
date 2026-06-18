@@ -1673,6 +1673,24 @@ export default function Home() {
     return `📍 ${city}`;
   }
 
+  function formatQuestCityState(quest: Quest) {
+    const rawLocation = sanitizeLocationLabel(quest.city) || sanitizeLocationLabel(deriveCityFromLocation(quest.exact_address || "")) || "";
+    const parts = rawLocation.split(",").map((p) => p.trim()).filter(Boolean);
+    const city = parts[0] || rawLocation || "City tbd";
+    const state = (() => {
+      const raw = (quest.city || quest.exact_address || "").trim();
+      if (!raw) return "";
+      const parts = raw.split(",").map((p) => p.trim()).filter(Boolean).reverse();
+      const statePart = parts.find((part) => /^[A-Z]{2}$/.test(part) || /^(Alabama|Alaska|Arizona|Arkansas|California|Colorado|Connecticut|Delaware|Florida|Georgia|Hawaii|Idaho|Illinois|Indiana|Iowa|Kansas|Kentucky|Louisiana|Maine|Maryland|Massachusetts|Michigan|Minnesota|Mississippi|Missouri|Montana|Nebraska|Nevada|New Hampshire|New Jersey|New Mexico|New York|North Carolina|North Dakota|Ohio|Oklahoma|Oregon|Pennsylvania|Rhode Island|South Carolina|South Dakota|Tennessee|Texas|Utah|Vermont|Virginia|Washington|West Virginia|Wisconsin|Wyoming)$/i.test(part));
+      if (!statePart) return "";
+      const stateMap: Record<string, string> = {
+        alabama: "AL", alaska: "AK", arizona: "AZ", arkansas: "AR", california: "CA", colorado: "CO", connecticut: "CT", delaware: "DE", florida: "FL", georgia: "GA", hawaii: "HI", idaho: "ID", illinois: "IL", indiana: "IN", iowa: "IA", kansas: "KS", kentucky: "KY", louisiana: "LA", maine: "ME", maryland: "MD", massachusetts: "MA", michigan: "MI", minnesota: "MN", mississippi: "MS", missouri: "MO", montana: "MT", nebraska: "NE", nevada: "NV", "new hampshire": "NH", "new jersey": "NJ", "new mexico": "NM", "new york": "NY", "north carolina": "NC", "north dakota": "ND", ohio: "OH", oklahoma: "OK", oregon: "OR", pennsylvania: "PA", "rhode island": "RI", "south carolina": "SC", "south dakota": "SD", tennessee: "TN", texas: "TX", utah: "UT", vermont: "VT", virginia: "VA", washington: "WA", "west virginia": "WV", wisconsin: "WI", wyoming: "WY"
+      };
+      return stateMap[statePart.toLowerCase()] || statePart.toUpperCase();
+    })();
+    return [city, state].filter(Boolean).join(", ");
+  }
+
   function isVirtualQuest(quest: Quest) {
     const exactAddress = (quest.exact_address || "").trim();
     if (!exactAddress) return false;
@@ -2670,6 +2688,7 @@ export default function Home() {
       id: item.quest.id,
       title: item.quest.title,
       city: item.quest.city,
+      location: formatQuestCityState(item.quest),
       category: getQuestCategoryDisplay(item.quest),
       coords: item.coords!,
       distance: item.distance,

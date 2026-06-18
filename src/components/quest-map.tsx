@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 type Coord = { lat: number; lon: number };
@@ -7,7 +8,7 @@ type Coord = { lat: number; lon: number };
 type QuestMapItem = {
   id: string;
   title: string;
-  city: string | null;
+  location: string;
   category?: string;
   coords: Coord;
   distance?: string;
@@ -170,27 +171,21 @@ export default function QuestMap({
     <div className="relative h-[60vh] overflow-hidden rounded-3xl border border-slate-200 bg-slate-100 shadow-[0_16px_40px_rgba(15,23,42,0.12)]">
       <div ref={mapRef} className="h-full w-full" />
       {selectedItem ? (
-        <div className="pointer-events-none absolute left-1/2 top-4 z-[520] w-[min(92vw,340px)] -translate-x-1/2">
-          <div className="rounded-2xl border border-white/70 bg-white/72 px-4 py-3 shadow-lg backdrop-blur-md">
+        <div className="pointer-events-none absolute left-1/2 bottom-16 z-[520] w-[min(92vw,360px)] -translate-x-1/2">
+          <div className="rounded-2xl border border-white/65 bg-white/70 px-4 py-3 shadow-lg backdrop-blur-md">
             <div className="space-y-1">
               <p className="text-sm font-semibold text-slate-900">{selectedItem.title}</p>
               <p className="text-xs text-slate-700">
-                {selectedItem.city || "City tbd"}{selectedItem.distance ? ` · ${selectedItem.distance}` : ""}
+                {selectedItem.location || "City tbd"}{selectedItem.distance ? ` • ${selectedItem.distance}` : ""}
               </p>
               {selectedItem.category ? <p className="text-xs text-slate-600">{selectedItem.category}</p> : null}
+              <Link href={`/listing/${selectedItem.id}`} className="pointer-events-auto text-xs text-slate-600 underline underline-offset-2">
+                View quest
+              </Link>
             </div>
           </div>
         </div>
       ) : null}
-      <div className="pointer-events-none absolute left-3 top-3 z-[500] max-w-[250px] rounded-2xl border border-white/70 bg-white/88 px-3 py-2 shadow-lg backdrop-blur-md">
-        <p className="text-xs font-medium text-slate-700">
-          {approximateLocation
-            ? "Approximate location. Turn on Precise Location for Safari."
-            : locationLooksOff
-              ? "Location looks off. Tap Locate me again."
-              : "Real map view"}
-        </p>
-      </div>
       <button
         type="button"
         className="absolute bottom-3 left-3 z-[500] inline-flex items-center gap-2 rounded-full border border-slate-700 bg-[#2a1209] px-3 py-2 text-xs font-medium text-white shadow-xl"
