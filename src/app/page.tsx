@@ -3388,7 +3388,7 @@ export default function Home() {
                                 e.stopPropagation();
                                 void toggleJoinQuest(item.quest.id);
                               }}
-                              className={`inline-flex items-center justify-center rounded-full px-4 py-2 text-sm font-semibold transition ${
+                              className={`inline-flex items-center justify-center rounded-full px-5 py-2.5 text-sm font-semibold transition ${
                                 isActive
                                   ? "bg-white text-black"
                                   : "bg-slate-900 text-white"
@@ -3403,7 +3403,7 @@ export default function Home() {
                                 e.stopPropagation();
                                 void toggleJoinQuest(item.quest.id);
                               }}
-                              className={`inline-flex items-center justify-center rounded-full px-4 py-2 text-sm font-semibold transition ${
+                              className={`inline-flex items-center justify-center rounded-full px-5 py-2.5 text-sm font-semibold transition ${
                                 isActive
                                   ? "bg-white text-black"
                                   : "bg-slate-100 text-slate-900"
