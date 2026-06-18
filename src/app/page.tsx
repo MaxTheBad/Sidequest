@@ -3290,7 +3290,10 @@ export default function Home() {
                                     ? "Enable in Settings"
                                     : "Locate me"
                             }
-                            onLocateMe={() => void requestUserLocation()}
+                            onLocateMe={() => {
+                              setSelectedMapQuestId(null);
+                              void requestUserLocation();
+                            }}
                             onSelectQuest={(questId) => setSelectedMapQuestId((current) => (current === questId ? null : questId))}
                             selectedQuestId={selectedMapQuest?.id || null}
                             locationLooksOff={locationLooksOff}
