@@ -3380,7 +3380,7 @@ export default function Home() {
                             <p className={`text-xs ${isActive ? "text-white/70" : "text-slate-500"}`}>{formatQuestCityState(item.quest)}{userLocationStatus === "ready" && item.distance ? ` • ${item.distance}` : ""}</p>
                           </div>
                         </div>
-                        <div className="mt-4 flex items-center gap-3">
+                        <div className="mt-4 flex items-center justify-center gap-3">
                           {!(joinedQuestIds.includes(item.quest.id) || membershipStatusByQuest[item.quest.id] === "approved" || membershipStatusByQuest[item.quest.id] === "pending") ? (
                             <button
                               type="button"

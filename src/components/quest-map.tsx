@@ -199,11 +199,6 @@ export default function QuestMap({
               <p className="text-xs text-slate-700">
                 {selectedItem.location || "City tbd"}{selectedItem.distance ? ` • ${selectedItem.distance}` : ""}
               </p>
-              {selectedItem.host ? (
-                <Link href={`/profile/${selectedItem.host.id}`} className="pointer-events-auto text-[11px] text-slate-600 underline underline-offset-2">
-                  Profile
-                </Link>
-              ) : null}
             </div>
           </div>
         </div>
