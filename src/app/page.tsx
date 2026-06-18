@@ -310,6 +310,9 @@ export default function Home() {
     return window.localStorage.getItem("sidequest_saved_only") === "1";
   });
   const [showDiscoverFilters, setShowDiscoverFilters] = useState(true);
+  const [showDistanceJoinModal, setShowDistanceJoinModal] = useState(false);
+  const [pendingDistanceJoinQuestId, setPendingDistanceJoinQuestId] = useState<string | null>(null);
+  const [pendingDistanceJoinLabel, setPendingDistanceJoinLabel] = useState("");
   const feedToggleDragStartRef = useRef<number | null>(null);
   const [hobbyFilter, setHobbyFilter] = useState("all");
   const [loading, setLoading] = useState(false);
@@ -2535,10 +2538,41 @@ export default function Home() {
     const nextStatus = (quest?.join_mode || "open") === "approval_required" ? "pending" : "approved";
     const questCoords = quest ? await fetchQuestCityCoordinates(getQuestMapQuery(quest)) : null;
     const distanceMiles = questCoords ? haversineMiles(liveLocation!.lat, liveLocation!.lon, questCoords.lat, questCoords.lon) : null;
-    const distanceWarning = distanceMiles !== null && Number.isFinite(distanceMiles) && distanceMiles >= 15
-      ? ` This event is about ${distanceLabelMiles(distanceMiles)} from you.`
-      : "";
     const existingStatus = membershipStatusByQuest[id];
+    if (existingStatus === "declined") {
+      const { error: delErr } = await supabase
+        .from("quest_members")
+        .delete()
+        .eq("quest_id", id)
+        .eq("user_id", userId);
+      if (delErr) return setStatus(delErr.message);
+    }
+    if (distanceMiles !== null && Number.isFinite(distanceMiles) && distanceMiles >= 15) {
+      setPendingDistanceJoinQuestId(id);
+      setPendingDistanceJoinLabel(distanceLabelMiles(distanceMiles));
+      setShowDistanceJoinModal(true);
+      return;
+    }
+    {
+      const { error } = await supabase.from("quest_members").insert({ quest_id: id, user_id: userId, role: "member", status: nextStatus });
+      if (error && !error.message.includes("duplicate") && !error.message.toLowerCase().includes("unique")) return setStatus(error.message);
+    }
+    await loadMemberships(userId);
+    setStatus(`${nextStatus === "pending" ? "Join request sent ⏳" : "Joined quest ✅"}`);
+  }
+
+  async function confirmDistanceJoinQuest() {
+    if (!supabase || !userId || !pendingDistanceJoinQuestId) return;
+    const id = pendingDistanceJoinQuestId;
+    const quest = quests.find((q) => q.id === id);
+    if (!quest) return;
+    const nextStatus = (quest.join_mode || "open") === "approval_required" ? "pending" : "approved";
+    const existingStatus = membershipStatusByQuest[id];
+
+    setShowDistanceJoinModal(false);
+    setPendingDistanceJoinQuestId(null);
+    setPendingDistanceJoinLabel("");
+
     if (existingStatus === "declined") {
       const { error: delErr } = await supabase
         .from("quest_members")
@@ -2552,7 +2586,33 @@ export default function Home() {
       if (error && !error.message.includes("duplicate") && !error.message.toLowerCase().includes("unique")) return setStatus(error.message);
     }
     await loadMemberships(userId);
-    setStatus(`${nextStatus === "pending" ? "Join request sent ⏳" : "Joined quest ✅"}${distanceWarning}`);
+    setStatus(`${nextStatus === "pending" ? "Join request sent ⏳" : "Joined quest ✅"} This event is about ${pendingDistanceJoinLabel} from you.`);
+  }
+
+  async function confirmDistanceJoinQuest() {
+    if (!supabase || !userId || !pendingDistanceJoinQuestId) return;
+    const id = pendingDistanceJoinQuestId;
+    const quest = quests.find((q) => q.id === id);
+    if (!quest) return;
+    const nextStatus = (quest.join_mode || "open") === "approval_required" ? "pending" : "approved";
+    const existingStatus = membershipStatusByQuest[id];
+    setShowDistanceJoinModal(false);
+    setPendingDistanceJoinQuestId(null);
+    setPendingDistanceJoinLabel("");
+    if (existingStatus === "declined") {
+      const { error: delErr } = await supabase
+        .from("quest_members")
+        .delete()
+        .eq("quest_id", id)
+        .eq("user_id", userId);
+      if (delErr) return setStatus(delErr.message);
+    }
+    {
+      const { error } = await supabase.from("quest_members").insert({ quest_id: id, user_id: userId, role: "member", status: nextStatus });
+      if (error && !error.message.includes("duplicate") && !error.message.toLowerCase().includes("unique")) return setStatus(error.message);
+    }
+    await loadMemberships(userId);
+    setStatus(`${nextStatus === "pending" ? "Join request sent ⏳" : "Joined quest ✅"} This event is about ${pendingDistanceJoinLabel} from you.`);
   }
 
   const filteredQuests = useMemo(() => {
@@ -4384,6 +4444,33 @@ export default function Home() {
             )}
             <textarea className="border rounded px-3 py-2 w-full" placeholder={questionMode === "public" ? "Write your comment..." : "Write your direct message..."} value={questionText} onChange={(e) => setQuestionText(e.target.value)} />
             <button className="bg-black text-white rounded px-3 py-2 disabled:opacity-50" disabled={sendingQuestion || !questionText.trim()} onClick={() => void sendQuestionFromModal()}>{sendingQuestion ? "Sending..." : "Send"}</button>
+          </div>
+        </div>
+      )}
+
+      {showDistanceJoinModal && (
+        <div className="fixed inset-0 z-[55] bg-black/45 flex items-center justify-center p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white border p-4 space-y-4">
+            <div className="space-y-1">
+              <h3 className="font-semibold">Long-distance join</h3>
+              <p className="text-sm text-gray-700">
+                This listing is about {pendingDistanceJoinLabel || "this far"} away from you. It is more than 15 miles away.
+                Do you want to continue?
+              </p>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                className="border rounded px-3 py-2"
+                onClick={() => {
+                  setShowDistanceJoinModal(false);
+                  setPendingDistanceJoinQuestId(null);
+                  setPendingDistanceJoinLabel("");
+                }}
+              >
+                Cancel
+              </button>
+              <button className="bg-black text-white rounded px-3 py-2" onClick={() => void confirmDistanceJoinQuest()}>OK</button>
+            </div>
           </div>
         </div>
       )}
