@@ -63,10 +63,18 @@ export default function QuestMap({
 
   useEffect(() => {
     if (!leaflet || !mapRef.current || mapInstanceRef.current) return;
-    const map = leaflet.map(mapRef.current, { zoomControl: true, attributionControl: true }).setView([center.lat, center.lon], 5);
-    leaflet.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      maxZoom: 19,
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    const map = leaflet.map(mapRef.current, {
+      zoomControl: false,
+      attributionControl: true,
+      preferCanvas: true,
+    }).setView([center.lat, center.lon], 5);
+    leaflet.control.zoom({ position: "bottomright" }).addTo(map);
+    leaflet.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
+      maxZoom: 20,
+      subdomains: "abcd",
+      attribution:
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+      className: "quest-map-tiles",
     }).addTo(map);
     markersRef.current = leaflet.layerGroup().addTo(map);
     mapInstanceRef.current = map;
@@ -154,9 +162,9 @@ export default function QuestMap({
   }, [items, selectedQuestId]);
 
   return (
-    <div className="relative h-[60vh] overflow-hidden rounded-3xl border bg-slate-100">
+    <div className="relative h-[60vh] overflow-hidden rounded-3xl border border-slate-200 bg-slate-100 shadow-[0_16px_40px_rgba(15,23,42,0.12)]">
       <div ref={mapRef} className="h-full w-full" />
-      <div className="pointer-events-none absolute left-3 top-3 z-[500] max-w-[250px] rounded-2xl border border-white/70 bg-white/90 px-3 py-2 shadow-lg backdrop-blur-sm">
+      <div className="pointer-events-none absolute left-3 top-3 z-[500] max-w-[250px] rounded-2xl border border-white/70 bg-white/88 px-3 py-2 shadow-lg backdrop-blur-md">
         <p className="text-xs font-medium text-slate-700">
           {approximateLocation
             ? "Approximate location. Turn on Precise Location for Safari."
@@ -173,6 +181,28 @@ export default function QuestMap({
         <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-white/10">⌖</span>
         <span>{locationLabel}</span>
       </button>
+      <style jsx global>{`
+        .quest-map-tiles {
+          filter: saturate(0.95) contrast(1.03);
+        }
+        .leaflet-control-zoom {
+          border: 0 !important;
+          box-shadow: 0 10px 30px rgba(15, 23, 42, 0.18) !important;
+        }
+        .leaflet-control-zoom a {
+          background: rgba(255, 255, 255, 0.96) !important;
+          color: #0f172a !important;
+          border-color: rgba(148, 163, 184, 0.45) !important;
+        }
+        .leaflet-control-attribution {
+          background: rgba(255, 255, 255, 0.84) !important;
+          backdrop-filter: blur(10px);
+          border-radius: 9999px;
+          margin: 0 0 8px 8px !important;
+          padding: 2px 10px !important;
+          font-size: 10px !important;
+        }
+      `}</style>
     </div>
   );
 }
