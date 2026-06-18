@@ -1,4 +1,4 @@
--- Side Quest: bookmarks + tighter inbox policies
+-- GatherGo: bookmarks + tighter inbox policies
 
 create table if not exists public.quest_bookmarks (
   user_id uuid not null references public.profiles(id) on delete cascade,

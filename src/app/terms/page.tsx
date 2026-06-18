@@ -2,9 +2,9 @@ export default function TermsPage() {
   return (
     <main className="min-h-screen bg-transparent p-4">
       <section className="max-w-3xl mx-auto rounded-2xl border bg-white p-6 space-y-4">
-        <h1 className="text-2xl font-bold">Side Quest Terms</h1>
+        <h1 className="text-2xl font-bold">GatherGo Terms</h1>
         <p className="text-sm text-gray-700">
-          By creating an account, you agree to use Side Quest responsibly, respect other users, and avoid harmful,
+          By creating an account, you agree to use GatherGo responsibly, respect other users, and avoid harmful,
           illegal, or abusive behavior.
         </p>
         <h2 className="font-semibold">Community & Safety</h2>

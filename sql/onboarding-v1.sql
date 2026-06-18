@@ -1,4 +1,4 @@
--- Optional onboarding migration for Side Quest
+-- Optional onboarding migration for GatherGo
 -- Adds a durable "has completed onboarding" flag on profiles.
 
 alter table public.profiles

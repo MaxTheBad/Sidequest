@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { isPrivilegedRole } from "@/lib/admin.js";
+import { APP_NAME, dispatchAppEvent } from "@/lib/app-brand";
 import { getSupabaseClient } from "@/lib/supabase";
 import { getPersistedNotificationLastSeen } from "@/lib/notification-state";
 import { getUnreadDeliveredNotificationCount } from "@/lib/notifications";
@@ -86,17 +87,17 @@ export default function GlobalTopBar() {
   function openLogin() {
     if (typeof window === "undefined") return;
     if (pathname === "/") {
-      window.dispatchEvent(new CustomEvent("sidequest:open-auth"));
+      dispatchAppEvent("open-auth");
       return;
     }
-    sessionStorage.setItem("sidequest_open_auth", "1");
+    sessionStorage.setItem("gathergo_open_auth", "1");
     router.push("/");
   }
 
   return (
     <header className="fixed top-0 inset-x-0 z-50 border-b nav-shell">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-[52px] flex items-center justify-between gap-3">
-        <Link href="/" className="nav-brand text-[15px] tracking-tight">Sydequest</Link>
+        <Link href="/" className="nav-brand text-[15px] tracking-tight">{APP_NAME}</Link>
         <nav className="hidden md:flex items-center gap-1">
           <Link href="/" className={`nav-item text-xs px-3 py-1 ${pathname === "/" ? "nav-item-active" : ""}`}>Home</Link>
           <Link href="/saved" className={`nav-item text-xs px-3 py-1 ${pathname === "/saved" ? "nav-item-active" : ""}`}>Saved</Link>
@@ -117,10 +118,10 @@ export default function GlobalTopBar() {
             onClick={() => {
               if (typeof window === "undefined") return;
               if (pathname === "/") {
-                window.dispatchEvent(new CustomEvent("sidequest:open-create"));
+                dispatchAppEvent("open-create");
                 return;
               }
-              sessionStorage.setItem("sidequest_open_create", "1");
+              sessionStorage.setItem("gathergo_open_create", "1");
               router.push("/");
             }}
             className="nav-item text-xs px-3 py-1 border border-slate-300 bg-slate-50"

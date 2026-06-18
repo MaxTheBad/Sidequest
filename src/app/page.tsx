@@ -11,6 +11,7 @@ import { readStoredUserLocation, writeStoredUserLocation } from "@/lib/location-
 import { isImageLikeFile, prepareImageForUpload } from "@/lib/media-optimize";
 import { compressVideoForUpload } from "@/lib/video-optimize";
 import { collectQuestStorageUrls, removeStoragePublicUrls } from "@/lib/storage.js";
+import { APP_EVENT_NAMES, APP_NAME } from "@/lib/app-brand";
 
 type Hobby = { id: string; name: string; category: string | null };
 type QuestMediaItem = {
@@ -628,8 +629,8 @@ export default function Home() {
       if (session?.user) {
         void ensureProfileRow(session.user.id, session.user.email, md);
         setShowAuthModal(false);
-        if (typeof window !== "undefined" && sessionStorage.getItem("sidequest_open_create") === "1") {
-          sessionStorage.removeItem("sidequest_open_create");
+        if (typeof window !== "undefined" && sessionStorage.getItem("gathergo_open_create") === "1") {
+          sessionStorage.removeItem("gathergo_open_create");
           openCreateModal();
         }
         if (event === "SIGNED_IN" && typeof window !== "undefined" && window.location.search.includes("code=")) {
@@ -1454,8 +1455,8 @@ export default function Home() {
 
     const openAuthFromUrl = async () => {
       const params = new URLSearchParams(window.location.search);
-      const pendingAuth = sessionStorage.getItem("sidequest_open_auth") === "1";
-      const pendingCreate = sessionStorage.getItem("sidequest_open_create") === "1";
+      const pendingAuth = sessionStorage.getItem("gathergo_open_auth") === "1";
+      const pendingCreate = sessionStorage.getItem("gathergo_open_create") === "1";
 
       let activeUserId = userId;
       if (!activeUserId && supabase) {
@@ -1467,13 +1468,13 @@ export default function Home() {
       if ((params.get("auth") === "1" || pendingAuth) && !activeUserId) {
         setShowAuthModal(true);
         setStatus("Please sign in to continue.");
-        if (pendingAuth) sessionStorage.removeItem("sidequest_open_auth");
+        if (pendingAuth) sessionStorage.removeItem("gathergo_open_auth");
       }
 
       if (handledCreateParam) return;
       if (params.get("create") !== "1" && !pendingCreate) return;
       if (activeUserId) {
-        if (pendingCreate) sessionStorage.removeItem("sidequest_open_create");
+        if (pendingCreate) sessionStorage.removeItem("gathergo_open_create");
         openCreateModal();
         if (typeof window !== "undefined" && params.get("create") === "1") {
           const next = new URL(window.location.href);
@@ -1482,8 +1483,8 @@ export default function Home() {
         }
       } else {
         if (typeof window !== "undefined") {
-          sessionStorage.setItem("sidequest_open_create", "1");
-          sessionStorage.setItem("sidequest_open_auth", "1");
+          sessionStorage.setItem("gathergo_open_create", "1");
+          sessionStorage.setItem("gathergo_open_auth", "1");
         }
         setShowAuthModal(true);
         setStatus("Log in to create.");
@@ -1505,20 +1506,28 @@ export default function Home() {
         openCreateModal();
       } else {
         if (typeof window !== "undefined") {
-          sessionStorage.setItem("sidequest_open_create", "1");
-          sessionStorage.setItem("sidequest_open_auth", "1");
+          sessionStorage.setItem("gathergo_open_create", "1");
+          sessionStorage.setItem("gathergo_open_auth", "1");
         }
         setShowAuthModal(true);
         setStatus("Log in to create.");
       }
     };
 
-    window.addEventListener("sidequest:open-auth", onOpenAuth as EventListener);
-    window.addEventListener("sidequest:open-create", onOpenCreate as EventListener);
+    for (const eventName of APP_EVENT_NAMES.openAuth) {
+      window.addEventListener(eventName, onOpenAuth as EventListener);
+    }
+    for (const eventName of APP_EVENT_NAMES.openCreate) {
+      window.addEventListener(eventName, onOpenCreate as EventListener);
+    }
     window.addEventListener("popstate", openAuthFromUrl);
     return () => {
-      window.removeEventListener("sidequest:open-auth", onOpenAuth as EventListener);
-      window.removeEventListener("sidequest:open-create", onOpenCreate as EventListener);
+      for (const eventName of APP_EVENT_NAMES.openAuth) {
+        window.removeEventListener(eventName, onOpenAuth as EventListener);
+      }
+      for (const eventName of APP_EVENT_NAMES.openCreate) {
+        window.removeEventListener(eventName, onOpenCreate as EventListener);
+      }
       window.removeEventListener("popstate", openAuthFromUrl);
     };
   }, [handledCreateParam, userId]);
@@ -3443,7 +3452,7 @@ export default function Home() {
           <div className="w-full max-w-2xl max-h-[92vh] overflow-y-auto rounded-3xl bg-white border shadow-lg p-5 space-y-5">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Welcome to Side Quest</p>
+                <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Welcome to {APP_NAME}</p>
                 <h3 className="text-2xl font-semibold">Set up your profile</h3>
                 <p className="text-sm text-gray-500">This takes about a minute and helps people find the right outdoor plans.</p>
                 <p className="mt-2 text-xs text-gray-500">

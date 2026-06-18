@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { isPrivilegedRole } from "@/lib/admin.js";
+import { dispatchAppEvent } from "@/lib/app-brand";
 import { getSupabaseClient } from "@/lib/supabase";
 import { getPersistedNotificationLastSeen } from "@/lib/notification-state";
 import { getUnreadDeliveredNotificationCount } from "@/lib/notifications";
@@ -74,10 +75,10 @@ export default function BottomNav() {
     if (authedUserId) return router.push(path);
     if (typeof window === "undefined") return;
     if (pathname === "/") {
-      window.dispatchEvent(new CustomEvent("sidequest:open-auth"));
+      dispatchAppEvent("open-auth");
       return;
     }
-    sessionStorage.setItem("sidequest_open_auth", "1");
+    sessionStorage.setItem("gathergo_open_auth", "1");
     router.push("/");
   }
 
@@ -102,10 +103,10 @@ export default function BottomNav() {
           onClick={() => {
             if (typeof window === "undefined") return;
             if (pathname === "/") {
-              window.dispatchEvent(new CustomEvent("sidequest:open-create"));
+              dispatchAppEvent("open-create");
               return;
             }
-            sessionStorage.setItem("sidequest_open_create", "1");
+            sessionStorage.setItem("gathergo_open_create", "1");
             void requireAuthNavigate("/");
           }}
           className="text-center -mt-6 bg-transparent border-0 shadow-none appearance-none p-0"

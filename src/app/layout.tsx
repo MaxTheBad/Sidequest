@@ -5,6 +5,7 @@ import "leaflet/dist/leaflet.css";
 import "./globals.css";
 import BottomNav from "@/components/bottom-nav";
 import GlobalTopBar from "@/components/global-top-bar";
+import { APP_NAME } from "@/lib/app-brand";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -17,7 +18,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Sydequest",
+  title: APP_NAME,
   description: "Find people to start or restart hobbies together.",
 };
 

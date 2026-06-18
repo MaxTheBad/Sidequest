@@ -1,4 +1,4 @@
--- Side Quest v1 schema
+-- GatherGo v1 schema
 -- Run in Supabase SQL Editor
 
 create extension if not exists pgcrypto;
