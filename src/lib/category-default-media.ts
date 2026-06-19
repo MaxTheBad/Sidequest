@@ -78,14 +78,14 @@ export const CATEGORY_FALLBACK_MEDIA: Record<string, CategoryFallback> = {
     gradient: "linear-gradient(135deg,#ffe4e6,#f5d0fe)",
   },
   "Book club": {
-    imageUrl: "/category-fallbacks/learn.jpg",
+    imageUrl: "/category-fallbacks/book-club.jpg",
     emoji: "📖",
     title: "Book club",
     note: "A reading nook, stack of books, or discussion circle fits well.",
     gradient: "linear-gradient(135deg,#fef3c7,#fde68a)",
   },
   Sewing: {
-    imageUrl: "/category-fallbacks/arts-and-crafts.jpg",
+    imageUrl: "/category-fallbacks/sewing.jpg",
     emoji: "🧵",
     title: "Sewing",
     note: "Use fabric, thread, scissors, or a workspace shot.",
