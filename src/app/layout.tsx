@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Geist, Geist_Mono } from "next/font/google";
 import Script from "next/script";
 import "leaflet/dist/leaflet.css";
@@ -50,10 +51,28 @@ export default function RootLayout({
         </Script>
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased pt-12 pb-28 lg:pb-0`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased pt-12 pb-40 lg:pb-0`}
       >
         <GlobalTopBar />
         {children}
+        <footer className="mt-16 border-t border-slate-200 bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/75">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 text-xs text-slate-500">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+              <p className="font-medium text-slate-700">QuestHat</p>
+              <div className="flex flex-wrap items-center justify-center gap-4">
+                <Link href="/terms" className="hover:text-slate-800 underline-offset-4 hover:underline">
+                  Terms
+                </Link>
+                <Link href="/tos" className="hover:text-slate-800 underline-offset-4 hover:underline">
+                  TOS
+                </Link>
+                <Link href="/privacy" className="hover:text-slate-800 underline-offset-4 hover:underline">
+                  Privacy
+                </Link>
+              </div>
+            </div>
+          </div>
+        </footer>
         <BottomNav />
       </body>
     </html>
