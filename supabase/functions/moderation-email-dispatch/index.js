@@ -158,7 +158,7 @@ Deno.serve(async (req) => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          from: Deno.env.get("MODERATION_ALERT_FROM") || "GatherGo Moderation <alerts@gathergo.local>",
+          from: Deno.env.get("MODERATION_ALERT_FROM") || "QuestHat Moderation <alerts@questhat.local>",
           to: recipientList,
           subject,
           text: bodyLines.join("\n"),

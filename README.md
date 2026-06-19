@@ -1,4 +1,4 @@
-# GatherGo (v1)
+# QuestHat (v1)
 
 MVP app: find hobby partners/groups, post quests, join quests, and use a Surprise Me suggestion.
 

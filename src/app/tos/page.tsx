@@ -1,4 +1,4 @@
-export default function TermsPage() {
+export default function TosPage() {
   return (
     <main className="min-h-screen bg-transparent p-4">
       <section className="max-w-3xl mx-auto rounded-2xl border bg-white p-6 space-y-4">
@@ -24,7 +24,7 @@ export default function TermsPage() {
           We store account/profile data needed to run the app. Optional marketing consent can be changed later in
           account settings.
         </p>
-        <p className="text-xs text-gray-500">Last updated: March 2026</p>
+        <p className="text-xs text-gray-500">Last updated: June 2026</p>
       </section>
     </main>
   );

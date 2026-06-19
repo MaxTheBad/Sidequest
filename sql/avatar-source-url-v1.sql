@@ -1,4 +1,4 @@
--- Optional avatar source migration for GatherGo
+-- Optional avatar source migration for QuestHat
 -- Stores the original uploaded photo so users can re-crop later.
 
 alter table public.profiles
