@@ -77,6 +77,20 @@ export const CATEGORY_FALLBACK_MEDIA: Record<string, CategoryFallback> = {
     note: "Use paint, tools, or a hands-on craft shot.",
     gradient: "linear-gradient(135deg,#ffe4e6,#f5d0fe)",
   },
+  "Book club": {
+    imageUrl: "/category-fallbacks/learn.jpg",
+    emoji: "📖",
+    title: "Book club",
+    note: "A reading nook, stack of books, or discussion circle fits well.",
+    gradient: "linear-gradient(135deg,#fef3c7,#fde68a)",
+  },
+  Sewing: {
+    imageUrl: "/category-fallbacks/arts-and-crafts.jpg",
+    emoji: "🧵",
+    title: "Sewing",
+    note: "Use fabric, thread, scissors, or a workspace shot.",
+    gradient: "linear-gradient(135deg,#fee2e2,#fbcfe8)",
+  },
   "Music / Producer": {
     imageUrl: "/category-fallbacks/music-producer.jpg",
     emoji: "🎧",
@@ -103,6 +117,8 @@ export const CATEGORY_FALLBACK_MEDIA: Record<string, CategoryFallback> = {
 export function getCategoryFallbackMedia(categoryRaw?: string | null): CategoryFallback {
   const category = (categoryRaw || "").toLowerCase();
   if (category.includes("art") || category.includes("craft")) return CATEGORY_FALLBACK_MEDIA["Arts & Crafts"];
+  if (category.includes("book") || category.includes("read")) return CATEGORY_FALLBACK_MEDIA["Book club"];
+  if (category.includes("sew") || category.includes("stitch") || category.includes("fabric") || category.includes("thread")) return CATEGORY_FALLBACK_MEDIA.Sewing;
   if (category.includes("music") || category.includes("producer") || category.includes("beat")) return CATEGORY_FALLBACK_MEDIA["Music / Producer"];
   if (category.includes("healthy") || category.includes("gym") || category.includes("cardio")) return CATEGORY_FALLBACK_MEDIA["Healthy Lifestyle"];
   if (category.includes("learn") || category.includes("study") || category.includes("course")) return CATEGORY_FALLBACK_MEDIA.Learn;

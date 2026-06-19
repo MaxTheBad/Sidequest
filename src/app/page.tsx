@@ -150,6 +150,16 @@ const TITLE_SUGGESTIONS_BY_CATEGORY: Record<string, string[]> = {
     "DIY craft night with accountability",
     "Lock in and finish your art piece",
   ],
+  "book club": [
+    "Monthly book club with real follow-through",
+    "Reading circle + discussion night",
+    "Finish the book and show up",
+  ],
+  sewing: [
+    "Sewing session with accountability",
+    "Finish that hem, patch, or project",
+    "Creative sewing night with momentum",
+  ],
   "music / producer": [
     "Producer lock-in session tonight",
     "Beat-making sprint and feedback",

@@ -28,6 +28,8 @@ const TITLE_SUGGESTIONS_BY_CATEGORY: Record<string, string[]> = {
   money: ["Lock in and execute a money plan", "Budget reset sprint for this month", "Side hustle ideas to action"],
   creative: ["Write for 30 minutes daily", "Photo walk + editing session", "Co-create content this weekend"],
   "arts & crafts": ["Saturday painting + coffee session", "DIY craft night with accountability", "Lock in and finish your art piece"],
+  "book club": ["Monthly book club with real follow-through", "Reading circle + discussion night", "Finish the book and show up"],
+  sewing: ["Sewing session with accountability", "Finish that hem, patch, or project", "Creative sewing night with momentum"],
   "music / producer": ["Producer lock-in session tonight", "Beat-making sprint and feedback", "Finish one track this week"],
   lifestyle: ["Build a better morning routine", "Declutter sprint + reset", "Weekly productivity planning"],
   wildcard: ["Something different: let's explore it", "My custom challenge starts now", "Open idea lab — bring your wildcards"],
