@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { Geist, Geist_Mono } from "next/font/google";
 import Script from "next/script";
@@ -21,6 +22,11 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: APP_NAME,
   description: "Find people to start or restart hobbies together.",
+  icons: {
+    icon: "/favicon.ico",
+    shortcut: "/favicon.ico",
+    apple: "/apple-icon.png",
+  },
 };
 
 export default function RootLayout({
@@ -58,7 +64,17 @@ export default function RootLayout({
         <footer className="mt-16 border-t border-slate-200 bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/75">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 text-xs text-slate-500">
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-              <p className="font-medium text-slate-700">QuestHat</p>
+              <Link href="/" className="flex items-center gap-2 font-medium text-slate-700">
+                <Image
+                  src="/questhat-logo.png"
+                  alt="QuestHat"
+                  width={26}
+                  height={14}
+                  className="h-4 w-auto"
+                  priority
+                />
+                <span>QuestHat</span>
+              </Link>
               <div className="flex flex-wrap items-center justify-center gap-4">
                 <Link href="/terms" className="hover:text-slate-800 underline-offset-4 hover:underline">
                   Terms

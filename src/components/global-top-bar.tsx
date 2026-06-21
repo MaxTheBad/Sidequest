@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { isPrivilegedRole } from "@/lib/admin.js";
@@ -38,12 +39,14 @@ export default function GlobalTopBar() {
   }, [supabase]);
 
   useEffect(() => {
-    if (!supabase || !userId) {
-      setUserRole("user");
-      return;
-    }
+    let cancelled = false;
     const loadRole = async () => {
+      if (!supabase || !userId) {
+        if (!cancelled) setUserRole("user");
+        return;
+      }
       const { data, error } = await supabase.from("profiles").select("role").eq("id", userId).maybeSingle();
+      if (cancelled) return;
       if (error) {
         setUserRole("user");
         return;
@@ -51,6 +54,9 @@ export default function GlobalTopBar() {
       setUserRole((data as { role?: string | null } | null)?.role || "user");
     };
     void loadRole();
+    return () => {
+      cancelled = true;
+    };
   }, [supabase, userId]);
 
   useEffect(() => {
@@ -95,9 +101,12 @@ export default function GlobalTopBar() {
   }
 
   return (
-    <header className="fixed top-0 inset-x-0 z-50 border-b nav-shell">
+      <header className="fixed top-0 inset-x-0 z-50 border-b nav-shell">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-[52px] flex items-center justify-between gap-3">
-        <Link href="/" className="nav-brand text-[15px] tracking-tight">{APP_NAME}</Link>
+        <Link href="/" className="nav-brand flex items-center gap-2 text-[15px] tracking-tight">
+          <Image src="/questhat-logo.png" alt={APP_NAME} width={34} height={18} className="h-5 w-auto" priority />
+          <span>{APP_NAME}</span>
+        </Link>
         <nav className="hidden md:flex items-center gap-1">
           <Link href="/" className={`nav-item text-xs px-3 py-1 ${pathname === "/" ? "nav-item-active" : ""}`}>Home</Link>
           <Link href="/saved" className={`nav-item text-xs px-3 py-1 ${pathname === "/saved" ? "nav-item-active" : ""}`}>Saved</Link>
