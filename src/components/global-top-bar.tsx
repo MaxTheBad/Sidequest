@@ -9,6 +9,7 @@ import { APP_NAME, dispatchAppEvent } from "@/lib/app-brand";
 import { getSupabaseClient } from "@/lib/supabase";
 import { getPersistedNotificationLastSeen } from "@/lib/notification-state";
 import { getUnreadDeliveredNotificationCount } from "@/lib/notifications";
+import { AppIcon, type AppIconName } from "@/components/app-icons";
 
 export default function GlobalTopBar() {
   const supabase = getSupabaseClient();
@@ -100,52 +101,33 @@ export default function GlobalTopBar() {
     router.push("/");
   }
 
+  const navigate = (path: string) => router.push(path);
+  const createQuest = () => {
+    if (typeof window === "undefined") return;
+    if (pathname === "/") return dispatchAppEvent("open-create");
+    sessionStorage.setItem("gathergo_open_create", "1");
+    router.push("/");
+  };
+  const items: Array<{ label: string; path: string; icon: AppIconName; action?: () => void }> = [
+    { label: "Home", path: "/", icon: "home" },
+    { label: "Saved", path: "/saved", icon: "bookmark" },
+    { label: "Notifications", path: "/notifications", icon: "bell" },
+    { label: "Inbox", path: "/inbox", icon: "message" },
+    { label: "Joined", path: "/joined", icon: "people" },
+    { label: "Create", path: "", icon: "plus", action: createQuest },
+    { label: "Settings", path: "/settings", icon: "settings" },
+  ];
+
   return (
-      <header className="fixed top-0 inset-x-0 z-50 border-b nav-shell">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-[52px] flex items-center justify-between gap-3">
+    <>
+      <header className="mobile-topbar fixed top-0 inset-x-0 z-50 border-b nav-shell md:hidden">
+      <div className="h-[60px] px-4 flex items-center justify-between gap-3">
         <Link href="/" className="nav-brand flex items-center gap-2 text-[15px] tracking-tight">
           <Image src="/questhat-logo.png" alt={APP_NAME} width={34} height={18} className="h-5 w-auto" priority />
           <span>{APP_NAME}</span>
         </Link>
-        <nav className="hidden md:flex items-center gap-1">
-          <Link href="/" className={`nav-item text-xs px-3 py-1 ${pathname === "/" ? "nav-item-active" : ""}`}>Home</Link>
-          <Link href="/saved" className={`nav-item text-xs px-3 py-1 ${pathname === "/saved" ? "nav-item-active" : ""}`}>Saved</Link>
-          <button type="button" onClick={() => router.push("/notifications")} className={`nav-item text-xs px-3 py-1 ${pathname === "/notifications" ? "nav-item-active" : ""}`}>
-            Notifications
-            {notificationCount > 0 ? <span className="ml-2 inline-flex min-w-5 h-5 px-1 items-center justify-center rounded-full bg-black text-white text-[10px]">{notificationCount > 9 ? "9+" : notificationCount}</span> : null}
-          </button>
-          <button type="button" onClick={() => router.push("/inbox")} className={`nav-item text-xs px-3 py-1 ${pathname === "/inbox" ? "nav-item-active" : ""}`}>Inbox</button>
-          <button type="button" onClick={() => router.push("/joined")} className={`nav-item text-xs px-3 py-1 ${pathname === "/joined" ? "nav-item-active" : ""}`}>Joined</button>
-          <button type="button" onClick={() => router.push("/settings")} className={`nav-item text-xs px-3 py-1 ${pathname === "/settings" ? "nav-item-active" : ""}`}>Settings</button>
-          {isPrivilegedRole(userRole) ? (
-            <button type="button" onClick={() => router.push("/moderation")} className={`nav-item text-xs px-3 py-1 ${pathname === "/moderation" ? "nav-item-active" : ""}`}>
-              Moderation
-            </button>
-          ) : null}
-          <button
-            type="button"
-            onClick={() => {
-              if (typeof window === "undefined") return;
-              if (pathname === "/") {
-                dispatchAppEvent("open-create");
-                return;
-              }
-              sessionStorage.setItem("gathergo_open_create", "1");
-              router.push("/");
-            }}
-            className="nav-item text-xs px-3 py-1 border border-slate-300 bg-slate-50"
-            style={{ color: "#000" }}
-          >
-            Create
-          </button>
-        </nav>
-        <div className="ml-auto flex items-center gap-2">
-          {userId && userLabel ? <span className="text-xs text-gray-500 hidden md:inline">Signed in as {userLabel.split("@")[0]}</span> : null}
-          {userId && pathname === "/" ? (
-            <Link href="/saved" className="nav-control">
-              Saved
-            </Link>
-          ) : null}
+        <div className="flex items-center gap-2">
+          <button className="icon-control relative" aria-label="Notifications" onClick={() => navigate("/notifications")}><AppIcon name="bell" className="h-5 w-5" />{notificationCount > 0 && <span className="nav-badge">{notificationCount > 9 ? "9+" : notificationCount}</span>}</button>
           {userId ? (
             <button className="nav-control" onClick={() => void signOut()}>Sign out</button>
           ) : (
@@ -153,6 +135,26 @@ export default function GlobalTopBar() {
           )}
         </div>
       </div>
-    </header>
+      </header>
+
+      <aside className="desktop-rail fixed inset-y-0 left-0 z-50 hidden border-r md:flex md:w-[84px] xl:w-[248px] flex-col p-3 xl:p-4">
+        <Link href="/" className="rail-brand flex h-12 items-center gap-3 px-2 xl:px-3">
+          <Image src="/questhat-logo.png" alt={APP_NAME} width={38} height={22} className="h-6 w-auto" priority />
+          <span className="hidden text-lg font-black tracking-tight xl:block">{APP_NAME}</span>
+        </Link>
+        <nav className="mt-6 flex flex-1 flex-col gap-1">
+          {items.map((item) => {
+            const active = item.path ? pathname === item.path : false;
+            const content = <><span className="relative"><AppIcon name={item.icon} className="h-[22px] w-[22px]" />{item.label === "Notifications" && notificationCount > 0 ? <span className="nav-badge">{notificationCount > 9 ? "9+" : notificationCount}</span> : null}</span><span className="hidden xl:block">{item.label}</span></>;
+            return item.action ? <button key={item.label} type="button" onClick={item.action} className="rail-item rail-create">{content}</button> : <Link key={item.label} href={item.path} className={`rail-item ${active ? "active" : ""}`}>{content}</Link>;
+          })}
+          {isPrivilegedRole(userRole) ? <Link href="/moderation" className={`rail-item ${pathname === "/moderation" ? "active" : ""}`}><AppIcon name="shield" className="h-[22px] w-[22px]" /><span className="hidden xl:block">Moderation</span></Link> : null}
+        </nav>
+        <div className="rail-account">
+          <div className="hidden min-w-0 xl:block"><p className="truncate text-sm font-bold">{userLabel ? userLabel.split("@")[0] : "Guest"}</p><p className="text-xs text-gray-500">{userId ? "Your account" : "Welcome"}</p></div>
+          {userId ? <button className="rail-sign" onClick={() => void signOut()}>Sign out</button> : <button className="rail-sign" onClick={openLogin}>Log in</button>}
+        </div>
+      </aside>
+    </>
   );
 }

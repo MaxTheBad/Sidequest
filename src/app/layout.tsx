@@ -57,11 +57,11 @@ export default function RootLayout({
         </Script>
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased pt-12 pb-40 lg:pb-0`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased pt-[60px] pb-28 md:pl-[84px] md:pt-0 md:pb-0 xl:pl-[248px]`}
       >
         <GlobalTopBar />
         {children}
-        <footer className="mt-16 border-t border-slate-200 bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/75">
+        <footer className="app-footer mt-16 border-t border-slate-200 bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/75">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 text-xs text-slate-500">
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
               <Link href="/" className="flex items-center gap-2 font-medium text-slate-700">

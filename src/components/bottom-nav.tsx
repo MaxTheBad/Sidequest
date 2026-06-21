@@ -8,6 +8,7 @@ import { dispatchAppEvent } from "@/lib/app-brand";
 import { getSupabaseClient } from "@/lib/supabase";
 import { getPersistedNotificationLastSeen } from "@/lib/notification-state";
 import { getUnreadDeliveredNotificationCount } from "@/lib/notifications";
+import { AppIcon } from "@/components/app-icons";
 
 export default function BottomNav() {
   const pathname = usePathname();
@@ -83,16 +84,16 @@ export default function BottomNav() {
   }
 
   return (
-    <nav className="fixed bottom-0 inset-x-0 z-[90] border-t nav-shell md:hidden">
-      <div className={`max-w-5xl mx-auto px-3 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] grid items-end ${isPrivilegedRole(userRole) ? "grid-cols-6" : "grid-cols-5"}`}>
-        <Link href="/" className={`text-center text-xs py-2 transition ${isActive("/") ? "nav-item-active" : "nav-item"}`}>
-          <div className="text-[20px] leading-none">⌂</div>
-          <div className="text-[11px] mt-0.5">Home</div>
+    <nav className="mobile-dock fixed inset-x-0 bottom-0 z-[90] md:hidden">
+      <div className={`mobile-dock-inner mx-auto grid items-center ${isPrivilegedRole(userRole) ? "grid-cols-6" : "grid-cols-5"}`}>
+        <Link href="/" aria-label="Home" className={`dock-item text-center transition ${isActive("/") ? "nav-item-active" : "nav-item"}`}>
+          <AppIcon name="home" className="mx-auto h-[22px] w-[22px]" />
+          <div className="dock-label">Home</div>
         </Link>
 
-        <button type="button" onClick={() => requireAuthNavigate("/inbox")} className={`text-center text-xs py-2 transition ${isActive("/inbox") ? "nav-item-active" : "nav-item"}`}>
-          <div className="text-[20px] leading-none">✉</div>
-          <div className="text-[11px] mt-0.5 inline-flex items-center justify-center gap-1">
+        <button aria-label="Inbox" type="button" onClick={() => requireAuthNavigate("/inbox")} className={`dock-item text-center transition ${isActive("/inbox") ? "nav-item-active" : "nav-item"}`}>
+          <AppIcon name="message" className="mx-auto h-[22px] w-[22px]" />
+          <div className="dock-label">
             <span>Inbox</span>
             {notificationCount > 0 ? <span className="inline-flex min-w-4 h-4 px-1 items-center justify-center rounded-full bg-black text-white text-[9px] leading-none">{notificationCount > 9 ? "9+" : notificationCount}</span> : null}
           </div>
@@ -109,26 +110,27 @@ export default function BottomNav() {
             sessionStorage.setItem("gathergo_open_create", "1");
             void requireAuthNavigate("/");
           }}
-          className="text-center -mt-6 bg-transparent border-0 shadow-none appearance-none p-0"
+          className="dock-item dock-create text-center bg-transparent border-0 shadow-none appearance-none"
+          aria-label="Create"
         >
-          <div className="mx-auto h-12 w-12 rounded-full nav-create create-halo grid place-items-center text-[24px] leading-none">+</div>
-          <div className="text-[11px] mt-1 font-semibold text-[color:var(--foreground)] bg-transparent">Create</div>
+          <div className="mx-auto h-12 w-12 rounded-full nav-create create-halo grid place-items-center"><AppIcon name="plus" className="h-6 w-6" /></div>
+          <div className="dock-label">Create</div>
         </button>
 
-        <button type="button" onClick={() => requireAuthNavigate("/joined")} className={`text-center text-xs py-2 transition ${isActive("/joined") ? "nav-item-active" : "nav-item"}`}>
-          <div className="text-[20px] leading-none">✓</div>
-          <div className="text-[11px] mt-0.5">Joined</div>
+        <button aria-label="Joined" type="button" onClick={() => requireAuthNavigate("/joined")} className={`dock-item text-center transition ${isActive("/joined") ? "nav-item-active" : "nav-item"}`}>
+          <AppIcon name="people" className="mx-auto h-[22px] w-[22px]" />
+          <div className="dock-label">Joined</div>
         </button>
 
-        <button type="button" onClick={() => requireAuthNavigate("/settings")} className={`text-center text-xs py-2 transition ${isActive("/settings") ? "nav-item-active" : "nav-item"}`}>
-          <div className="text-[20px] leading-none">⚙</div>
-          <div className="text-[11px] mt-0.5">Settings</div>
+        <button aria-label="Settings" type="button" onClick={() => requireAuthNavigate("/settings")} className={`dock-item text-center transition ${isActive("/settings") ? "nav-item-active" : "nav-item"}`}>
+          <AppIcon name="settings" className="mx-auto h-[22px] w-[22px]" />
+          <div className="dock-label">Settings</div>
         </button>
 
         {isPrivilegedRole(userRole) ? (
-          <button type="button" onClick={() => requireAuthNavigate("/moderation")} className={`text-center text-xs py-2 transition ${isActive("/moderation") ? "nav-item-active" : "nav-item"}`}>
-            <div className="text-[20px] leading-none">🛡</div>
-            <div className="text-[11px] mt-0.5">Mod</div>
+          <button aria-label="Moderation" type="button" onClick={() => requireAuthNavigate("/moderation")} className={`dock-item text-center transition ${isActive("/moderation") ? "nav-item-active" : "nav-item"}`}>
+            <AppIcon name="shield" className="mx-auto h-[22px] w-[22px]" />
+            <div className="dock-label">Mod</div>
           </button>
         ) : null}
       </div>
