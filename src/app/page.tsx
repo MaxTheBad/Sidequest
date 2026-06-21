@@ -3332,7 +3332,14 @@ export default function Home() {
                     </div>
                     <div className="p-4">
                       <div className="relative">
-                        {mapBounds ? (
+                        {loading ? (
+                          <div className="grid place-items-center h-[60vh] rounded-3xl border bg-slate-100 text-slate-600">
+                            <div className="flex flex-col items-center gap-3">
+                              <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-slate-900" />
+                              <p className="text-sm font-medium text-slate-700">Loading quests…</p>
+                            </div>
+                          </div>
+                        ) : mapBounds ? (
                           <QuestMap
                             items={mapQuestMarkers}
                             userLocation={userLocation}
