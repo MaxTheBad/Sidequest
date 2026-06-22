@@ -17,25 +17,11 @@ export default function AuthCallbackPage() {
 
     const finish = async () => {
       const params = new URLSearchParams(window.location.search);
-      const code = params.get("code");
       const callbackError = params.get("error_description") || params.get("error");
 
       if (callbackError) {
         setStatus(`Auth callback failed: ${callbackError}`);
         return;
-      }
-
-      if (code) {
-        const { data, error } = await supabase.auth.exchangeCodeForSession(code);
-        if (error) {
-          setStatus(`Auth callback failed: ${error.message}`);
-          return;
-        }
-
-        if (data.session?.user) {
-          router.replace("/");
-          return;
-        }
       }
 
       const hash = new URLSearchParams(window.location.hash.slice(1));
