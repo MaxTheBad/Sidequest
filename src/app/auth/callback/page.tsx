@@ -17,15 +17,12 @@ export default function AuthCallbackPage() {
       const params = new URLSearchParams(window.location.search);
       const code = params.get("code");
 
-      if (code) {
-        const { error } = await supabase.auth.exchangeCodeForSession(code);
-        if (error) {
-          setStatus(`Auth callback failed: ${error.message}`);
-          return;
-        }
+      if (!code) {
+        setStatus("The sign-in link is missing its authorization code. Please start again from Log in.");
+        return;
       }
 
-      const { data, error } = await supabase.auth.getSession();
+      const { data, error } = await supabase.auth.exchangeCodeForSession(code);
       if (error) {
         setStatus(`Auth callback failed: ${error.message}`);
         return;

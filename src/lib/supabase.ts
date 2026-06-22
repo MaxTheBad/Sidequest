@@ -14,7 +14,9 @@ export function getSupabaseClient(): SupabaseClient | null {
     auth: {
       persistSession: true,
       autoRefreshToken: true,
-      detectSessionInUrl: true,
+      // Auth callbacks are exchanged explicitly by /auth/callback. Leaving URL
+      // detection enabled races that exchange and can consume the PKCE code twice.
+      detectSessionInUrl: false,
       flowType: 'pkce',
     },
   });
