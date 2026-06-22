@@ -178,7 +178,7 @@ export default function NotificationsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-transparent p-4">
+    <main className="page-shell page-notifications min-h-screen bg-transparent p-4">
       <section className="max-w-4xl mx-auto rounded-3xl border bg-white p-5 space-y-4">
         <div className="flex items-center justify-between gap-3">
           <div>

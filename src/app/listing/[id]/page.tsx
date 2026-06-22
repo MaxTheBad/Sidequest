@@ -791,7 +791,7 @@ export default function ListingPage() {
   const blockedMembers = members.filter((m) => blockedUserIds.includes(m.user_id));
 
   return (
-    <main className="min-h-screen bg-transparent p-4">
+    <main className="page-shell page-listing min-h-screen bg-transparent p-4">
       <div className="max-w-4xl mx-auto space-y-3">
         <button
           type="button"

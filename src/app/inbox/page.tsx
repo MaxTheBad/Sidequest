@@ -478,7 +478,7 @@ export default function InboxPage() {
 
   if (!userId && !loading) {
     return (
-      <main className="min-h-screen bg-transparent p-4">
+      <main className="page-shell page-inbox min-h-screen bg-transparent p-4">
         <div className="max-w-3xl mx-auto rounded-2xl border bg-white p-6">
           <h1 className="text-2xl font-bold">Inbox</h1>
           <p className="mt-2 text-sm text-gray-600">Please log in from the home page first to view messages.</p>
@@ -489,7 +489,7 @@ export default function InboxPage() {
   }
 
   return (
-    <main className="min-h-screen bg-transparent p-4">
+    <main className="page-shell page-inbox min-h-screen bg-transparent p-4">
       <div className="max-w-6xl mx-auto">
         <div className="mb-3 flex items-center justify-between">
           <h1 className="text-2xl font-bold">Inbox</h1>

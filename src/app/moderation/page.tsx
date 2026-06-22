@@ -397,7 +397,7 @@ export default function ModerationPage() {
   const selectedAssignee = unwrapSingle(selectedReport?.assignee);
 
   return (
-    <main className="min-h-screen bg-transparent p-4">
+    <main className="page-shell page-moderation min-h-screen bg-transparent p-4">
       <section className="max-w-7xl mx-auto rounded-2xl border bg-white p-4 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>

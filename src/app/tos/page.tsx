@@ -1,6 +1,6 @@
 export default function TosPage() {
   return (
-    <main className="min-h-screen bg-transparent p-4">
+    <main className="page-shell page-legal min-h-screen bg-transparent p-4">
       <section className="max-w-3xl mx-auto rounded-2xl border bg-white p-6 space-y-4">
         <h1 className="text-2xl font-bold">QuestHat Terms</h1>
         <p className="text-sm text-gray-700">

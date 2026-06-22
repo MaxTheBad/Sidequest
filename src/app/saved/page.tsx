@@ -102,7 +102,7 @@ export default function SavedPage() {
   const empty = useMemo(() => !loading && rows.length === 0, [loading, rows.length]);
 
   return (
-    <main className="min-h-screen bg-transparent px-4 pb-24 pt-20">
+    <main className="page-shell page-saved min-h-screen bg-transparent px-4 pb-24 pt-10 md:pt-14">
       <section className="mx-auto w-full max-w-4xl space-y-4">
         <div className="flex items-end justify-between gap-3">
           <div>
