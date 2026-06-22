@@ -78,6 +78,68 @@ type Bookmark = { quest_id: string };
 type Membership = { quest_id: string; status?: "pending" | "approved" | "declined" };
 type OnboardingHobby = { hobby_id: string; is_primary?: boolean | null };
 
+type CreateSelectOption = { value: string; label: string };
+
+function CreateSelect({ value, options, placeholder, onChange, searchable = false, invalid = false }: {
+  value: string;
+  options: CreateSelectOption[];
+  placeholder: string;
+  onChange: (value: string) => void;
+  searchable?: boolean;
+  invalid?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const selected = options.find((option) => option.value === value);
+  const filtered = searchable && query.trim()
+    ? options.filter((option) => option.label.toLowerCase().includes(query.trim().toLowerCase()))
+    : options;
+
+  return (
+    <div className="create-select relative">
+      <button
+        type="button"
+        className={`create-select-trigger w-full ${invalid ? "is-invalid" : ""}`}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+      >
+        <span className={selected ? "" : "create-select-placeholder"}>{selected?.label || placeholder}</span>
+        <AppIcon name="chevronDown" className={`h-4 w-4 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open ? (
+        <div className="create-select-menu" role="listbox">
+          {searchable ? (
+            <div className="create-select-search-wrap">
+              <input autoFocus className="create-select-search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search…" />
+            </div>
+          ) : null}
+          <div className="create-select-options">
+            {filtered.map((option) => (
+              <button
+                type="button"
+                role="option"
+                aria-selected={option.value === value}
+                key={option.value}
+                className={`create-select-option ${option.value === value ? "selected" : ""}`}
+                onClick={() => {
+                  onChange(option.value);
+                  setOpen(false);
+                  setQuery("");
+                }}
+              >
+                <span>{option.label}</span>
+                {option.value === value ? <AppIcon name="check" className="h-4 w-4" /> : null}
+              </button>
+            ))}
+            {!filtered.length ? <p className="px-3 py-4 text-sm text-gray-500">No matches</p> : null}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 const TITLE_SUGGESTIONS = [
   "Beginner tennis buddy this weekend",
   "After-work climbing crew",
@@ -3868,19 +3930,19 @@ export default function Home() {
               <div className="relative">
                 <button
                   type="button"
-                  className={`border rounded-xl px-2.5 py-2 w-full text-left bg-white dark:bg-slate-900 flex items-center justify-between gap-3 text-sm sm:px-3 sm:py-2.5 sm:text-base ${fieldErrors.category ? "border-red-500 ring-1 ring-red-300" : ""}`}
+                  className={`create-select-trigger w-full ${fieldErrors.category ? "is-invalid" : ""}`}
                   onClick={() => setCategoryDropdownOpen((open) => !open)}
                 >
                   <span className={categoryInput.trim() ? "text-slate-900 dark:text-white" : "text-slate-400 dark:text-slate-500"}>
                     {categoryInput.trim() || "Select a category"}
                   </span>
-                  <span aria-hidden="true" className="text-slate-500 dark:text-slate-300 text-xs">▾</span>
+                  <AppIcon name="chevronDown" className={`h-4 w-4 text-slate-500 transition-transform ${categoryDropdownOpen ? "rotate-180" : ""}`} />
                 </button>
                 {categoryDropdownOpen ? (
-                  <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-48 overflow-auto rounded-xl border bg-white dark:bg-slate-900 shadow-lg text-sm">
+                  <div className="create-select-menu category-select-menu absolute left-0 right-0 top-full z-20 mt-1">
                     <button
                       type="button"
-                      className="block w-full px-3 py-1.75 text-left text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800"
+                      className="create-select-option"
                       onClick={() => {
                         setUseCustomCategory(true);
                         setCustomCategory("");
@@ -3896,7 +3958,7 @@ export default function Home() {
                       <button
                         key={option.id}
                         type="button"
-                        className="block w-full px-3 py-1.75 text-left text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800"
+                        className="create-select-option"
                         onClick={() => {
                           setCategoryInput(option.name);
                           setUseCustomCategory(false);
@@ -3971,24 +4033,27 @@ export default function Home() {
               </label>
               {isRecurring && (
                 <div className="grid gap-2">
-                  <select className="border rounded-xl px-2.5 py-2 text-sm sm:px-3 sm:py-2.5 sm:text-base" value={recurringFrequency} onChange={(e) => setRecurringFrequency(e.target.value as "daily" | "weekly" | "monthly")}>
-                    <option value="daily">Daily</option>
-                    <option value="weekly">Weekly</option>
-                    <option value="monthly">Monthly</option>
-                  </select>
+                  <CreateSelect
+                    value={recurringFrequency}
+                    placeholder="Choose frequency"
+                    options={[{ value: "daily", label: "Daily" }, { value: "weekly", label: "Weekly" }, { value: "monthly", label: "Monthly" }]}
+                    onChange={(next) => setRecurringFrequency(next as "daily" | "weekly" | "monthly")}
+                  />
                   <input type="date" className="border rounded-xl px-2.5 py-2 text-sm sm:px-3 sm:py-2.5 sm:text-base" value={recurringStartDate} onChange={(e) => setRecurringStartDate(e.target.value)} placeholder="Start date" />
                 </div>
               )}
 
               <label className="text-xs font-medium uppercase tracking-wide text-slate-600">Join Mode *</label>
-              <select className="border rounded-xl px-2.5 py-2 text-sm sm:px-3 sm:py-2.5 sm:text-base" value={joinMode} onChange={(e) => setJoinMode(e.target.value as "open" | "approval_required")}>
-                <option value="open">Anyone can join instantly</option>
-                <option value="approval_required">Host must approve members</option>
-              </select>
+              <CreateSelect
+                value={joinMode}
+                placeholder="Choose join mode"
+                options={[{ value: "open", label: "Anyone can join instantly" }, { value: "approval_required", label: "Host must approve members" }]}
+                onChange={(next) => setJoinMode(next as "open" | "approval_required")}
+              />
 
               <div
                 ref={locationVisibilityRef}
-                className={`rounded-2xl border bg-slate-50 p-2 sm:p-3 space-y-2 sm:space-y-3 transition ${
+                className={`create-location-panel rounded-2xl border p-2 sm:p-3 space-y-2 sm:space-y-3 transition ${
                   highlightLocationVisibility || fieldErrors.locationVisibility || fieldErrors.location ? "border-red-200 bg-red-50" : "border-slate-200"
                 }`}
               >
@@ -4035,11 +4100,17 @@ export default function Home() {
                 {locationMode === "in_person" ? (
                   <div className="grid gap-1">
                     <label className={`text-[11px] font-medium uppercase tracking-wide ${fieldErrors.locationVisibility ? "text-red-600" : "text-slate-600"}`}>Privacy</label>
-                    <select
-                      className={`border rounded-xl px-2.5 py-2 bg-white text-sm sm:px-3 sm:py-2.5 sm:text-base ${fieldErrors.locationVisibility ? "border-red-500 ring-1 ring-red-300" : ""}`}
+                    <CreateSelect
                       value={exactLocationVisibility}
-                      onChange={(e) => {
-                        const next = e.target.value as "private" | "public" | "approved_members";
+                      placeholder="Choose privacy"
+                      invalid={Boolean(fieldErrors.locationVisibility)}
+                      options={[
+                        { value: "private", label: "Private (manual share)" },
+                        ...(joinMode !== "open" ? [{ value: "approved_members", label: "Auto-share with approved members" }] : []),
+                        { value: "public", label: "Public (everyone)" },
+                      ]}
+                      onChange={(value) => {
+                        const next = value as "private" | "public" | "approved_members";
                         if (next === "private" && !manualShareWarningBypassRef.current) {
                           setPendingManualShareVisibility(next);
                           setShowManualShareConfirm(true);
@@ -4049,11 +4120,7 @@ export default function Home() {
                         clearFieldError("locationVisibility");
                         setPublicVisibilityConfirmed(false);
                       }}
-                    >
-                      <option value="private">Private (manual share)</option>
-                      {joinMode !== "open" && <option value="approved_members">Auto-share with approved members</option>}
-                      <option value="public">Public (everyone)</option>
-                    </select>
+                    />
                   </div>
                 ) : null}
                 <div className="grid gap-1">
@@ -4086,7 +4153,18 @@ export default function Home() {
               <div className="grid gap-2 sm:grid-cols-2 sm:items-end">
                 <div className="grid gap-1">
                   <label className={`text-xs font-medium uppercase tracking-wide ${fieldErrors.country ? "text-red-600" : "text-slate-600"}`}>Country *</label>
-                  <input list="country-list" className={`border rounded-xl px-2.5 py-2 text-sm sm:px-3 sm:py-2.5 sm:text-base ${fieldErrors.country ? "border-red-500 ring-1 ring-red-300" : ""}`} value={countryQuery} onChange={(e) => { setCountryQuery(e.target.value); setCountryCode(resolveCountryCodeByName(e.target.value)); clearFieldError("country"); }} placeholder="Start typing country..." />
+                  <CreateSelect
+                    value={countryQuery}
+                    placeholder="Choose a country"
+                    searchable
+                    invalid={Boolean(fieldErrors.country)}
+                    options={countryOptions.map((country) => ({ value: country.name, label: country.name }))}
+                    onChange={(next) => {
+                      setCountryQuery(next);
+                      setCountryCode(resolveCountryCodeByName(next));
+                      clearFieldError("country");
+                    }}
+                  />
                 </div>
               </div>
 
@@ -4247,19 +4325,20 @@ export default function Home() {
                   <textarea className="border rounded px-3 py-2" placeholder="What are you trying to do?" value={description} onChange={(e) => setDescription(e.target.value)} />
 
                   <label className="text-sm font-medium">Skill level (optional)</label>
-                  <select className="border rounded px-3 py-2" value={skillLevel} onChange={(e) => setSkillLevel(e.target.value)}>
-                    <option value="any">Any</option>
-                    <option value="beginner">Beginner</option>
-                    <option value="returning">Returning</option>
-                    <option value="intermediate">Intermediate</option>
-                    <option value="advanced">Advanced</option>
-                  </select>
+                  <CreateSelect
+                    value={skillLevel}
+                    placeholder="Choose skill level"
+                    options={[{ value: "any", label: "Any" }, { value: "beginner", label: "Beginner" }, { value: "returning", label: "Returning" }, { value: "intermediate", label: "Intermediate" }, { value: "advanced", label: "Advanced" }]}
+                    onChange={setSkillLevel}
+                  />
 
                   <label className="text-sm font-medium">Group size (optional)</label>
-                  <select className="border rounded px-3 py-2" value={groupSizeChoice} onChange={(e) => setGroupSizeChoice(e.target.value)}>
-                    {GROUP_SIZE_OPTIONS.map((v) => <option key={v} value={v}>{v === "any" ? "Any" : v}</option>)}
-                    <option value="custom">Custom number...</option>
-                  </select>
+                  <CreateSelect
+                    value={groupSizeChoice}
+                    placeholder="Choose group size"
+                    options={[...GROUP_SIZE_OPTIONS.map((v) => ({ value: v, label: v === "any" ? "Any" : v })), { value: "custom", label: "Custom number…" }]}
+                    onChange={setGroupSizeChoice}
+                  />
                   {groupSizeChoice === "custom" && (
                     <input type="number" min={2} max={50} className={`border rounded px-3 py-2 ${fieldErrors.groupSize ? "border-red-500 ring-1 ring-red-300" : ""}`} value={groupSizeCustom} onChange={(e) => { setGroupSizeCustom(e.target.value); clearFieldError("groupSize"); }} placeholder="Enter custom group size" />
                   )}
@@ -4270,7 +4349,7 @@ export default function Home() {
             </form>
           </div>
           <div className="fixed bottom-0 left-0 right-0 z-[60] px-4 pb-[max(12px,env(safe-area-inset-bottom))] pt-3 md:pb-4">
-            <div className="mx-auto w-full max-w-xl rounded-t-2xl border border-slate-200 bg-white/95 px-4 py-3 shadow-[0_-10px_35px_rgba(15,23,42,0.14)] backdrop-blur-xl">
+            <div className="create-action-dock mx-auto w-full max-w-xl rounded-t-2xl border px-4 py-3 shadow-[0_-10px_35px_rgba(15,23,42,0.14)] backdrop-blur-xl">
               <div className="flex gap-2 flex-wrap sm:flex-nowrap">
                 <button form="create-quest-form" type="submit" className="w-full sm:w-auto inline-flex items-center justify-center rounded-xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed" disabled={savingQuest}>
                   {savingQuest ? "Saving..." : (editingQuestId ? "Save changes" : "Post quest")}
@@ -4601,7 +4680,6 @@ export default function Home() {
         </div>
       )}
 
-      <datalist id="country-list">{countryOptions.map((c) => <option key={c.code} value={c.name} />)}</datalist>
       {status && (
         <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-[60] max-w-[92vw]">
           <div className="rounded-xl bg-black text-white px-4 py-3 text-sm shadow-lg border border-white/20 flex items-center gap-3">

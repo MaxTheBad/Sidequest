@@ -1,6 +1,6 @@
 import type { ReactNode, SVGProps } from "react";
 
-export type AppIconName = "home" | "bookmark" | "bell" | "message" | "people" | "plus" | "settings" | "shield" | "user" | "location" | "more" | "clock" | "refresh" | "minus" | "check" | "star" | "tune" | "play";
+export type AppIconName = "home" | "bookmark" | "bell" | "message" | "people" | "plus" | "settings" | "shield" | "user" | "location" | "more" | "clock" | "refresh" | "minus" | "check" | "star" | "tune" | "play" | "chevronDown";
 
 export function AppIcon({ name, ...props }: SVGProps<SVGSVGElement> & { name: AppIconName }) {
   const paths: Record<AppIconName, ReactNode> = {
@@ -22,6 +22,7 @@ export function AppIcon({ name, ...props }: SVGProps<SVGSVGElement> & { name: Ap
     star: <path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9L12 3Z"/>,
     tune: <><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></>,
     play: <path d="m9 6 9 6-9 6V6Z"/>,
+    chevronDown: <path d="m6 9 6 6 6-6"/>,
   };
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}>{paths[name]}</svg>;
 }
