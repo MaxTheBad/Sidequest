@@ -4182,7 +4182,7 @@ export default function Home() {
                 />
                 <p className="text-[10px] leading-4 sm:text-xs text-gray-500">Drag thumbnails to reorder. First item is Main. Tap an item to edit its caption below.</p>
 
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 auto-rows-fr">
                   {mediaDraftItems.map((item, idx) => {
                     const previewUrl = mediaPreviewUrls.get(item.id) || "";
                     return (
@@ -4206,7 +4206,7 @@ export default function Home() {
                           });
                           setDragMediaId(null);
                         }}
-                        className={`relative aspect-square overflow-hidden rounded-xl border bg-white ${selectedMediaId === item.id ? "ring-2 ring-blue-500" : ""}`}
+                        className={`relative aspect-[4/3] overflow-hidden rounded-xl border bg-white ${selectedMediaId === item.id ? "ring-2 ring-blue-500" : ""}`}
                       >
                         {item.type === "image" ? (
                           <img src={previewUrl} alt={item.label || "Media preview"} className="h-full w-full object-cover" />
@@ -4235,24 +4235,22 @@ export default function Home() {
                 </div>
 
                 {selectedMediaItem ? (
-                  <div className="rounded border bg-white p-2 grid gap-2">
-                    <div className="text-[11px] text-gray-600">Caption for selected {selectedMediaItem.type === "image" ? "photo" : "video"}</div>
-                    <input
-                      className="border rounded-xl px-2.5 py-2 text-sm"
-                      placeholder={`e.g., ${MEDIA_LABEL_HINTS[0]}`}
-                      value={selectedMediaItem.label}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        setMediaDraftItems((prev) => prev.map((m) => m.id === selectedMediaItem.id ? { ...m, label: value } : m));
-                      }}
-                    />
-                    {selectedMediaItem.type === "video" ? (
-                      <div className="grid gap-2 rounded-lg border bg-gray-50 p-2">
-                        <div className="text-[11px] font-medium text-gray-700">Video thumbnail</div>
+                  <div className="grid gap-2 rounded-2xl border bg-white p-3 shadow-sm">
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <div className="text-[11px] font-medium uppercase tracking-wide text-gray-500">Selected media</div>
+                        <div className="text-sm font-semibold text-gray-900">{selectedMediaItem.type === "image" ? "Photo" : "Video"} preview</div>
+                      </div>
+                      <div className="text-[11px] text-gray-500">Edit caption and frame below</div>
+                    </div>
+                    <div className="overflow-hidden rounded-xl border bg-black/5">
+                      {selectedMediaItem.type === "image" ? (
+                        <img src={mediaPreviewUrls.get(selectedMediaItem.id) || ""} alt={selectedMediaItem.label || "Media preview"} className="h-56 w-full object-cover sm:h-64" />
+                      ) : (
                         <video
                           ref={selectedMediaVideoRef}
                           src={mediaPreviewUrls.get(selectedMediaItem.id) || ""}
-                          className="w-full max-h-48 rounded-md bg-black object-contain"
+                          className="h-56 w-full bg-black object-cover sm:h-64"
                           controls
                           playsInline
                           preload="metadata"
@@ -4264,6 +4262,20 @@ export default function Home() {
                             }
                           }}
                         />
+                      )}
+                    </div>
+                    <input
+                      className="border rounded-xl px-2.5 py-2 text-sm"
+                      placeholder={`e.g., ${MEDIA_LABEL_HINTS[0]}`}
+                      value={selectedMediaItem.label}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setMediaDraftItems((prev) => prev.map((m) => m.id === selectedMediaItem.id ? { ...m, label: value } : m));
+                      }}
+                    />
+                    {selectedMediaItem.type === "video" ? (
+                      <div className="grid gap-2 rounded-lg border bg-gray-50 p-2">
+                        <div className="text-[11px] font-medium text-gray-700">Video frame</div>
                         <input
                           type="range"
                           min="0"
