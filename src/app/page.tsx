@@ -301,7 +301,7 @@ export default function Home() {
   const supabase = getSupabaseClient();
   const redirectTo =
     typeof window !== "undefined"
-      ? `${process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") || window.location.origin}/`
+      ? `${process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") || window.location.origin}/auth/callback`
       : undefined;
 
   const [status, setStatus] = useState("");
