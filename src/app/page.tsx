@@ -3241,12 +3241,12 @@ export default function Home() {
                     </div>
                   </div>
                 </div>
-                <div className="px-4 py-3 bg-white">
-                  <div className="flex items-center gap-2">
+                <div className="relative -mt-14 z-20 px-3 pb-3 sm:px-4 sm:pb-4">
+                  <div className="flex items-center gap-2 rounded-full border border-white/10 bg-black/30 px-3 py-2.5 text-white shadow-[0_10px_28px_rgba(0,0,0,0.18)] backdrop-blur-md">
                     <div className="flex items-center justify-start gap-2 flex-1 min-w-0">
                     {userId !== q.creator_id ? (
                       <button
-                        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-transparent text-sm font-semibold text-slate-900 transition hover:opacity-80"
+                        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-sm font-semibold text-white transition hover:bg-white/15"
                         aria-label={membershipStatusByQuest[q.id] === "pending" ? "Cancel request" : (membershipStatusByQuest[q.id] === "declined" ? "Request again" : (joinedQuestIds.includes(q.id) ? "Leave" : ((q.join_mode || "open") === "approval_required" ? "Request to join" : "Join")))}
                         title={membershipStatusByQuest[q.id] === "pending" ? "Cancel request" : (membershipStatusByQuest[q.id] === "declined" ? "Request again" : (joinedQuestIds.includes(q.id) ? "Leave" : ((q.join_mode || "open") === "approval_required" ? "Request to join" : "Join")))}
                         onClick={() => void toggleJoinQuest(q.id)}
@@ -3254,15 +3254,15 @@ export default function Home() {
                         <AppIcon name={membershipStatusByQuest[q.id] === "pending" ? "clock" : (membershipStatusByQuest[q.id] === "declined" ? "refresh" : (joinedQuestIds.includes(q.id) ? "minus" : "plus"))} className="h-6 w-6" />
                       </button>
                     ) : null}
-                    <button className="inline-flex h-9 w-auto shrink-0 items-center justify-center gap-1 rounded-full bg-transparent px-1.5 text-sm font-medium text-slate-900 transition hover:opacity-80" aria-label={`Comment ${commentCountByQuestId[q.id] || 0}`} title="Comment" onClick={() => {
+                    <button className="inline-flex h-9 w-auto shrink-0 items-center justify-center gap-1 rounded-full bg-white/10 px-1.5 text-sm font-medium text-white transition hover:bg-white/15" aria-label={`Comment ${commentCountByQuestId[q.id] || 0}`} title="Comment" onClick={() => {
                       void askQuestion(q, "public");
                     }}>
                       <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                         <path d="M20 14a4 4 0 0 1-4 4H9l-5 3V8a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4v6Z" />
                       </svg>
-                      <span className="text-xs tabular-nums text-slate-700">{commentCountByQuestId[q.id] || 0}</span>
+                      <span className="text-xs tabular-nums text-white/85">{commentCountByQuestId[q.id] || 0}</span>
                     </button>
-                    <button className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-transparent text-sm font-medium text-slate-900 transition hover:opacity-80" aria-label="Message" title="Message" onClick={() => {
+                    <button className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-sm font-medium text-white transition hover:bg-white/15" aria-label="Message" title="Message" onClick={() => {
                       void askQuestion(q, "private");
                     }}>
                       <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -3270,16 +3270,16 @@ export default function Home() {
                         <path d="M5 7l7 5.5L19 7" />
                       </svg>
                     </button>
-                    <button className="inline-flex h-9 w-auto shrink-0 items-center justify-center gap-1 rounded-full bg-transparent px-1.5 text-sm font-medium text-slate-900 transition hover:opacity-80" aria-label={`Share ${shareCountByQuestId[q.id] || 0}`} title="Share" onClick={() => void shareQuest(q)}>
+                    <button className="inline-flex h-9 w-auto shrink-0 items-center justify-center gap-1 rounded-full bg-white/10 px-1.5 text-sm font-medium text-white transition hover:bg-white/15" aria-label={`Share ${shareCountByQuestId[q.id] || 0}`} title="Share" onClick={() => void shareQuest(q)}>
                       <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                         <path d="M12 5v14" />
                         <path d="m6 11 6-6 6 6" />
                         <path d="M5 19h14" />
                       </svg>
-                      <span className="text-xs tabular-nums text-slate-700">{shareCountByQuestId[q.id] || 0}</span>
+                      <span className="text-xs tabular-nums text-white/85">{shareCountByQuestId[q.id] || 0}</span>
                     </button>
                     </div>
-                    <button className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-transparent text-sm font-medium text-slate-900 transition hover:opacity-80" aria-label={bookmarkedQuestIds.includes(q.id) ? "Saved" : "Save"} title={bookmarkedQuestIds.includes(q.id) ? "Saved" : "Save"} onClick={() => void toggleBookmark(q.id)}>
+                    <button className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-sm font-medium text-white transition hover:bg-white/15" aria-label={bookmarkedQuestIds.includes(q.id) ? "Saved" : "Save"} title={bookmarkedQuestIds.includes(q.id) ? "Saved" : "Save"} onClick={() => void toggleBookmark(q.id)}>
                       <svg viewBox="0 0 24 24" className="h-5 w-5" fill={bookmarkedQuestIds.includes(q.id) ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                         <path d="M12 3.5 14.6 8.8l5.9.9-4.3 4.2 1 5.9L12 17.1 6.8 19.8l1-5.9-4.3-4.2 5.9-.9L12 3.5Z" />
                       </svg>
