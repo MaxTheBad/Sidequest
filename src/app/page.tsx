@@ -299,7 +299,10 @@ const REPORT_REASONS: Record<"listing_content" | "chat_behavior" | "profile_acco
 
 export default function Home() {
   const supabase = getSupabaseClient();
-  const redirectTo = typeof window !== "undefined" ? `${window.location.origin}/` : undefined;
+  const redirectTo =
+    typeof window !== "undefined"
+      ? `${process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") || window.location.origin}/`
+      : undefined;
 
   const [status, setStatus] = useState("");
   const [userId, setUserId] = useState<string | null>(null);

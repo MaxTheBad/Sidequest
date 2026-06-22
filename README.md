@@ -14,6 +14,7 @@ MVP app: find hobby partners/groups, post quests, join quests, and use a Surpris
 2. Add env vars in `.env.local`
    - `NEXT_PUBLIC_SUPABASE_URL`
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - `NEXT_PUBLIC_SITE_URL` - set this to the canonical app URL, for example `https://questhat.com`
    - `SUPABASE_SERVICE_ROLE_KEY` (server-only; not exposed in browser)
 3. Run the SQL file in Supabase SQL editor:
    - `supabase-schema.sql`
