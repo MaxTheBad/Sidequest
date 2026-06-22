@@ -98,6 +98,13 @@ export const CATEGORY_FALLBACK_MEDIA: Record<string, CategoryFallback> = {
     note: "Studio, mixer, headphones, or live setup.",
     gradient: "linear-gradient(135deg,#dbeafe,#e9d5ff)",
   },
+  Fishing: {
+    imageUrl: "/category-fallbacks/fishing.jpg",
+    emoji: "🎣",
+    title: "Fishing trip",
+    note: "A dock, boat, lake, or shoreline scene works best.",
+    gradient: "linear-gradient(135deg,#d1fae5,#bae6fd)",
+  },
   Lifestyle: {
     imageUrl: "/category-fallbacks/learn.jpg",
     emoji: "🗓️",
@@ -120,6 +127,7 @@ export function getCategoryFallbackMedia(categoryRaw?: string | null): CategoryF
   if (category.includes("book") || category.includes("read")) return CATEGORY_FALLBACK_MEDIA["Book club"];
   if (category.includes("sew") || category.includes("stitch") || category.includes("fabric") || category.includes("thread")) return CATEGORY_FALLBACK_MEDIA.Sewing;
   if (category.includes("music") || category.includes("producer") || category.includes("beat")) return CATEGORY_FALLBACK_MEDIA["Music / Producer"];
+  if (category.includes("fish") || category.includes("angler") || category.includes("bait")) return CATEGORY_FALLBACK_MEDIA.Fishing;
   if (category.includes("healthy") || category.includes("gym") || category.includes("cardio")) return CATEGORY_FALLBACK_MEDIA["Healthy Lifestyle"];
   if (category.includes("learn") || category.includes("study") || category.includes("course")) return CATEGORY_FALLBACK_MEDIA.Learn;
   if (category.includes("career") || category.includes("job") || category.includes("interview") || category.includes("resume")) return CATEGORY_FALLBACK_MEDIA.Career;

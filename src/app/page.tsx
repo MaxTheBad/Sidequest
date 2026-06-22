@@ -228,6 +228,11 @@ const TITLE_SUGGESTIONS_BY_CATEGORY: Record<string, string[]> = {
     "Beat-making sprint and feedback",
     "Finish one track this week",
   ],
+  fishing: [
+    "Early morning fishing trip",
+    "Cast off and keep the streak going",
+    "Weekend shoreline session",
+  ],
   lifestyle: [
     "Build a better morning routine",
     "Declutter sprint + reset",
@@ -265,6 +270,7 @@ const CATEGORY_SUGGESTIONS = [
   "Board games",
   "Language exchange",
   "Photography",
+  "Fishing",
 ];
 const GROUP_SIZE_OPTIONS = ["any", "2", "3", "4", "5", "6", "8", "10", "12"];
 const REPORT_REASONS: Record<"listing_content" | "chat_behavior" | "profile_account" | "in_person", Array<{ code: string; label: string }>> = {
