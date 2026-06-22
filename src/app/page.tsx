@@ -1116,24 +1116,42 @@ export default function Home() {
     try {
       let uploadedPhotoUrl: string | null = null;
       let uploadedPhotoSourceUrl: string | null = null;
+      let warning: string | null = null;
+
       if (onboardingPhotoFile) {
-        const uploaded = await uploadOnboardingPhoto();
-        uploadedPhotoUrl = uploaded?.avatarUrl || null;
-        uploadedPhotoSourceUrl = uploaded?.sourceUrl || null;
+        try {
+          const uploaded = await uploadOnboardingPhoto();
+          uploadedPhotoUrl = uploaded?.avatarUrl || null;
+          uploadedPhotoSourceUrl = uploaded?.sourceUrl || null;
+        } catch (err) {
+          warning = err instanceof Error ? `Photo not saved: ${err.message}` : "Photo not saved.";
+        }
       }
+
       const { error: profileError } = await supabase.from("profiles").upsert({
         id: userId,
         display_name: onboardingDisplayName.trim() || userEmail.split("@")[0] || "SideQuest user",
         city: onboardingCity.trim() || null,
         bio: onboardingBio.trim() || null,
         onboarding_done: true,
-        avatar_url: uploadedPhotoUrl,
-        avatar_source_url: uploadedPhotoSourceUrl,
       });
       if (profileError) throw profileError;
 
+      if (uploadedPhotoUrl) {
+        const { error: avatarError } = await supabase.from("profiles").upsert({
+          id: userId,
+          avatar_url: uploadedPhotoUrl,
+          ...(uploadedPhotoSourceUrl ? { avatar_source_url: uploadedPhotoSourceUrl } : {}),
+        });
+        if (avatarError && !avatarError.message.toLowerCase().includes("column")) {
+          warning = warning || `Photo details not saved: ${avatarError.message}`;
+        }
+      }
+
       const { error: deleteError } = await supabase.from("user_hobbies").delete().eq("user_id", userId);
-      if (deleteError && !deleteError.message.toLowerCase().includes("row-level security")) throw deleteError;
+      if (deleteError && !deleteError.message.toLowerCase().includes("row-level security")) {
+        warning = warning || `Hobbies not saved: ${deleteError.message}`;
+      }
 
       if (onboardingInterestIds.length) {
         const { error: insertError } = await supabase.from("user_hobbies").insert(
@@ -1143,7 +1161,9 @@ export default function Home() {
             is_primary: index === 0,
           }))
         );
-        if (insertError && !insertError.message.toLowerCase().includes("row-level security")) throw insertError;
+        if (insertError && !insertError.message.toLowerCase().includes("row-level security")) {
+          warning = warning || `Hobbies not saved: ${insertError.message}`;
+        }
       }
 
       await supabase.auth.updateUser({
@@ -1155,7 +1175,7 @@ export default function Home() {
       if (typeof window !== "undefined") window.localStorage.setItem(onboardingStorageKey(userId), "1");
       setOnboardingDone(true);
       setShowOnboardingWizard(false);
-      setStatus("Onboarding saved ✅");
+      setStatus(warning ? `Onboarding saved with warnings: ${warning}` : "Onboarding saved ✅");
       await loadQuests();
     } catch (err) {
       if (typeof window !== "undefined") window.localStorage.setItem(onboardingStorageKey(userId), "1");
