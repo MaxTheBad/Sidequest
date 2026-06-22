@@ -14,10 +14,10 @@ export function getSupabaseClient(): SupabaseClient | null {
     auth: {
       persistSession: true,
       autoRefreshToken: true,
-      // Auth callbacks are exchanged explicitly by /auth/callback. Leaving URL
-      // detection enabled races that exchange and can consume the PKCE code twice.
-      detectSessionInUrl: false,
-      flowType: 'pkce',
+      // Let the browser session be established directly from the redirect.
+      // PKCE code exchange requires the original browser storage context and is
+      // brittle for mobile redirects/open-in-new-tab flows.
+      detectSessionInUrl: true,
     },
   });
 
