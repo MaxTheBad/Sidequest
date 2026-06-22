@@ -12,6 +12,7 @@ import { isImageLikeFile, prepareImageForUpload } from "@/lib/media-optimize";
 import { compressVideoForUpload } from "@/lib/video-optimize";
 import { collectQuestStorageUrls, removeStoragePublicUrls } from "@/lib/storage.js";
 import { APP_EVENT_NAMES, APP_NAME } from "@/lib/app-brand";
+import { AppIcon } from "@/components/app-icons";
 
 type Hobby = { id: string; name: string; category: string | null };
 type QuestMediaItem = {
@@ -1703,11 +1704,11 @@ export default function Home() {
     const rawLocation = sanitizeLocationLabel(quest.city) || sanitizeLocationLabel(deriveCityFromLocation(quest.exact_address || "")) || "city tbd";
     const parts = rawLocation.split(",").map((p) => p.trim()).filter(Boolean);
     const city = parts[0] || rawLocation;
-    return `📍 ${city}`;
+    return city;
   }
 
   function formatQuestCityState(quest: Quest) {
-    const raw = getQuestCityQuery(quest).replace(/^📍\s*/, "").trim();
+    const raw = getQuestCityQuery(quest).trim();
     return raw || "City tbd";
   }
 
@@ -2525,7 +2526,7 @@ export default function Home() {
         await cleanupQuestStorage(quest, []);
       } catch (cleanupErr) {
         console.warn("Quest storage cleanup failed after delete:", cleanupErr);
-        setStatus("Listing deleted 🗑️ (storage cleanup partial)");
+        setStatus("Listing deleted (storage cleanup partial)");
         await loadQuests();
         return;
       }
@@ -2534,7 +2535,7 @@ export default function Home() {
       setShowCreateModal(false);
       resetQuestForm();
     }
-    setStatus("Listing deleted 🗑️");
+    setStatus("Listing deleted");
     await loadQuests();
   }
 
@@ -2974,8 +2975,8 @@ export default function Home() {
                 </Link>
                 <div className="flex items-center gap-2">
                   <div className="flex flex-col leading-tight">
-                    <p className="text-sm font-semibold whitespace-nowrap text-white/90 drop-shadow sm:text-base">
-                      📍 {getQuestCityQuery(q)}
+                    <p className="flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap text-white/90 drop-shadow sm:text-base">
+                      <AppIcon name="location" className="h-4 w-4" /> {getQuestCityQuery(q)}
                     </p>
                     {distanceLabel ? (
                       <p className="pl-5 text-[11px] font-medium whitespace-nowrap text-white/80 drop-shadow sm:text-sm">
@@ -2986,9 +2987,10 @@ export default function Home() {
                   <div className="relative">
                     <button
                       className="border rounded px-2 py-1 text-xs"
+                      aria-label="Listing options"
                       onClick={() => setOpenCardMenuQuestId((v) => (v === q.id ? null : q.id))}
                     >
-                      ⋯
+                      <AppIcon name="more" className="h-5 w-5" />
                     </button>
                     {openCardMenuQuestId === q.id && (
                       <div className="absolute right-0 mt-1 w-36 rounded-xl border bg-white shadow-md z-20 overflow-hidden">
@@ -3187,7 +3189,7 @@ export default function Home() {
                         title={membershipStatusByQuest[q.id] === "pending" ? "Cancel request" : (membershipStatusByQuest[q.id] === "declined" ? "Request again" : (joinedQuestIds.includes(q.id) ? "Leave" : ((q.join_mode || "open") === "approval_required" ? "Request to join" : "Join")))}
                         onClick={() => void toggleJoinQuest(q.id)}
                       >
-                        <span className="inline-flex h-7 w-7 items-center justify-center text-xl leading-none">{membershipStatusByQuest[q.id] === "pending" ? "⌛" : (membershipStatusByQuest[q.id] === "declined" ? "↺" : (joinedQuestIds.includes(q.id) ? "−" : "+"))}</span>
+                        <AppIcon name={membershipStatusByQuest[q.id] === "pending" ? "clock" : (membershipStatusByQuest[q.id] === "declined" ? "refresh" : (joinedQuestIds.includes(q.id) ? "minus" : "plus"))} className="h-6 w-6" />
                       </button>
                     ) : null}
                     <button className="inline-flex h-9 w-auto shrink-0 items-center justify-center gap-1 rounded-full bg-transparent px-1.5 text-sm font-medium text-slate-900 transition hover:opacity-80" aria-label={`Comment ${commentCountByQuestId[q.id] || 0}`} title="Comment" onClick={() => {
@@ -3285,7 +3287,7 @@ export default function Home() {
                         title={membershipStatusByQuest[q.id] === "pending" ? "Cancel request" : (membershipStatusByQuest[q.id] === "declined" ? "Request again" : (joinedQuestIds.includes(q.id) ? "Leave" : ((q.join_mode || "open") === "approval_required" ? "Request to join" : "Join")))}
                         onClick={() => void toggleJoinQuest(q.id)}
                       >
-                        <span className="inline-flex h-8 w-8 items-center justify-center text-2xl leading-none">{membershipStatusByQuest[q.id] === "pending" ? "⌛" : (membershipStatusByQuest[q.id] === "declined" ? "↺" : (joinedQuestIds.includes(q.id) ? "−" : "+"))}</span>
+                        <AppIcon name={membershipStatusByQuest[q.id] === "pending" ? "clock" : (membershipStatusByQuest[q.id] === "declined" ? "refresh" : (joinedQuestIds.includes(q.id) ? "minus" : "plus"))} className="h-7 w-7" />
                       </button>
                     ) : null}
                     <button className="justify-self-center inline-flex h-10 w-10 items-center justify-center rounded-full bg-transparent text-sm font-medium text-black dark:text-white transition hover:opacity-80" aria-label="Comment" title="Comment" onClick={() => {
@@ -3510,7 +3512,7 @@ export default function Home() {
                   className={`flex-1 rounded-full px-3 py-2 text-center text-sm border ${index === onboardingStep ? "bg-black text-white border-black" : "bg-gray-50"}`}
                 >
                   <span className="inline-flex items-center justify-center gap-1.5">
-                    {done ? <span aria-hidden="true">✓</span> : null}
+                    {done ? <AppIcon name="check" className="h-4 w-4" /> : null}
                     <span>{label}</span>
                   </span>
                 </button>
@@ -4235,8 +4237,8 @@ export default function Home() {
                 onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
                 className="flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-gray-900 mt-2"
               >
-                <span>{showAdvancedSettings ? "▼" : "▶"}</span>
-                <span>⚙️ Advanced settings (optional)</span>
+                <AppIcon name="tune" className="h-4 w-4" />
+                <span>Advanced settings (optional)</span>
               </button>
 
               {showAdvancedSettings && (

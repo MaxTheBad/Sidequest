@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { readStoredUserLocation, writeStoredUserLocation } from "@/lib/location-distance";
 import { getSupabaseClient } from "@/lib/supabase";
 import { resolveCanonicalCategory } from "@/lib/category-suggestions.js";
+import { AppIcon } from "@/components/app-icons";
 
 type Listing = {
   id: string;
@@ -830,7 +831,7 @@ export default function ListingPage() {
                 {generatedVideoThumbs[`listing-video-${listing.id}`] ? null : (
                   <div className="absolute inset-0 flex items-center justify-center bg-black">
                     <div className="flex flex-col items-center gap-2 text-white/80">
-                      <div className="h-12 w-12 rounded-full border border-white/30 bg-white/10 flex items-center justify-center text-xl">▶</div>
+                      <div className="h-12 w-12 rounded-full border border-white/30 bg-white/10 flex items-center justify-center"><AppIcon name="play" className="h-6 w-6" /></div>
                       <span className="text-xs">Loading video preview</span>
                     </div>
                   </div>
@@ -938,8 +939,8 @@ export default function ListingPage() {
             <div className="rounded-xl border bg-gray-50 p-3">
               <p className="text-sm font-medium mb-2">Joined members ({visibleMembers.filter((m) => (m.status || "approved") === "approved").length})</p>
               {visibleMembers.some((m) => (m.status || "approved") === "approved" && (m.role === "creator" || m.role === "cohost")) && (
-                <div className="mb-2 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-800">
-                  ⭐ Hosts: {visibleMembers
+                <div className="mb-2 flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-800">
+                  <AppIcon name="star" className="h-3.5 w-3.5" /> Hosts: {visibleMembers
                     .filter((m) => (m.status || "approved") === "approved" && (m.role === "creator" || m.role === "cohost"))
                     .map((m) => (memberProfileOf(m)?.display_name || "Host").trim().split(/\s+/)[0] || "Host")
                     .join(", ")}
@@ -966,8 +967,8 @@ export default function ListingPage() {
                             <span className="text-[11px] text-gray-500 truncate">{memberDistanceByUserId[m.user_id]}</span>
                           ) : null}
                         </div>
-                        {m.role === "creator" && <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">⭐ Organizer</span>}
-                        {m.role === "cohost" && <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">⭐ Co-host</span>}
+                        {m.role === "creator" && <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800"><AppIcon name="star" className="h-3 w-3" /> Organizer</span>}
+                        {m.role === "cohost" && <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700"><AppIcon name="star" className="h-3 w-3" /> Co-host</span>}
                         {blockedUserIds.includes(m.user_id) && <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-100 text-red-700">Blocked</span>}
                         {isManager && m.role !== "creator" && (
                           <button

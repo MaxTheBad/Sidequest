@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase";
+import { AppIcon } from "@/components/app-icons";
 
 type QuestInfo = {
   id: string;
@@ -139,7 +140,7 @@ export default function JoinedPage() {
           <h2 className="font-semibold">Hosting ({hosting.length})</h2>
           {hosting.length === 0 ? <p className="text-sm text-gray-500">You’re not hosting any active listings.</p> : hosting.map((r) => (
             <Link key={`h-${r.quest_id}`} href={`/listing/${r.quest_id}`} className="block rounded-xl border bg-emerald-50 px-3 py-2">
-              <p className="font-medium">⭐ {r.quests?.title || "Untitled listing"}</p>
+              <p className="flex items-center gap-2 font-medium"><AppIcon name="star" className="h-4 w-4 text-amber-500" /> {r.quests?.title || "Untitled listing"}</p>
               <p className="text-xs text-gray-600">{r.role === "creator" ? "Organizer" : "Co-host"} · {r.quests?.city || locationSummary(r.quests?.exact_address) || "city tbd"} · {r.quests?.availability || "availability tbd"}</p>
             </Link>
           ))}
