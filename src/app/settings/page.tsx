@@ -398,6 +398,14 @@ export default function SettingsPage() {
     setBlockedRefreshTick((x) => x + 1);
   }
 
+  async function signOut() {
+    if (!supabase) return;
+    const ok = window.confirm("Sign out of QuestHat?");
+    if (!ok) return;
+    await supabase.auth.signOut();
+    window.location.href = "/";
+  }
+
   return (
     <main className="page-shell page-settings min-h-screen bg-transparent p-4">
       <datalist id="country-list">{COUNTRY_OPTIONS.map((c) => <option key={c.code} value={c.name} />)}</datalist>
@@ -645,6 +653,14 @@ export default function SettingsPage() {
                 <button className="border rounded px-3 py-2 w-fit">Save preferences</button>
               </form>
             )}
+
+            {userId ? (
+              <div className="pt-3 border-t">
+                <button type="button" className="rounded-full border border-red-300 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 transition hover:bg-red-100" onClick={() => void signOut()}>
+                  Sign out
+                </button>
+              </div>
+            ) : null}
           </>
         )}
       </section>

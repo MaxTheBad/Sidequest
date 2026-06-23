@@ -85,12 +85,6 @@ export default function GlobalTopBar() {
     return () => window.clearInterval(id);
   }, [supabase, userId]);
 
-  async function signOut() {
-    if (!supabase) return;
-    await supabase.auth.signOut();
-    if (typeof window !== "undefined") window.location.href = "/";
-  }
-
   function openLogin() {
     if (typeof window === "undefined") return;
     if (pathname === "/") {
@@ -128,11 +122,7 @@ export default function GlobalTopBar() {
         </Link>
         <div className="flex items-center gap-2">
           <button className="icon-control relative" aria-label="Notifications" onClick={() => navigate("/notifications")}><AppIcon name="bell" className="h-5 w-5" />{notificationCount > 0 && <span className="nav-badge">{notificationCount > 9 ? "9+" : notificationCount}</span>}</button>
-          {userId ? (
-            <button className="nav-control" onClick={() => void signOut()}>Sign out</button>
-          ) : (
-            <button className="nav-control" onClick={openLogin}>Log in</button>
-          )}
+          {!userId ? <button className="nav-control" onClick={openLogin}>Log in</button> : null}
         </div>
       </div>
       </header>
@@ -152,7 +142,7 @@ export default function GlobalTopBar() {
         </nav>
         <div className="rail-account">
           <div className="hidden min-w-0 xl:block"><p className="truncate text-sm font-bold">{userLabel ? userLabel.split("@")[0] : "Guest"}</p><p className="text-xs text-gray-500">{userId ? "Your account" : "Welcome"}</p></div>
-          {userId ? <button className="rail-sign" onClick={() => void signOut()}>Sign out</button> : <button className="rail-sign" onClick={openLogin}>Log in</button>}
+          {!userId ? <button className="rail-sign" onClick={openLogin}>Log in</button> : null}
         </div>
       </aside>
     </>
