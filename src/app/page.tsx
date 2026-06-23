@@ -2909,7 +2909,7 @@ export default function Home() {
         {!!pendingVerifyEmail && (
           <div className="text-sm rounded bg-emerald-50 border p-2">Email sent to <b>{pendingVerifyEmail}</b>. <button className="underline" disabled={resendCooldown > 0} onClick={() => void resendVerification()}>{resendCooldown > 0 ? `Resend in ${resendCooldown}s` : "Resend"}</button></div>
         )}
-        {authReady && !userId ? (
+        {authReady && !userId && !showOnboardingWizard ? (
           <section className="py-3 sm:py-6">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">Quest Hat</p>
             <h1 className="mt-2 max-w-3xl text-3xl font-bold tracking-tight sm:text-5xl">Find local people to do real plans with.</h1>
