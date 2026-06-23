@@ -382,6 +382,7 @@ export default function Home() {
   const [onboardingPhotoOffsetY, setOnboardingPhotoOffsetY] = useState(0);
   const [onboardingPhotoDragging, setOnboardingPhotoDragging] = useState(false);
   const [onboardingPhotoLastPointer, setOnboardingPhotoLastPointer] = useState<{ x: number; y: number } | null>(null);
+  const [authReady, setAuthReady] = useState(false);
 
   const [hobbies, setHobbies] = useState<Hobby[]>([]);
   const [quests, setQuests] = useState<Quest[]>([]);
@@ -700,6 +701,7 @@ export default function Home() {
       }
       const { data: hobbyData } = await supabase.from("hobbies").select("id,name,category").order("name");
       setHobbies(hobbyData || []);
+      setAuthReady(true);
     };
     void init();
 
@@ -720,12 +722,14 @@ export default function Home() {
         }
         void maybeShowPhotoOnboarding(session.user.id);
       }
+      setAuthReady(true);
     });
 
     const refresh = async () => {
       const { data } = await supabase.auth.getSession();
       setUserId(data.session?.user?.id ?? null);
       setUserEmail(data.session?.user?.email ?? "");
+      setAuthReady(true);
     };
     const onFocus = () => void refresh();
     const onVisible = () => document.visibilityState === "visible" && void refresh();
@@ -2905,7 +2909,7 @@ export default function Home() {
         {!!pendingVerifyEmail && (
           <div className="text-sm rounded bg-emerald-50 border p-2">Email sent to <b>{pendingVerifyEmail}</b>. <button className="underline" disabled={resendCooldown > 0} onClick={() => void resendVerification()}>{resendCooldown > 0 ? `Resend in ${resendCooldown}s` : "Resend"}</button></div>
         )}
-        {!userId ? (
+        {authReady && !userId ? (
           <section className="py-3 sm:py-6">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">Quest Hat</p>
             <h1 className="mt-2 max-w-3xl text-3xl font-bold tracking-tight sm:text-5xl">Find local people to do real plans with.</h1>
