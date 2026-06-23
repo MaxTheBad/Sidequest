@@ -3023,7 +3023,7 @@ export default function Home() {
               />
               <button
                 aria-pressed={feedViewMode === "list"}
-                className={`relative z-10 w-full rounded-full px-3.5 py-1.5 text-center text-xs font-medium transition ${feedViewMode === "list" ? "text-black dark:text-white" : "text-white/75 hover:text-white dark:text-white/65 dark:hover:text-white"}`}
+                className={`relative z-10 w-full rounded-full px-3.5 py-1.5 text-center text-xs font-medium transition ${feedViewMode === "list" ? "bg-[#0c5063] text-white shadow-sm" : "text-white/75 hover:text-white dark:text-white/65 dark:hover:text-white"}`}
                 onClick={() => setFeedViewMode("list")}
                 type="button"
               >
@@ -3031,7 +3031,7 @@ export default function Home() {
               </button>
               <button
                 aria-pressed={feedViewMode === "map"}
-                className={`relative z-10 w-full rounded-full px-3.5 py-1.5 text-center text-xs font-medium transition ${feedViewMode === "map" ? "text-black dark:text-white" : "text-white/75 hover:text-white dark:text-white/65 dark:hover:text-white"}`}
+                className={`relative z-10 w-full rounded-full px-3.5 py-1.5 text-center text-xs font-medium transition ${feedViewMode === "map" ? "bg-[#0c5063] text-white shadow-sm" : "text-white/75 hover:text-white dark:text-white/65 dark:hover:text-white"}`}
                 onClick={() => setFeedViewMode("map")}
                 type="button"
               >
