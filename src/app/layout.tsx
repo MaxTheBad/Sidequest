@@ -23,8 +23,11 @@ export const metadata: Metadata = {
   title: APP_NAME,
   description: "Find people to start or restart hobbies together.",
   icons: {
-    icon: "/favicon.ico",
-    shortcut: "/favicon.ico",
+    icon: [
+      { url: "/favicon-v2.ico" },
+      { url: "/favicon-v2.png" },
+    ],
+    shortcut: "/favicon-v2.ico",
     apple: "/apple-icon.png",
   },
 };
