@@ -12,7 +12,7 @@ export const CATEGORY_FALLBACK_MEDIA: Record<string, CategoryFallback> = {
     emoji: "🛠️",
     title: "Build mode",
     note: "Show the workspace, mockup, or build session.",
-    gradient: "linear-gradient(135deg,#dbeafe,#e0e7ff)",
+    gradient: "linear-gradient(135deg,#0c5063,#66a8b8)",
   },
   Learn: {
     imageUrl: "/category-fallbacks/learn.jpg",
@@ -26,7 +26,7 @@ export const CATEGORY_FALLBACK_MEDIA: Record<string, CategoryFallback> = {
     emoji: "💼",
     title: "Career mode",
     note: "Use a professional office or interview scene.",
-    gradient: "linear-gradient(135deg,#e0f2fe,#bae6fd)",
+    gradient: "linear-gradient(135deg,#66a8b8,#9bc8d2)",
   },
   "Healthy Lifestyle": {
     imageUrl: "/category-fallbacks/healthy-lifestyle.jpg",
@@ -96,7 +96,7 @@ export const CATEGORY_FALLBACK_MEDIA: Record<string, CategoryFallback> = {
     emoji: "🎧",
     title: "Music session",
     note: "Studio, mixer, headphones, or live setup.",
-    gradient: "linear-gradient(135deg,#dbeafe,#e9d5ff)",
+    gradient: "linear-gradient(135deg,#0c5063,#66a8b8)",
   },
   Fishing: {
     imageUrl: "/category-fallbacks/fishing.jpg",
@@ -110,14 +110,14 @@ export const CATEGORY_FALLBACK_MEDIA: Record<string, CategoryFallback> = {
     emoji: "🗓️",
     title: "Lifestyle reset",
     note: "Planner, routine, or tidy workspace is a good fit.",
-    gradient: "linear-gradient(135deg,#f1f5f9,#e2e8f0)",
+    gradient: "linear-gradient(135deg,#66a8b8,#cbe2e8)",
   },
   Wildcard: {
     imageUrl: "/category-fallbacks/wildcard.jpg",
     emoji: "🖼️",
     title: "",
     note: "",
-    gradient: "linear-gradient(135deg,#e2e8f0,#cbd5e1)",
+    gradient: "linear-gradient(135deg,#0c5063,#66a8b8)",
   },
 };
 

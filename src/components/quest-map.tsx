@@ -102,13 +102,13 @@ export default function QuestMap({
 
     const questIcon = leaflet.divIcon({
       className: "",
-      html: '<div style="width:36px;height:36px;border-radius:9999px;background:#176bff;border:3px solid #fff;box-shadow:0 8px 24px rgba(15,23,42,.2);display:grid;place-items:center"><div style="width:10px;height:10px;border:3px solid #fff;border-radius:999px;position:relative"></div></div>',
+      html: '<div style="width:36px;height:36px;border-radius:9999px;background:#0c5063;border:3px solid #fff;box-shadow:0 8px 24px rgba(15,23,42,.2);display:grid;place-items:center"><div style="width:10px;height:10px;border:3px solid #fff;border-radius:999px;position:relative"></div></div>',
       iconSize: [36, 36],
       iconAnchor: [18, 18],
     });
     const userIcon = leaflet.divIcon({
       className: "",
-      html: '<div style="width:34px;height:34px;border-radius:9999px;background:#2563eb;border:3px solid #fff;box-shadow:0 8px 24px rgba(15,23,42,.2);display:grid;place-items:center;color:#fff"><div style="width:12px;height:12px;border-radius:9999px;background:#fff"></div></div>',
+      html: '<div style="width:34px;height:34px;border-radius:9999px;background:#66a8b8;border:3px solid #fff;box-shadow:0 8px 24px rgba(15,23,42,.2);display:grid;place-items:center;color:#fff"><div style="width:12px;height:12px;border-radius:9999px;background:#fff"></div></div>',
       iconSize: [34, 34],
       iconAnchor: [17, 17],
     });
@@ -117,7 +117,7 @@ export default function QuestMap({
       const isActive = selectedQuestId === item.id;
       const activeIcon = leaflet.divIcon({
         className: "",
-        html: '<div style="width:42px;height:42px;border-radius:9999px;background:#00a98f;border:3px solid #fff;box-shadow:0 10px 28px rgba(15,23,42,.26);display:grid;place-items:center"><div style="width:11px;height:11px;border:3px solid #fff;border-radius:999px"></div></div>',
+        html: '<div style="width:42px;height:42px;border-radius:9999px;background:#66a8b8;border:3px solid #fff;box-shadow:0 10px 28px rgba(15,23,42,.26);display:grid;place-items:center"><div style="width:11px;height:11px;border:3px solid #fff;border-radius:999px"></div></div>',
         iconSize: [42, 42],
         iconAnchor: [21, 21],
       });
