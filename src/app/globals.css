@@ -655,7 +655,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   .rail-account { justify-content: space-between; padding-inline: 8px; }
 }
 
-.mobile-topbar, nav.nav-shell { background: color-mix(in srgb, var(--surface-elevated) 92%, transparent); }
+.mobile-topbar, nav.nav-shell { background: color-mix(in srgb, var(--surface-elevated) 96%, transparent); }
+.mobile-topbar.is-top { background: color-mix(in srgb, var(--surface-elevated) 100%, transparent); }
+.mobile-topbar.is-scrolled { background: color-mix(in srgb, var(--surface-elevated) 68%, transparent); }
 nav.nav-shell { border-color: var(--border) !important; box-shadow: 0 -8px 30px rgba(18,15,26,.07); }
 .nav-create { background: var(--accent-primary) !important; box-shadow: 0 8px 24px color-mix(in srgb, var(--accent-primary) 30%, transparent); }
 .nav-item-active { color: var(--accent-primary); background: transparent; }
@@ -888,8 +890,9 @@ button.border, a.border { min-height: 40px; border-radius: 999px; font-weight: 6
 }
 
 html[data-theme="dark"] .desktop-rail,
-html[data-theme="dark"] .mobile-topbar,
-html[data-theme="dark"] nav.nav-shell { background: rgba(15,14,19,.9); }
+html[data-theme="dark"] .mobile-topbar.is-top,
+html[data-theme="dark"] nav.nav-shell { background: rgba(15,14,19,.96); }
+html[data-theme="dark"] .mobile-topbar.is-scrolled { background: rgba(15,14,19,.68); }
 html[data-theme="dark"] img { color-scheme: dark; }
 
 /* ============================================

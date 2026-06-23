@@ -15,10 +15,20 @@ export default function GlobalTopBar() {
   const supabase = getSupabaseClient();
   const router = useRouter();
   const pathname = usePathname();
+  const [isScrolled, setIsScrolled] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [userLabel, setUserLabel] = useState("");
   const [userRole, setUserRole] = useState("user");
   const [notificationCount, setNotificationCount] = useState(0);
+
+  useEffect(() => {
+    const updateScrollState = () => {
+      setIsScrolled(window.scrollY > 8);
+    };
+    updateScrollState();
+    window.addEventListener("scroll", updateScrollState, { passive: true });
+    return () => window.removeEventListener("scroll", updateScrollState);
+  }, []);
 
   useEffect(() => {
     if (!supabase) return;
@@ -114,7 +124,7 @@ export default function GlobalTopBar() {
 
   return (
     <>
-      <header className="mobile-topbar fixed top-0 inset-x-0 z-50 border-b nav-shell md:hidden">
+      <header className={`mobile-topbar fixed top-0 inset-x-0 z-50 border-b nav-shell md:hidden ${isScrolled ? "is-scrolled" : "is-top"}`}>
       <div className="h-[60px] px-4 flex items-center justify-between gap-3">
         <Link href="/" className="nav-brand flex items-center gap-2 text-[15px] tracking-tight">
           <Image src="/questhat-logo.png" alt={APP_NAME} width={34} height={18} className="h-5 w-auto" priority />
