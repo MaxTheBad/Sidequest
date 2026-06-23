@@ -2906,9 +2906,12 @@ export default function Home() {
           <div className="text-sm rounded bg-emerald-50 border p-2">Email sent to <b>{pendingVerifyEmail}</b>. <button className="underline" disabled={resendCooldown > 0} onClick={() => void resendVerification()}>{resendCooldown > 0 ? `Resend in ${resendCooldown}s` : "Resend"}</button></div>
         )}
         <section className="py-3 sm:py-6">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">Real people. Real plans. Near you.</p>
-          <h1 className="mt-2 max-w-3xl text-3xl font-bold tracking-tight sm:text-5xl">Your next favorite thing starts here.</h1>
-          <p className="mt-3 max-w-xl text-sm text-gray-500 sm:text-base">Find a crew, try something new, and turn “we should” into “we did.”</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">Quest Hat</p>
+          <h1 className="mt-2 max-w-3xl text-3xl font-bold tracking-tight sm:text-5xl">Find local people to do real plans with.</h1>
+          <p className="mt-3 max-w-2xl text-sm text-gray-500 sm:text-base">
+            Quest Hat helps people discover nearby activities, start group quests, and meet others who want to do
+            the same thing instead of just talking about it.
+          </p>
         </section>
 
         <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)] xl:items-start">

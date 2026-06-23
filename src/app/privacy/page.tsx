@@ -46,7 +46,8 @@ export default function PrivacyPage() {
         <h2 className="font-semibold">Contact</h2>
         <p className="text-sm text-gray-700">
           If you have questions about privacy or data handling, contact the QuestHat team through the app or the
-          support channel you use for account help.
+          support channel you use for account help. You can also use the public data deletion instructions page linked
+          in the footer.
         </p>
 
         <p className="text-xs text-gray-500">Last updated: June 2026</p>

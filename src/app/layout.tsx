@@ -20,8 +20,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: APP_NAME,
-  description: "Find people to start or restart hobbies together.",
+  title: `${APP_NAME} | Find local people to do real plans with`,
+  description: "Quest Hat helps people discover nearby activities, start group quests, and meet others nearby.",
   icons: {
     icon: [
       { url: "/favicon-v3.ico" },
@@ -87,6 +87,9 @@ export default function RootLayout({
                 </Link>
                 <Link href="/privacy" className="hover:text-slate-800 underline-offset-4 hover:underline">
                   Privacy
+                </Link>
+                <Link href="/delete-account" className="hover:text-slate-800 underline-offset-4 hover:underline">
+                  Delete data
                 </Link>
               </div>
             </div>
