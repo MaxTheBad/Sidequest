@@ -24,10 +24,10 @@ export const metadata: Metadata = {
   description: "Find people to start or restart hobbies together.",
   icons: {
     icon: [
-      { url: "/favicon-v2.ico" },
-      { url: "/favicon-v2.png" },
+      { url: "/favicon-v3.ico" },
+      { url: "/favicon-v3.png" },
     ],
-    shortcut: "/favicon-v2.ico",
+    shortcut: "/favicon-v3.ico",
     apple: "/apple-icon.png",
   },
 };
