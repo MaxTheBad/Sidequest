@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase";
 import { formatReportReference } from "@/lib/reporting";
@@ -32,6 +32,7 @@ export const runtime = "edge";
 
 export default function ProfilePage() {
   const supabase = getSupabaseClient();
+  const router = useRouter();
   const params = useParams<{ id?: string | string[] }>();
   const profileId = Array.isArray(params?.id) ? params.id[0] : params?.id;
   const [viewerId, setViewerId] = useState<string | null>(null);
@@ -358,7 +359,7 @@ export default function ProfilePage() {
                     ) : (
                       <button className="border rounded px-3 py-2 text-red-700 border-red-300 bg-red-50" onClick={() => setShowBlockConfirm(true)}>Block</button>
                     )}
-                    <button className="border rounded px-3 py-2 text-red-700 border-red-300 bg-red-50" onClick={() => setShowReportModal(true)}>Report</button>
+                    <button className="border rounded px-3 py-2 text-red-700 border-red-300 bg-red-50" onClick={() => router.push(`/report/profile/${profileId}`)}>Report</button>
                   </>
                 )}
               </div>
@@ -446,28 +447,6 @@ export default function ProfilePage() {
           </>
         )}
       </div>
-
-      {showReportModal && !isOwnProfile && (
-        <div className="fixed inset-0 z-[130] bg-black/55 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white border p-4 space-y-3 shadow-2xl">
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold">Report profile</h3>
-              <button className="border rounded px-2 py-1" onClick={() => setShowReportModal(false)}>Close</button>
-            </div>
-            <select className="border rounded px-3 py-2" value={reportReason} onChange={(e) => setReportReason(e.target.value)}>
-              <option value="inappropriate_profile">Inappropriate profile</option>
-              <option value="fake_identity">Fake identity</option>
-              <option value="impersonation">Impersonation</option>
-              <option value="other">Other</option>
-            </select>
-            <textarea className="border rounded px-3 py-2" placeholder="Details (optional)" value={reportDetails} onChange={(e) => setReportDetails(e.target.value)} />
-            <div className="flex justify-end gap-2">
-              <button className="border rounded px-3 py-2" onClick={() => setShowReportModal(false)}>Cancel</button>
-              <button className="bg-black text-white rounded px-3 py-2 disabled:opacity-50" disabled={submittingReport} onClick={() => void submitProfileReport()}>{submittingReport ? "Submitting..." : "Submit report"}</button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {showBlockConfirm && !isOwnProfile && (
         <div className="fixed inset-0 z-[130] bg-black/55 backdrop-blur-sm flex items-center justify-center p-4">

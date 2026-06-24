@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, PointerEvent, UIEvent, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import CityAutocompleteInput from "@/components/city-autocomplete-input";
 import QuestMap from "@/components/quest-map";
 import { getSupabaseClient } from "@/lib/supabase";
@@ -306,6 +307,7 @@ const REPORT_REASONS: Record<"listing_content" | "chat_behavior" | "profile_acco
 
 export default function Home() {
   const supabase = getSupabaseClient();
+  const router = useRouter();
   const redirectTo =
     typeof window !== "undefined"
       ? `${process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") || window.location.origin}/auth/callback`
@@ -2484,11 +2486,7 @@ export default function Home() {
       setStatus("Log in to submit reports.");
       return;
     }
-    setReportTarget(quest);
-    setReportContext("listing_content");
-    setReportReason(REPORT_REASONS.listing_content[0].code);
-    setReportDetails("");
-    setShowReportModal(true);
+    router.push(`/report/listing/${quest.id}?reported_user_id=${encodeURIComponent(quest.creator_id || "")}`);
   }
 
   async function submitReport() {
