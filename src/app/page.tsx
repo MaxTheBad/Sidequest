@@ -668,6 +668,7 @@ export default function Home() {
       if (data.session?.user) {
         const md = (data.session.user.user_metadata || {}) as Record<string, unknown>;
         await ensureProfileRow(data.session.user.id, data.session.user.email, md);
+        await sendWelcomeEmail(data.session.access_token);
         await maybeShowOnboarding(data.session.user.id, data.session.user.email);
         await maybeShowPhotoOnboarding(data.session.user.id);
       }
@@ -712,6 +713,7 @@ export default function Home() {
       setViewerName((typeof md.full_name === "string" && md.full_name) || (typeof md.name === "string" && md.name) || "");
       if (session?.user) {
         void ensureProfileRow(session.user.id, session.user.email, md);
+        void sendWelcomeEmail(session.access_token);
         setShowAuthModal(false);
         if (typeof window !== "undefined" && sessionStorage.getItem("gathergo_open_create") === "1") {
           sessionStorage.removeItem("gathergo_open_create");
@@ -979,6 +981,24 @@ export default function Home() {
     if (error) {
       setStatus(`OAuth failed: ${error.message}`);
       window.alert(`OAuth failed: ${error.message}`);
+    }
+  }
+
+  async function sendWelcomeEmail(accessToken?: string | null) {
+    if (!supabase || !accessToken) return;
+    try {
+      const response = await fetch("/api/welcome-email", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+      if (!response.ok) {
+        const body = await response.text().catch(() => "");
+        console.warn("Welcome email failed", response.status, body);
+      }
+    } catch {
+      // Best effort only.
     }
   }
 
