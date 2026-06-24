@@ -3784,23 +3784,23 @@ export default function Home() {
               </div>
             )}
 
-            <div className="sticky bottom-0 -mx-5 px-5 pt-3 pb-1 bg-white/95 backdrop-blur flex items-center justify-between gap-3 border-t">
+            <div className="sticky bottom-0 -mx-5 px-5 pt-3 pb-1 backdrop-blur flex items-center justify-between gap-3 border-t border-[var(--border)] bg-[color:var(--surface-elevated)]/95 dark:bg-[color:var(--surface-elevated)]/95">
               <button
                 type="button"
-                className="border rounded-full px-4 py-2"
+                className="rounded-full px-4 py-2 border border-[var(--border)] bg-[color:var(--surface)] text-[color:var(--foreground)] shadow-sm dark:border-white/10 dark:bg-white/5 dark:text-white"
                 onClick={() => setOnboardingStep((s) => Math.max(0, s - 1))}
                 disabled={onboardingStep === 0 || onboardingSaving}
               >
                 Back
               </button>
               <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-500">
+                <span className="text-xs text-gray-500 dark:text-gray-400">
                   Step {onboardingStep + 1} of 4
                 </span>
                 {onboardingStep < 3 ? (
                   <button
                     type="button"
-                    className="bg-black text-white rounded-full px-4 py-2"
+                    className="rounded-full px-4 py-2 bg-[color:var(--accent-secondary)] text-white shadow-md shadow-black/10 dark:bg-[#6daec2] dark:text-white"
                     onClick={() => setOnboardingStep((s) => Math.min(3, s + 1))}
                   >
                     Next
@@ -3808,7 +3808,7 @@ export default function Home() {
                 ) : (
                   <button
                     type="button"
-                    className="bg-black text-white rounded-full px-4 py-2 disabled:opacity-50"
+                    className="rounded-full px-4 py-2 bg-[color:var(--accent-secondary)] text-white shadow-md shadow-black/10 disabled:opacity-50 dark:bg-[#6daec2] dark:text-white"
                     disabled={onboardingSaving}
                     onClick={() => void saveOnboarding()}
                   >
@@ -3823,40 +3823,79 @@ export default function Home() {
 
       {showAuthModal && (
         <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center p-4">
-          <div className="w-full max-w-lg rounded-2xl bg-white border p-4 space-y-3">
-            <div className="flex justify-between items-center"><h3 className="font-semibold">Welcome back</h3><button onClick={() => setShowAuthModal(false)} className="border rounded px-2 py-1">Close</button></div>
-            <div className="flex gap-2">
-              <button className={`px-3 py-2 rounded ${authMode === "signup" ? "bg-black text-white" : "border"}`} onClick={() => setAuthMode("signup")}>Sign up</button>
-              <button className={`px-3 py-2 rounded ${authMode === "login" ? "bg-black text-white" : "border"}`} onClick={() => setAuthMode("login")}>Log in</button>
+          <div className="w-full max-w-lg rounded-2xl bg-[color:var(--surface-elevated)] border border-[var(--border)] p-5 space-y-4 shadow-2xl">
+            <div className="flex justify-between items-start gap-3">
+              <div className="space-y-1">
+                <h3 className="font-semibold text-lg">{authMode === "signup" ? "Create your account" : "Welcome back"}</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  {authMode === "signup"
+                    ? "Make a profile and start joining real plans."
+                    : "Pick up where you left off and get back in."}
+                </p>
+              </div>
+              <button onClick={() => setShowAuthModal(false)} className="rounded-full border border-[var(--border)] px-3 py-1.5 text-sm">
+                Close
+              </button>
             </div>
-            {status && <div className="text-sm rounded border bg-amber-100 text-amber-950 border-amber-300 px-3 py-2">{status}</div>}
 
-            <form onSubmit={authMode === "signup" ? signUpWithPassword : signInWithPassword} className="grid gap-2">
+            <div className="grid grid-cols-2 gap-2 rounded-full bg-[color:var(--muted)] p-1">
+              <button
+                type="button"
+                className={`rounded-full px-3 py-2 text-sm font-semibold transition ${authMode === "signup" ? "bg-[color:var(--accent-secondary)] text-white shadow-md" : "text-[color:var(--foreground)]/80"}`}
+                onClick={() => setAuthMode("signup")}
+              >
+                Sign up
+              </button>
+              <button
+                type="button"
+                className={`rounded-full px-3 py-2 text-sm font-semibold transition ${authMode === "login" ? "bg-[color:var(--accent-secondary)] text-white shadow-md" : "text-[color:var(--foreground)]/80"}`}
+                onClick={() => setAuthMode("login")}
+              >
+                Log in
+              </button>
+            </div>
+
+            <div className="flex items-center justify-between gap-3 text-sm">
+              <span className="text-gray-600 dark:text-gray-400">
+                {authMode === "signup" ? "Already have an account?" : "New here?"}
+              </span>
+              <button
+                type="button"
+                className="rounded-full border border-[var(--border)] px-3 py-1.5 font-medium text-[color:var(--accent-primary)]"
+                onClick={() => setAuthMode(authMode === "signup" ? "login" : "signup")}
+              >
+                {authMode === "signup" ? "Log in" : "Create account"}
+              </button>
+            </div>
+
+            {status && <div className="text-sm rounded-xl border border-amber-300 bg-amber-100/90 text-amber-950 px-3 py-2">{status}</div>}
+
+            <form onSubmit={authMode === "signup" ? signUpWithPassword : signInWithPassword} className="grid gap-2" autoComplete="on">
               <label className="text-xs font-medium text-gray-600">Email</label>
-              <input className="border rounded px-3 py-2" placeholder="you@email.com" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+              <input className="border rounded-xl px-3 py-3" placeholder="you@email.com" type="email" name="email" autoComplete="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
               {authMode === "signup" && (
                 <>
                   <label className="text-xs font-medium text-gray-600">Full name</label>
-                  <input className="border rounded px-3 py-2" placeholder="Your name" value={fullName} onChange={(e) => setFullName(e.target.value)} required />
+                  <input className="border rounded-xl px-3 py-3" placeholder="Your name" name="name" autoComplete="name" value={fullName} onChange={(e) => setFullName(e.target.value)} required />
                   <label className="text-sm font-medium">Date of birth (DOB)</label>
-                  <input className="border rounded px-3 py-2" type="date" value={dob} onChange={(e) => setDob(e.target.value)} required />
+                  <input className="border rounded-xl px-3 py-3" type="date" name="bday" autoComplete="bday" value={dob} onChange={(e) => setDob(e.target.value)} required />
                   <p className="text-xs text-gray-500">Use your birthday (MM/DD/YYYY).</p>
                 </>
               )}
               <label className="text-xs font-medium text-gray-600">Password</label>
               <div className="flex gap-2">
-                <input className="border rounded px-3 py-2 flex-1" placeholder="Password" type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} required />
-                <button type="button" className="border rounded px-3" onClick={() => setShowPassword((s) => !s)}>{showPassword ? "Hide" : "Show"}</button>
+                <input className="border rounded-xl px-3 py-3 flex-1" placeholder="Password" type={showPassword ? "text" : "password"} name={authMode === "signup" ? "new-password" : "current-password"} autoComplete={authMode === "signup" ? "new-password" : "current-password"} autoCapitalize="none" autoCorrect="off" spellCheck={false} value={password} onChange={(e) => setPassword(e.target.value)} required />
+                <button type="button" className="rounded-xl border border-[var(--border)] px-3" onClick={() => setShowPassword((s) => !s)}>{showPassword ? "Hide" : "Show"}</button>
               </div>
 
               {authMode === "signup" && (
                 <>
                   <label className="text-xs font-medium text-gray-600">Confirm password</label>
                   <div className="flex gap-2">
-                    <input className="border rounded px-3 py-2 flex-1" placeholder="Confirm password" type={showConfirmPassword ? "text" : "password"} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required />
-                    <button type="button" className="border rounded px-3" onClick={() => setShowConfirmPassword((s) => !s)}>{showConfirmPassword ? "Hide" : "Show"}</button>
+                    <input className="border rounded-xl px-3 py-3 flex-1" placeholder="Confirm password" type={showConfirmPassword ? "text" : "password"} name="confirm-password" autoComplete="new-password" autoCapitalize="none" autoCorrect="off" spellCheck={false} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required />
+                    <button type="button" className="rounded-xl border border-[var(--border)] px-3" onClick={() => setShowConfirmPassword((s) => !s)}>{showConfirmPassword ? "Hide" : "Show"}</button>
                   </div>
-                  <div className="text-xs rounded border p-2 bg-gray-50">
+                  <div className="text-xs rounded-xl border border-[var(--border)] p-3 bg-[color:var(--muted)]">
                     <p>{passwordChecks.minLength ? "✅" : "⬜"} 8+ characters</p>
                     <p>{passwordChecks.uppercase ? "✅" : "⬜"} uppercase</p>
                     <p>{passwordChecks.lowercase ? "✅" : "⬜"} lowercase</p>
@@ -3869,31 +3908,33 @@ export default function Home() {
                 </>
               )}
 
-              <button className="bg-black text-white rounded px-3 py-2">{authMode === "signup" ? "Create account" : "Log in"}</button>
+              <button className="rounded-xl bg-[color:var(--accent-secondary)] py-3 font-semibold text-white shadow-md shadow-black/10">{authMode === "signup" ? "Create account" : "Log in"}</button>
             </form>
 
-            <div className="pt-2 space-y-2">
-              <div className="flex flex-wrap gap-3">
-                <button
-                  className="group inline-flex min-h-11 items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(0,0,0,0.14)] transition hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/10 hover:shadow-[0_14px_30px_rgba(0,0,0,0.18)] active:translate-y-0 active:shadow-[0_8px_18px_rgba(0,0,0,0.12)]"
-                  onClick={() => void socialLogin("apple")}
-                >
+            <div className="pt-2 space-y-3">
+              <div className="grid gap-3 sm:grid-cols-3">
+                <button type="button" className="group inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-[var(--border)] bg-[color:var(--surface)] px-4 py-2.5 text-sm font-semibold text-[color:var(--foreground)] shadow-sm transition hover:-translate-y-0.5 hover:border-[var(--border-strong)] hover:bg-[color:var(--muted)] active:translate-y-0" onClick={() => void socialLogin("apple")}>
                   <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 opacity-90 transition group-hover:opacity-100" aria-hidden="true" fill="currentColor">
                     <path d="M16.7 13.1c0-1.9 1-3.5 2.6-4.6-1-1.4-2.6-2.3-4.1-2.4-1.7-.2-3.2 1-4 .9-.9-.1-2.3-.9-3.8-.9-2 .1-3.8 1.1-4.8 2.7-2 3.3-.5 8.2 1.4 10.9 1 1.3 2.1 2.8 3.7 2.7 1.5-.1 2.1-1 4-1s2.5 1 4.1 1c1.6 0 2.6-1.3 3.6-2.7.8-1.2 1.2-2.4 1.2-2.5-.1 0-2.9-1.1-2.9-4.1ZM14.9 5.7c.8-1 1.3-2.3 1.1-3.6-1.2.1-2.6.8-3.4 1.8-.8.9-1.4 2.2-1.2 3.5 1.3.1 2.7-.7 3.5-1.7Z" />
                   </svg>
                   <span>Apple</span>
                 </button>
-                <button className="group inline-flex min-h-11 items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(0,0,0,0.14)] transition hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/10 hover:shadow-[0_14px_30px_rgba(0,0,0,0.18)] active:translate-y-0 active:shadow-[0_8px_18px_rgba(0,0,0,0.12)]" onClick={() => void socialLogin("google")}><img src="/google-g.svg" alt="Google" className="h-4 w-4 shrink-0"/><span>Google</span></button>
-                <button className="group inline-flex min-h-11 items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(0,0,0,0.14)] transition hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/10 hover:shadow-[0_14px_30px_rgba(0,0,0,0.18)] active:translate-y-0 active:shadow-[0_8px_18px_rgba(0,0,0,0.12)]" onClick={() => void socialLogin("facebook")}><img src="/facebook-f.svg" alt="Facebook" className="h-4 w-4 shrink-0"/><span>Facebook</span></button>
+                <button type="button" className="group inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-[var(--border)] bg-[color:var(--surface)] px-4 py-2.5 text-sm font-semibold text-[color:var(--foreground)] shadow-sm transition hover:-translate-y-0.5 hover:border-[var(--border-strong)] hover:bg-[color:var(--muted)] active:translate-y-0" onClick={() => void socialLogin("google")}>
+                  <img src="/google-g.svg" alt="Google" className="h-4 w-4 shrink-0" />
+                  <span>Google</span>
+                </button>
+                <button type="button" className="group inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-[var(--border)] bg-[color:var(--surface)] px-4 py-2.5 text-sm font-semibold text-[color:var(--foreground)] shadow-sm transition hover:-translate-y-0.5 hover:border-[var(--border-strong)] hover:bg-[color:var(--muted)] active:translate-y-0" onClick={() => void socialLogin("facebook")}>
+                  <img src="/facebook-f.svg" alt="Facebook" className="h-4 w-4 shrink-0" />
+                  <span>Facebook</span>
+                </button>
               </div>
-              {authMode === "login" && <button type="button" className="text-sm underline" onClick={() => setShowTroubleModal(true)}>Trouble signing in?</button>}
+              {authMode === "login" && <button type="button" className="text-sm font-medium underline underline-offset-2" onClick={() => setShowTroubleModal(true)}>Trouble signing in?</button>}
             </div>
 
-            {!!pendingVerifyEmail && <div className="text-sm rounded bg-emerald-50 border p-2">Sent to <b>{pendingVerifyEmail}</b>. <button className="underline" disabled={resendCooldown > 0} onClick={() => void resendVerification()}>{resendCooldown > 0 ? `Resend in ${resendCooldown}s` : "Resend"}</button></div>}
+            {!!pendingVerifyEmail && <div className="text-sm rounded-xl border border-emerald-300 bg-emerald-50 p-3">Sent to <b>{pendingVerifyEmail}</b>. <button className="underline" disabled={resendCooldown > 0} onClick={() => void resendVerification()}>{resendCooldown > 0 ? `Resend in ${resendCooldown}s` : "Resend"}</button></div>}
           </div>
         </div>
       )}
-
       {showTroubleModal && (
         <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center p-4">
           <div className="w-full max-w-md rounded-2xl bg-white border p-4 space-y-3">
