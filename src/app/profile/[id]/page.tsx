@@ -279,7 +279,6 @@ export default function ProfilePage() {
       return;
     }
 
-    setShowReportModal(false);
     setReportDetails("");
     setReportFeedback(`Profile report submitted. Reference ${formatReportReference(reportId)}.`);
   }
