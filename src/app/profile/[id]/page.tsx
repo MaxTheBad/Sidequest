@@ -258,6 +258,8 @@ export default function ProfilePage() {
       auto_flags: {
         reporter_name: viewerId,
         reported_user_name: profile?.display_name || profileId,
+        report_target_key: `profile:${profileId}`,
+        report_target_label: profile?.display_name || profileId,
       },
     });
     setSubmittingReport(false);
@@ -265,6 +267,18 @@ export default function ProfilePage() {
       setReportFeedback(error.message || "We couldn't submit that report right now. Please try again in a moment.");
       return;
     }
+
+    const notify = await fetch("/api/report-alert", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ report_id: reportId }),
+    });
+    if (!notify.ok) {
+      const body = await notify.text().catch(() => "");
+      setReportFeedback(body || "Report saved, but email alert failed.");
+      return;
+    }
+
     setShowReportModal(false);
     setReportDetails("");
     setReportFeedback(`Profile report submitted. Reference ${formatReportReference(reportId)}.`);

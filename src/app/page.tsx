@@ -2521,6 +2521,8 @@ export default function Home() {
         reporter_name: userEmail.split("@")[0] || null,
         listing_title: reportTarget.title || null,
         host_name: Array.isArray(reportTarget.profiles) ? reportTarget.profiles[0]?.display_name || reportTarget.creator_id || null : reportTarget.profiles?.display_name || reportTarget.creator_id || null,
+        report_target_key: `listing:${reportTarget.id}`,
+        report_target_label: reportTarget.title || null,
       },
     };
 
@@ -2528,6 +2530,17 @@ export default function Home() {
     setSubmittingReport(false);
     if (error) {
       setReportFeedback(error.message || "We couldn't submit that report right now. Please try again in a moment.");
+      return;
+    }
+
+    const notify = await fetch("/api/report-alert", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ report_id: reportId }),
+    });
+    if (!notify.ok) {
+      const body = await notify.text().catch(() => "");
+      setReportFeedback(body || "Report saved, but email alert failed.");
       return;
     }
 

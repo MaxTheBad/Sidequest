@@ -86,6 +86,12 @@ alter table public.moderation_email_queue
 
 alter table public.moderation_email_queue enable row level security;
 
+drop policy if exists moderation_email_queue_insert_authenticated on public.moderation_email_queue;
+create policy moderation_email_queue_insert_authenticated
+on public.moderation_email_queue for insert
+to authenticated
+with check (true);
+
 drop policy if exists moderation_email_queue_select_moderators on public.moderation_email_queue;
 create policy moderation_email_queue_select_moderators
 on public.moderation_email_queue for select

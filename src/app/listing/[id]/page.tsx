@@ -543,11 +543,24 @@ export default function ListingPage() {
         reporter_name: userId,
         listing_title: listing.title || null,
         host_name: getListingHostName(),
+        report_target_key: `user:${reportTargetUserId}`,
+        report_target_label: reportTargetUserId,
       },
     });
     setSubmittingReport(false);
     if (error) {
       setReportFeedback(error.message || "We couldn't submit that report right now. Please try again in a moment.");
+      return;
+    }
+
+    const notify = await fetch("/api/report-alert", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ report_id: reportId }),
+    });
+    if (!notify.ok) {
+      const body = await notify.text().catch(() => "");
+      setReportFeedback(body || "Report saved, but email alert failed.");
       return;
     }
 
