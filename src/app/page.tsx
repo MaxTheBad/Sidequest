@@ -3853,15 +3853,18 @@ export default function Home() {
             </form>
 
             <div className="pt-2 space-y-2">
-              <div className="flex gap-2">
-                <button className="border rounded px-3 py-2 flex items-center gap-2" onClick={() => void socialLogin("apple")}>
-                  <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true" fill="currentColor">
+              <div className="flex flex-wrap gap-3">
+                <button
+                  className="group inline-flex min-h-11 items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(0,0,0,0.14)] transition hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/10 hover:shadow-[0_14px_30px_rgba(0,0,0,0.18)] active:translate-y-0 active:shadow-[0_8px_18px_rgba(0,0,0,0.12)]"
+                  onClick={() => void socialLogin("apple")}
+                >
+                  <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 opacity-90 transition group-hover:opacity-100" aria-hidden="true" fill="currentColor">
                     <path d="M16.7 13.1c0-1.9 1-3.5 2.6-4.6-1-1.4-2.6-2.3-4.1-2.4-1.7-.2-3.2 1-4 .9-.9-.1-2.3-.9-3.8-.9-2 .1-3.8 1.1-4.8 2.7-2 3.3-.5 8.2 1.4 10.9 1 1.3 2.1 2.8 3.7 2.7 1.5-.1 2.1-1 4-1s2.5 1 4.1 1c1.6 0 2.6-1.3 3.6-2.7.8-1.2 1.2-2.4 1.2-2.5-.1 0-2.9-1.1-2.9-4.1ZM14.9 5.7c.8-1 1.3-2.3 1.1-3.6-1.2.1-2.6.8-3.4 1.8-.8.9-1.4 2.2-1.2 3.5 1.3.1 2.7-.7 3.5-1.7Z" />
                   </svg>
                   <span>Apple</span>
                 </button>
-                <button className="border rounded px-3 py-2 flex items-center gap-2" onClick={() => void socialLogin("google")}><img src="/google-g.svg" alt="Google" className="h-4 w-4"/><span>Google</span></button>
-                <button className="border rounded px-3 py-2 flex items-center gap-2" onClick={() => void socialLogin("facebook")}><img src="/facebook-f.svg" alt="Facebook" className="h-4 w-4"/><span>Facebook</span></button>
+                <button className="group inline-flex min-h-11 items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(0,0,0,0.14)] transition hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/10 hover:shadow-[0_14px_30px_rgba(0,0,0,0.18)] active:translate-y-0 active:shadow-[0_8px_18px_rgba(0,0,0,0.12)]" onClick={() => void socialLogin("google")}><img src="/google-g.svg" alt="Google" className="h-4 w-4 shrink-0"/><span>Google</span></button>
+                <button className="group inline-flex min-h-11 items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(0,0,0,0.14)] transition hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/10 hover:shadow-[0_14px_30px_rgba(0,0,0,0.18)] active:translate-y-0 active:shadow-[0_8px_18px_rgba(0,0,0,0.12)]" onClick={() => void socialLogin("facebook")}><img src="/facebook-f.svg" alt="Facebook" className="h-4 w-4 shrink-0"/><span>Facebook</span></button>
               </div>
               {authMode === "login" && <button type="button" className="text-sm underline" onClick={() => setShowTroubleModal(true)}>Trouble signing in?</button>}
             </div>
