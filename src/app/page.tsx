@@ -4001,7 +4001,13 @@ export default function Home() {
                 </>
               )}
 
-              {authMode === "signup" ? <TurnstileInvisible onToken={setAuthTurnstileToken} /> : null}
+              <TurnstileInvisible onToken={setAuthTurnstileToken} />
+
+              {authMode === "login" ? (
+                <p className="text-xs text-gray-500">
+                  Sign-up verification will be ready when you switch modes.
+                </p>
+              ) : null}
 
               <button className="rounded-xl bg-[color:var(--accent-secondary)] py-3 font-semibold text-white shadow-md shadow-black/10">{authMode === "signup" ? "Create account" : "Log in"}</button>
             </form>
