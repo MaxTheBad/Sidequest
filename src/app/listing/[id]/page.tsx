@@ -530,7 +530,9 @@ export default function ListingPage() {
     }
 
     setSubmittingReport(true);
-    const { data, error } = await supabase.from("reports").insert({
+    const reportId = crypto.randomUUID();
+    const { error } = await supabase.from("reports").insert({
+      id: reportId,
       reporter_id: userId,
       reported_user_id: reportTargetUserId,
       quest_id: listing.id,
@@ -542,14 +544,14 @@ export default function ListingPage() {
         listing_title: listing.title || null,
         host_name: getListingHostName(),
       },
-    }).select("id").single();
+    });
     setSubmittingReport(false);
     if (error) {
       setReportFeedback("We couldn't submit that report right now. Please try again in a moment.");
       return;
     }
 
-    setReportFeedback(`Report submitted. Reference ${formatReportReference(data?.id || null)}.`);
+    setReportFeedback(`Report submitted. Reference ${formatReportReference(reportId)}.`);
   }
 
   async function setMemberRole(targetUserId: string, nextRole: "member" | "cohost") {

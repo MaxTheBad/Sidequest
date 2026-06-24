@@ -2508,7 +2508,9 @@ export default function Home() {
     }
 
     setSubmittingReport(true);
+    const reportId = crypto.randomUUID();
     const payload = {
+      id: reportId,
       reporter_id: userId,
       reported_user_id: reportTarget.creator_id || null,
       quest_id: reportTarget.id,
@@ -2522,14 +2524,14 @@ export default function Home() {
       },
     };
 
-    const { data, error } = await supabase.from("reports").insert(payload).select("id").single();
+    const { error } = await supabase.from("reports").insert(payload);
     setSubmittingReport(false);
     if (error) {
       setReportFeedback("We couldn't submit that report right now. Please try again in a moment.");
       return;
     }
 
-    setReportFeedback(`Report submitted. Reference ${formatReportReference(data?.id || null)}.`);
+    setReportFeedback(`Report submitted. Reference ${formatReportReference(reportId)}.`);
   }
 
   async function sendQuestionFromModal() {

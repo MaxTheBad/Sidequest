@@ -247,7 +247,9 @@ export default function ProfilePage() {
   async function submitProfileReport() {
     if (!supabase || !viewerId || !profileId || viewerId === profileId) return;
     setSubmittingReport(true);
-    const { data, error } = await supabase.from("reports").insert({
+    const reportId = crypto.randomUUID();
+    const { error } = await supabase.from("reports").insert({
+      id: reportId,
       reporter_id: viewerId,
       reported_user_id: profileId,
       context_type: "profile_account",
@@ -257,7 +259,7 @@ export default function ProfilePage() {
         reporter_name: viewerId,
         reported_user_name: profile?.display_name || profileId,
       },
-    }).select("id").single();
+    });
     setSubmittingReport(false);
     if (error) {
       setReportFeedback("We couldn't submit that report right now. Please try again in a moment.");
@@ -265,7 +267,7 @@ export default function ProfilePage() {
     }
     setShowReportModal(false);
     setReportDetails("");
-    setReportFeedback(`Profile report submitted. Reference ${formatReportReference(data?.id || null)}.`);
+    setReportFeedback(`Profile report submitted. Reference ${formatReportReference(reportId)}.`);
   }
 
   async function removeFriend(targetId: string) {
