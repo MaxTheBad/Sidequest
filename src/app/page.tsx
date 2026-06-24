@@ -3856,16 +3856,23 @@ export default function Home() {
             </div>
 
             <div className="flex items-center justify-between gap-3 text-sm">
-              <span className="text-gray-600 dark:text-gray-400">
-                {authMode === "signup" ? "Already have an account?" : "New here?"}
-              </span>
-              <button
-                type="button"
-                className="rounded-full border border-[var(--border)] px-3 py-1.5 font-medium text-[color:var(--accent-primary)]"
-                onClick={() => setAuthMode(authMode === "signup" ? "login" : "signup")}
-              >
-                {authMode === "signup" ? "Log in" : "Create account"}
-              </button>
+              {authMode === "signup" ? (
+                <button
+                  type="button"
+                  className="text-gray-600 dark:text-gray-400 underline underline-offset-2"
+                  onClick={() => setAuthMode("login")}
+                >
+                  Already have an account?
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="text-gray-600 dark:text-gray-400 underline underline-offset-2"
+                  onClick={() => setAuthMode("signup")}
+                >
+                  New here?
+                </button>
+              )}
             </div>
 
             {status && <div className="text-sm rounded-xl border border-amber-300 bg-amber-100/90 text-amber-950 px-3 py-2">{status}</div>}
