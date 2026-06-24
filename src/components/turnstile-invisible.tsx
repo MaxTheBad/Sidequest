@@ -1,7 +1,7 @@
 "use client";
 
 import Script from "next/script";
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 declare global {
   interface Window {
@@ -34,14 +34,16 @@ export function TurnstileInvisible({ onToken, onReady, onError, onExpired, class
   const id = useId();
   const widgetRef = useRef<HTMLDivElement | null>(null);
   const widgetIdRef = useRef<string | null>(null);
+  const [scriptLoaded, setScriptLoaded] = useState(false);
   const sitekey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
 
   useEffect(() => {
-    if (!sitekey || !widgetRef.current || !window.turnstile || widgetIdRef.current) return;
+    if (!scriptLoaded || !sitekey || !widgetRef.current || !window.turnstile || widgetIdRef.current) return;
     const widgetId = window.turnstile.render(widgetRef.current, {
       sitekey,
       execution: "render",
-      appearance: "always",
+      appearance: "interaction-only",
+      size: "normal",
       callback: (token) => onToken(token),
       "error-callback": onError,
       "expired-callback": onExpired,
@@ -49,7 +51,7 @@ export function TurnstileInvisible({ onToken, onReady, onError, onExpired, class
     });
     widgetIdRef.current = widgetId;
     onReady?.();
-  }, [onError, onExpired, onReady, onToken, sitekey]);
+  }, [onError, onExpired, onReady, onToken, scriptLoaded, sitekey]);
 
   useEffect(() => {
     if (!sitekey) {
@@ -64,10 +66,24 @@ export function TurnstileInvisible({ onToken, onReady, onError, onExpired, class
   }, [onToken]);
 
   return (
-    <div className={className}>
-      <Script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" strategy="afterInteractive" />
-      <div ref={widgetRef} id={id} className="min-h-0 min-w-0 overflow-hidden" />
-      {!sitekey ? <p className="text-xs text-red-600">Turnstile site key is missing.</p> : null}
+    <div className={className ? `${className} grid gap-2` : "grid gap-2"}>
+      <Script
+        src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"
+        strategy="afterInteractive"
+        onLoad={() => setScriptLoaded(true)}
+      />
+      <div
+        ref={widgetRef}
+        id={id}
+        className="min-h-[65px] min-w-[300px] rounded-xl border border-slate-200 bg-white p-2 shadow-sm"
+      />
+      {!sitekey ? (
+        <p className="text-xs text-red-600">Turnstile site key is missing.</p>
+      ) : !scriptLoaded ? (
+        <p className="text-xs text-slate-500">Loading verification…</p>
+      ) : (
+        <p className="text-xs text-slate-500">Verification will appear here.</p>
+      )}
     </div>
   );
 }
