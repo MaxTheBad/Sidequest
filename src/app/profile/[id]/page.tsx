@@ -72,6 +72,12 @@ export default function ProfilePage() {
     return friendship?.status === "accepted";
   }, [isOwnProfile, profile, friendship]);
 
+  const reportFeedbackTone = reportFeedback.toLowerCase().includes("couldn't") || reportFeedback.toLowerCase().includes("try again")
+    ? "error"
+    : reportFeedback.toLowerCase().includes("submitted")
+      ? "success"
+      : "neutral";
+
   useEffect(() => {
     if (!supabase) return;
     if (!profileId) {
@@ -480,7 +486,7 @@ export default function ProfilePage() {
             </select>
             <textarea className="border rounded px-3 py-2" placeholder="Details (optional)" value={reportDetails} onChange={(e) => setReportDetails(e.target.value)} />
             <div className="flex items-end justify-between gap-3">
-              <div className="min-w-0 flex-1 text-sm text-slate-700">
+              <div className={`min-w-0 flex-1 text-sm ${reportFeedbackTone === "error" ? "text-red-700" : reportFeedbackTone === "success" ? "text-emerald-700" : "text-slate-700"}`}>
                 {reportFeedback ? <span>{reportFeedback}</span> : null}
               </div>
               <div className="flex justify-end gap-2 shrink-0">

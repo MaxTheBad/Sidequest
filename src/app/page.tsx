@@ -2495,6 +2495,12 @@ export default function Home() {
     setShowReportModal(true);
   }
 
+  const reportFeedbackTone = reportFeedback.toLowerCase().includes("couldn't") || reportFeedback.toLowerCase().includes("try again")
+    ? "error"
+    : reportFeedback.toLowerCase().includes("submitted")
+      ? "success"
+      : "neutral";
+
   async function submitReport() {
     if (!supabase || !userId || !reportTarget) return;
     if (!reportDetails.trim() && reportContext === "in_person") {
@@ -4538,7 +4544,7 @@ export default function Home() {
             />
 
             <div className="flex items-end justify-between gap-3">
-              <div className="min-w-0 flex-1 text-sm text-slate-700">
+              <div className={`min-w-0 flex-1 text-sm ${reportFeedbackTone === "error" ? "text-red-700" : reportFeedbackTone === "success" ? "text-emerald-700" : "text-slate-700"}`}>
                 {reportFeedback ? <span>{reportFeedback}</span> : null}
               </div>
               <div className="flex justify-end gap-2 shrink-0">
