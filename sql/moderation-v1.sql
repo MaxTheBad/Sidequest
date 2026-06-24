@@ -67,7 +67,7 @@ create table if not exists public.moderation_email_queue (
   id uuid primary key default gen_random_uuid(),
   created_at timestamptz not null default now(),
   report_id uuid not null references public.reports(id) on delete cascade,
-  queue_reason text not null check (queue_reason in ('high_report', 'critical_report', 'escalated_report')),
+  queue_reason text not null check (queue_reason in ('new_report', 'high_report', 'critical_report', 'escalated_report')),
   attempts int not null default 0,
   sent_at timestamptz null,
   last_error text null,
@@ -76,6 +76,13 @@ create table if not exists public.moderation_email_queue (
 
 create unique index if not exists moderation_email_queue_report_reason_idx
   on public.moderation_email_queue (report_id, queue_reason);
+
+alter table public.moderation_email_queue
+  drop constraint if exists moderation_email_queue_queue_reason_check;
+
+alter table public.moderation_email_queue
+  add constraint moderation_email_queue_queue_reason_check
+  check (queue_reason in ('new_report', 'high_report', 'critical_report', 'escalated_report'));
 
 alter table public.moderation_email_queue enable row level security;
 
@@ -98,14 +105,16 @@ language plpgsql
 as $$
 begin
   if tg_op = 'INSERT' then
-    if new.severity in ('high', 'critical') then
-      insert into public.moderation_email_queue (report_id, queue_reason)
-      values (
-        new.id,
-        case when new.severity = 'critical' then 'critical_report' else 'high_report' end
-      )
-      on conflict do nothing;
-    end if;
+    insert into public.moderation_email_queue (report_id, queue_reason)
+    values (
+      new.id,
+      case
+        when new.severity = 'critical' then 'critical_report'
+        when new.severity = 'high' then 'high_report'
+        else 'new_report'
+      end
+    )
+    on conflict do nothing;
   elsif tg_op = 'UPDATE' then
     if new.status = 'escalated' and old.status is distinct from new.status then
       insert into public.moderation_email_queue (report_id, queue_reason)
