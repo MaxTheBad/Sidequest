@@ -1,11 +1,7 @@
-import { NextResponse } from "next/server";
-import crypto from "node:crypto";
-import { createClient } from "@supabase/supabase-js";
+export const runtime = "edge";
 
 type FacebookDeletionPayload = {
   user_id?: string;
-  algorithm?: string;
-  issued_at?: number;
 };
 
 function buildStatusUrl(confirmationCode: string) {
@@ -16,7 +12,7 @@ function buildStatusUrl(confirmationCode: string) {
 function decodeBase64Url(input: string) {
   const normalized = input.replace(/-/g, "+").replace(/_/g, "/");
   const padded = normalized + "=".repeat((4 - (normalized.length % 4)) % 4);
-  return Buffer.from(padded, "base64").toString("utf8");
+  return atob(padded);
 }
 
 function parseSignedRequest(signedRequest: string): FacebookDeletionPayload | null {
@@ -30,84 +26,58 @@ function parseSignedRequest(signedRequest: string): FacebookDeletionPayload | nu
   }
 }
 
-async function deleteUserDataForFacebookId(facebookUserId: string) {
+async function supabaseFetch(path: string, init: RequestInit = {}) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!supabaseUrl || !serviceRoleKey) {
-    return { deleted: false, reason: "missing_supabase_config" as const };
-  }
+  if (!supabaseUrl || !serviceRoleKey) throw new Error("Missing Supabase config.");
 
-  const admin = createClient(supabaseUrl, serviceRoleKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
+  return fetch(`${supabaseUrl}${path}`, {
+    ...init,
+    headers: {
+      apikey: serviceRoleKey,
+      Authorization: `Bearer ${serviceRoleKey}`,
+      "Content-Type": "application/json",
+      ...(init.headers || {}),
+    },
   });
+}
 
-  const { data: users, error: listError } = await admin.auth.admin.listUsers();
-  if (listError) {
-    return { deleted: false, reason: listError.message };
-  }
-
-  const matchedUser = users.users.find((user) => {
+async function deleteUserDataForFacebookId(facebookUserId: string) {
+  const usersRes = await supabaseFetch(`/auth/v1/admin/users?per_page=1000`);
+  if (!usersRes.ok) return;
+  const usersJson = await usersRes.json() as { users?: Array<{ id: string; identities?: Array<{ provider?: string }>; user_metadata?: Record<string, unknown> }> };
+  const matchedUser = usersJson.users?.find((user) => {
     const identities = user.identities || [];
     const hasFacebookIdentity = identities.some((identity) => identity.provider === "facebook");
     const providerId = user.user_metadata?.provider_id || user.user_metadata?.sub || user.user_metadata?.oauth_user_id;
     return hasFacebookIdentity && providerId === facebookUserId;
   });
 
-  if (!matchedUser) {
-    return { deleted: false, reason: "no_matching_user_found" as const };
-  }
-
-  const { error: fileListError, data: files } = await admin.storage.from("profile-photos").list(matchedUser.id, {
-    limit: 1000,
-  });
-  if (!fileListError && files?.length) {
-    const filePaths = files.map((file) => `${matchedUser.id}/${file.name}`);
-    await admin.storage.from("profile-photos").remove(filePaths);
-  }
+  if (!matchedUser) return;
 
   await Promise.all([
-    admin.from("reports").delete().or(`reporter_id.eq.${matchedUser.id},reported_user_id.eq.${matchedUser.id},reviewed_by.eq.${matchedUser.id}`),
-    admin.from("report_actions").delete().eq("actor_id", matchedUser.id),
-    admin.from("notification_state").delete().eq("user_id", matchedUser.id),
-    admin.from("notifications").delete().or(`user_id.eq.${matchedUser.id},source_user_id.eq.${matchedUser.id},membership_user_id.eq.${matchedUser.id}`),
-    admin.from("quest_bookmarks").delete().eq("user_id", matchedUser.id),
-    admin.from("friends").delete().or(`requester_id.eq.${matchedUser.id},addressee_id.eq.${matchedUser.id}`),
-    admin.from("quest_exact_location_access").delete().or(`user_id.eq.${matchedUser.id},granted_by.eq.${matchedUser.id}`),
-    admin.from("quest_members").delete().eq("user_id", matchedUser.id),
-    admin.from("user_hobbies").delete().eq("user_id", matchedUser.id),
+    supabaseFetch(`/rest/v1/reports?or=(reporter_id.eq.${matchedUser.id},reported_user_id.eq.${matchedUser.id},reviewed_by.eq.${matchedUser.id})`, { method: "DELETE" }),
+    supabaseFetch(`/rest/v1/report_actions?actor_id=eq.${matchedUser.id}`, { method: "DELETE" }),
+    supabaseFetch(`/rest/v1/notification_state?user_id=eq.${matchedUser.id}`, { method: "DELETE" }),
+    supabaseFetch(`/rest/v1/notifications?or=(user_id.eq.${matchedUser.id},source_user_id.eq.${matchedUser.id},membership_user_id.eq.${matchedUser.id})`, { method: "DELETE" }),
+    supabaseFetch(`/rest/v1/quest_bookmarks?user_id=eq.${matchedUser.id}`, { method: "DELETE" }),
+    supabaseFetch(`/rest/v1/friends?or=(requester_id.eq.${matchedUser.id},addressee_id.eq.${matchedUser.id})`, { method: "DELETE" }),
+    supabaseFetch(`/rest/v1/quest_exact_location_access?or=(user_id.eq.${matchedUser.id},granted_by.eq.${matchedUser.id})`, { method: "DELETE" }),
+    supabaseFetch(`/rest/v1/quest_members?user_id=eq.${matchedUser.id}`, { method: "DELETE" }),
+    supabaseFetch(`/rest/v1/user_hobbies?user_id=eq.${matchedUser.id}`, { method: "DELETE" }),
+    supabaseFetch(`/rest/v1/profiles?id=eq.${matchedUser.id}`, { method: "DELETE" }),
+    supabaseFetch(`/auth/v1/admin/users/${matchedUser.id}`, { method: "DELETE" }),
   ]);
-
-  const { data: quests } = await admin.from("quests").select("id").eq("creator_id", matchedUser.id);
-  if (quests?.length) {
-    const questIds = quests.map((quest) => quest.id);
-    await Promise.all([
-      admin.from("quest_exact_location_access").delete().in("quest_id", questIds),
-      admin.from("notifications").delete().in("quest_id", questIds),
-      admin.from("quest_bookmarks").delete().in("quest_id", questIds),
-      admin.from("quest_members").delete().in("quest_id", questIds),
-      admin.from("messages").delete().in("quest_id", questIds),
-      admin.from("reports").delete().in("quest_id", questIds),
-      admin.from("quests").delete().eq("creator_id", matchedUser.id),
-    ]);
-  }
-
-  await admin.from("profiles").delete().eq("id", matchedUser.id);
-  await admin.auth.admin.deleteUser(matchedUser.id);
-
-  return { deleted: true as const, userId: matchedUser.id };
 }
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const signedRequest = url.searchParams.get("signed_request") || "";
-
   const confirmationCode = crypto.randomUUID();
   const payload = signedRequest ? parseSignedRequest(signedRequest) : null;
-  if (payload?.user_id) {
-    await deleteUserDataForFacebookId(payload.user_id);
-  }
+  if (payload?.user_id) await deleteUserDataForFacebookId(payload.user_id);
 
-  return NextResponse.json({
+  return Response.json({
     url: buildStatusUrl(confirmationCode),
     confirmation_code: confirmationCode,
   });
@@ -119,11 +89,9 @@ export async function POST(request: Request) {
   const signedRequest = params.get("signed_request") || new URL(request.url).searchParams.get("signed_request") || "";
   const confirmationCode = crypto.randomUUID();
   const payload = signedRequest ? parseSignedRequest(signedRequest) : null;
-  if (payload?.user_id) {
-    await deleteUserDataForFacebookId(payload.user_id);
-  }
+  if (payload?.user_id) await deleteUserDataForFacebookId(payload.user_id);
 
-  return NextResponse.json({
+  return Response.json({
     url: buildStatusUrl(confirmationCode),
     confirmation_code: confirmationCode,
   });

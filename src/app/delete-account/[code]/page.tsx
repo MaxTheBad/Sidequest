@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+export const runtime = "edge";
+
 export default async function DeleteAccountStatusPage({ params }: { params: Promise<{ code: string }> }) {
   const { code } = await params;
 
