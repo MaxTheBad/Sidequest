@@ -158,8 +158,30 @@ export default function ReportPage() {
     return <main className="mx-auto max-w-2xl px-4 py-8">Loading report form...</main>;
   }
 
+  const isSuccess = status.toLowerCase().includes("submitted");
+  const isError = status.toLowerCase().includes("couldn't") || status.toLowerCase().includes("log in") || status.toLowerCase().includes("add details");
+
   return (
     <main className="mx-auto max-w-2xl px-4 py-8">
+      {status ? (
+        <div
+          className={`fixed left-1/2 top-4 z-[220] w-[min(92vw,32rem)] -translate-x-1/2 rounded-2xl px-4 py-3 text-sm shadow-2xl backdrop-blur-sm ${
+            isSuccess ? "border border-emerald-300 bg-emerald-50 text-emerald-950" : isError ? "border border-amber-300 bg-amber-50 text-amber-950" : "border border-slate-300 bg-white text-slate-900"
+          }`}
+          role="status"
+          aria-live="polite"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div>{status}</div>
+              {reference ? <div className="mt-1 font-semibold">Reference {reference}.</div> : null}
+            </div>
+            <button type="button" className="shrink-0 text-xs font-medium underline" onClick={() => setStatus("")}>
+              dismiss
+            </button>
+          </div>
+        </div>
+      ) : null}
       <div className="rounded-3xl border bg-white p-5 shadow-xl">
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -194,13 +216,6 @@ export default function ReportPage() {
               placeholder="Add anything that helps us review this report."
             />
           </label>
-
-          {status ? (
-            <div className="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm">
-              {status}
-              {reference ? <span className="ml-2 font-semibold">Reference {reference}.</span> : null}
-            </div>
-          ) : null}
 
           <div className="flex justify-end gap-3">
             <button type="button" className="rounded-xl border px-4 py-3" onClick={() => router.back()}>
