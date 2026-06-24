@@ -1197,8 +1197,8 @@ export default function ListingPage() {
           </div>
         )}
       {showReportModal && listing && reportTargetUserId && (
-          <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center p-4">
-            <div className="w-full max-w-lg rounded-2xl bg-white border p-4 space-y-3">
+          <div className="fixed inset-0 z-[130] bg-black/55 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="w-full max-w-lg rounded-2xl bg-white border p-4 space-y-3 shadow-2xl">
               <div className="flex items-center justify-between">
                 <h3 className="font-semibold">Report participant</h3>
                 <button className="border rounded px-2 py-1" onClick={() => setShowReportModal(false)}>Close</button>
@@ -1223,8 +1223,8 @@ export default function ListingPage() {
       )}
 
       {showBlockConfirm && listing && blockTargetUserId && (
-        <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center p-4">
-      <div className="w-full max-w-md rounded-2xl bg-white border p-4 space-y-3">
+        <div className="fixed inset-0 z-[130] bg-black/55 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="w-full max-w-md rounded-2xl bg-white border p-4 space-y-3 shadow-2xl">
         <div className="flex items-center justify-between">
           <h3 className="font-semibold">Block user</h3>
           <button className="border rounded px-2 py-1" onClick={() => setShowBlockConfirm(false)}>Close</button>
