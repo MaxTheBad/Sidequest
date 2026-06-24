@@ -7,6 +7,7 @@ import { readStoredUserLocation, writeStoredUserLocation } from "@/lib/location-
 import { getSupabaseClient } from "@/lib/supabase";
 import { resolveCanonicalCategory } from "@/lib/category-suggestions.js";
 import { AppIcon } from "@/components/app-icons";
+import { formatReportReference } from "@/lib/reporting";
 
 type Listing = {
   id: string;
@@ -108,6 +109,12 @@ export default function ListingPage() {
   }
 
   const cityCoordinateCacheRef = useRef<Record<string, { lat: number; lon: number }>>({});
+
+  function getListingHostName() {
+    if (!listing) return null;
+    const profile = Array.isArray(listing.profiles) ? listing.profiles[0] : listing.profiles;
+    return profile?.display_name || listing.creator_id || null;
+  }
 
   function normalizeDistanceLocationQuery(input?: string | null) {
     const raw = sanitizeLocationLabel(input);
@@ -515,24 +522,26 @@ export default function ListingPage() {
     }
 
     setSubmittingReport(true);
-    const { error } = await supabase.from("reports").insert({
+    const { data, error } = await supabase.from("reports").insert({
       reporter_id: userId,
       reported_user_id: reportTargetUserId,
       quest_id: listing.id,
       context_type: reportContext,
       reason_code: reportReason,
       details: reportDetails.trim() || null,
-    });
+      auto_flags: {
+        reporter_name: userId,
+        listing_title: listing.title || null,
+        host_name: getListingHostName(),
+      },
+    }).select("id").single();
     setSubmittingReport(false);
     if (error) {
-      if (error.message.toLowerCase().includes("relation") || error.message.toLowerCase().includes("does not exist")) {
-        return setStatus("Reporting DB not set up yet. Run sql/reports-v1.sql");
-      }
-      return setStatus(error.message);
+      return setStatus("We couldn't submit that report right now. Please try again in a moment.");
     }
 
     setShowReportModal(false);
-    setStatus("Report submitted. Thank you — we’ll review it.");
+    setStatus(`Report submitted. Reference ${formatReportReference(data?.id || null)}.`);
   }
 
   async function setMemberRole(targetUserId: string, nextRole: "member" | "cohost") {

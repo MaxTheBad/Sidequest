@@ -13,6 +13,7 @@ import { compressVideoForUpload } from "@/lib/video-optimize";
 import { collectQuestStorageUrls, removeStoragePublicUrls } from "@/lib/storage.js";
 import { APP_EVENT_NAMES, APP_NAME } from "@/lib/app-brand";
 import { AppIcon } from "@/components/app-icons";
+import { formatReportReference } from "@/lib/reporting";
 
 type Hobby = { id: string; name: string; category: string | null };
 type QuestMediaItem = {
@@ -2504,21 +2505,23 @@ export default function Home() {
       context_type: reportContext,
       reason_code: reportReason,
       details: reportDetails.trim() || null,
+      auto_flags: {
+        reporter_name: userEmail.split("@")[0] || null,
+        listing_title: reportTarget.title || null,
+        host_name: Array.isArray(reportTarget.profiles) ? reportTarget.profiles[0]?.display_name || reportTarget.creator_id || null : reportTarget.profiles?.display_name || reportTarget.creator_id || null,
+      },
     };
 
-    const { error } = await supabase.from("reports").insert(payload);
+    const { data, error } = await supabase.from("reports").insert(payload).select("id").single();
     setSubmittingReport(false);
     if (error) {
-      if (error.message.toLowerCase().includes("relation") || error.message.toLowerCase().includes("does not exist")) {
-        return setStatus("Reporting DB not set up yet. Run the new reports SQL migration.");
-      }
-      return setStatus(error.message);
+      return setStatus("We couldn't submit that report right now. Please try again in a moment.");
     }
 
     setShowReportModal(false);
     setReportTarget(null);
     setReportDetails("");
-    setStatus("Report submitted. Thank you — we’ll review it.");
+    setStatus(`Report submitted. Reference ${formatReportReference(data?.id || null)}.`);
   }
 
   async function sendQuestionFromModal() {

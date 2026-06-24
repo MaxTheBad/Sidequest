@@ -165,7 +165,7 @@ async function buildReportSummary(supabase, reportId) {
   const { data, error } = await supabase
     .from("reports")
     .select(
-      "id,created_at,status,severity,context_type,reason_code,details,reporter_id,reported_user_id,quest_id,message_id,reporter:profiles!reports_reporter_id_fkey(id,display_name),reported_user:profiles!reports_reported_user_id_fkey(id,display_name),quest:quests(id,title,city),message:messages(id,body,created_at)",
+      "id,created_at,status,severity,context_type,reason_code,details,auto_flags,reporter_id,reported_user_id,quest_id,message_id,reporter:profiles!reports_reporter_id_fkey(id,display_name),reported_user:profiles!reports_reported_user_id_fkey(id,display_name),quest:quests(id,title,city),message:messages(id,body,created_at)",
     )
     .eq("id", reportId)
     .maybeSingle();
@@ -263,18 +263,27 @@ Deno.serve(async (req) => {
       const reporter = unwrapSingle(report.reporter);
       const quest = unwrapSingle(report.quest);
       const message = unwrapSingle(report.message);
+      const reportMeta = report.auto_flags || {};
+      const listingTitle = reportMeta.listing_title || quest?.title || report.quest_id || "—";
+      const hostName = reportMeta.host_name || reportedProfile?.display_name || report.reported_user_id || "—";
+      const reporterName = reportMeta.reporter_name || reporter?.display_name || report.reporter_id;
+      const referenceId = String(reportMeta.reference_id || report.id);
+      const reportedUserLabel = reportedProfile?.display_name || report.reported_user_id || "—";
       const subject = `[Sidequest moderation] ${prettyLabel(queueRow.queue_reason)} · ${prettyLabel(report.severity)} report`;
       const bodyLines = [
         `A moderation alert was queued in Sidequest.`,
         ``,
+        `Reference: ${referenceId}`,
         `Report ID: ${report.id}`,
         `Queue reason: ${prettyLabel(queueRow.queue_reason)}`,
         `Status: ${prettyLabel(report.status)}`,
         `Severity: ${prettyLabel(report.severity)}`,
         `Context: ${prettyLabel(report.context_type)}`,
         `Reason: ${prettyLabel(report.reason_code)}`,
-        `Reporter: ${reporter?.display_name || report.reporter_id}`,
-        `Reported user: ${reportedProfile?.display_name || report.reported_user_id || "—"}`,
+        `Reporter: ${reporterName}`,
+        `Reported user: ${reportedUserLabel}`,
+        `Host: ${hostName}`,
+        `Listing: ${listingTitle}`,
         `Quest: ${quest?.title || report.quest_id || "—"}`,
         `Message: ${message ? shortText(message.body, 300) : "—"}`,
         `Details: ${report.details || "—"}`,

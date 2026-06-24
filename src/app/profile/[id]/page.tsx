@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase";
+import { formatReportReference } from "@/lib/reporting";
 
 type Profile = {
   id: string;
@@ -239,23 +240,24 @@ export default function ProfilePage() {
   async function submitProfileReport() {
     if (!supabase || !viewerId || !profileId || viewerId === profileId) return;
     setSubmittingReport(true);
-    const { error } = await supabase.from("reports").insert({
+    const { data, error } = await supabase.from("reports").insert({
       reporter_id: viewerId,
       reported_user_id: profileId,
       context_type: "profile_account",
       reason_code: reportReason,
       details: reportDetails.trim() || null,
-    });
+      auto_flags: {
+        reporter_name: viewerId,
+        reported_user_name: profile?.display_name || profileId,
+      },
+    }).select("id").single();
     setSubmittingReport(false);
     if (error) {
-      if (error.message.toLowerCase().includes("relation") || error.message.toLowerCase().includes("does not exist")) {
-        return setStatus("Reporting DB not set up yet. Run sql/reports-v1.sql");
-      }
-      return setStatus(error.message);
+      return setStatus("We couldn't submit that report right now. Please try again in a moment.");
     }
     setShowReportModal(false);
     setReportDetails("");
-    setStatus("Profile report submitted. Thank you.");
+    setStatus(`Profile report submitted. Reference ${formatReportReference(data?.id || null)}.`);
   }
 
   async function removeFriend(targetId: string) {
