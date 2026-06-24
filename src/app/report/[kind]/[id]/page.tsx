@@ -30,6 +30,8 @@ function unwrapSingle<T>(value: T[] | T | null | undefined): T | null {
   return Array.isArray(value) ? value[0] ?? null : value;
 }
 
+export const runtime = "edge";
+
 export default function ReportPage() {
   const supabase = getSupabaseClient();
   const router = useRouter();
