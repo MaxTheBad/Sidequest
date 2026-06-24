@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { TurnstileInvisible } from "@/components/turnstile-invisible";
 import { formatReportReference } from "@/lib/reporting";
 import { getSupabaseClient } from "@/lib/supabase";
 
@@ -50,6 +51,7 @@ export default function ReportPage() {
   const [submitting, setSubmitting] = useState(false);
   const [status, setStatus] = useState("");
   const [reference, setReference] = useState("");
+  const [reportTurnstileToken, setReportTurnstileToken] = useState("");
 
   const reportKind = useMemo(() => (kind === "profile" ? "profile" : "listing"), [kind]);
 
@@ -106,6 +108,7 @@ export default function ReportPage() {
 
   async function submitReport() {
     if (!supabase || !id) return;
+    if (!reportTurnstileToken.trim()) return setStatus("Complete the verification check before submitting.");
     const { data: sessionData } = await supabase.auth.getSession();
     const reporterId = sessionData.session?.user?.id || null;
     if (!reporterId) {
@@ -116,6 +119,13 @@ export default function ReportPage() {
       setStatus("Add details for unsafe reports.");
       return;
     }
+
+    const verify = await fetch("/api/turnstile/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: reportTurnstileToken, action: `report-${reportKind}` }),
+    });
+    if (!verify.ok) return setStatus("Verification failed. Please try again.");
 
     setSubmitting(true);
     const payload =
@@ -161,6 +171,7 @@ export default function ReportPage() {
 
     setReference(formatReportReference(data?.id || null));
     setStatus("Report submitted.");
+    setReportTurnstileToken("");
   }
 
   if (loading) {
@@ -225,6 +236,8 @@ export default function ReportPage() {
               placeholder="Add anything that helps us review this report."
             />
           </label>
+
+          <TurnstileInvisible onToken={setReportTurnstileToken} />
 
           <div className="flex justify-end gap-3">
             <button type="button" className="rounded-xl border px-4 py-3" onClick={() => router.back()}>

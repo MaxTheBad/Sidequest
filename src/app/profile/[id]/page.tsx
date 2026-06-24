@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { TurnstileInvisible } from "@/components/turnstile-invisible";
 import { getSupabaseClient } from "@/lib/supabase";
 import { formatReportReference } from "@/lib/reporting";
 
@@ -52,6 +53,7 @@ export default function ProfilePage() {
   const [reportDetails, setReportDetails] = useState("");
   const [submittingReport, setSubmittingReport] = useState(false);
   const [reportFeedback, setReportFeedback] = useState("");
+  const [reportTurnstileToken, setReportTurnstileToken] = useState("");
 
   function sanitizeLocationLabel(input?: string | null) {
     const raw = (input || "").trim();
@@ -246,6 +248,13 @@ export default function ProfilePage() {
 
   async function submitProfileReport() {
     if (!supabase || !viewerId || !profileId || viewerId === profileId) return;
+    if (!reportTurnstileToken.trim()) return setReportFeedback("Complete the verification check before submitting.");
+    const verify = await fetch("/api/turnstile/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: reportTurnstileToken, action: "report-profile" }),
+    });
+    if (!verify.ok) return setReportFeedback("Verification failed. Please try again.");
     setSubmittingReport(true);
     const reportId = crypto.randomUUID();
     const { error } = await supabase.from("reports").insert({
@@ -283,6 +292,7 @@ export default function ProfilePage() {
 
     setReportDetails("");
     setReportFeedback(`Profile report submitted. Reference ${formatReportReference(reportId)}.`);
+    setReportTurnstileToken("");
   }
 
   async function removeFriend(targetId: string) {
@@ -502,6 +512,7 @@ export default function ProfilePage() {
               <option value="other">Other</option>
             </select>
             <textarea className="border rounded px-3 py-2" placeholder="Details (optional)" value={reportDetails} onChange={(e) => setReportDetails(e.target.value)} />
+            <TurnstileInvisible onToken={setReportTurnstileToken} />
             <div className="flex items-end justify-between gap-3">
               <div className={`min-w-0 flex-1 text-sm ${reportFeedbackTone === "error" ? "text-red-700" : reportFeedbackTone === "success" ? "text-emerald-700" : "text-slate-700"}`}>
                 {reportFeedback ? <span>{reportFeedback}</span> : null}

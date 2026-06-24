@@ -14,6 +14,7 @@ import { compressVideoForUpload } from "@/lib/video-optimize";
 import { collectQuestStorageUrls, removeStoragePublicUrls } from "@/lib/storage.js";
 import { APP_EVENT_NAMES, APP_NAME } from "@/lib/app-brand";
 import { AppIcon } from "@/components/app-icons";
+import { TurnstileInvisible } from "@/components/turnstile-invisible";
 import { formatReportReference } from "@/lib/reporting";
 
 type Hobby = { id: string; name: string; category: string | null };
@@ -348,6 +349,9 @@ export default function Home() {
   const [reportDetails, setReportDetails] = useState("");
   const [submittingReport, setSubmittingReport] = useState(false);
   const [reportFeedback, setReportFeedback] = useState("");
+  const [authTurnstileToken, setAuthTurnstileToken] = useState("");
+  const [reportTurnstileToken, setReportTurnstileToken] = useState("");
+  const [questTurnstileToken, setQuestTurnstileToken] = useState("");
   const [authMode, setAuthMode] = useState<AuthMode>("login");
 
   const [email, setEmail] = useState("");
@@ -933,6 +937,7 @@ export default function Home() {
   async function signUpWithPassword(e: FormEvent) {
     e.preventDefault();
     if (!supabase) return;
+    if (!authTurnstileToken.trim()) return setStatus("Complete the verification check before signing up.");
     if (!fullName.trim()) return setStatus("Please enter your name.");
     if (!dob) return setStatus("Please enter your date of birth.");
     const years = Math.floor((Date.now() - new Date(dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000));
@@ -940,6 +945,12 @@ export default function Home() {
     if (!acceptTerms) return setStatus("You must accept Terms.");
     if (!Object.values(passwordChecks).every(Boolean)) return setStatus("Password requirements not met.");
 
+    const verify = await fetch("/api/turnstile/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: authTurnstileToken, action: "signup" }),
+    });
+    if (!verify.ok) return setStatus("Verification failed. Please try again.");
     const { error } = await supabase.auth.signUp({
       email,
       password,
@@ -953,6 +964,7 @@ export default function Home() {
     setPendingVerifyEmail(email);
     setResendCooldown(60);
     setShowAuthModal(false);
+    setAuthTurnstileToken("");
     setStatus("✅ Verification email sent. Please confirm your email.");
   }
 
@@ -2289,6 +2301,19 @@ export default function Home() {
 
     setShowPublicLocationConfirm(false);
     setPublicVisibilityConfirmed(false);
+    if (!questTurnstileToken.trim()) return setStatus("Complete the verification check before posting.");
+    if (!editingQuestId && Date.now() - lastQuestCreateMs < 5 * 60 * 1000) {
+      return setStatus("Please wait 5 minutes before creating another listing.");
+    }
+    const questVerify = await fetch("/api/turnstile/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: questTurnstileToken, action: editingQuestId ? "edit-listing" : "create-listing" }),
+    });
+    if (!questVerify.ok) {
+      setSavingQuest(false);
+      return setStatus("Verification failed. Please try again.");
+    }
     setSavingQuest(true);
     setStatus(editingQuestId ? "Updating listing…" : "Posting listing…");
     try {
@@ -2376,6 +2401,7 @@ export default function Home() {
 
       resetQuestForm();
       setShowCreateModal(false);
+      setQuestTurnstileToken("");
       await loadQuests();
     } catch (err) {
       setStatus(err instanceof Error ? err.message : "Could not save listing.");
@@ -2527,9 +2553,16 @@ export default function Home() {
 
   async function submitReport() {
     if (!supabase || !userId || !reportTarget) return;
+    if (!reportTurnstileToken.trim()) return setStatus("Complete the verification check before submitting.");
     if (!reportDetails.trim() && reportContext === "in_person") {
       return setStatus("Please add details for in-person reports.");
     }
+    const reportVerify = await fetch("/api/turnstile/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: reportTurnstileToken, action: "report" }),
+    });
+    if (!reportVerify.ok) return setStatus("Verification failed. Please try again.");
 
     setSubmittingReport(true);
     const reportId = crypto.randomUUID();
@@ -2571,6 +2604,7 @@ export default function Home() {
     }
 
     setReportFeedback(`Report submitted. Reference ${formatReportReference(reportId)}.`);
+    setReportTurnstileToken("");
   }
 
   async function sendQuestionFromModal() {
@@ -3932,7 +3966,7 @@ export default function Home() {
             <form onSubmit={authMode === "signup" ? signUpWithPassword : signInWithPassword} className="grid gap-2 sm:gap-3" autoComplete="on">
               <label className="text-xs font-medium text-gray-600">Email</label>
               <input className="border rounded-xl px-3 py-3" placeholder="you@email.com" type="email" name="email" autoComplete="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-              {authMode === "signup" && (
+            {authMode === "signup" && (
                 <>
                   <label className="text-xs font-medium text-gray-600">Full name</label>
                   <input className="border rounded-xl px-3 py-3" placeholder="Your name" name="name" autoComplete="name" value={fullName} onChange={(e) => setFullName(e.target.value)} required />
@@ -3966,6 +4000,8 @@ export default function Home() {
                   <label className="text-sm flex gap-2 items-start leading-5"><input className="mt-0.5" type="checkbox" checked={marketingOptIn} onChange={(e) => setMarketingOptIn(e.target.checked)} /><span>Send me updates/promos (optional).</span></label>
                 </>
               )}
+
+              {authMode === "signup" ? <TurnstileInvisible onToken={setAuthTurnstileToken} /> : null}
 
               <button className="rounded-xl bg-[color:var(--accent-secondary)] py-3 font-semibold text-white shadow-md shadow-black/10">{authMode === "signup" ? "Create account" : "Log in"}</button>
             </form>
@@ -4524,6 +4560,8 @@ export default function Home() {
                 </div>
               )}
 
+              <TurnstileInvisible onToken={setQuestTurnstileToken} />
+
               {savingQuest && <div className="text-sm rounded border bg-blue-50 px-3 py-2">Working on it… uploading media and saving listing.</div>}
             </form>
           </div>
@@ -4583,6 +4621,8 @@ export default function Home() {
               value={reportDetails}
               onChange={(e) => setReportDetails(e.target.value)}
             />
+
+            <TurnstileInvisible onToken={setReportTurnstileToken} />
 
             <div className="flex items-end justify-between gap-3">
               <div className={`min-w-0 flex-1 text-sm ${reportFeedbackTone === "error" ? "text-red-700" : reportFeedbackTone === "success" ? "text-emerald-700" : "text-slate-700"}`}>
