@@ -58,6 +58,32 @@ type ReportRow = {
   assignee?: ProfileSummary[] | ProfileSummary | null;
 };
 
+type ReportAutoFlags = {
+  reporter_name?: string | null;
+  listing_title?: string | null;
+  host_name?: string | null;
+  reported_user_name?: string | null;
+  report_target_key?: string | null;
+  report_target_label?: string | null;
+  report_target_type?: string | null;
+  report_target_id?: string | null;
+  report_target_role?: string | null;
+};
+
+type ModerationTargetSummary = {
+  key: string;
+  label: string;
+  type: string;
+  totalReports: number;
+  openReports: number;
+  criticalReports: number;
+  uniqueReporters: number;
+  lastReportedAt: string;
+  primaryReason: string;
+  primaryContext: string;
+  severityScore: number;
+};
+
 type ReportStatus = ReportRow["status"];
 type ReportActionType = ReportActionRow["action_type"];
 
@@ -125,6 +151,30 @@ function chipClass(kind: "status" | "severity", value: string) {
     default:
       return "bg-slate-100 text-slate-700 border-slate-200";
   }
+}
+
+function computeSeverityScore(report: ReportRow) {
+  const severityWeight = { low: 1, normal: 2, high: 4, critical: 8 }[report.severity] ?? 1;
+  const statusBoost = ["open", "triaged", "reviewing", "escalated"].includes(report.status) ? 1.15 : 1;
+  return severityWeight * statusBoost;
+}
+
+function deriveTargetSummary(report: ReportRow) {
+  const flags = ((report as ReportRow & { auto_flags?: ReportAutoFlags }).auto_flags || {}) as ReportAutoFlags;
+  const targetType = (flags.report_target_type || "").trim() || (report.reported_user_id ? "user" : report.quest_id ? "listing" : report.message_id ? "message" : "unknown");
+  const targetKey =
+    (flags.report_target_key || "").trim() ||
+    (targetType === "user" && report.reported_user_id ? `user:${report.reported_user_id}` : targetType === "listing" && report.quest_id ? `listing:${report.quest_id}` : `report:${report.id}`);
+  const targetLabel =
+    (flags.report_target_label || "").trim() ||
+    (targetType === "user"
+      ? flags.reported_user_name || report.reported_user_id || "Unknown user"
+      : targetType === "listing"
+        ? flags.listing_title || report.quest_id || "Unknown listing"
+        : targetType === "message"
+          ? report.message_id || "Unknown message"
+          : "Unknown target");
+  return { targetType, targetKey, targetLabel };
 }
 
 export default function ModerationPage() {
@@ -239,7 +289,7 @@ export default function ModerationPage() {
       supabase
         .from("reports")
         .select(
-          "id,created_at,updated_at,status_changed_at,context_type,reason_code,details,status,severity,reporter_id,reported_user_id,quest_id,message_id,reviewed_by,reviewed_at,resolution_note,admin_assignee_id,reporter:profiles!reports_reporter_id_fkey(id,display_name,avatar_url),reported_user:profiles!reports_reported_user_id_fkey(id,display_name,avatar_url),quest:quests(id,title,city),message:messages(id,body,created_at),reviewed_by_profile:profiles!reports_reviewed_by_fkey(id,display_name,avatar_url),assignee:profiles!reports_admin_assignee_id_fkey(id,display_name,avatar_url)",
+          "id,created_at,updated_at,status_changed_at,context_type,reason_code,details,status,severity,reporter_id,reported_user_id,quest_id,message_id,auto_flags,reviewed_by,reviewed_at,resolution_note,admin_assignee_id,reporter:profiles!reports_reporter_id_fkey(id,display_name,avatar_url),reported_user:profiles!reports_reported_user_id_fkey(id,display_name,avatar_url),quest:quests(id,title,city),message:messages(id,body,created_at),reviewed_by_profile:profiles!reports_reviewed_by_fkey(id,display_name,avatar_url),assignee:profiles!reports_admin_assignee_id_fkey(id,display_name,avatar_url)",
         )
         .order("created_at", { ascending: false })
         .limit(200),
@@ -315,6 +365,46 @@ export default function ModerationPage() {
   const openCount = useMemo(() => reports.filter((row) => ["open", "triaged", "reviewing", "escalated"].includes(row.status)).length, [reports]);
   const criticalCount = useMemo(() => reports.filter((row) => row.severity === "critical").length, [reports]);
   const unresolvedCount = useMemo(() => reports.filter((row) => row.status !== "resolved" && row.status !== "dismissed").length, [reports]);
+  const targetSummaries = useMemo(() => {
+    const byKey = new Map<string, ModerationTargetSummary & { reporters: Set<string> }>();
+    for (const report of reports) {
+      const { targetType, targetKey, targetLabel } = deriveTargetSummary(report);
+      const current =
+        byKey.get(targetKey) ||
+        ({
+          key: targetKey,
+          label: targetLabel,
+          type: targetType,
+          totalReports: 0,
+          openReports: 0,
+          criticalReports: 0,
+          uniqueReporters: 0,
+          lastReportedAt: report.created_at,
+          primaryReason: report.reason_code,
+          primaryContext: report.context_type,
+          severityScore: 0,
+          reporters: new Set<string>(),
+        } as ModerationTargetSummary & { reporters: Set<string> });
+
+      current.totalReports += 1;
+      if (["open", "triaged", "reviewing", "escalated"].includes(report.status)) current.openReports += 1;
+      if (report.severity === "critical") current.criticalReports += 1;
+      current.reporters.add(report.reporter_id);
+      current.uniqueReporters = current.reporters.size;
+      if (new Date(report.created_at).getTime() > new Date(current.lastReportedAt).getTime()) {
+        current.lastReportedAt = report.created_at;
+        current.primaryReason = report.reason_code;
+        current.primaryContext = report.context_type;
+      }
+      current.severityScore += computeSeverityScore(report);
+      byKey.set(targetKey, current);
+    }
+
+    return Array.from(byKey.values())
+      .map(({ reporters: _reporters, ...rest }) => rest)
+      .sort((a, b) => b.severityScore - a.severityScore || b.totalReports - a.totalReports || b.uniqueReporters - a.uniqueReporters)
+      .slice(0, 12);
+  }, [reports]);
 
   async function saveModerationAction(
     reportId: string,
@@ -378,15 +468,14 @@ export default function ModerationPage() {
   }
 
   function reportTargetSummary(report: ReportRow) {
+    const { targetType, targetLabel } = deriveTargetSummary(report);
     const reportedProfile = unwrapSingle(report.reported_user);
     const quest = unwrapSingle(report.quest);
     const message = unwrapSingle(report.message);
-    const parts = [
-      reportedProfile ? `Profile: ${reportedProfile.display_name || report.reported_user_id || "Unknown"}` : null,
-      quest ? `Quest: ${quest.title || report.quest_id || "Unknown"}` : null,
-      message ? `Message: ${shortText(message.body, 70)}` : null,
-    ].filter(Boolean);
-    return parts.length ? parts.join(" · ") : "No linked target";
+    if (targetType === "listing" && quest) return `Listing: ${quest.title || targetLabel}`;
+    if (targetType === "user" && reportedProfile) return `Person: ${reportedProfile.display_name || targetLabel}`;
+    if (targetType === "message" && message) return `Message: ${shortText(message.body, 70)}`;
+    return targetLabel || "No linked target";
   }
 
   const selectedReportReporter = unwrapSingle(selectedReport?.reporter);
@@ -433,6 +522,54 @@ export default function ModerationPage() {
                 <p className="text-xs text-gray-500">Email alerts queued</p>
                 <p className="text-2xl font-bold">{emailQueuePending ?? "—"}</p>
               </div>
+            </div>
+
+            <div className="rounded-2xl border bg-white p-4 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h2 className="text-base font-semibold">Worst actors</h2>
+                  <p className="text-sm text-gray-600">Ranked by severity-weighted reports. This is the list you review first.</p>
+                </div>
+                <span className="text-xs text-gray-500">{targetSummaries.length} targets shown</span>
+              </div>
+              {targetSummaries.length ? (
+                <div className="grid gap-2 xl:grid-cols-2">
+                  {targetSummaries.map((target, index) => (
+                    <button
+                      key={target.key}
+                      type="button"
+                      className={`text-left rounded-xl border px-3 py-3 transition ${index === 0 ? "bg-red-50 border-red-200" : "bg-slate-50 hover:bg-slate-100"}`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="font-semibold truncate">{target.label}</p>
+                            <span className="rounded-full border bg-white px-2 py-0.5 text-[11px] font-medium text-gray-600">{prettyLabel(target.type)}</span>
+                          </div>
+                          <p className="mt-1 text-xs text-gray-500 break-all">{target.key}</p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="text-xs text-gray-500">Risk score</p>
+                          <p className="text-lg font-bold">{Math.round(target.severityScore)}</p>
+                        </div>
+                      </div>
+                      <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-gray-600">
+                        <div><span className="font-medium text-gray-500">Reports:</span> {target.totalReports}</div>
+                        <div><span className="font-medium text-gray-500">Unique reporters:</span> {target.uniqueReporters}</div>
+                        <div><span className="font-medium text-gray-500">Open:</span> {target.openReports}</div>
+                        <div><span className="font-medium text-gray-500">Critical:</span> {target.criticalReports}</div>
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-gray-500">
+                        <span className="rounded-full bg-white border px-2 py-1">Last: {new Date(target.lastReportedAt).toLocaleDateString()}</span>
+                        <span className="rounded-full bg-white border px-2 py-1">Context: {prettyLabel(target.primaryContext)}</span>
+                        <span className="rounded-full bg-white border px-2 py-1">Reason: {prettyLabel(target.primaryReason)}</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500">No report aggregates yet.</p>
+              )}
             </div>
 
             {emailQueueInfo && <p className="text-xs text-amber-700">{emailQueueInfo}</p>}

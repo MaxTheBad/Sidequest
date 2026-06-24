@@ -117,6 +117,13 @@ export default function ListingPage() {
     return profile?.display_name || listing.creator_id || null;
   }
 
+  function getReportedUserRole(targetUserId: string | null) {
+    if (!targetUserId || !listing?.creator_id) return "attendee";
+    if (targetUserId === listing.creator_id) return "host";
+    const member = members.find((row) => row.user_id === targetUserId);
+    return member?.role || "attendee";
+  }
+
   function normalizeDistanceLocationQuery(input?: string | null) {
     const raw = sanitizeLocationLabel(input);
     if (!raw) return "";
@@ -543,6 +550,9 @@ export default function ListingPage() {
         reporter_name: userId,
         listing_title: listing.title || null,
         host_name: getListingHostName(),
+        report_target_type: "user",
+        report_target_id: reportTargetUserId,
+        report_target_role: getReportedUserRole(reportTargetUserId),
         report_target_key: `user:${reportTargetUserId}`,
         report_target_label: reportTargetUserId,
       },

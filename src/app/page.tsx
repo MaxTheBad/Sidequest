@@ -393,6 +393,7 @@ export default function Home() {
   const [bookmarkedQuestIds, setBookmarkedQuestIds] = useState<string[]>([]);
   const [joinedQuestIds, setJoinedQuestIds] = useState<string[]>([]);
   const [membershipStatusByQuest, setMembershipStatusByQuest] = useState<Record<string, "pending" | "approved" | "declined">>({});
+  const [joinedCountByQuestId, setJoinedCountByQuestId] = useState<Record<string, number>>({});
   const [commentCountByQuestId, setCommentCountByQuestId] = useState<Record<string, number>>({});
   const [shareCountByQuestId, setShareCountByQuestId] = useState<Record<string, number>>({});
   const [shareCountCooldownUntilByQuestId, setShareCountCooldownUntilByQuestId] = useState<Record<string, number>>({});
@@ -862,6 +863,7 @@ export default function Home() {
 
     const questIds = visibleQuests.map((quest) => quest.id);
     if (!questIds.length) {
+      setJoinedCountByQuestId({});
       setCommentCountByQuestId({});
       setShareCountByQuestId({});
       return;
@@ -878,11 +880,22 @@ export default function Home() {
       setShareCountCooldownUntilByQuestId(Object.fromEntries(cooldownEntries));
     }
 
-    const [commentRowsRes, shareRowsRes] = await Promise.all([
+    const [memberRowsRes, commentRowsRes, shareRowsRes] = await Promise.all([
+      supabase.from("quest_members").select("quest_id,status").in("quest_id", questIds),
       supabase.from("messages").select("quest_id").in("quest_id", questIds).like("body", "[PUBLIC] %"),
       supabase.from("quest_shares").select("quest_id").in("quest_id", questIds),
     ]);
 
+    if (!memberRowsRes.error) {
+      setJoinedCountByQuestId(
+        (memberRowsRes.data || [])
+          .filter((row: { status?: string | null }) => (row.status || "approved") === "approved")
+          .reduce<Record<string, number>>((acc, row: { quest_id: string }) => {
+            acc[row.quest_id] = (acc[row.quest_id] || 0) + 1;
+            return acc;
+          }, {}),
+      );
+    }
     if (!commentRowsRes.error) {
       setCommentCountByQuestId((commentRowsRes.data || []).reduce<Record<string, number>>((acc, row: { quest_id: string }) => {
         acc[row.quest_id] = (acc[row.quest_id] || 0) + 1;
@@ -2403,6 +2416,17 @@ export default function Home() {
     setMembershipStatusByQuest(Object.fromEntries(rows.map((m) => [m.quest_id, (m.status || "approved") as "pending" | "approved" | "declined"])));
   }
 
+  async function joinQuestWithCount(questId: string) {
+    const quest = quests.find((q) => q.id === questId);
+    if (!quest) return;
+    const beforeJoinedCount = joinedCountByQuestId[questId] || 0;
+    await toggleJoinQuest(questId);
+    const hadPendingOrJoined = joinedQuestIds.includes(questId) || membershipStatusByQuest[questId] === "pending" || membershipStatusByQuest[questId] === "approved";
+    if (!hadPendingOrJoined) {
+      setJoinedCountByQuestId((prev) => ({ ...prev, [questId]: beforeJoinedCount + 1 }));
+    }
+  }
+
   async function toggleBookmark(questId: string) {
     if (!supabase || !userId) {
       setShowAuthModal(true);
@@ -2521,6 +2545,8 @@ export default function Home() {
         reporter_name: userEmail.split("@")[0] || null,
         listing_title: reportTarget.title || null,
         host_name: Array.isArray(reportTarget.profiles) ? reportTarget.profiles[0]?.display_name || reportTarget.creator_id || null : reportTarget.profiles?.display_name || reportTarget.creator_id || null,
+        report_target_type: "listing",
+        report_target_id: reportTarget.id,
         report_target_key: `listing:${reportTarget.id}`,
         report_target_label: reportTarget.title || null,
       },

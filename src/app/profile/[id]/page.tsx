@@ -258,6 +258,8 @@ export default function ProfilePage() {
       auto_flags: {
         reporter_name: viewerId,
         reported_user_name: profile?.display_name || profileId,
+        report_target_type: "user",
+        report_target_id: profileId,
         report_target_key: `profile:${profileId}`,
         report_target_label: profile?.display_name || profileId,
       },

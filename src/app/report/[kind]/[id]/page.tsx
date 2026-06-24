@@ -131,6 +131,10 @@ export default function ReportPage() {
               reporter_name: reporterName,
               listing_title: title || null,
               host_name: hostName,
+              report_target_type: "listing",
+              report_target_id: id,
+              report_target_key: `listing:${id}`,
+              report_target_label: title || null,
             },
           }
         : {
@@ -142,6 +146,9 @@ export default function ReportPage() {
             auto_flags: {
               reporter_name: reporterName,
               reported_user_name: title || null,
+              report_target_type: "user",
+              report_target_id: id,
+              report_target_role: "profile",
             },
           };
 
