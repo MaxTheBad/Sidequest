@@ -3822,8 +3822,8 @@ export default function Home() {
       )}
 
       {showAuthModal && (
-        <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center p-4">
-          <div className="w-full max-w-lg rounded-2xl bg-[color:var(--surface-elevated)] border border-[var(--border)] p-5 space-y-4 shadow-2xl">
+        <div className="fixed inset-0 z-50 bg-black/45 flex items-stretch sm:items-center justify-center p-0 sm:p-4 overflow-hidden">
+          <div className="w-full sm:w-full sm:max-w-lg rounded-none sm:rounded-2xl bg-[color:var(--surface-elevated)] border-0 sm:border border-[var(--border)] p-4 sm:p-5 space-y-3 sm:space-y-4 shadow-2xl h-[100dvh] sm:h-auto sm:max-h-[92vh] overflow-y-auto overflow-x-hidden my-0 sm:my-auto pb-[max(1rem,env(safe-area-inset-bottom))] sm:pb-5 box-border overscroll-contain touch-pan-y [scrollbar-width:thin] [-webkit-overflow-scrolling:touch]">
             <div className="flex justify-between items-start gap-3">
               <div className="space-y-1">
                 <h3 className="font-semibold text-lg">{authMode === "signup" ? "Create your account" : "Welcome back"}</h3>
@@ -3870,7 +3870,7 @@ export default function Home() {
 
             {status && <div className="text-sm rounded-xl border border-amber-300 bg-amber-100/90 text-amber-950 px-3 py-2">{status}</div>}
 
-            <form onSubmit={authMode === "signup" ? signUpWithPassword : signInWithPassword} className="grid gap-2" autoComplete="on">
+            <form onSubmit={authMode === "signup" ? signUpWithPassword : signInWithPassword} className="grid gap-2 sm:gap-3" autoComplete="on">
               <label className="text-xs font-medium text-gray-600">Email</label>
               <input className="border rounded-xl px-3 py-3" placeholder="you@email.com" type="email" name="email" autoComplete="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
               {authMode === "signup" && (
@@ -3895,7 +3895,7 @@ export default function Home() {
                     <input className="border rounded-xl px-3 py-3 flex-1" placeholder="Confirm password" type={showConfirmPassword ? "text" : "password"} name="confirm-password" autoComplete="new-password" autoCapitalize="none" autoCorrect="off" spellCheck={false} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required />
                     <button type="button" className="rounded-xl border border-[var(--border)] px-3" onClick={() => setShowConfirmPassword((s) => !s)}>{showConfirmPassword ? "Hide" : "Show"}</button>
                   </div>
-                  <div className="text-xs rounded-xl border border-[var(--border)] p-3 bg-[color:var(--muted)]">
+                  <div className="text-xs rounded-xl border border-[var(--border)] p-2.5 bg-[color:var(--muted)] leading-5">
                     <p>{passwordChecks.minLength ? "✅" : "⬜"} 8+ characters</p>
                     <p>{passwordChecks.uppercase ? "✅" : "⬜"} uppercase</p>
                     <p>{passwordChecks.lowercase ? "✅" : "⬜"} lowercase</p>
@@ -3903,16 +3903,16 @@ export default function Home() {
                     <p>{passwordChecks.special ? "✅" : "⬜"} special</p>
                     <p>{passwordChecks.match ? "✅" : "⬜"} passwords match</p>
                   </div>
-                  <label className="text-sm flex gap-2 items-start"><input type="checkbox" checked={acceptTerms} onChange={(e) => setAcceptTerms(e.target.checked)} /><span>I accept the <a href="/terms" target="_blank" className="underline">Terms</a>.</span></label>
-                  <label className="text-sm flex gap-2 items-start"><input type="checkbox" checked={marketingOptIn} onChange={(e) => setMarketingOptIn(e.target.checked)} /><span>Send me updates/promos (optional).</span></label>
+                  <label className="text-sm flex gap-2 items-start leading-5"><input className="mt-0.5" type="checkbox" checked={acceptTerms} onChange={(e) => setAcceptTerms(e.target.checked)} /><span>I accept the <a href="/terms" target="_blank" className="underline">Terms</a>.</span></label>
+                  <label className="text-sm flex gap-2 items-start leading-5"><input className="mt-0.5" type="checkbox" checked={marketingOptIn} onChange={(e) => setMarketingOptIn(e.target.checked)} /><span>Send me updates/promos (optional).</span></label>
                 </>
               )}
 
               <button className="rounded-xl bg-[color:var(--accent-secondary)] py-3 font-semibold text-white shadow-md shadow-black/10">{authMode === "signup" ? "Create account" : "Log in"}</button>
             </form>
 
-            <div className="pt-2 space-y-3">
-              <div className="grid gap-3 sm:grid-cols-3">
+            <div className="pt-1 sm:pt-2 space-y-3">
+              <div className="grid gap-2 sm:gap-3 sm:grid-cols-3">
                 <button type="button" className="group inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-[var(--border)] bg-[color:var(--surface)] px-4 py-2.5 text-sm font-semibold text-[color:var(--foreground)] shadow-sm transition hover:-translate-y-0.5 hover:border-[var(--border-strong)] hover:bg-[color:var(--muted)] active:translate-y-0" onClick={() => void socialLogin("apple")}>
                   <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 opacity-90 transition group-hover:opacity-100" aria-hidden="true" fill="currentColor">
                     <path d="M16.7 13.1c0-1.9 1-3.5 2.6-4.6-1-1.4-2.6-2.3-4.1-2.4-1.7-.2-3.2 1-4 .9-.9-.1-2.3-.9-3.8-.9-2 .1-3.8 1.1-4.8 2.7-2 3.3-.5 8.2 1.4 10.9 1 1.3 2.1 2.8 3.7 2.7 1.5-.1 2.1-1 4-1s2.5 1 4.1 1c1.6 0 2.6-1.3 3.6-2.7.8-1.2 1.2-2.4 1.2-2.5-.1 0-2.9-1.1-2.9-4.1ZM14.9 5.7c.8-1 1.3-2.3 1.1-3.6-1.2.1-2.6.8-3.4 1.8-.8.9-1.4 2.2-1.2 3.5 1.3.1 2.7-.7 3.5-1.7Z" />
