@@ -38,16 +38,16 @@ export function TurnstileInvisible({ onToken, onReady, onError, onExpired, class
 
   useEffect(() => {
     if (!sitekey || !widgetRef.current || !window.turnstile || widgetIdRef.current) return;
-    widgetIdRef.current = window.turnstile.render(widgetRef.current, {
+    const widgetId = window.turnstile.render(widgetRef.current, {
       sitekey,
       execution: "render",
-      appearance: "execute",
-      size: "normal",
+      appearance: "always",
       callback: (token) => onToken(token),
       "error-callback": onError,
       "expired-callback": onExpired,
       "timeout-callback": onExpired,
     });
+    widgetIdRef.current = widgetId;
     onReady?.();
   }, [onError, onExpired, onReady, onToken, sitekey]);
 
@@ -57,10 +57,17 @@ export function TurnstileInvisible({ onToken, onReady, onError, onExpired, class
     }
   }, [sitekey]);
 
+  useEffect(() => {
+    if (!widgetIdRef.current || !window.turnstile) return;
+    window.turnstile.reset?.(widgetIdRef.current);
+    onToken("");
+  }, [onToken]);
+
   return (
     <div className={className}>
       <Script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" strategy="afterInteractive" />
-      <div ref={widgetRef} id={id} />
+      <div ref={widgetRef} id={id} className="min-h-0 min-w-0 overflow-hidden" />
+      {!sitekey ? <p className="text-xs text-red-600">Turnstile site key is missing.</p> : null}
     </div>
   );
 }

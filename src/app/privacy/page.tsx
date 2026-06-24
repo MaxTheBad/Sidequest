@@ -27,8 +27,6 @@ export default function PrivacyPage() {
         <h2 className="font-semibold">Bot Protection</h2>
         <p className="text-sm text-gray-700">
           We use Cloudflare Turnstile to help protect signup, reporting, and other sensitive forms from automated abuse.
-          If we enable invisible mode for Turnstile, we reference Cloudflare&apos;s Turnstile Privacy Addendum in this
-          policy as required by Cloudflare.
         </p>
         <p className="text-sm text-gray-700">
           Turnstile may process technical information about your browser and interaction with the protected form to
