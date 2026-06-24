@@ -85,6 +85,7 @@ export default function ListingPage() {
   const [reportReason, setReportReason] = useState("unsafe_behavior");
   const [reportDetails, setReportDetails] = useState("");
   const [submittingReport, setSubmittingReport] = useState(false);
+  const [reportFeedback, setReportFeedback] = useState("");
 
   function sanitizeLocationLabel(input?: string | null) {
     const raw = (input || "").trim();
@@ -508,7 +509,12 @@ export default function ListingPage() {
       return;
     }
     if (targetUserId === userId) return;
-    router.push(`/report/listing/${listing?.id || ""}?reported_user_id=${encodeURIComponent(targetUserId)}`);
+    setReportTargetUserId(targetUserId);
+    setReportContext("in_person");
+    setReportReason("unsafe_behavior");
+    setReportDetails("");
+    setReportFeedback("");
+    setShowReportModal(true);
   }
 
   async function submitUserReport() {
@@ -533,11 +539,11 @@ export default function ListingPage() {
     }).select("id").single();
     setSubmittingReport(false);
     if (error) {
-      return setStatus("We couldn't submit that report right now. Please try again in a moment.");
+      setReportFeedback("We couldn't submit that report right now. Please try again in a moment.");
+      return;
     }
 
-    setShowReportModal(false);
-    setStatus(`Report submitted. Reference ${formatReportReference(data?.id || null)}.`);
+    setReportFeedback(`Report submitted. Reference ${formatReportReference(data?.id || null)}.`);
   }
 
   async function setMemberRole(targetUserId: string, nextRole: "member" | "cohost") {
@@ -1192,6 +1198,37 @@ export default function ListingPage() {
             <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 border rounded-full h-10 w-10 bg-white" onClick={(e) => { e.stopPropagation(); setExpandedMediaIndex((idx) => (idx === null || !listing.media_items?.length ? idx : (idx + 1) % listing.media_items.length)); }}>›</button>
           </div>
         )}
+      {showReportModal && listing && reportTargetUserId && (
+        <div className="fixed inset-0 z-[130] bg-black/55 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-white border p-4 space-y-3 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold">Report participant</h3>
+              <button className="border rounded px-2 py-1" onClick={() => { setShowReportModal(false); setReportFeedback(""); }}>Close</button>
+            </div>
+            <label className="text-sm font-medium">Context</label>
+            <select className="border rounded px-3 py-2" value={reportContext} onChange={(e) => setReportContext(e.target.value as "listing_content" | "chat_behavior" | "profile_account" | "in_person") }>
+              <option value="in_person">In-person meetup behavior</option>
+              <option value="chat_behavior">Chat / in-app behavior</option>
+              <option value="listing_content">Listing content</option>
+              <option value="profile_account">Profile/account</option>
+            </select>
+            <label className="text-sm font-medium">Reason</label>
+            <input className="border rounded px-3 py-2" value={reportReason} onChange={(e) => setReportReason(e.target.value)} placeholder="e.g. unsafe_behavior, no_show" />
+            <label className="text-sm font-medium">Details {reportContext === "in_person" ? "*" : "(optional)"}</label>
+            <textarea className="border rounded px-3 py-2 w-full" value={reportDetails} onChange={(e) => setReportDetails(e.target.value)} placeholder="Describe what happened." />
+            <div className="flex items-end justify-between gap-3">
+              <div className="min-w-0 flex-1 text-sm text-slate-700">
+                {reportFeedback ? <span>{reportFeedback}</span> : null}
+              </div>
+              <div className="flex justify-end gap-2 shrink-0">
+                <button className="border rounded px-3 py-2" onClick={() => { setShowReportModal(false); setReportFeedback(""); }}>Cancel</button>
+                <button className="bg-black text-white rounded px-3 py-2 disabled:opacity-50" disabled={submittingReport} onClick={() => void submitUserReport()}>{submittingReport ? "Submitting..." : "Submit report"}</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showBlockConfirm && listing && blockTargetUserId && (
         <div className="fixed inset-0 z-[130] bg-black/55 backdrop-blur-sm flex items-center justify-center p-4">
       <div className="w-full max-w-md rounded-2xl bg-white border p-4 space-y-3 shadow-2xl">

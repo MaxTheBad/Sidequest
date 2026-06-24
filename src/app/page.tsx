@@ -347,6 +347,7 @@ export default function Home() {
   const [reportReason, setReportReason] = useState("spam_scam");
   const [reportDetails, setReportDetails] = useState("");
   const [submittingReport, setSubmittingReport] = useState(false);
+  const [reportFeedback, setReportFeedback] = useState("");
   const [authMode, setAuthMode] = useState<AuthMode>("login");
 
   const [email, setEmail] = useState("");
@@ -2486,7 +2487,12 @@ export default function Home() {
       setStatus("Log in to submit reports.");
       return;
     }
-    router.push(`/report/listing/${quest.id}?reported_user_id=${encodeURIComponent(quest.creator_id || "")}`);
+    setReportTarget(quest);
+    setReportContext("listing_content");
+    setReportReason(REPORT_REASONS.listing_content[0].code);
+    setReportDetails("");
+    setReportFeedback("");
+    setShowReportModal(true);
   }
 
   async function submitReport() {
@@ -2513,13 +2519,11 @@ export default function Home() {
     const { data, error } = await supabase.from("reports").insert(payload).select("id").single();
     setSubmittingReport(false);
     if (error) {
-      return setStatus("We couldn't submit that report right now. Please try again in a moment.");
+      setReportFeedback("We couldn't submit that report right now. Please try again in a moment.");
+      return;
     }
 
-    setShowReportModal(false);
-    setReportTarget(null);
-    setReportDetails("");
-    setStatus(`Report submitted. Reference ${formatReportReference(data?.id || null)}.`);
+    setReportFeedback(`Report submitted. Reference ${formatReportReference(data?.id || null)}.`);
   }
 
   async function sendQuestionFromModal() {
@@ -4533,11 +4537,16 @@ export default function Home() {
               onChange={(e) => setReportDetails(e.target.value)}
             />
 
-            <div className="flex justify-end gap-2">
-              <button className="border rounded px-3 py-2" onClick={() => setShowReportModal(false)}>Cancel</button>
-              <button className="bg-black text-white rounded px-3 py-2 disabled:opacity-50" disabled={submittingReport} onClick={() => void submitReport()}>
-                {submittingReport ? "Submitting..." : "Submit report"}
-              </button>
+            <div className="flex items-end justify-between gap-3">
+              <div className="min-w-0 flex-1 text-sm text-slate-700">
+                {reportFeedback ? <span>{reportFeedback}</span> : null}
+              </div>
+              <div className="flex justify-end gap-2 shrink-0">
+                <button className="border rounded px-3 py-2" onClick={() => { setShowReportModal(false); setReportFeedback(""); }}>Cancel</button>
+                <button className="bg-black text-white rounded px-3 py-2 disabled:opacity-50" disabled={submittingReport} onClick={() => void submitReport()}>
+                  {submittingReport ? "Submitting..." : "Submit report"}
+                </button>
+              </div>
             </div>
           </div>
         </div>
