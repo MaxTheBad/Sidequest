@@ -22,7 +22,7 @@ MVP app: find hobby partners/groups, post quests, join quests, and use a Surpris
     - `SMTP_USER`
     - `SMTP_PASSWORD`
     - `SMTP_FROM` (optional)
-    - `MODERATION_ALERT_RECIPIENTS` (optional; defaults to `reportsreportteam@questhat.com`)
+    - `MODERATION_ALERT_RECIPIENTS` (optional; defaults to `reports@questhat.com`)
 3. Run the SQL file in Supabase SQL editor:
    - `supabase-schema.sql`
 4. Start dev server:
