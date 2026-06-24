@@ -973,7 +973,7 @@ export default function Home() {
     });
   }
 
-  async function socialLogin(provider: "google" | "facebook") {
+  async function socialLogin(provider: "google" | "facebook" | "apple") {
     if (!supabase) return;
     const { error } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo } });
     if (error) {
@@ -3854,6 +3854,7 @@ export default function Home() {
 
             <div className="pt-2 space-y-2">
               <div className="flex gap-2">
+                <button className="border rounded px-3 py-2 flex items-center gap-2" onClick={() => void socialLogin("apple")}><span className="text-sm font-semibold leading-none">Apple</span></button>
                 <button className="border rounded px-3 py-2 flex items-center gap-2" onClick={() => void socialLogin("google")}><img src="/google-g.svg" alt="Google" className="h-4 w-4"/><span>Google</span></button>
                 <button className="border rounded px-3 py-2 flex items-center gap-2" onClick={() => void socialLogin("facebook")}><img src="/facebook-f.svg" alt="Facebook" className="h-4 w-4"/><span>Facebook</span></button>
               </div>
