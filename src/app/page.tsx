@@ -2527,7 +2527,7 @@ export default function Home() {
     const { error } = await supabase.from("reports").insert(payload);
     setSubmittingReport(false);
     if (error) {
-      setReportFeedback("We couldn't submit that report right now. Please try again in a moment.");
+      setReportFeedback(error.message || "We couldn't submit that report right now. Please try again in a moment.");
       return;
     }
 

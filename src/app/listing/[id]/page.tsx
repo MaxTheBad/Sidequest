@@ -547,7 +547,7 @@ export default function ListingPage() {
     });
     setSubmittingReport(false);
     if (error) {
-      setReportFeedback("We couldn't submit that report right now. Please try again in a moment.");
+      setReportFeedback(error.message || "We couldn't submit that report right now. Please try again in a moment.");
       return;
     }
 
