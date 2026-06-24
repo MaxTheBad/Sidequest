@@ -559,8 +559,6 @@ export default function SettingsPage() {
                 <label className="text-sm font-medium">Bio</label>
                 <textarea className="border rounded px-3 py-2" value={bio} onChange={(e) => setBio(e.target.value)} />
 
-                <p className="text-xs text-gray-500">Travel distance: within {radiusKm} km</p>
-
                 <label className="text-sm font-medium">Friends list visibility</label>
                 <select className="border rounded px-3 py-2" value={friendsVisibility} onChange={(e) => setFriendsVisibility(e.target.value as "public" | "private")}>
                   <option value="public">Public</option>
@@ -656,7 +654,7 @@ export default function SettingsPage() {
 
             {userId ? (
               <div className="pt-3 border-t">
-                <button type="button" className="rounded-full border border-red-300 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 transition hover:bg-red-100" onClick={() => void signOut()}>
+                <button type="button" className="w-full rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm font-medium text-red-700 transition hover:bg-red-100" onClick={() => void signOut()}>
                   Sign out
                 </button>
               </div>

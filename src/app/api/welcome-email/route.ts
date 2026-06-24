@@ -1,7 +1,6 @@
-import nodemailer from "nodemailer";
 import { createClient } from "@supabase/supabase-js";
 
-export const runtime = "nodejs";
+export const runtime = "edge";
 
 function escapeHtml(input: string) {
   return input
@@ -66,18 +65,15 @@ function buildWelcomeEmailText(name: string, siteUrl: string) {
 export async function POST(req: Request) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const smtpHost = process.env.SMTP_HOST;
-  const smtpPort = Number(process.env.SMTP_PORT || "465");
-  const smtpUser = process.env.SMTP_USER;
-  const smtpPass = process.env.SMTP_PASSWORD;
+  const resendApiKey = process.env.RESEND_API_KEY;
   const smtpFrom = process.env.SMTP_FROM || "QuestHat <no-reply@questhat.com>";
   const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL || "https://questhat.com").replace(/\/$/, "");
 
   if (!supabaseUrl || !serviceRoleKey) {
     return Response.json({ ok: false, error: "Missing Supabase admin credentials." }, { status: 500 });
   }
-  if (!smtpHost || !smtpUser || !smtpPass) {
-    return Response.json({ ok: false, error: "Missing SMTP configuration." }, { status: 500 });
+  if (!resendApiKey) {
+    return Response.json({ ok: false, error: "Missing RESEND_API_KEY." }, { status: 500 });
   }
 
   const authHeader = req.headers.get("authorization") || "";
@@ -116,27 +112,29 @@ export async function POST(req: Request) {
     return Response.json({ ok: true, skipped: true, reason: "already_sent" });
   }
 
-  const transporter = nodemailer.createTransport({
-    host: smtpHost,
-    port: smtpPort,
-    secure: smtpPort === 465,
-    auth: {
-      user: smtpUser,
-      pass: smtpPass,
-    },
-  });
-
   const displayName = profile?.display_name || user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split("@")[0] || "there";
   const html = buildWelcomeEmailHtml(displayName, siteUrl);
   const text = buildWelcomeEmailText(displayName, siteUrl);
 
-  await transporter.sendMail({
-    from: smtpFrom,
-    to: user.email ?? "",
-    subject: "Welcome to QuestHat",
-    text,
-    html,
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${resendApiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: smtpFrom,
+      to: user.email ?? "",
+      subject: "Welcome to QuestHat",
+      text,
+      html,
+    }),
   });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => "");
+    return Response.json({ ok: false, error: errorText || `Email provider error (${response.status})` }, { status: 500 });
+  }
 
   const { error: updateError } = await supabase
     .from("profiles")
