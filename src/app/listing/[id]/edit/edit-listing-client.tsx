@@ -2,12 +2,10 @@
 
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import CityAutocompleteInput from "@/components/city-autocomplete-input";
 import { getSupabaseClient } from "@/lib/supabase";
 import { CANONICAL_CATEGORIES, resolveCanonicalCategory, suggestCanonicalCategories } from "@/lib/category-suggestions.js";
-
-export const runtime = "edge";
 
 const TITLE_SUGGESTIONS = [
   "Beginner tennis buddy this weekend",
@@ -61,8 +59,8 @@ function pickTitleSuggestionByCategory(categoryName: string) {
 export default function EditListingPage() {
   const supabase = getSupabaseClient();
   const router = useRouter();
-  const params = useParams<{ id?: string | string[] }>();
-  const listingId = Array.isArray(params?.id) ? params.id[0] : params?.id;
+  const pathname = usePathname();
+  const listingId = pathname.match(/^\/listing\/([^/]+)\/edit\/?$/)?.[1];
 
   const [status, setStatus] = useState("Loading...");
   const [saving, setSaving] = useState(false);

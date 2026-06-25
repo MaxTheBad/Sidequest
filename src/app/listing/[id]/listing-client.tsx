@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { readStoredUserLocation, writeStoredUserLocation } from "@/lib/location-distance";
 import { getSupabaseClient } from "@/lib/supabase";
@@ -47,13 +47,11 @@ type ListingComment = {
   profiles?: MemberProfile[] | MemberProfile | null;
 };
 
-export const runtime = "edge";
-
 export default function ListingPage() {
   const supabase = getSupabaseClient();
   const router = useRouter();
-  const params = useParams<{ id?: string | string[] }>();
-  const listingId = Array.isArray(params?.id) ? params.id[0] : params?.id;
+  const pathname = usePathname();
+  const listingId = pathname.match(/^\/listing\/([^/]+)/)?.[1];
   const [listing, setListing] = useState<Listing | null>(null);
   const [status, setStatus] = useState("Loading listing...");
   const [userId, setUserId] = useState<string | null>(null);

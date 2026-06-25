@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { TurnstileInvisible } from "@/components/turnstile-invisible";
 import { formatReportReference } from "@/lib/reporting";
@@ -31,15 +31,14 @@ function unwrapSingle<T>(value: T[] | T | null | undefined): T | null {
   return Array.isArray(value) ? value[0] ?? null : value;
 }
 
-export const runtime = "edge";
-
 export default function ReportPage() {
   const supabase = getSupabaseClient();
   const router = useRouter();
-  const params = useParams<{ kind?: string | string[]; id?: string | string[] }>();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
-  const kind = (Array.isArray(params?.kind) ? params.kind[0] : params?.kind) as ReportKind | undefined;
-  const id = Array.isArray(params?.id) ? params.id[0] : params?.id;
+  const routeMatch = pathname.match(/^\/report\/([^/]+)\/([^/]+)\/?$/);
+  const kind = routeMatch?.[1] as ReportKind | undefined;
+  const id = routeMatch?.[2];
   const reportedUserId = searchParams.get("reported_user_id");
 
   const [title, setTitle] = useState("");

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase";
 
@@ -18,12 +18,10 @@ type FriendEdge = {
   status: "pending" | "accepted" | "blocked";
 };
 
-export const runtime = "edge";
-
 export default function ProfileFriendsPage() {
   const supabase = getSupabaseClient();
-  const params = useParams<{ id?: string | string[] }>();
-  const profileId = Array.isArray(params?.id) ? params.id[0] : params?.id;
+  const pathname = usePathname();
+  const profileId = pathname.match(/^\/profile\/([^/]+)\/friends\/?$/)?.[1];
   const [profile, setProfile] = useState<Profile | null>(null);
   const [friends, setFriends] = useState<Array<Profile & { mutualCount: number }>>([]);
   const [status, setStatus] = useState("Loading...");

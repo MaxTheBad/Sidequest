@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { AppIcon } from "@/components/app-icons";
 import { TurnstileInvisible } from "@/components/turnstile-invisible";
@@ -34,12 +34,10 @@ type FriendEdge = {
   status: "pending" | "accepted" | "blocked";
 };
 
-export const runtime = "edge";
-
 export default function ProfilePage() {
   const supabase = getSupabaseClient();
-  const params = useParams<{ id?: string | string[] }>();
-  const profileId = Array.isArray(params?.id) ? params.id[0] : params?.id;
+  const pathname = usePathname();
+  const profileId = pathname.match(/^\/profile\/([^/]+)/)?.[1];
   const [viewerId, setViewerId] = useState<string | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [quests, setQuests] = useState<Quest[]>([]);
