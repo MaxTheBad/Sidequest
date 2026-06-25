@@ -588,8 +588,6 @@ export default function SettingsPage() {
                       onChange={(e) => {
                         const next = e.target.value;
                         setCountryCode(next);
-                        const match = COUNTRY_OPTIONS.find((c) => c.code === next);
-                        if (match) setCountryQuery(match.name);
                       }}
                     >
                       {COUNTRY_OPTIONS.map((country) => (
