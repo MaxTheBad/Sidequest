@@ -3247,10 +3247,10 @@ export default function Home() {
                       <div key={`${m.url}-${i}`} className={`relative w-full h-full shrink-0 snap-start bg-black overflow-hidden ${feedViewMode === "list" ? "min-h-0" : "aspect-[4/3] lg:aspect-[4/3]"}`}>
                         {m.type === "image" ? (
                           <button type="button" className="w-full h-full block overflow-hidden" onClick={() => setExpandedMedia({ items: feedMediaItems, index: i })}>
-                            <img
+                        <img
                               src={m.url}
                               alt={m.label || "Listing media"}
-                              className={`w-full h-full ${feedViewMode === "list" ? "object-contain object-center" : "object-cover object-center"}`}
+                              className={`w-full h-full ${feedViewMode === "list" ? "object-cover object-center" : "object-cover object-center"}`}
                             />
                           </button>
                         ) : (
@@ -3259,7 +3259,7 @@ export default function Home() {
                               <img
                                 src={m.thumbnailUrl || generatedVideoThumbs[`${q.id}-${i}`]}
                                 alt={m.label || "Video thumbnail"}
-                                className={`absolute inset-0 h-full w-full ${feedViewMode === "list" ? "object-contain object-center" : "object-cover object-center"}`}
+                                className={`absolute inset-0 h-full w-full object-cover object-center`}
                               />
                             ) : null}
                             <video
@@ -3269,7 +3269,7 @@ export default function Home() {
                               src={m.url}
                               crossOrigin="anonymous"
                               poster={m.thumbnailUrl || generatedVideoThumbs[`${q.id}-${i}`] || undefined}
-                              className={`relative z-10 w-full h-full bg-transparent opacity-0 transition-opacity duration-200 ${feedViewMode === "list" ? "object-contain object-center" : "object-cover object-center"}`}
+                              className={`relative z-10 w-full h-full bg-transparent opacity-0 transition-opacity duration-200 object-cover object-center`}
                               preload="metadata"
                               playsInline
                               onLoadedMetadata={(e) => {
