@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
+import { AppIcon } from "@/components/app-icons";
 import { TurnstileInvisible } from "@/components/turnstile-invisible";
 import { getSupabaseClient } from "@/lib/supabase";
 import { formatReportReference } from "@/lib/reporting";
@@ -12,8 +13,11 @@ type Profile = {
   display_name: string | null;
   username: string | null;
   city: string | null;
+  region: string | null;
+  country_code: string | null;
   bio: string | null;
   friends_visibility?: "public" | "private";
+  show_location?: boolean | null;
   avatar_url?: string | null;
 };
 
@@ -50,11 +54,13 @@ export default function ProfilePage() {
   const [showReportModal, setShowReportModal] = useState(false);
   const [showBlockConfirm, setShowBlockConfirm] = useState(false);
   const [showUnblockConfirm, setShowUnblockConfirm] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [reportReason, setReportReason] = useState("inappropriate_profile");
   const [reportDetails, setReportDetails] = useState("");
   const [submittingReport, setSubmittingReport] = useState(false);
   const [reportFeedback, setReportFeedback] = useState("");
   const [reportTurnstileToken, setReportTurnstileToken] = useState("");
+  const invalidProfileId = !profileId || !/^[0-9a-fA-F-]{36}$/.test(profileId);
 
   function sanitizeLocationLabel(input?: string | null) {
     const raw = (input || "").trim();
@@ -62,18 +68,18 @@ export default function ProfilePage() {
     return raw.replace(/,\s*(Florida|FL)$/i, "").replace(/\s+\b(Florida|FL)\b$/i, "").trim();
   }
 
-  const isOwnProfile = useMemo(() => !!(viewerId && profileId && viewerId === profileId), [viewerId, profileId]);
-  const blockEdge = useMemo(() => {
-    if (!viewerId || !profileId) return null;
-    return friendship?.status === "blocked" ? friendship : null;
-  }, [friendship, profileId, viewerId]);
-  const youBlockedThem = useMemo(() => !!(blockEdge && blockEdge.requester_id === viewerId && blockEdge.addressee_id === profileId), [blockEdge, profileId, viewerId]);
-  const canViewFriends = useMemo(() => {
-    if (isOwnProfile) return true;
-    if (!profile) return false;
-    if ((profile.friends_visibility || "public") === "public") return true;
-    return friendship?.status === "accepted";
-  }, [isOwnProfile, profile, friendship]);
+  function formatProfileLocation(city?: string | null, region?: string | null, countryCode?: string | null) {
+    const raw = sanitizeLocationLabel(city);
+    const regionValue = sanitizeLocationLabel(region);
+    const country = countryCode ? countryCode.toUpperCase() : "";
+    return [raw, regionValue, country].filter(Boolean).join(", ");
+  }
+
+  const isOwnProfile = !!(viewerId && profileId && viewerId === profileId);
+  const blockEdge = !viewerId || !profileId ? null : friendship?.status === "blocked" ? friendship : null;
+  const youBlockedThem = !!(blockEdge && blockEdge.requester_id === viewerId && blockEdge.addressee_id === profileId);
+  const canViewFriends = isOwnProfile ? true : !!profile && (profile.friends_visibility || "public") === "public" ? true : friendship?.status === "accepted";
+  const profileLocation = formatProfileLocation(profile?.city, profile?.region, profile?.country_code);
 
   const reportFeedbackTone = reportFeedback.toLowerCase().includes("couldn't") || reportFeedback.toLowerCase().includes("try again")
     ? "error"
@@ -83,14 +89,7 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (!supabase) return;
-    if (!profileId) {
-      setStatus("Profile not found.");
-      return;
-    }
-    if (!/^[0-9a-fA-F-]{36}$/.test(profileId)) {
-      setStatus("Invalid profile id.");
-      return;
-    }
+    if (invalidProfileId) return;
 
     const load = async () => {
       const { data: s } = await supabase.auth.getSession();
@@ -99,7 +98,7 @@ export default function ProfilePage() {
 
       const { data: p, error: pErr } = await supabase
         .from("profiles")
-        .select("id,display_name,username,city,bio,friends_visibility,avatar_url")
+        .select("id,display_name,username,city,region,country_code,bio,friends_visibility,avatar_url,show_location")
         .eq("id", profileId)
         .maybeSingle();
       if (pErr) return setStatus(pErr.message);
@@ -143,7 +142,7 @@ export default function ProfilePage() {
       if (canSeeFriends && friendIds.length) {
         const { data: friendProfiles } = await supabase
           .from("profiles")
-          .select("id,display_name,username,city,bio,friends_visibility,avatar_url")
+          .select("id,display_name,username,city,region,country_code,bio,friends_visibility,avatar_url,show_location")
           .in("id", friendIds);
         setFriends((friendProfiles as Profile[]) || []);
       } else {
@@ -164,7 +163,7 @@ export default function ProfilePage() {
         if (requestProfileIds.length) {
           const { data: requestProfiles } = await supabase
             .from("profiles")
-            .select("id,display_name,username,city,bio,friends_visibility,avatar_url")
+            .select("id,display_name,username,city,region,country_code,bio,friends_visibility,avatar_url,show_location")
             .in("id", requestProfileIds);
           const map = Object.fromEntries(((requestProfiles as Profile[]) || []).map((rp) => [rp.id, rp]));
           setIncomingRequestProfiles(map);
@@ -184,7 +183,7 @@ export default function ProfilePage() {
     };
 
     void load();
-  }, [supabase, profileId, reloadTick]);
+  }, [supabase, invalidProfileId, profileId, reloadTick]);
 
   async function addFriend() {
     if (!supabase || !viewerId || !profileId || viewerId === profileId) return;
@@ -346,59 +345,97 @@ export default function ProfilePage() {
   return (
     <main className="page-shell page-profile min-h-screen bg-transparent p-4">
       <div className="max-w-3xl mx-auto space-y-3">
-        <Link href="/" className="inline-block border rounded px-3 py-2">← Back to listings</Link>
+        <Link href="/" className="inline-flex items-center gap-2 rounded-full border bg-white px-4 py-2 text-sm font-medium shadow-sm">
+          <span aria-hidden="true">←</span>
+          Back to listings
+        </Link>
 
-        {status && !profile ? (
+        {invalidProfileId ? (
+          <div className="rounded-2xl border bg-white p-4 text-sm">Invalid profile id.</div>
+        ) : status && !profile ? (
           <div className="rounded-2xl border bg-white p-4 text-sm">{status}</div>
         ) : (
           <>
-            <section className="rounded-2xl border bg-white p-4 flex gap-4 items-center justify-between">
-              <div className="flex gap-4 items-center">
-                {profile?.avatar_url ? (
-                  <img src={profile.avatar_url} alt={profile.display_name || "Profile"} className="h-20 w-20 rounded-full border object-cover" />
-                ) : (
-                  <div className="h-20 w-20 rounded-full border bg-gray-100" />
-                )}
-                <div>
-                  <h1 className="text-2xl font-bold">{profile?.display_name || "SideQuest user"}</h1>
-                  {profile?.username ? <p className="text-sm text-gray-500">@{profile.username}</p> : null}
-                  <p className="text-sm text-gray-600">{sanitizeLocationLabel(profile?.city) || "City not set"}</p>
-                  {profile?.bio && <p className="text-sm mt-1">{profile.bio}</p>}
-                </div>
-              </div>
-
-              <div className="flex gap-2">
-                {isOwnProfile ? (
-                  <Link href="/settings" className="border rounded px-3 py-2">Edit profile</Link>
-                ) : (
-                  <>
-                    <button
-                      className="border rounded px-3 py-2"
-                      onClick={() => {
-                        if (friendship?.status === "accepted") return void removeFriend(profileId as string);
-                        if (friendship?.status === "pending" && friendship.requester_id === viewerId) return void cancelRequest();
-                        if (friendship?.status === "pending" && friendship.addressee_id === viewerId) return void acceptRequest(friendship.requester_id);
-                        void addFriend();
-                      }}
-                    >
-                      {friendship?.status === "accepted"
-                        ? "Unfriend"
-                        : youBlockedThem
-                          ? "Blocked"
-                        : friendship?.status === "pending" && friendship.requester_id === viewerId
-                          ? "Cancel request"
-                          : friendship?.status === "pending" && friendship.addressee_id === viewerId
-                            ? "Accept friend request"
-                            : "Add friend"}
-                    </button>
-                    {youBlockedThem ? (
-                      <button className="border rounded px-3 py-2 text-red-700 border-red-300 bg-red-50" onClick={() => setShowUnblockConfirm(true)}>Unblock</button>
+            <section className="overflow-hidden rounded-[28px] border bg-white shadow-[0_20px_60px_rgba(15,23,42,0.08)]">
+              <div className="h-24 bg-gradient-to-r from-slate-950 via-slate-800 to-slate-600" />
+              <div className="px-5 pb-5">
+                <div className="-mt-12 flex items-start justify-between gap-4">
+                  <div className="flex min-w-0 gap-4">
+                    {profile?.avatar_url ? (
+                      <img src={profile.avatar_url} alt={profile.display_name || "Profile"} className="h-24 w-24 rounded-full border-4 border-white object-cover shadow-lg" />
                     ) : (
-                      <button className="border rounded px-3 py-2 text-red-700 border-red-300 bg-red-50" onClick={() => setShowBlockConfirm(true)}>Block</button>
+                      <div className="h-24 w-24 rounded-full border-4 border-white bg-gray-100 shadow-lg" />
                     )}
-                    <button className="border rounded px-3 py-2 text-red-700 border-red-300 bg-red-50" onClick={() => { setShowReportModal(true); setReportFeedback(""); }}>Report</button>
-                  </>
-                )}
+                    <div className="min-w-0 pt-10">
+                      <h1 className="truncate text-2xl font-black tracking-tight">{profile?.display_name || "SideQuest user"}</h1>
+                      {profile?.username ? <p className="text-sm font-medium text-gray-500">@{profile.username}</p> : null}
+                      <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-gray-600">
+                        <span className="rounded-full bg-gray-100 px-3 py-1">Friends {canViewFriends ? friends.length : "private"}</span>
+                        <span className="rounded-full bg-gray-100 px-3 py-1">{quests.length} posts</span>
+                        {profileLocation ? <span className="rounded-full bg-gray-100 px-3 py-1">{profileLocation}</span> : null}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="relative pt-2">
+                    {isOwnProfile ? (
+                      <Link href="/settings" className="inline-flex items-center rounded-full border bg-white px-4 py-2 text-sm font-medium shadow-sm">Edit profile</Link>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <button
+                          className={`inline-flex items-center rounded-full px-4 py-2 text-sm font-medium shadow-sm ${friendship?.status === "accepted" ? "border bg-slate-950 text-white" : "border bg-white"}`}
+                          onClick={() => {
+                            if (friendship?.status === "accepted") return void removeFriend(profileId as string);
+                            if (friendship?.status === "pending" && friendship.requester_id === viewerId) return void cancelRequest();
+                            if (friendship?.status === "pending" && friendship.addressee_id === viewerId) return void acceptRequest(friendship.requester_id);
+                            void addFriend();
+                          }}
+                        >
+                          {friendship?.status === "accepted"
+                            ? "Unfriend"
+                            : youBlockedThem
+                              ? "Blocked"
+                              : friendship?.status === "pending" && friendship.requester_id === viewerId
+                                ? "Cancel request"
+                                : friendship?.status === "pending" && friendship.addressee_id === viewerId
+                                  ? "Accept request"
+                                  : "Add friend"}
+                        </button>
+                        <button
+                          type="button"
+                          aria-label="More actions"
+                          className="inline-flex h-11 w-11 items-center justify-center rounded-full border bg-white shadow-sm"
+                          onClick={() => setShowMoreMenu((v) => !v)}
+                        >
+                          <AppIcon name="more" className="h-5 w-5" />
+                        </button>
+                        {showMoreMenu ? (
+                          <div className="absolute right-0 top-14 z-20 w-48 overflow-hidden rounded-2xl border bg-white p-1 shadow-2xl">
+                            {youBlockedThem ? (
+                              <button className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm hover:bg-gray-50" onClick={() => { setShowMoreMenu(false); setShowUnblockConfirm(true); }}>
+                                <span>Unblock</span>
+                              </button>
+                            ) : (
+                              <button className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm hover:bg-gray-50" onClick={() => { setShowMoreMenu(false); setShowBlockConfirm(true); }}>
+                                <span>Block</span>
+                              </button>
+                            )}
+                            <button className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm hover:bg-gray-50" onClick={() => { setShowMoreMenu(false); setShowReportModal(true); setReportFeedback(""); }}>
+                              <span>Report</span>
+                            </button>
+                          </div>
+                        ) : null}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                {profile?.bio ? <p className="mt-4 max-w-2xl text-sm leading-6 text-gray-700">{profile.bio}</p> : null}
+                {profile?.show_location ? (
+                  <p className="mt-3 inline-flex items-center gap-2 rounded-full border bg-gray-50 px-3 py-1.5 text-xs font-medium text-gray-700">
+                    <AppIcon name="location" className="h-4 w-4" />
+                    {profileLocation || "Location set"}
+                  </p>
+                ) : null}
               </div>
             </section>
 

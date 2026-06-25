@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, PointerEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, PointerEvent, useEffect, useRef, useState } from "react";
 import CityAutocompleteInput from "@/components/city-autocomplete-input";
-import { COUNTRY_OPTIONS, countryNameFromCode } from "@/lib/countries";
+import { COUNTRY_OPTIONS } from "@/lib/countries";
 import { getSupabaseClient } from "@/lib/supabase";
 import { isImageLikeFile, prepareImageForUpload } from "@/lib/media-optimize";
 import { normalizeUsername, usernameErrorMessage, validateUsername } from "@/lib/username";
@@ -25,11 +25,12 @@ export default function SettingsPage() {
   const [savedUsername, setSavedUsername] = useState("");
   const [usernameChangedAt, setUsernameChangedAt] = useState<string | null>(null);
   const [countryCode, setCountryCode] = useState("US");
-  const [countryQuery, setCountryQuery] = useState("United States");
   const [city, setCity] = useState("");
+  const [region, setRegion] = useState("");
   const [radiusKm, setRadiusKm] = useState(15);
   const [bio, setBio] = useState("");
   const [friendsVisibility, setFriendsVisibility] = useState<"public" | "private">("public");
+  const [showLocation, setShowLocation] = useState(false);
   const [dob, setDob] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
   const [photoFile, setPhotoFile] = useState<File | null>(null);
@@ -79,17 +80,19 @@ export default function SettingsPage() {
 
       const { data: profile } = await supabase
         .from("profiles")
-        .select("display_name,username,username_changed_at,city,bio,friends_visibility,radius_km,avatar_url,avatar_source_url")
+        .select("display_name,username,username_changed_at,city,region,country_code,bio,friends_visibility,show_location,radius_km,avatar_url,avatar_source_url")
         .eq("id", uid)
         .maybeSingle();
 
       setCity(profile?.city ?? "");
+      setRegion(profile?.region ?? "");
       setUsername(profile?.username ?? "");
       setSavedUsername(profile?.username ?? "");
       setUsernameChangedAt(profile?.username_changed_at ?? null);
       setRadiusKm(Number(profile?.radius_km || 15));
       setBio(profile?.bio ?? "");
       setFriendsVisibility(((profile?.friends_visibility as "public" | "private") || "public"));
+      setShowLocation(Boolean(profile?.show_location));
 
       const u = await supabase.auth.getUser();
       const meta = (u.data.user?.user_metadata || {}) as Record<string, unknown>;
@@ -105,10 +108,10 @@ export default function SettingsPage() {
       setMarketingOptIn(Boolean(meta.marketing_opt_in));
       if (typeof meta.dob === "string") setDob(meta.dob);
       const metaCountry = typeof meta.country_code === "string" ? meta.country_code : "";
-      if (metaCountry.length === 2) { const cc = metaCountry.toUpperCase(); setCountryCode(cc); setCountryQuery(countryNameFromCode(cc)); }
+      if (metaCountry.length === 2) { const cc = metaCountry.toUpperCase(); setCountryCode(cc); }
       else if (typeof navigator !== "undefined") {
         const region = (navigator.language.split("-")[1] || "US").toUpperCase();
-        if (region.length === 2) { setCountryCode(region); setCountryQuery(countryNameFromCode(region)); }
+        if (region.length === 2) { setCountryCode(region); }
       }
 
       const { data: blockRows } = await supabase
@@ -156,7 +159,19 @@ export default function SettingsPage() {
 
     const { error } = await supabase
       .from("profiles")
-      .upsert({ id: userId, username: normalizeUsername(username), display_name: displayName, city, bio, friends_visibility: friendsVisibility, radius_km: radiusKm, avatar_url: avatarUrl || null });
+      .upsert({
+        id: userId,
+        username: normalizeUsername(username),
+        display_name: displayName,
+        city,
+        region: region || null,
+        country_code: countryCode || null,
+        bio,
+        friends_visibility: friendsVisibility,
+        show_location: showLocation,
+        radius_km: radiusKm,
+        avatar_url: avatarUrl || null,
+      });
 
     if (error) return setStatus(usernameErrorMessage(error.message));
 
@@ -585,11 +600,21 @@ export default function SettingsPage() {
                     </select>
                   </div>
 
-                  <CityAutocompleteInput label="City" value={city} onChange={setCity} placeholder="Start typing city..." countryCode="US" />
+                  <CityAutocompleteInput label="City" value={city} onChange={setCity} placeholder="Start typing city..." countryCode={countryCode} />
                 </div>
+
+                <label className="text-sm font-medium">State / Region</label>
+                <input className="border rounded px-3 py-2" value={region} onChange={(e) => setRegion(e.target.value.toUpperCase())} placeholder="e.g. CA, Ontario, Bavaria" />
 
                 <label className="text-sm font-medium">Bio</label>
                 <textarea className="border rounded px-3 py-2" value={bio} onChange={(e) => setBio(e.target.value)} />
+
+                <label className="flex items-start gap-2 text-sm">
+                  <input type="checkbox" checked={showLocation} onChange={(e) => setShowLocation(e.target.checked)} />
+                  <span>
+                    Show location on profile. Hidden by default. When shown, we will avoid zip codes and display only the city plus state/region and country when available.
+                  </span>
+                </label>
 
                 <label className="text-sm font-medium">Friends list visibility</label>
                 <select className="border rounded px-3 py-2" value={friendsVisibility} onChange={(e) => setFriendsVisibility(e.target.value as "public" | "private")}>

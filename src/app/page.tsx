@@ -1007,6 +1007,7 @@ export default function Home() {
       id: uid,
       display_name: nameFromMeta || fallbackName,
       avatar_url: (typeof md.avatar_url === "string" && md.avatar_url) || null,
+      country_code: (typeof md.country_code === "string" && md.country_code) || null,
     });
   }
 
@@ -1197,6 +1198,8 @@ export default function Home() {
         id: userId,
         display_name: onboardingDisplayName.trim() || userEmail.split("@")[0] || "SideQuest user",
         city: onboardingCity.trim() || null,
+        region: null,
+        country_code: countryCode || null,
         bio: onboardingBio.trim() || null,
         onboarding_done: true,
       });
@@ -2255,6 +2258,8 @@ export default function Home() {
       id: activeUserId,
       display_name: fullName || userEmail.split("@")[0] || "SideQuest user",
       city: derivedCity,
+      region: null,
+      country_code: countryCode || null,
       availability: avail,
     };
     // Only include skill_level if it's a specific level (not "any" or empty)
@@ -3630,9 +3635,9 @@ export default function Home() {
                           <div className="flex min-w-0 max-w-[45%] flex-col items-end gap-1 text-right">
                             {creatorProfile ? (
                               <Link href={`/profile/${item.quest.creator_id}`} onClick={(e) => e.stopPropagation()} className="flex items-center gap-2">
-                                <span className={`text-xs font-medium ${isActive ? "text-white/80" : "text-slate-700"}`}>{creatorProfile.display_name || "Host"}</span>
+                                <span className={`text-xs font-medium ${isActive ? "text-white/80" : "text-slate-700"}`}>{creatorProfile.display_name?.trim() || "Host"}</span>
                                 {creatorProfile.avatar_url ? (
-                                  <img src={creatorProfile.avatar_url} alt={creatorProfile.display_name || "Host"} className="h-6 w-6 rounded-full object-cover border border-white/60" />
+                                  <img src={creatorProfile.avatar_url} alt={creatorProfile.display_name?.trim() || "Host"} className="h-6 w-6 rounded-full object-cover border border-white/60" />
                                 ) : (
                                   <div className="h-6 w-6 rounded-full border border-white/60 bg-white/40" />
                                 )}
