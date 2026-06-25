@@ -60,19 +60,20 @@ export default function ProfileFriendsPage() {
         .filter((id) => id && id !== profileId);
 
       let viewerFriendIds: string[] = [];
+      let viewerRelationshipMap: Record<string, FriendEdge> = {};
       if (uid) {
         const { data: viewerEdges, error: viewerErr } = await supabase
           .from("friends")
           .select("requester_id,addressee_id,status")
           .or(`requester_id.eq.${uid},addressee_id.eq.${uid}`);
         if (viewerErr) return setStatus(viewerErr.message);
-        const relationshipMap = Object.fromEntries(
+        viewerRelationshipMap = Object.fromEntries(
           ((viewerEdges || []) as FriendEdge[]).map((edge) => [
             edge.requester_id === uid ? edge.addressee_id : edge.requester_id,
             edge,
           ]),
         );
-        setViewerRelationships(relationshipMap);
+        setViewerRelationships(viewerRelationshipMap);
         viewerFriendIds = Array.from(
           new Set(
             ((viewerEdges || []) as FriendEdge[])
@@ -95,10 +96,15 @@ export default function ProfileFriendsPage() {
         .in("id", friendIds);
       if (friendErr) return setStatus(friendErr.message);
 
-      const withMutualStatus = ((friendProfiles || []) as Profile[]).map((friend) => ({
-        ...friend,
-        isMutual: !!uid && uid !== profileId && viewerFriendIds.includes(friend.id),
-      }));
+      const withMutualStatus = ((friendProfiles || []) as Profile[])
+        .filter((friend) => {
+          const relationship = viewerRelationshipMap[friend.id];
+          return !(relationship?.status === "blocked" && relationship.requester_id !== uid);
+        })
+        .map((friend) => ({
+          ...friend,
+          isMutual: !!uid && uid !== profileId && viewerFriendIds.includes(friend.id),
+        }));
 
       setFriends(withMutualStatus);
       setStatus("");

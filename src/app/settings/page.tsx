@@ -9,8 +9,16 @@ import { isImageLikeFile, prepareImageForUpload } from "@/lib/media-optimize";
 import { normalizeUsername, usernameErrorMessage, validateUsername } from "@/lib/username";
 import { useUsernameAvailability } from "@/lib/use-username-availability";
 
-type Tab = "profile" | "account" | "preferences";
-type BlockedProfile = { id: string; display_name: string | null; avatar_url: string | null };
+type Tab = "profile" | "account" | "preferences" | "friends" | "blocked";
+type SocialProfile = { id: string; display_name: string | null; avatar_url: string | null; username: string | null };
+type FriendEdge = {
+  requester_id: string;
+  addressee_id: string;
+  status: "pending" | "accepted" | "blocked";
+};
+type FriendRow = SocialProfile & { edge: FriendEdge };
+type RequestRow = SocialProfile & { edge: FriendEdge; direction: "incoming" | "outgoing" };
+type BlockedProfile = SocialProfile;
 
 export default function SettingsPage() {
   const supabase = getSupabaseClient();
@@ -52,6 +60,8 @@ export default function SettingsPage() {
   const [marketingOptIn, setMarketingOptIn] = useState(false);
   const [themePref, setThemePref] = useState<"auto" | "light" | "dark">("auto");
   const [publicLocationWarningEnabled, setPublicLocationWarningEnabled] = useState(true);
+  const [friendsProfiles, setFriendsProfiles] = useState<FriendRow[]>([]);
+  const [friendRequests, setFriendRequests] = useState<RequestRow[]>([]);
   const [blockedProfiles, setBlockedProfiles] = useState<BlockedProfile[]>([]);
   const [blockedRefreshTick, setBlockedRefreshTick] = useState(0);
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
@@ -114,18 +124,75 @@ export default function SettingsPage() {
         if (region.length === 2) { setCountryCode(region); }
       }
 
+      const { data: acceptedRows } = await supabase
+        .from("friends")
+        .select("requester_id,addressee_id,status")
+        .eq("status", "accepted")
+        .or(`requester_id.eq.${uid},addressee_id.eq.${uid}`);
+      const acceptedEdges = ((acceptedRows || []) as FriendEdge[]).filter((row) => row.requester_id !== row.addressee_id);
+      const acceptedFriendIds = Array.from(new Set(acceptedEdges.map((row) => (row.requester_id === uid ? row.addressee_id : row.requester_id)).filter((id) => id !== uid)));
+      const acceptedMap = new Map(acceptedEdges.map((row) => [row.requester_id === uid ? row.addressee_id : row.requester_id, row]));
+      if (acceptedFriendIds.length) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id,display_name,avatar_url,username")
+          .in("id", acceptedFriendIds);
+        setFriendsProfiles(((profiles || []) as SocialProfile[]).map((profile) => ({
+          ...profile,
+          edge: acceptedMap.get(profile.id)!,
+        })));
+      } else {
+        setFriendsProfiles([]);
+      }
+
+      const { data: pendingRows } = await supabase
+        .from("friends")
+        .select("requester_id,addressee_id,status")
+        .eq("status", "pending")
+        .or(`requester_id.eq.${uid},addressee_id.eq.${uid}`);
+      const pendingEdges = ((pendingRows || []) as FriendEdge[]).filter((row) => row.requester_id !== row.addressee_id);
+      const pendingIds = Array.from(new Set(pendingEdges.flatMap((row) => [row.requester_id, row.addressee_id]).filter((id) => id !== uid)));
+      if (pendingIds.length) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id,display_name,avatar_url,username")
+          .in("id", pendingIds);
+        const profileMap = new Map(((profiles || []) as SocialProfile[]).map((profile) => [profile.id, profile]));
+        const rows: RequestRow[] = [];
+        pendingEdges.forEach((edge) => {
+          if (edge.requester_id === uid) {
+            const profile = profileMap.get(edge.addressee_id);
+            if (profile) rows.push({ ...profile, edge, direction: "outgoing" });
+            return;
+          }
+          const profile = profileMap.get(edge.requester_id);
+          if (profile) rows.push({ ...profile, edge, direction: "incoming" });
+        });
+        setFriendRequests(rows);
+      } else {
+        setFriendRequests([]);
+      }
+
       const { data: blockRows } = await supabase
         .from("friends")
         .select("requester_id,addressee_id,status")
         .eq("status", "blocked")
         .or(`requester_id.eq.${uid},addressee_id.eq.${uid}`);
-      const blockedIds = Array.from(new Set(((blockRows || []) as Array<{ requester_id: string; addressee_id: string }>).flatMap((r) => [r.requester_id, r.addressee_id]).filter((id) => id !== uid)));
+      const blockedEdges = ((blockRows || []) as FriendEdge[]).filter((row) => row.requester_id !== row.addressee_id);
+      const blockedIds = Array.from(new Set(blockedEdges.flatMap((r) => [r.requester_id, r.addressee_id]).filter((id) => id !== uid)));
       if (blockedIds.length) {
         const { data: profiles } = await supabase
           .from("profiles")
-          .select("id,display_name,avatar_url")
+          .select("id,display_name,avatar_url,username")
           .in("id", blockedIds);
-        setBlockedProfiles((profiles || []) as BlockedProfile[]);
+        const blockedMap = new Map(((profiles || []) as SocialProfile[]).map((profile) => [profile.id, profile]));
+        const rows: BlockedProfile[] = [];
+        blockedEdges.forEach((edge) => {
+          const targetId = edge.requester_id === uid ? edge.addressee_id : edge.requester_id;
+          const profile = blockedMap.get(targetId);
+          if (profile) rows.push(profile);
+        });
+        setBlockedProfiles(rows);
       } else {
         setBlockedProfiles([]);
       }
@@ -449,6 +516,8 @@ export default function SettingsPage() {
           <button className={`px-3 py-2 rounded ${tab === "profile" ? "bg-black text-white" : "border"}`} onClick={() => setTab("profile")}>Profile</button>
           <button className={`px-3 py-2 rounded ${tab === "account" ? "bg-black text-white" : "border"}`} onClick={() => setTab("account")}>Account</button>
           <button className={`px-3 py-2 rounded ${tab === "preferences" ? "bg-black text-white" : "border"}`} onClick={() => setTab("preferences")}>Preferences</button>
+          <button className={`px-3 py-2 rounded ${tab === "friends" ? "bg-black text-white" : "border"}`} onClick={() => setTab("friends")}>Friends</button>
+          <button className={`px-3 py-2 rounded ${tab === "blocked" ? "bg-black text-white" : "border"}`} onClick={() => setTab("blocked")}>Blocked</button>
         </div>
 
         {!userId ? (
@@ -609,9 +678,7 @@ export default function SettingsPage() {
 
                 <label className="flex items-start gap-2 text-sm">
                   <input type="checkbox" checked={showLocation} onChange={(e) => setShowLocation(e.target.checked)} />
-                  <span>
-                    Show location on profile. Hidden by default. When shown, we will avoid zip codes and display only the city plus state/region and country when available.
-                  </span>
+                  <span>Show location on profile. Hidden by default. When shown, display city, region/state, and country only.</span>
                 </label>
 
                 <label className="text-sm font-medium">Friends list visibility</label>
@@ -671,40 +738,168 @@ export default function SettingsPage() {
                   <span>Public location warning (recommended). Show confirmation before posting quests with public meetup visibility.</span>
                 </label>
 
+                <button type="button" className="border rounded px-3 py-2 w-fit" onClick={() => void restartOnboarding()}>Restart onboarding</button>
+                <button className="border rounded px-3 py-2 w-fit">Save preferences</button>
+              </form>
+            )}
+
+            {tab === "friends" && (
+              <div className="space-y-5">
                 <div className="rounded-xl border bg-gray-50 p-3 space-y-2">
                   <div className="flex items-center justify-between gap-2">
                     <div>
-                      <p className="text-sm font-medium">Blocked users</p>
-                      <p className="text-xs text-gray-500">People you’ve blocked won’t appear in feeds or comments.</p>
+                      <p className="text-sm font-medium">Friends</p>
+                      <p className="text-xs text-gray-500">Tap a photo or name to open a profile. Use Remove to unfriend someone.</p>
                     </div>
+                    <p className="text-xs text-gray-500">{friendsProfiles.length} total</p>
                   </div>
-                  {blockedProfiles.length === 0 ? (
-                    <p className="text-sm text-gray-500">No blocked users.</p>
+                  {friendsProfiles.length === 0 ? (
+                    <p className="text-sm text-gray-500">No friends yet.</p>
                   ) : (
                     <div className="space-y-2">
-                      {blockedProfiles.map((p) => (
-                        <div key={p.id} className="flex items-center justify-between gap-3 rounded-xl border bg-white px-3 py-2">
-                          <div className="flex items-center gap-2 min-w-0">
-                            {p.avatar_url ? (
-                              <img src={p.avatar_url} alt={p.display_name || "Blocked user"} className="h-8 w-8 rounded-full object-cover border" />
+                      {friendsProfiles.map((friend) => (
+                        <div key={friend.id} className="flex items-center justify-between gap-3 rounded-xl border bg-white px-3 py-2">
+                          <Link href={`/profile/${friend.id}`} className="flex min-w-0 items-center gap-2">
+                            {friend.avatar_url ? (
+                              <img src={friend.avatar_url} alt={friend.display_name || "Friend"} className="h-9 w-9 rounded-full object-cover border" />
                             ) : (
-                              <div className="h-8 w-8 rounded-full border bg-gray-100" />
+                              <div className="h-9 w-9 rounded-full border bg-gray-100" />
                             )}
                             <div className="min-w-0">
-                              <p className="text-sm font-medium truncate">{p.display_name || "Blocked user"}</p>
-                              <p className="text-xs text-gray-500 truncate">{p.id}</p>
+                              <p className="truncate text-sm font-medium">{friend.display_name || "Friend"}</p>
+                              {friend.username ? <p className="truncate text-xs text-gray-500">@{friend.username}</p> : null}
                             </div>
-                          </div>
-                          <button type="button" className="border rounded px-3 py-2 text-sm" onClick={() => void unblockProfile(p.id)}>Unblock</button>
+                          </Link>
+                          <button
+                            type="button"
+                            className="rounded-full border px-3 py-2 text-sm"
+                            onClick={async () => {
+                              const client = supabase;
+                              if (!client || !userId) return;
+                              const { error } = await client
+                                .from("friends")
+                                .delete()
+                                .or(`and(requester_id.eq.${userId},addressee_id.eq.${friend.id}),and(requester_id.eq.${friend.id},addressee_id.eq.${userId})`);
+                              if (error) return setStatus(error.message);
+                              setStatus("Friend removed.");
+                              setBlockedRefreshTick((x) => x + 1);
+                            }}
+                          >
+                            Remove
+                          </button>
                         </div>
                       ))}
                     </div>
                   )}
                 </div>
 
-                <button type="button" className="border rounded px-3 py-2 w-fit" onClick={() => void restartOnboarding()}>Restart onboarding</button>
-                <button className="border rounded px-3 py-2 w-fit">Save preferences</button>
-              </form>
+                <div className="rounded-xl border bg-gray-50 p-3 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-medium">Friend requests</p>
+                      <p className="text-xs text-gray-500">Incoming requests can be accepted or declined here.</p>
+                    </div>
+                    <p className="text-xs text-gray-500">{friendRequests.length} total</p>
+                  </div>
+                  {friendRequests.length === 0 ? (
+                    <p className="text-sm text-gray-500">No pending requests.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {friendRequests.map((request) => (
+                        <div key={`${request.edge.requester_id}-${request.edge.addressee_id}`} className="flex items-center justify-between gap-3 rounded-xl border bg-white px-3 py-2">
+                          <Link href={`/profile/${request.id}`} className="flex min-w-0 items-center gap-2">
+                            {request.avatar_url ? (
+                              <img src={request.avatar_url} alt={request.display_name || "User"} className="h-9 w-9 rounded-full object-cover border" />
+                            ) : (
+                              <div className="h-9 w-9 rounded-full border bg-gray-100" />
+                            )}
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-medium">{request.display_name || "User"}</p>
+                              {request.username ? <p className="truncate text-xs text-gray-500">@{request.username}</p> : null}
+                            </div>
+                          </Link>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-gray-500">{request.direction === "incoming" ? "Incoming" : "Outgoing"}</span>
+                            {request.direction === "incoming" ? (
+                              <button
+                                type="button"
+                                className="rounded-full border px-3 py-2 text-sm"
+                                onClick={async () => {
+                                  const client = supabase;
+                                  if (!client || !userId) return;
+                                  const { error } = await client
+                                    .from("friends")
+                                    .update({ status: "accepted" })
+                                    .eq("requester_id", request.edge.requester_id)
+                                    .eq("addressee_id", request.edge.addressee_id);
+                                  if (error) return setStatus(error.message);
+                                  setStatus("Friend request accepted.");
+                                  setBlockedRefreshTick((x) => x + 1);
+                                }}
+                              >
+                                Accept
+                              </button>
+                            ) : null}
+                            <button
+                              type="button"
+                              className="rounded-full border px-3 py-2 text-sm"
+                              onClick={async () => {
+                                const client = supabase;
+                                if (!client || !userId) return;
+                                const { error } = await client
+                                  .from("friends")
+                                  .delete()
+                                  .eq("requester_id", request.edge.requester_id)
+                                  .eq("addressee_id", request.edge.addressee_id)
+                                  .eq("status", "pending");
+                                if (error) return setStatus(error.message);
+                                setStatus(request.direction === "incoming" ? "Request declined." : "Request canceled.");
+                                setBlockedRefreshTick((x) => x + 1);
+                              }}
+                            >
+                              {request.direction === "incoming" ? "Decline" : "Cancel"}
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {tab === "blocked" && (
+              <div className="rounded-xl border bg-gray-50 p-3 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-medium">Blocked users</p>
+                    <p className="text-xs text-gray-500">People you’ve blocked won’t appear in feeds or comments.</p>
+                  </div>
+                  <p className="text-xs text-gray-500">{blockedProfiles.length} total</p>
+                </div>
+                {blockedProfiles.length === 0 ? (
+                  <p className="text-sm text-gray-500">No blocked users.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {blockedProfiles.map((p) => (
+                      <div key={p.id} className="flex items-center justify-between gap-3 rounded-xl border bg-white px-3 py-2">
+                        <Link href={`/profile/${p.id}`} className="flex min-w-0 items-center gap-2">
+                          {p.avatar_url ? (
+                            <img src={p.avatar_url} alt={p.display_name || "Blocked user"} className="h-9 w-9 rounded-full object-cover border" />
+                          ) : (
+                            <div className="h-9 w-9 rounded-full border bg-gray-100" />
+                          )}
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium truncate">{p.display_name || "Blocked user"}</p>
+                            {p.username ? <p className="text-xs text-gray-500 truncate">@{p.username}</p> : null}
+                          </div>
+                        </Link>
+                        <button type="button" className="border rounded px-3 py-2 text-sm" onClick={() => void unblockProfile(p.id)}>Unblock</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
 
             {userId ? (
