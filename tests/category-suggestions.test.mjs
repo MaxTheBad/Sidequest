@@ -12,6 +12,7 @@ test("resolves alias categories", () => {
   assert.equal(resolveCanonicalCategory("gym buddy"), "Healthy Lifestyle");
   assert.equal(resolveCanonicalCategory("photo walk"), "Creative");
   assert.equal(resolveCanonicalCategory("fishing trip"), "Fishing");
+  assert.equal(resolveCanonicalCategory("painting session"), "Painting");
 });
 
 test("suggests canonical categories from partial input", () => {

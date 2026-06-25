@@ -105,6 +105,13 @@ export const CATEGORY_FALLBACK_MEDIA: Record<string, CategoryFallback> = {
     note: "A dock, boat, lake, or shoreline scene works best.",
     gradient: "linear-gradient(135deg,#d1fae5,#bae6fd)",
   },
+  Painting: {
+    imageUrl: "/category-fallbacks/painting.jpg",
+    emoji: "🖌️",
+    title: "Painting session",
+    note: "Use a studio, easel, brush, or fresh canvas shot.",
+    gradient: "linear-gradient(135deg,#ffe4e6,#fde68a)",
+  },
   Lifestyle: {
     imageUrl: "/category-fallbacks/learn.jpg",
     emoji: "🗓️",
@@ -123,6 +130,7 @@ export const CATEGORY_FALLBACK_MEDIA: Record<string, CategoryFallback> = {
 
 export function getCategoryFallbackMedia(categoryRaw?: string | null): CategoryFallback {
   const category = (categoryRaw || "").toLowerCase();
+  if (category.includes("paint") || category.includes("canvas") || category.includes("brush") || category.includes("acrylic")) return CATEGORY_FALLBACK_MEDIA.Painting;
   if (category.includes("art") || category.includes("craft")) return CATEGORY_FALLBACK_MEDIA["Arts & Crafts"];
   if (category.includes("book") || category.includes("read")) return CATEGORY_FALLBACK_MEDIA["Book club"];
   if (category.includes("sew") || category.includes("stitch") || category.includes("fabric") || category.includes("thread")) return CATEGORY_FALLBACK_MEDIA.Sewing;

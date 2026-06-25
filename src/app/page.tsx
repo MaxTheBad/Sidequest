@@ -216,6 +216,11 @@ const TITLE_SUGGESTIONS_BY_CATEGORY: Record<string, string[]> = {
     "DIY craft night with accountability",
     "Lock in and finish your art piece",
   ],
+  painting: [
+    "Studio painting session tonight",
+    "Brush, canvas, repeat",
+    "Weekend plein air painting plan",
+  ],
   "book club": [
     "Monthly book club with real follow-through",
     "Reading circle + discussion night",
@@ -274,6 +279,7 @@ const CATEGORY_SUGGESTIONS = [
   "Language exchange",
   "Photography",
   "Fishing",
+  "Painting",
 ];
 const GROUP_SIZE_OPTIONS = ["any", "2", "3", "4", "5", "6", "8", "10", "12"];
 const REPORT_REASONS: Record<"listing_content" | "chat_behavior" | "profile_account" | "in_person", Array<{ code: string; label: string }>> = {
