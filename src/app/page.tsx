@@ -4002,8 +4002,16 @@ export default function Home() {
                     <p>{passwordChecks.special ? "✅" : "⬜"} special</p>
                     <p>{passwordChecks.match ? "✅" : "⬜"} passwords match</p>
                   </div>
-                  <label className="text-sm flex gap-2 items-start leading-5"><input className="mt-0.5" type="checkbox" checked={acceptTerms} onChange={(e) => setAcceptTerms(e.target.checked)} /><span>I accept the <a href="/terms" target="_blank" className="underline">Terms</a>.</span></label>
-                  <label className="text-sm flex gap-2 items-start leading-5"><input className="mt-0.5" type="checkbox" checked={marketingOptIn} onChange={(e) => setMarketingOptIn(e.target.checked)} /><span>Send me updates/promos (optional).</span></label>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-6">
+                    <label className="flex gap-2 items-start leading-5 text-sm sm:flex-1">
+                      <input className="mt-0.5" type="checkbox" checked={acceptTerms} onChange={(e) => setAcceptTerms(e.target.checked)} />
+                      <span>I accept the <a href="/terms" target="_blank" className="underline">Terms</a>.</span>
+                    </label>
+                    <label className="flex gap-2 items-start leading-5 text-sm sm:flex-1">
+                      <input className="mt-0.5" type="checkbox" checked={marketingOptIn} onChange={(e) => setMarketingOptIn(e.target.checked)} />
+                      <span>Send me updates/promos (optional).</span>
+                    </label>
+                  </div>
                 </>
               )}
 

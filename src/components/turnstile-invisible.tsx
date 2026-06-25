@@ -72,18 +72,8 @@ export function TurnstileInvisible({ onToken, onReady, onError, onExpired, class
         strategy="afterInteractive"
         onLoad={() => setScriptLoaded(true)}
       />
-      <div
-        ref={widgetRef}
-        id={id}
-        className="min-h-[65px] min-w-[300px] rounded-xl border border-slate-200 bg-white p-2 shadow-sm"
-      />
-      {!sitekey ? (
-        <p className="text-xs text-red-600">Turnstile site key is missing.</p>
-      ) : !scriptLoaded ? (
-        <p className="text-xs text-slate-500">Loading verification…</p>
-      ) : (
-        <p className="text-xs text-slate-500">Verification will appear here.</p>
-      )}
+      <div ref={widgetRef} id={id} className="min-h-[65px] min-w-[300px]" />
+      {!sitekey ? <p className="text-xs text-red-600">Turnstile site key is missing.</p> : !scriptLoaded ? <p className="text-xs text-slate-500">Loading verification…</p> : null}
     </div>
   );
 }
