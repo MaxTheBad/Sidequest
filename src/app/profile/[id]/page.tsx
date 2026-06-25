@@ -55,6 +55,7 @@ export default function ProfilePage() {
   const [showBlockConfirm, setShowBlockConfirm] = useState(false);
   const [showUnblockConfirm, setShowUnblockConfirm] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [recentListingsLimit, setRecentListingsLimit] = useState(10);
   const [reportReason, setReportReason] = useState("inappropriate_profile");
   const [reportDetails, setReportDetails] = useState("");
   const [submittingReport, setSubmittingReport] = useState(false);
@@ -80,6 +81,8 @@ export default function ProfilePage() {
   const youBlockedThem = !!(blockEdge && blockEdge.requester_id === viewerId && blockEdge.addressee_id === profileId);
   const canViewFriends = isOwnProfile ? true : !!profile && (profile.friends_visibility || "public") === "public" ? true : friendship?.status === "accepted";
   const profileLocation = formatProfileLocation(profile?.city, profile?.region, profile?.country_code);
+  const visibleQuests = quests.slice(0, recentListingsLimit);
+  const hasMoreQuests = quests.length > recentListingsLimit;
 
   const reportFeedbackTone = reportFeedback.toLowerCase().includes("couldn't") || reportFeedback.toLowerCase().includes("try again")
     ? "error"
@@ -110,7 +113,7 @@ export default function ProfilePage() {
         .select("id,title,city,skill_level")
         .eq("creator_id", profileId)
         .order("created_at", { ascending: false })
-        .limit(20);
+        .limit(50);
 
       if (qErr) return setStatus(qErr.message);
       setQuests((q as Quest[]) || []);
@@ -360,9 +363,11 @@ export default function ProfilePage() {
               <div className="h-24 bg-gradient-to-r from-slate-950 via-slate-800 to-slate-600" />
               <div className="px-5 pb-5">
                 <div className="-mt-12 flex items-start justify-between gap-4">
-                  <div className="flex min-w-0 gap-4">
+                <div className="flex min-w-0 gap-4">
                     {profile?.avatar_url ? (
-                      <img src={profile.avatar_url} alt={profile.display_name || "Profile"} className="h-24 w-24 rounded-full border-4 border-white object-cover shadow-lg" />
+                      <div className="h-24 w-24 overflow-hidden rounded-full border-4 border-white bg-white shadow-lg">
+                        <img src={profile.avatar_url} alt={profile.display_name || "Profile"} className="h-full w-full object-cover" />
+                      </div>
                     ) : (
                       <div className="h-24 w-24 rounded-full border-4 border-white bg-gray-100 shadow-lg" />
                     )}
@@ -377,13 +382,13 @@ export default function ProfilePage() {
                     </div>
                   </div>
 
-                  <div className="relative pt-2">
+                  <div className="relative -mt-2">
                     {isOwnProfile ? (
                       <Link href="/settings" className="inline-flex items-center rounded-full border bg-white px-4 py-2 text-sm font-medium shadow-sm">Edit profile</Link>
                     ) : (
                       <div className="flex items-center gap-2">
                         <button
-                          className={`inline-flex items-center rounded-full px-4 py-2 text-sm font-medium shadow-sm ${friendship?.status === "accepted" ? "border bg-slate-950 text-white" : "border bg-white"}`}
+                          className={`inline-flex items-center rounded-full px-4 py-2 text-sm font-medium shadow-sm ring-1 ring-black/5 ${friendship?.status === "accepted" ? "border border-slate-950 bg-slate-950 text-white" : "border bg-white"}`}
                           onClick={() => {
                             if (friendship?.status === "accepted") return void removeFriend(profileId as string);
                             if (friendship?.status === "pending" && friendship.requester_id === viewerId) return void cancelRequest();
@@ -404,13 +409,13 @@ export default function ProfilePage() {
                         <button
                           type="button"
                           aria-label="More actions"
-                          className="inline-flex h-11 w-11 items-center justify-center rounded-full border bg-white shadow-sm"
+                          className="inline-flex h-11 w-11 items-center justify-center rounded-full border bg-white shadow-sm ring-1 ring-black/5"
                           onClick={() => setShowMoreMenu((v) => !v)}
                         >
                           <AppIcon name="more" className="h-5 w-5" />
                         </button>
                         {showMoreMenu ? (
-                          <div className="absolute right-0 top-14 z-20 w-48 overflow-hidden rounded-2xl border bg-white p-1 shadow-2xl">
+                          <div className="absolute right-0 top-12 z-20 w-48 overflow-hidden rounded-2xl border bg-white p-1 shadow-2xl">
                             {youBlockedThem ? (
                               <button className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm hover:bg-gray-50" onClick={() => { setShowMoreMenu(false); setShowUnblockConfirm(true); }}>
                                 <span>Unblock</span>
@@ -488,17 +493,27 @@ export default function ProfilePage() {
               ) : friends.length === 0 ? (
                 <p className="text-sm text-gray-500">No friends yet.</p>
               ) : (
-                <div className="flex flex-wrap gap-2">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-xs text-gray-500">{friends.length} total friends</p>
+                    <Link href={`/profile/${profileId}/friends`} className="text-sm font-medium text-slate-950 underline underline-offset-4">
+                      See all friends
+                    </Link>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
                   {friends.map((f) => (
                     <Link key={f.id} href={`/profile/${f.id}`} className="inline-flex items-center gap-2 border rounded-full px-2 py-1 bg-gray-50">
                       {f.avatar_url ? (
-                        <img src={f.avatar_url} alt={f.display_name || "Friend"} className="h-6 w-6 rounded-full object-cover border" />
+                        <div className="h-6 w-6 overflow-hidden rounded-full border bg-white">
+                          <img src={f.avatar_url} alt={f.display_name || "Friend"} className="h-full w-full object-cover" />
+                        </div>
                       ) : (
                         <div className="h-6 w-6 rounded-full border bg-white" />
                       )}
                       <span className="text-xs">{f.display_name || "Friend"}</span>
                     </Link>
                   ))}
+                  </div>
                 </div>
               )}
             </section>
@@ -509,12 +524,17 @@ export default function ProfilePage() {
                 <p className="text-sm text-gray-500">No listings yet.</p>
               ) : (
                 <div className="space-y-2">
-                  {quests.map((q) => (
-                    <div key={q.id} className="rounded-xl border p-3">
+                  {visibleQuests.map((q) => (
+                    <Link key={q.id} href={`/listing/${q.id}`} className="block rounded-xl border p-3 transition hover:bg-gray-50">
                       <p className="font-medium">{q.title}</p>
                       <p className="text-xs text-gray-500">{q.skill_level} · {q.city || "city tbd"}</p>
-                    </div>
+                    </Link>
                   ))}
+                  {hasMoreQuests ? (
+                    <button type="button" className="w-full rounded-xl border px-3 py-2 text-sm font-medium" onClick={() => setRecentListingsLimit((n) => n + 10)}>
+                      Load more
+                    </button>
+                  ) : null}
                 </div>
               )}
             </section>
