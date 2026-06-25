@@ -84,6 +84,7 @@ export default function ListingPage() {
   const [reportDetails, setReportDetails] = useState("");
   const [submittingReport, setSubmittingReport] = useState(false);
   const [reportFeedback, setReportFeedback] = useState("");
+  const [renderedAt] = useState(() => Date.now());
 
   function sanitizeLocationLabel(input?: string | null) {
     const raw = (input || "").trim();
@@ -151,6 +152,35 @@ export default function ListingPage() {
       "al","ak","az","ar","ca","co","ct","de","fl","ga","hi","id","il","in","ia","ks","ky","la","me","md","ma","mi","mn","ms","mo","mt","ne","nv","nh","nj","nm","ny","nc","nd","oh","ok","or","pa","ri","sc","sd","tn","tx","ut","vt","va","wa","wv","wi","wy","dc"
     ]);
     return stateNames.has(value) || stateAbbrevs.has(value);
+  }
+
+  function isVirtualListing() {
+    const exactAddress = (listing?.exact_address || "").trim();
+    if (!exactAddress) return false;
+    const lowered = exactAddress.toLowerCase();
+    if (/(https?:\/\/|www\.|:\/\/)/i.test(exactAddress)) return true;
+    if (/(zoom|google meet|meet\.google|teams\.microsoft|webex|gotomeeting|ringcentral|whereby|discord\.gg|discord|slack|jitsi|bluejeans|join)/i.test(lowered)) return true;
+    if (/\.[a-z]{2,}(?:\/|$)/i.test(exactAddress) && !/(street|st\.|road|rd\.|avenue|ave\.|boulevard|blvd\.|drive|dr\.|lane|ln\.|way|court|ct\.|place|pl\.|trail|trl\.|circle|cir\.)/i.test(lowered)) return true;
+    return false;
+  }
+
+  function locationSummary(input?: string | null) {
+    const raw = (input || "").trim();
+    if (!raw) return "";
+    const parts = raw.split(",").map((p) => p.trim()).filter(Boolean);
+    if (!parts.length) return "";
+
+    const country = parts[parts.length - 1] || "";
+    const postal = [...parts].reverse().find((p) => /\d{4,}/.test(p)) || "";
+    const city = parts.find((p, i) => {
+      if (i === 0 || i >= parts.length - 1) return false;
+      if (!/[A-Za-z]/.test(p)) return false;
+      if (/county/i.test(p)) return false;
+      if (/(street|st\.?|road|rd\.?|avenue|ave\.?|boulevard|blvd\.?|drive|dr\.?|lane|ln\.?|way|court|ct\.?|place|pl\.?|trail|trl\.?|circle|cir\.?)/i.test(p)) return false;
+      return true;
+    }) || "";
+
+    return [city, postal, country].filter(Boolean).join(", ");
   }
 
   function locationQueriesForDistance() {
@@ -398,6 +428,8 @@ export default function ListingPage() {
   }, [supabase, listingId]);
 
   useEffect(() => {
+    // Reset stale distance data before calculating it for the next listing.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMyDistanceLabel("");
     setMyDistanceMiles(null);
     const storedLocation = readStoredUserLocation();
@@ -707,35 +739,6 @@ export default function ListingPage() {
     return exactAccessUserIds.includes(userId);
   })());
 
-  function isVirtualListing() {
-    const exactAddress = (listing?.exact_address || "").trim();
-    if (!exactAddress) return false;
-    const lowered = exactAddress.toLowerCase();
-    if (/(https?:\/\/|www\.|:\/\/)/i.test(exactAddress)) return true;
-    if (/(zoom|google meet|meet\.google|teams\.microsoft|webex|gotomeeting|ringcentral|whereby|discord\.gg|discord|slack|jitsi|bluejeans|join)/i.test(lowered)) return true;
-    if (/\.[a-z]{2,}(?:\/|$)/i.test(exactAddress) && !/(street|st\.|road|rd\.|avenue|ave\.|boulevard|blvd\.|drive|dr\.|lane|ln\.|way|court|ct\.|place|pl\.|trail|trl\.|circle|cir\.)/i.test(lowered)) return true;
-    return false;
-  }
-
-  function locationSummary(input?: string | null) {
-    const raw = (input || "").trim();
-    if (!raw) return "";
-    const parts = raw.split(",").map((p) => p.trim()).filter(Boolean);
-    if (!parts.length) return "";
-
-    const country = parts[parts.length - 1] || "";
-    const postal = [...parts].reverse().find((p) => /\d{4,}/.test(p)) || "";
-    const city = parts.find((p, i) => {
-      if (i === 0 || i >= parts.length - 1) return false;
-      if (!/[A-Za-z]/.test(p)) return false;
-      if (/county/i.test(p)) return false;
-      if (/(street|st\.?|road|rd\.?|avenue|ave\.?|boulevard|blvd\.?|drive|dr\.?|lane|ln\.?|way|court|ct\.?|place|pl\.?|trail|trl\.?|circle|cir\.?)/i.test(p)) return false;
-      return true;
-    }) || "";
-
-    return [city, postal, country].filter(Boolean).join(", ");
-  }
-
   function memberProfileOf(member: MemberRow): MemberLocationProfile | null {
     if (!member.profiles) return null;
     return Array.isArray(member.profiles) ? (member.profiles[0] || null) : member.profiles;
@@ -748,6 +751,8 @@ export default function ListingPage() {
 
   useEffect(() => {
     if (!listing || !members.length) {
+      // Clear distances when there are no members to display.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setMemberDistanceByUserId({});
       return;
     }
@@ -810,7 +815,7 @@ export default function ListingPage() {
     if (!createdAt) return "Posted recently";
     const created = new Date(createdAt);
     if (Number.isNaN(created.getTime())) return "Posted recently";
-    const diffMs = Date.now() - created.getTime();
+    const diffMs = renderedAt - created.getTime();
     const diffHours = diffMs / (60 * 60 * 1000);
     const diffDays = diffHours / 24;
     if (diffHours < 24) {
