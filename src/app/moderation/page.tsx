@@ -8,6 +8,7 @@ import { getSupabaseClient } from "@/lib/supabase";
 type ProfileSummary = {
   id: string;
   display_name: string | null;
+  username: string | null;
   avatar_url: string | null;
 };
 
@@ -62,7 +63,9 @@ type ReportAutoFlags = {
   reporter_name?: string | null;
   listing_title?: string | null;
   host_name?: string | null;
+  host_username?: string | null;
   reported_user_name?: string | null;
+  reported_user_username?: string | null;
   report_target_key?: string | null;
   report_target_label?: string | null;
   report_target_type?: string | null;
@@ -122,6 +125,12 @@ function shortText(text: string | null | undefined, max = 120) {
   return raw.length > max ? `${raw.slice(0, max).trimEnd()}…` : raw;
 }
 
+function profileLabel(profile: ProfileSummary | null, fallback: string) {
+  if (!profile) return fallback;
+  const name = profile.display_name || fallback;
+  return profile.username ? `${name} (@${profile.username})` : name;
+}
+
 function chipClass(kind: "status" | "severity", value: string) {
   if (kind === "status") {
     switch (value) {
@@ -168,7 +177,9 @@ function deriveTargetSummary(report: ReportRow) {
   const targetLabel =
     (flags.report_target_label || "").trim() ||
     (targetType === "user"
-      ? flags.reported_user_name || report.reported_user_id || "Unknown user"
+      ? flags.reported_user_username
+        ? `${flags.reported_user_name || "User"} (@${flags.reported_user_username})`
+        : flags.reported_user_name || report.reported_user_id || "Unknown user"
       : targetType === "listing"
         ? flags.listing_title || report.quest_id || "Unknown listing"
         : targetType === "message"
@@ -259,7 +270,7 @@ export default function ModerationPage() {
     const loadActions = async () => {
       const { data, error } = await supabase
         .from("report_actions")
-        .select("id,created_at,action_type,note,actor_id,actor:profiles!report_actions_actor_id_fkey(id,display_name,avatar_url)")
+        .select("id,created_at,action_type,note,actor_id,actor:profiles!report_actions_actor_id_fkey(id,display_name,username,avatar_url)")
         .eq("report_id", selectedReportId)
         .order("created_at", { ascending: false });
 
@@ -289,7 +300,7 @@ export default function ModerationPage() {
       supabase
         .from("reports")
         .select(
-          "id,created_at,updated_at,status_changed_at,context_type,reason_code,details,status,severity,reporter_id,reported_user_id,quest_id,message_id,auto_flags,reviewed_by,reviewed_at,resolution_note,admin_assignee_id,reporter:profiles!reports_reporter_id_fkey(id,display_name,avatar_url),reported_user:profiles!reports_reported_user_id_fkey(id,display_name,avatar_url),quest:quests(id,title,city),message:messages(id,body,created_at),reviewed_by_profile:profiles!reports_reviewed_by_fkey(id,display_name,avatar_url),assignee:profiles!reports_admin_assignee_id_fkey(id,display_name,avatar_url)",
+          "id,created_at,updated_at,status_changed_at,context_type,reason_code,details,status,severity,reporter_id,reported_user_id,quest_id,message_id,auto_flags,reviewed_by,reviewed_at,resolution_note,admin_assignee_id,reporter:profiles!reports_reporter_id_fkey(id,display_name,username,avatar_url),reported_user:profiles!reports_reported_user_id_fkey(id,display_name,username,avatar_url),quest:quests(id,title,city),message:messages(id,body,created_at),reviewed_by_profile:profiles!reports_reviewed_by_fkey(id,display_name,username,avatar_url),assignee:profiles!reports_admin_assignee_id_fkey(id,display_name,username,avatar_url)",
         )
         .order("created_at", { ascending: false })
         .limit(200),
@@ -343,7 +354,9 @@ export default function ModerationPage() {
         row.details || "",
         row.context_type,
         unwrapSingle(row.reporter)?.display_name || "",
+        unwrapSingle(row.reporter)?.username || "",
         unwrapSingle(row.reported_user)?.display_name || "",
+        unwrapSingle(row.reported_user)?.username || "",
         unwrapSingle(row.quest)?.title || "",
         unwrapSingle(row.message)?.body || "",
       ].join(" ").toLowerCase();
@@ -473,7 +486,7 @@ export default function ModerationPage() {
     const quest = unwrapSingle(report.quest);
     const message = unwrapSingle(report.message);
     if (targetType === "listing" && quest) return `Listing: ${quest.title || targetLabel}`;
-    if (targetType === "user" && reportedProfile) return `Person: ${reportedProfile.display_name || targetLabel}`;
+    if (targetType === "user" && reportedProfile) return `Person: ${profileLabel(reportedProfile, targetLabel)}`;
     if (targetType === "message" && message) return `Message: ${shortText(message.body, 70)}`;
     return targetLabel || "No linked target";
   }
@@ -675,8 +688,8 @@ export default function ModerationPage() {
                       <div><span className="text-gray-500">Context:</span> {prettyLabel(selectedReport.context_type)}</div>
                       <div><span className="text-gray-500">Status:</span> {prettyLabel(selectedReport.status)}</div>
                       <div><span className="text-gray-500">Severity:</span> {prettyLabel(selectedReport.severity)}</div>
-                      <div><span className="text-gray-500">Reporter:</span> {selectedReportReporter?.display_name || selectedReport.reporter_id}</div>
-                      <div><span className="text-gray-500">Reported user:</span> {selectedReportedProfile?.display_name || selectedReport.reported_user_id || "—"}</div>
+                      <div><span className="text-gray-500">Reporter:</span> {profileLabel(selectedReportReporter, selectedReport.reporter_id)}</div>
+                      <div><span className="text-gray-500">Reported user:</span> {profileLabel(selectedReportedProfile, selectedReport.reported_user_id || "—")}</div>
                       <div><span className="text-gray-500">Quest:</span> {selectedQuest?.title || selectedReport.quest_id || "—"}</div>
                       <div><span className="text-gray-500">Message:</span> {selectedMessage ? shortText(selectedMessage.body, 140) : "—"}</div>
                       <div><span className="text-gray-500">Reviewed by:</span> {selectedReviewer?.display_name || selectedReport.reviewed_by || "—"}</div>

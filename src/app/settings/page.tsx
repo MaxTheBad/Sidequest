@@ -6,6 +6,8 @@ import CityAutocompleteInput from "@/components/city-autocomplete-input";
 import { COUNTRY_OPTIONS, countryNameFromCode } from "@/lib/countries";
 import { getSupabaseClient } from "@/lib/supabase";
 import { isImageLikeFile, prepareImageForUpload } from "@/lib/media-optimize";
+import { normalizeUsername, usernameErrorMessage, validateUsername } from "@/lib/username";
+import { useUsernameAvailability } from "@/lib/use-username-availability";
 
 type Tab = "profile" | "account" | "preferences";
 type BlockedProfile = { id: string; display_name: string | null; avatar_url: string | null };
@@ -19,6 +21,9 @@ export default function SettingsPage() {
   const [email, setEmail] = useState("");
 
   const [displayName, setDisplayName] = useState("");
+  const [username, setUsername] = useState("");
+  const [savedUsername, setSavedUsername] = useState("");
+  const [usernameChangedAt, setUsernameChangedAt] = useState<string | null>(null);
   const [countryCode, setCountryCode] = useState("US");
   const [countryQuery, setCountryQuery] = useState("United States");
   const [city, setCity] = useState("");
@@ -48,6 +53,7 @@ export default function SettingsPage() {
   const [publicLocationWarningEnabled, setPublicLocationWarningEnabled] = useState(true);
   const [blockedProfiles, setBlockedProfiles] = useState<BlockedProfile[]>([]);
   const [blockedRefreshTick, setBlockedRefreshTick] = useState(0);
+  const usernameAvailability = useUsernameAvailability(username, userId, savedUsername);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -72,11 +78,14 @@ export default function SettingsPage() {
 
       const { data: profile } = await supabase
         .from("profiles")
-        .select("display_name,city,bio,friends_visibility,radius_km,avatar_url,avatar_source_url")
+        .select("display_name,username,username_changed_at,city,bio,friends_visibility,radius_km,avatar_url,avatar_source_url")
         .eq("id", uid)
         .maybeSingle();
 
       setCity(profile?.city ?? "");
+      setUsername(profile?.username ?? "");
+      setSavedUsername(profile?.username ?? "");
+      setUsernameChangedAt(profile?.username_changed_at ?? null);
       setRadiusKm(Number(profile?.radius_km || 15));
       setBio(profile?.bio ?? "");
       setFriendsVisibility(((profile?.friends_visibility as "public" | "private") || "public"));
@@ -140,12 +149,15 @@ export default function SettingsPage() {
   async function saveProfile(e: FormEvent) {
     e.preventDefault();
     if (!supabase || !userId) return setStatus("Not signed in.");
+    const usernameValidationError = validateUsername(username);
+    if (usernameValidationError) return setStatus(usernameValidationError);
+    if (usernameAvailability === "taken") return setStatus("That username is already taken.");
 
     const { error } = await supabase
       .from("profiles")
-      .upsert({ id: userId, display_name: displayName, city, bio, friends_visibility: friendsVisibility, radius_km: radiusKm, avatar_url: avatarUrl || null });
+      .upsert({ id: userId, username: normalizeUsername(username), display_name: displayName, city, bio, friends_visibility: friendsVisibility, radius_km: radiusKm, avatar_url: avatarUrl || null });
 
-    if (error) return setStatus(error.message);
+    if (error) return setStatus(usernameErrorMessage(error.message));
 
     const { error: metaErr } = await supabase.auth.updateUser({
       data: {
@@ -157,6 +169,8 @@ export default function SettingsPage() {
     });
 
     if (metaErr) return setStatus(metaErr.message);
+    setSavedUsername(normalizeUsername(username));
+    if (normalizeUsername(username) !== savedUsername) setUsernameChangedAt(new Date().toISOString());
     setStatus("Profile saved ✅");
   }
 
@@ -529,6 +543,25 @@ export default function SettingsPage() {
                 <label className="text-sm font-medium">Name</label>
                 <input className="border rounded px-3 py-2" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
 
+                <label className="text-sm font-medium">Username</label>
+                <input
+                  className="border rounded px-3 py-2"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value.toLowerCase())}
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  maxLength={30}
+                  required
+                />
+                <p className="text-xs text-gray-600">
+                  Unique, 3-30 letters, numbers, or underscores. You can change it once every 24 hours.
+                  {usernameChangedAt && savedUsername ? ` Last changed ${new Date(usernameChangedAt).toLocaleString()}.` : ""}
+                </p>
+                {usernameAvailability === "checking" ? <p className="text-sm text-gray-500">Checking availability...</p> : null}
+                {usernameAvailability === "available" && normalizeUsername(username) !== normalizeUsername(savedUsername) ? <p className="text-sm text-emerald-600">Username is available.</p> : null}
+                {usernameAvailability === "taken" ? <p className="text-sm text-red-600">That username is already taken.</p> : null}
+                {usernameAvailability === "error" ? <p className="text-sm text-amber-600">Could not check availability. You can still try saving.</p> : null}
+
                 <label className="text-sm font-medium">Date of birth</label>
                 <input type="date" className="border rounded px-3 py-2" value={dob} onChange={(e) => setDob(e.target.value)} />
 
@@ -565,7 +598,7 @@ export default function SettingsPage() {
                   <option value="private">Private (friends only)</option>
                 </select>
 
-                <button className="bg-black text-white rounded px-3 py-2 mt-1">Save profile</button>
+                <button disabled={usernameAvailability === "checking" || usernameAvailability === "taken"} className="bg-black text-white rounded px-3 py-2 mt-1 disabled:opacity-50">Save profile</button>
               </form>
             )}
 

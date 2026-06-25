@@ -270,7 +270,7 @@ export async function POST(req: Request) {
 
   const { data: report, error } = await supabase
     .from("reports")
-    .select("id,created_at,status,severity,context_type,reason_code,details,auto_flags,reporter_id,reported_user_id,quest_id,message_id,reporter:profiles!reports_reporter_id_fkey(id,display_name),reported_user:profiles!reports_reported_user_id_fkey(id,display_name),quest:quests(id,title,city),message:messages(id,body,created_at)")
+    .select("id,created_at,status,severity,context_type,reason_code,details,auto_flags,reporter_id,reported_user_id,quest_id,message_id,reporter:profiles!reports_reporter_id_fkey(id,display_name,username),reported_user:profiles!reports_reported_user_id_fkey(id,display_name,username),quest:quests(id,title,city),message:messages(id,body,created_at)")
     .eq("id", body.report_id)
     .maybeSingle();
 
@@ -295,8 +295,12 @@ export async function POST(req: Request) {
 
   const subjectBase = reportCount > 1 ? `${reportCount} reports` : "Report";
   const subject = `[QuestHat moderation] ${subjectBase} · ${prettyLabel(report.severity)} ${prettyLabel(report.context_type)}`;
-  const reporterName = flags.reporter_name || reporter?.display_name || report.reporter_id;
-  const targetLabel = flags.report_target_label || reportedProfile?.display_name || quest?.title || report.quest_id || "—";
+  const reporterName = reporter?.username
+    ? `${flags.reporter_name || reporter?.display_name || report.reporter_id} (@${reporter.username})`
+    : flags.reporter_name || reporter?.display_name || report.reporter_id;
+  const targetLabel = flags.report_target_label
+    || (reportedProfile?.username ? `${reportedProfile?.display_name || "User"} (@${reportedProfile.username})` : reportedProfile?.display_name)
+    || quest?.title || report.quest_id || "—";
   const listingLabel = flags.listing_title || quest?.title || report.quest_id || "—";
   const bodyText = [
     `A moderation alert was submitted in QuestHat.`,
@@ -309,7 +313,7 @@ export async function POST(req: Request) {
     `Reporter: ${reporterName}`,
     `Target: ${targetLabel}`,
     `Listing: ${listingLabel}`,
-    `Host: ${flags.host_name || reportedProfile?.display_name || report.reported_user_id || "—"}`,
+    `Host: ${flags.host_username ? `${flags.host_name || "User"} (@${flags.host_username})` : flags.host_name || (reportedProfile?.username ? `${reportedProfile.display_name || "User"} (@${reportedProfile.username})` : reportedProfile?.display_name) || report.reported_user_id || "—"}`,
     `Message: ${message?.body ? message.body.slice(0, 300) : "—"}`,
     `Details: ${report.details || "—"}`,
   ].join("\n");
@@ -324,7 +328,7 @@ export async function POST(req: Request) {
     reporterName: String(reporterName),
     targetLabel: String(targetLabel),
     listingLabel: String(listingLabel),
-    hostName: String(flags.host_name || reportedProfile?.display_name || report.reported_user_id || "—"),
+    hostName: String(flags.host_username ? `${flags.host_name || "User"} (@${flags.host_username})` : flags.host_name || (reportedProfile?.username ? `${reportedProfile.display_name || "User"} (@${reportedProfile.username})` : reportedProfile?.display_name) || report.reported_user_id || "—"),
     messageBody: message?.body ? message.body.slice(0, 300) : "—",
     details: report.details || "—",
   });

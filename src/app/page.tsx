@@ -53,7 +53,7 @@ type Quest = {
   media_source: "live" | "upload" | null;
   media_items?: QuestMediaItem[] | null;
   hobbies?: { name: string | null; category: string | null }[] | { name: string | null; category: string | null } | null;
-  profiles?: { id: string; display_name: string | null; avatar_url: string | null }[] | { id: string; display_name: string | null; avatar_url: string | null } | null;
+  profiles?: { id: string; display_name: string | null; username: string | null; avatar_url: string | null }[] | { id: string; display_name: string | null; username: string | null; avatar_url: string | null } | null;
 };
 
 function getQuestHobby(q?: { hobbies?: { name?: string | null; category?: string | null }[] | { name?: string | null; category?: string | null } | null }) {
@@ -838,7 +838,7 @@ export default function Home() {
       const blocked = Array.from(new Set(((blockRows || []) as Array<{ requester_id: string; addressee_id: string }>).flatMap((r) => [r.requester_id, r.addressee_id]).filter((id) => id !== uid)));
       setBlockedUserIds(blocked);
     }
-    let q = supabase.from("quests").select("id,creator_id,created_at,title,description,city,skill_level,group_size,availability,hobby_id,join_mode,exact_location_visibility,exact_address,media_video_url,media_source,media_items,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,avatar_url)").order("created_at", { ascending: false }).limit(24);
+    let q = supabase.from("quests").select("id,creator_id,created_at,title,description,city,skill_level,group_size,availability,hobby_id,join_mode,exact_location_visibility,exact_address,media_video_url,media_source,media_items,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,username,avatar_url)").order("created_at", { ascending: false }).limit(24);
       const filterCategoryName = getFilterCategoryName(hobbyFilter);
       if (hobbyFilter !== "all") {
         if (filterCategoryName && hobbyFilter.startsWith("canonical:")) {
@@ -853,7 +853,7 @@ export default function Home() {
 
     // Backward compatibility if migration for media_items has not been applied yet
     if (error?.message?.includes("column quests.media_items does not exist")) {
-      let fallback = supabase.from("quests").select("id,creator_id,created_at,title,description,city,skill_level,group_size,availability,hobby_id,join_mode,exact_location_visibility,exact_address,media_video_url,media_source,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,avatar_url)").order("created_at", { ascending: false }).limit(24);
+      let fallback = supabase.from("quests").select("id,creator_id,created_at,title,description,city,skill_level,group_size,availability,hobby_id,join_mode,exact_location_visibility,exact_address,media_video_url,media_source,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,username,avatar_url)").order("created_at", { ascending: false }).limit(24);
       if (hobbyFilter !== "all") {
         if (filterCategoryName && hobbyFilter.startsWith("canonical:")) {
           fallback = fallback.ilike("hobbies.name", filterCategoryName);
@@ -2584,6 +2584,7 @@ export default function Home() {
         reporter_name: userEmail.split("@")[0] || null,
         listing_title: reportTarget.title || null,
         host_name: Array.isArray(reportTarget.profiles) ? reportTarget.profiles[0]?.display_name || reportTarget.creator_id || null : reportTarget.profiles?.display_name || reportTarget.creator_id || null,
+        host_username: Array.isArray(reportTarget.profiles) ? reportTarget.profiles[0]?.username || null : reportTarget.profiles?.username || null,
         report_target_type: "listing",
         report_target_id: reportTarget.id,
         report_target_key: `listing:${reportTarget.id}`,
@@ -4604,6 +4605,14 @@ export default function Home() {
               <button className="border rounded px-2 py-1" onClick={() => setShowReportModal(false)}>Close</button>
             </div>
             <p className="text-sm text-gray-600">About: <b>{reportTarget.title}</b></p>
+            {(() => {
+              const host = Array.isArray(reportTarget.profiles) ? reportTarget.profiles[0] : reportTarget.profiles;
+              return host ? (
+                <p className="text-sm text-gray-600">
+                  Host: <b>{host.display_name || "User"}</b>{host.username ? ` (@${host.username})` : ""}
+                </p>
+              ) : null;
+            })()}
 
             <label className="text-sm font-medium">What are you reporting?</label>
             <select

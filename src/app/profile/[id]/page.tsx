@@ -10,6 +10,7 @@ import { formatReportReference } from "@/lib/reporting";
 type Profile = {
   id: string;
   display_name: string | null;
+  username: string | null;
   city: string | null;
   bio: string | null;
   friends_visibility?: "public" | "private";
@@ -98,7 +99,7 @@ export default function ProfilePage() {
 
       const { data: p, error: pErr } = await supabase
         .from("profiles")
-        .select("id,display_name,city,bio,friends_visibility,avatar_url")
+        .select("id,display_name,username,city,bio,friends_visibility,avatar_url")
         .eq("id", profileId)
         .maybeSingle();
       if (pErr) return setStatus(pErr.message);
@@ -142,7 +143,7 @@ export default function ProfilePage() {
       if (canSeeFriends && friendIds.length) {
         const { data: friendProfiles } = await supabase
           .from("profiles")
-          .select("id,display_name,city,bio,friends_visibility,avatar_url")
+          .select("id,display_name,username,city,bio,friends_visibility,avatar_url")
           .in("id", friendIds);
         setFriends((friendProfiles as Profile[]) || []);
       } else {
@@ -163,7 +164,7 @@ export default function ProfilePage() {
         if (requestProfileIds.length) {
           const { data: requestProfiles } = await supabase
             .from("profiles")
-            .select("id,display_name,city,bio,friends_visibility,avatar_url")
+            .select("id,display_name,username,city,bio,friends_visibility,avatar_url")
             .in("id", requestProfileIds);
           const map = Object.fromEntries(((requestProfiles as Profile[]) || []).map((rp) => [rp.id, rp]));
           setIncomingRequestProfiles(map);
@@ -267,10 +268,11 @@ export default function ProfilePage() {
       auto_flags: {
         reporter_name: viewerId,
         reported_user_name: profile?.display_name || profileId,
+        reported_user_username: profile?.username || null,
         report_target_type: "user",
         report_target_id: profileId,
         report_target_key: `profile:${profileId}`,
-        report_target_label: profile?.display_name || profileId,
+        report_target_label: profile?.username ? `${profile?.display_name || "User"} (@${profile.username})` : profile?.display_name || profileId,
       },
     });
     setSubmittingReport(false);
@@ -359,6 +361,7 @@ export default function ProfilePage() {
                 )}
                 <div>
                   <h1 className="text-2xl font-bold">{profile?.display_name || "SideQuest user"}</h1>
+                  {profile?.username ? <p className="text-sm text-gray-500">@{profile.username}</p> : null}
                   <p className="text-sm text-gray-600">{sanitizeLocationLabel(profile?.city) || "City not set"}</p>
                   {profile?.bio && <p className="text-sm mt-1">{profile.bio}</p>}
                 </div>

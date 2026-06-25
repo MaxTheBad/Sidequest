@@ -8,7 +8,7 @@ import { formatReportReference } from "@/lib/reporting";
 import { getSupabaseClient } from "@/lib/supabase";
 
 type ReportKind = "listing" | "profile";
-type ProfileLite = { id: string; display_name: string | null };
+type ProfileLite = { id: string; display_name: string | null; username: string | null };
 type QuestLite = { id: string; title: string | null; creator_id: string | null; profiles?: ProfileLite[] | ProfileLite | null };
 
 const REPORT_REASONS: Record<ReportKind, Array<{ value: string; label: string }>> = {
@@ -44,6 +44,7 @@ export default function ReportPage() {
 
   const [title, setTitle] = useState("");
   const [hostName, setHostName] = useState("—");
+  const [hostUsername, setHostUsername] = useState<string | null>(null);
   const [reporterName, setReporterName] = useState("you");
   const [reason, setReason] = useState("");
   const [details, setDetails] = useState("");
@@ -65,7 +66,7 @@ export default function ReportPage() {
       if (reportKind === "listing") {
         const { data, error } = await supabase
           .from("quests")
-          .select("id,title,creator_id,profiles:profiles!quests_creator_id_fkey(id,display_name)")
+          .select("id,title,creator_id,profiles:profiles!quests_creator_id_fkey(id,display_name,username)")
           .eq("id", id)
           .maybeSingle();
         if (error) {
@@ -80,11 +81,13 @@ export default function ReportPage() {
           return;
         }
         setTitle(quest.title || "Listing");
-        setHostName(unwrapSingle(quest.profiles)?.display_name || quest.creator_id || "—");
+        const host = unwrapSingle(quest.profiles);
+        setHostName(host?.display_name || quest.creator_id || "—");
+        setHostUsername(host?.username || null);
       } else {
         const { data, error } = await supabase
           .from("profiles")
-          .select("id,display_name")
+          .select("id,display_name,username")
           .eq("id", id)
           .maybeSingle();
         if (error) {
@@ -99,6 +102,7 @@ export default function ReportPage() {
         }
         setTitle(data.display_name || "Profile");
         setHostName(data.display_name || id);
+        setHostUsername(data.username || null);
       }
       setReason(REPORT_REASONS[reportKind][0].value);
       setLoading(false);
@@ -141,6 +145,7 @@ export default function ReportPage() {
               reporter_name: reporterName,
               listing_title: title || null,
               host_name: hostName,
+              host_username: hostUsername,
               report_target_type: "listing",
               report_target_id: id,
               report_target_key: `listing:${id}`,
@@ -156,6 +161,7 @@ export default function ReportPage() {
             auto_flags: {
               reporter_name: reporterName,
               reported_user_name: title || null,
+              reported_user_username: hostUsername,
               report_target_type: "user",
               report_target_id: id,
               report_target_role: "profile",
@@ -207,8 +213,10 @@ export default function ReportPage() {
           <div>
             <p className="text-xs uppercase tracking-wide text-slate-500">Report</p>
             <h1 className="text-2xl font-black">{reportKind === "listing" ? "Report listing" : "Report profile"}</h1>
-            <p className="mt-2 text-sm text-slate-600">About: <b>{title}</b></p>
-            {reportKind === "listing" ? <p className="mt-1 text-sm text-slate-600">Host: <b>{hostName}</b></p> : null}
+            <p className="mt-2 text-sm text-slate-600">
+              About: <b>{title}</b>{reportKind === "profile" && hostUsername ? ` (@${hostUsername})` : ""}
+            </p>
+            {reportKind === "listing" ? <p className="mt-1 text-sm text-slate-600">Host: <b>{hostName}</b>{hostUsername ? ` (@${hostUsername})` : ""}</p> : null}
           </div>
           <Link href={reportKind === "listing" ? `/listing/${id}` : `/profile/${id}`} className="rounded-full border px-3 py-2 text-sm">
             Back
