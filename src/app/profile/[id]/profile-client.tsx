@@ -61,17 +61,25 @@ export default function ProfilePage() {
   const [reportTurnstileToken, setReportTurnstileToken] = useState("");
   const invalidProfileId = !profileId || !/^[0-9a-fA-F-]{36}$/.test(profileId);
 
-  function sanitizeLocationLabel(input?: string | null) {
-    const raw = (input || "").trim();
-    if (!raw) return "";
-    return raw.replace(/,\s*(Florida|FL)$/i, "").replace(/\s+\b(Florida|FL)\b$/i, "").trim();
-  }
-
   function formatProfileLocation(city?: string | null, region?: string | null, countryCode?: string | null) {
-    const raw = sanitizeLocationLabel(city);
-    const regionValue = sanitizeLocationLabel(region);
-    const country = countryCode ? countryCode.toUpperCase() : "";
-    return [raw, regionValue, country].filter(Boolean).join(", ");
+    const regionValue = (region || "").trim().toUpperCase();
+    const countryName = countryCode
+      ? new Intl.DisplayNames(["en"], { type: "region" }).of(countryCode.toUpperCase()) || countryCode.toUpperCase()
+      : "";
+    const cityParts = (city || "")
+      .split(",")
+      .map((part) => part.trim())
+      .filter(Boolean);
+    const cityName = cityParts.find((part) => {
+      if (/\d/.test(part)) return false;
+      if (regionValue && part.toUpperCase() === regionValue) return false;
+      if (countryName && part.toLowerCase() === countryName.toLowerCase()) return false;
+      return true;
+    }) || "";
+    const fallbackCountry = countryName
+      ? ""
+      : [...cityParts].reverse().find((part) => !/\d/.test(part) && part !== cityName && part.toUpperCase() !== regionValue) || "";
+    return [cityName, regionValue, countryName || fallbackCountry].filter(Boolean).join(", ");
   }
 
   const isOwnProfile = !!(viewerId && profileId && viewerId === profileId);
@@ -358,35 +366,22 @@ export default function ProfilePage() {
         ) : (
           <>
             <section className="overflow-hidden rounded-[28px] border bg-white shadow-[0_20px_60px_rgba(15,23,42,0.08)]">
-              <div className="h-24 bg-gradient-to-r from-slate-950 via-slate-800 to-slate-600" />
-              <div className="px-5 pb-5">
-                <div className="-mt-12 flex items-start justify-between gap-4">
-                <div className="flex min-w-0 gap-4">
-                    {profile?.avatar_url ? (
-                      <div className="h-24 w-24 overflow-hidden rounded-full border-4 border-white bg-white shadow-lg">
-                        <img src={profile.avatar_url} alt={profile.display_name || "Profile"} className="h-full w-full object-cover" />
-                      </div>
-                    ) : (
-                      <div className="h-24 w-24 rounded-full border-4 border-white bg-gray-100 shadow-lg" />
-                    )}
-                    <div className="min-w-0 pt-10">
-                      <h1 className="truncate text-2xl font-black tracking-tight">{profile?.display_name || "SideQuest user"}</h1>
-                      {profile?.username ? <p className="text-sm font-medium text-gray-500">@{profile.username}</p> : null}
-                      <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-gray-600">
-                        <span className="rounded-full bg-gray-100 px-3 py-1">Friends {canViewFriends ? friends.length : "private"}</span>
-                        <span className="rounded-full bg-gray-100 px-3 py-1">{quests.length} posts</span>
-                        {profileLocation ? <span className="rounded-full bg-gray-100 px-3 py-1">{profileLocation}</span> : null}
-                      </div>
-                    </div>
+              <div className="relative h-32 bg-gradient-to-r from-slate-950 via-slate-800 to-slate-600">
+                {profile?.avatar_url ? (
+                  <div className="absolute bottom-4 left-5 size-20 shrink-0 overflow-hidden rounded-full border-4 border-white bg-white shadow-lg sm:size-24">
+                    <img src={profile.avatar_url} alt={profile.display_name || "Profile"} className="aspect-square h-full w-full object-cover" />
                   </div>
+                ) : (
+                  <div className="absolute bottom-4 left-5 size-20 shrink-0 rounded-full border-4 border-white bg-gray-100 shadow-lg sm:size-24" />
+                )}
 
-                  <div className="relative -mt-2">
+                <div className="absolute bottom-4 right-4">
                     {isOwnProfile ? (
-                      <Link href="/settings" className="inline-flex items-center rounded-full border bg-white px-4 py-2 text-sm font-medium shadow-sm">Edit profile</Link>
+                      <Link href="/settings" className="inline-flex h-10 items-center rounded-full border border-white/70 bg-white px-4 text-sm font-semibold shadow-lg">Edit profile</Link>
                     ) : (
                       <div className="flex items-center gap-2">
                         <button
-                          className={`inline-flex items-center rounded-full px-4 py-2 text-sm font-medium shadow-sm ring-1 ring-black/5 ${friendship?.status === "accepted" ? "border border-slate-950 bg-slate-950 text-white" : "border bg-white"}`}
+                          className={`inline-flex h-10 items-center rounded-full px-4 text-sm font-semibold shadow-lg ring-1 ring-black/5 ${friendship?.status === "accepted" ? "border border-white/20 bg-slate-950 text-white" : "border border-white/70 bg-white text-slate-950"}`}
                           onClick={() => {
                             if (friendship?.status === "accepted") return void removeFriend(profileId as string);
                             if (friendship?.status === "pending" && friendship.requester_id === viewerId) return void cancelRequest();
@@ -407,7 +402,7 @@ export default function ProfilePage() {
                         <button
                           type="button"
                           aria-label="More actions"
-                          className="inline-flex h-11 w-11 items-center justify-center rounded-full border bg-white shadow-sm ring-1 ring-black/5"
+                          className="inline-flex size-10 items-center justify-center rounded-full border border-white/70 bg-white shadow-lg ring-1 ring-black/5"
                           onClick={() => setShowMoreMenu((v) => !v)}
                         >
                           <AppIcon name="more" className="h-5 w-5" />
@@ -432,13 +427,20 @@ export default function ProfilePage() {
                     )}
                   </div>
                 </div>
+              <div className="px-5 pb-5 pt-4">
+                <h1 className="truncate text-2xl font-black tracking-tight">{profile?.display_name || "SideQuest user"}</h1>
+                {profile?.username ? <p className="text-sm font-medium text-gray-500">@{profile.username}</p> : null}
+                <div className="mt-3 flex items-center gap-x-3 overflow-x-auto whitespace-nowrap text-[11px] font-semibold text-gray-600 sm:text-xs">
+                  <span>Friends {canViewFriends ? friends.length : "private"}</span>
+                  <span>{quests.length} posts</span>
+                  {profile?.show_location && profileLocation ? (
+                    <span className="inline-flex min-w-0 items-center gap-1">
+                      <AppIcon name="location" className="size-3.5 shrink-0" />
+                      <span className="truncate">{profileLocation}</span>
+                    </span>
+                  ) : null}
+                </div>
                 {profile?.bio ? <p className="mt-4 max-w-2xl text-sm leading-6 text-gray-700">{profile.bio}</p> : null}
-                {profile?.show_location ? (
-                  <p className="mt-3 inline-flex items-center gap-2 rounded-full border bg-gray-50 px-3 py-1.5 text-xs font-medium text-gray-700">
-                    <AppIcon name="location" className="h-4 w-4" />
-                    {profileLocation || "Location set"}
-                  </p>
-                ) : null}
               </div>
             </section>
 
