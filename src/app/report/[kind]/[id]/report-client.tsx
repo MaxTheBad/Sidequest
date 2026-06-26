@@ -10,6 +10,15 @@ import { getSupabaseClient } from "@/lib/supabase";
 type ReportKind = "listing" | "profile";
 type ProfileLite = { id: string; display_name: string | null; username: string | null };
 type QuestLite = { id: string; title: string | null; creator_id: string | null; profiles?: ProfileLite[] | ProfileLite | null };
+type ReportInsertPayload = {
+  reporter_id: string;
+  reported_user_id: string | null;
+  quest_id: string | null;
+  context_type: string;
+  reason_code: string;
+  details: string | null;
+  auto_flags: Record<string, string | null>;
+};
 
 const REPORT_REASONS: Record<ReportKind, Array<{ value: string; label: string }>> = {
   listing: [
@@ -131,7 +140,7 @@ export default function ReportPage() {
     if (!verify.ok) return setStatus("Verification failed. Please try again.");
 
     setSubmitting(true);
-    const payload =
+    const payload: ReportInsertPayload =
       reportKind === "listing"
         ? {
             reporter_id: reporterId,
@@ -154,6 +163,7 @@ export default function ReportPage() {
         : {
             reporter_id: reporterId,
             reported_user_id: id,
+            quest_id: null,
             context_type: "profile_account",
             reason_code: reason,
             details: details.trim() || null,

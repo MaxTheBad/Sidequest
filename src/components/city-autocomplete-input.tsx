@@ -39,7 +39,7 @@ export default function CityAutocompleteInput({
   useEffect(() => {
     const q = query;
     if (q.length < 2) {
-      setSuggestions([]);
+      queueMicrotask(() => setSuggestions([]));
       return;
     }
 

@@ -515,8 +515,8 @@ export default function Home() {
 
   const countryOptions = useMemo(() => {
     try {
-      // @ts-ignore
-      const regions: string[] | undefined = typeof Intl !== "undefined" && Intl.supportedValuesOf ? Intl.supportedValuesOf("region") : undefined;
+      const intlWithValues = Intl as typeof Intl & { supportedValuesOf?: (key: "region") => string[] };
+      const regions = typeof Intl !== "undefined" && intlWithValues.supportedValuesOf ? intlWithValues.supportedValuesOf("region") : undefined;
       const dn = new Intl.DisplayNames(["en"], { type: "region" });
       const names = (regions || []).map((code) => ({ code, name: dn.of(code) || code })).filter((x) => !!x.name).sort((a, b) => a.name.localeCompare(b.name));
       if (names.length) return names;
@@ -2254,7 +2254,15 @@ export default function Home() {
     }
 
     // Ensure profile row exists (required by quests.creator_id FK)
-    const profileUpdate: any = {
+    const profileUpdate: {
+      id: string;
+      display_name: string;
+      city: string;
+      region: string | null;
+      country_code: string | null;
+      availability: string;
+      skill_level?: string;
+    } = {
       id: activeUserId,
       display_name: fullName || userEmail.split("@")[0] || "SideQuest user",
       city: derivedCity,
@@ -4246,7 +4254,7 @@ export default function Home() {
               <label className="text-xs font-medium uppercase tracking-wide text-slate-600">Availability *</label>
               <div className="grid gap-1.5 text-sm sm:gap-2">
                 <label className="flex items-center gap-2"><input type="radio" checked={availabilityMode === "specific_time"} onChange={() => setAvailabilityMode("specific_time")} className="scale-90" /> <span className="text-sm sm:text-base">Start at a specific time</span></label>
-                <label className="flex items-center gap-2"><input type="radio" checked={availabilityMode === "find_best_time"} onChange={() => setAvailabilityMode("find_best_time")} className="scale-90" /> <span className="text-sm sm:text-base">Let's see which time works best</span></label>
+                <label className="flex items-center gap-2"><input type="radio" checked={availabilityMode === "find_best_time"} onChange={() => setAvailabilityMode("find_best_time")} className="scale-90" /> <span className="text-sm sm:text-base">Let&apos;s see which time works best</span></label>
               </div>
               {availabilityMode === "specific_time" && (
                 <input type="datetime-local" className="border rounded-xl px-2.5 py-2 text-sm sm:px-3 sm:py-2.5 sm:text-base" value={startAt} onChange={(e) => setStartAt(e.target.value)} />

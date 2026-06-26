@@ -29,7 +29,7 @@ export default function BottomNav() {
 
   useEffect(() => {
     if (!supabase || !userId) {
-      setUserRole("user");
+      queueMicrotask(() => setUserRole("user"));
       return;
     }
     const loadRole = async () => {

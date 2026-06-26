@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase";
 
@@ -99,7 +100,7 @@ export default function InboxPage() {
   const [userName, setUserName] = useState("You");
   const [typingNames, setTypingNames] = useState<string[]>([]);
   const typingTimeoutRef = useRef<number | null>(null);
-  const typingChannelRef = useRef<any>(null);
+  const typingChannelRef = useRef<RealtimeChannel | null>(null);
   const lastTypingSendRef = useRef(0);
   const [questOwners, setQuestOwners] = useState<Record<string, QuestOwnerLite>>({});
   const messagesSigRef = useRef("");
@@ -112,7 +113,6 @@ export default function InboxPage() {
   const lastIncomingIdRef = useRef<string | null>(null);
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
   const pendingThreadTargetRef = useRef<{ thread: string | null; message: string | null } | null>(null);
-  const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
 
   const loadInbox = useCallback(async (uid: string, silent = false) => {
     if (!supabase) return;
@@ -168,7 +168,6 @@ export default function InboxPage() {
     const privateRows = ((privateRes.data || []) as RawInboxMessage[]).map(normalizeMessageRow);
     const privateForMeRows = ((privateForMeRes.data || []) as RawInboxMessage[]).map(normalizeMessageRow);
     const blocked = Array.from(new Set(((blockRes.data || []) as Array<{ requester_id: string; addressee_id: string }>).flatMap((r) => [r.requester_id, r.addressee_id]).filter((id) => id !== uid)));
-    if (JSON.stringify(blocked) !== JSON.stringify(blockedUserIds)) setBlockedUserIds(blocked);
 
     const merged = [...sentRows, ...privateRows, ...privateForMeRows].filter((m) => !blocked.includes(m.sender_id));
     const dedupedMap = new Map<string, InboxMessage>();
@@ -383,13 +382,15 @@ export default function InboxPage() {
   useEffect(() => {
     lastMessageIdRef.current = null;
     lastIncomingIdRef.current = null;
-    setShowJumpToLatest(false);
-    setNewIncomingCount(0);
+    queueMicrotask(() => {
+      setShowJumpToLatest(false);
+      setNewIncomingCount(0);
+    });
   }, [activeThreadId]);
 
   useEffect(() => {
     if (!activeThreadId) return;
-    if (!activeThread) setActiveThreadId(null);
+    if (!activeThread) queueMicrotask(() => setActiveThreadId(null));
   }, [activeThreadId, activeThread]);
 
   useEffect(() => {
@@ -431,12 +432,14 @@ export default function InboxPage() {
       if (nearBottom) {
         requestAnimationFrame(() => {
           pane.scrollTop = pane.scrollHeight;
+          setShowJumpToLatest(false);
+          setNewIncomingCount(0);
         });
-        setShowJumpToLatest(false);
-        setNewIncomingCount(0);
       } else if (hasNewIncoming) {
-        setShowJumpToLatest(true);
-        setNewIncomingCount((n) => n + 1);
+        queueMicrotask(() => {
+          setShowJumpToLatest(true);
+          setNewIncomingCount((n) => n + 1);
+        });
       }
     }
   }, [activeMessages, userId]);

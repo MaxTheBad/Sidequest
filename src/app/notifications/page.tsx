@@ -18,6 +18,30 @@ type NotificationItem = {
   senderAvatar?: string | null;
 };
 
+type MessageNotificationRow = {
+  id: string;
+  quest_id: string;
+  sender_id: string;
+  body: string | null;
+  created_at: string;
+  quests?: { id?: string; title?: string | null; creator_id?: string | null }[] | { id?: string; title?: string | null; creator_id?: string | null } | null;
+  profiles?: { id?: string; display_name?: string | null; avatar_url?: string | null }[] | { id?: string; display_name?: string | null; avatar_url?: string | null } | null;
+};
+
+type JoinedNotificationRow = {
+  quest_id: string | null;
+  status: string | null;
+  joined_at?: string | null;
+  created_at?: string | null;
+  quests?: { title?: string | null; city?: string | null; availability?: string | null }[] | { title?: string | null; city?: string | null; availability?: string | null } | null;
+};
+
+type CreatedQuestNotificationRow = {
+  id: string;
+  title: string | null;
+  created_at: string;
+};
+
 function stripMessagePrefix(body: string) {
   if (body.startsWith("[PRIVATE")) return body.replace(/^\[PRIVATE(?:\s+to=[0-9a-fA-F-]{36})?\]\s?/, "");
   if (body.startsWith("[PUBLIC] ")) return body.replace("[PUBLIC] ", "");
@@ -87,7 +111,7 @@ export default function NotificationsPage() {
       setBlockedUserIds(blocked);
 
       const notifications: NotificationItem[] = [];
-      (myMessages || []).forEach((row: any) => {
+      ((myMessages || []) as MessageNotificationRow[]).forEach((row) => {
         const quest = Array.isArray(row.quests) ? row.quests[0] : row.quests;
         const sender = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
         const isPrivate = row.body?.startsWith("[PRIVATE");
@@ -106,7 +130,7 @@ export default function NotificationsPage() {
           senderAvatar: sender?.avatar_url || null,
         });
       });
-      (joinedRows || []).forEach((row: any) => {
+      ((joinedRows || []) as JoinedNotificationRow[]).forEach((row) => {
         const quest = Array.isArray(row.quests) ? row.quests[0] : row.quests;
         notifications.push({
           id: `join-${row.quest_id}`,
@@ -118,7 +142,7 @@ export default function NotificationsPage() {
           created_at: row.created_at || new Date().toISOString(),
         });
       });
-      (myQuests || []).forEach((row: any) => {
+      ((myQuests || []) as CreatedQuestNotificationRow[]).forEach((row) => {
         notifications.push({
           id: `created-${row.id}`,
           kind: "created",

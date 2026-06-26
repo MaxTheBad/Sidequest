@@ -10,6 +10,8 @@ import GlobalTopBar from "@/components/global-top-bar";
 import UsernameGate from "@/components/username-gate";
 import { APP_NAME } from "@/lib/app-brand";
 
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://questhat.com";
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -21,8 +23,35 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl),
   title: `${APP_NAME} | Find local people to do real plans with`,
   description: "Quest Hat helps people discover nearby activities, start group quests, and meet others nearby.",
+  applicationName: APP_NAME,
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    type: "website",
+    url: "/",
+    siteName: APP_NAME,
+    title: `${APP_NAME} | Find local people to do real plans with`,
+    description: "Discover nearby activities, start group quests, and meet people nearby.",
+    images: [
+      {
+        url: "/questhat-logo.png",
+        width: 1200,
+        height: 630,
+        alt: APP_NAME,
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: `${APP_NAME} | Find local people to do real plans with`,
+    description: "Discover nearby activities, start group quests, and meet people nearby.",
+    images: ["/questhat-logo.png"],
+  },
+  manifest: "/site.webmanifest",
   icons: {
     icon: [
       { url: "/questhat-logo.png" },
