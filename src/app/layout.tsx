@@ -29,7 +29,7 @@ export const metadata: Metadata = {
       { url: "/favicon-v3.png" },
     ],
     shortcut: "/questhat-logo.png",
-    apple: "/questhat-logo.png",
+    apple: "/apple-icon.png",
   },
 };
 
