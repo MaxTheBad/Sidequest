@@ -904,7 +904,7 @@ export default function SettingsPage() {
 
             {userId ? (
               <div className="pt-3 border-t">
-                <button type="button" className="w-full rounded-none border border-red-300 bg-red-50 px-4 py-3 text-sm font-medium text-red-700 transition hover:bg-red-100" onClick={() => setShowSignOutConfirm(true)}>
+                <button type="button" className="w-full border border-red-300 bg-red-50 px-4 py-3 text-sm font-medium text-red-700 transition hover:bg-red-100" onClick={() => setShowSignOutConfirm(true)}>
                   Sign out
                 </button>
               </div>
@@ -915,7 +915,7 @@ export default function SettingsPage() {
 
       {showSignOutConfirm ? (
         <div className="fixed inset-0 z-[140] bg-black/55 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white border p-4 space-y-3 shadow-2xl">
+              <div className="w-full max-w-md rounded-2xl bg-white border p-4 space-y-3 shadow-2xl">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h3 className="font-semibold text-lg">Sign out</h3>
@@ -927,11 +927,7 @@ export default function SettingsPage() {
               <button type="button" className="border rounded px-3 py-2" onClick={() => setShowSignOutConfirm(false)}>
                 Cancel
               </button>
-              <button
-                type="button"
-                className="rounded-none border border-red-300 bg-red-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-red-700"
-                onClick={() => void signOut()}
-              >
+              <button type="button" className="border border-red-300 bg-red-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-red-700" onClick={() => void signOut()}>
                 Sign out
               </button>
             </div>

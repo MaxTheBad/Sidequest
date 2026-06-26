@@ -25,11 +25,11 @@ export const metadata: Metadata = {
   description: "Quest Hat helps people discover nearby activities, start group quests, and meet others nearby.",
   icons: {
     icon: [
-      { url: "/favicon-v3.ico" },
+      { url: "/questhat-logo.png" },
       { url: "/favicon-v3.png" },
     ],
-    shortcut: "/favicon-v3.ico",
-    apple: "/apple-icon.png",
+    shortcut: "/questhat-logo.png",
+    apple: "/questhat-logo.png",
   },
 };
 
