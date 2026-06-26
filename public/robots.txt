@@ -1,0 +1,7 @@
+User-Agent: *
+Allow: /
+Disallow: /api/
+Disallow: /auth/callback
+Disallow: /reset-password
+
+Sitemap: https://questhat.com/sitemap.xml
