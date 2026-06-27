@@ -363,7 +363,6 @@ export default function Home() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [fullName, setFullName] = useState("");
   const [dob, setDob] = useState("");
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [marketingOptIn, setMarketingOptIn] = useState(false);
@@ -382,7 +381,6 @@ export default function Home() {
   const [photoStepState, setPhotoStepState] = useState<ProfilePhotoStep>("idle");
   const [showOnboardingWizard, setShowOnboardingWizard] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState(0);
-  const [onboardingDisplayName, setOnboardingDisplayName] = useState("");
   const [onboardingCity, setOnboardingCity] = useState("");
   const [onboardingBio, setOnboardingBio] = useState("");
   const [onboardingInterestIds, setOnboardingInterestIds] = useState<string[]>([]);
@@ -506,7 +504,6 @@ export default function Home() {
 
   function resetOnboardingForm() {
     setOnboardingStep(0);
-    setOnboardingDisplayName("");
     setOnboardingCity("");
     setOnboardingBio("");
     setOnboardingInterestIds([]);
@@ -944,7 +941,6 @@ export default function Home() {
     e.preventDefault();
     if (!supabase) return;
     if (!authTurnstileToken.trim()) return setStatus("Complete the verification check before signing up.");
-    if (!fullName.trim()) return setStatus("Please enter your name.");
     if (!dob) return setStatus("Please enter your date of birth.");
     const years = Math.floor((Date.now() - new Date(dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000));
     if (Number.isNaN(years) || years < 13) return setStatus("You must be at least 13.");
@@ -962,7 +958,7 @@ export default function Home() {
       password,
       options: {
         emailRedirectTo: redirectTo,
-        data: { full_name: fullName, dob, country_code: countryCode, accepted_terms: true, marketing_opt_in: marketingOptIn },
+        data: { dob, country_code: countryCode, accepted_terms: true, marketing_opt_in: marketingOptIn },
       },
     });
     if (error) return setStatus(error.message);
@@ -1006,6 +1002,7 @@ export default function Home() {
     await supabase.from("profiles").upsert({
       id: uid,
       display_name: nameFromMeta || fallbackName,
+      username: null,
       avatar_url: (typeof md.avatar_url === "string" && md.avatar_url) || null,
       country_code: (typeof md.country_code === "string" && md.country_code) || null,
     });
@@ -1087,8 +1084,6 @@ export default function Home() {
     ]);
 
     const savedHobbyIds = ((hobbyRows as OnboardingHobby[] | null) || []).map((row) => row.hobby_id);
-    const savedName = profile?.display_name || emailValue?.split("@")[0] || "SideQuest user";
-    setOnboardingDisplayName(savedName);
     setOnboardingCity(profile?.city || "");
     setOnboardingBio(profile?.bio || "");
     setOnboardingInterestIds(savedHobbyIds);
@@ -1196,7 +1191,7 @@ export default function Home() {
 
       const { error: profileError } = await supabase.from("profiles").upsert({
         id: userId,
-        display_name: onboardingDisplayName.trim() || userEmail.split("@")[0] || "SideQuest user",
+        username: null,
         city: onboardingCity.trim() || null,
         region: null,
         country_code: countryCode || null,
@@ -1234,12 +1229,6 @@ export default function Home() {
         }
       }
 
-      await supabase.auth.updateUser({
-        data: {
-          full_name: onboardingDisplayName.trim() || userEmail.split("@")[0] || "SideQuest user",
-        },
-      });
-
       if (typeof window !== "undefined") window.localStorage.setItem(onboardingStorageKey(userId), "1");
       setOnboardingDone(true);
       setShowOnboardingWizard(false);
@@ -1249,7 +1238,7 @@ export default function Home() {
       if (typeof window !== "undefined") window.localStorage.setItem(onboardingStorageKey(userId), "1");
       setOnboardingDone(true);
       setShowOnboardingWizard(false);
-      setStatus(err instanceof Error ? `${err.message} (saved locally; DB migration may still be needed)` : "Could not save onboarding.");
+      setStatus(err instanceof Error ? err.message : "Could not save onboarding.");
     } finally {
       setOnboardingSaving(false);
     }
@@ -2264,7 +2253,7 @@ export default function Home() {
       skill_level?: string;
     } = {
       id: activeUserId,
-      display_name: fullName || userEmail.split("@")[0] || "SideQuest user",
+      display_name: viewerName || userEmail.split("@")[0] || "SideQuest user",
       city: derivedCity,
       region: null,
       country_code: countryCode || null,
@@ -3708,13 +3697,12 @@ export default function Home() {
                 <p className="text-sm text-gray-500">This takes about a minute and helps people find the right outdoor plans.</p>
                 <p className="mt-2 text-xs text-gray-500">
                   {[
-                    onboardingDisplayName.trim() ? "name" : null,
                     onboardingCity.trim() ? "city" : null,
                     onboardingBio.trim() ? "bio" : null,
                     onboardingInterestIds.length ? "interests" : null,
                     onboardingPhotoFile ? "photo" : null,
                   ].filter(Boolean).length}
-                  /5 complete
+                  /4 complete
                 </p>
               </div>
               <button className="border rounded-full px-3 py-1.5 text-sm" onClick={() => void skipOnboarding()} type="button">
@@ -3725,7 +3713,7 @@ export default function Home() {
             <div className="flex gap-2">
               {["Basics", "Bio", "Interests", "Photo"].map((label, index) => {
                 const done =
-                  (index === 0 && onboardingDisplayName.trim() && onboardingCity.trim()) ||
+                  (index === 0 && onboardingCity.trim()) ||
                   (index === 1 && onboardingBio.trim()) ||
                   (index === 2 && onboardingInterestIds.length > 0) ||
                   (index === 3 && onboardingPhotoFile);
@@ -3748,8 +3736,6 @@ export default function Home() {
 
             {onboardingStep === 0 && (
               <div className="grid gap-3">
-                <label className="text-sm font-medium">Display name</label>
-                <input className="border rounded-xl px-3 py-2.5" value={onboardingDisplayName} onChange={(e) => setOnboardingDisplayName(e.target.value)} placeholder="How people should see you" />
                 <CityAutocompleteInput label="City" value={onboardingCity} onChange={setOnboardingCity} placeholder="Where are you based?" countryCode="US" />
               </div>
             )}
@@ -3986,10 +3972,8 @@ export default function Home() {
             <form onSubmit={authMode === "signup" ? signUpWithPassword : signInWithPassword} className="grid gap-2 sm:gap-3" autoComplete="on">
               <label className="text-xs font-medium text-gray-600">Email</label>
               <input className="border rounded-xl px-3 py-3" placeholder="you@email.com" type="email" name="email" autoComplete="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-            {authMode === "signup" && (
+              {authMode === "signup" && (
                 <>
-                  <label className="text-xs font-medium text-gray-600">Full name</label>
-                  <input className="border rounded-xl px-3 py-3" placeholder="Your name" name="name" autoComplete="name" value={fullName} onChange={(e) => setFullName(e.target.value)} required />
                   <label className="text-sm font-medium">Date of birth (DOB)</label>
                   <input className="border rounded-xl px-3 py-3" type="date" name="bday" autoComplete="bday" value={dob} onChange={(e) => setDob(e.target.value)} required />
                   <p className="text-xs text-gray-500">Use your birthday (MM/DD/YYYY).</p>

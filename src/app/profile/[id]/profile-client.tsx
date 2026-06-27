@@ -429,7 +429,6 @@ export default function ProfilePage() {
                 </div>
               <div className="px-5 pb-5 pt-4">
                 <h1 className="truncate text-2xl font-black tracking-tight">{profile?.display_name || "SideQuest user"}</h1>
-                {profile?.username ? <p className="text-sm font-medium text-gray-500">@{profile.username}</p> : null}
                 <div className="mt-3 flex items-center gap-x-3 overflow-x-auto whitespace-nowrap text-[11px] font-semibold text-gray-600 sm:text-xs">
                   <span>Friends {canViewFriends ? friends.length : "private"}</span>
                   <span>{quests.length} posts</span>

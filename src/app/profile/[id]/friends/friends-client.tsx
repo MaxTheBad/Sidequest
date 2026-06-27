@@ -209,7 +209,6 @@ export default function ProfileFriendsPage() {
                       )}
                       <div className="min-w-0">
                         <p className="truncate text-sm font-medium">{friend.display_name || "Friend"}</p>
-                        {friend.username ? <p className="truncate text-xs text-gray-500">@{friend.username}</p> : null}
                       </div>
                     </Link>
                     <span className={`text-sm ${friend.isMutual ? "font-semibold text-emerald-700" : "text-gray-400"}`}>
