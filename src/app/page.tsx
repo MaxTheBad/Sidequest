@@ -363,6 +363,7 @@ export default function Home() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [fullName, setFullName] = useState("");
   const [dob, setDob] = useState("");
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [marketingOptIn, setMarketingOptIn] = useState(false);
@@ -941,6 +942,7 @@ export default function Home() {
     e.preventDefault();
     if (!supabase) return;
     if (!authTurnstileToken.trim()) return setStatus("Complete the verification check before signing up.");
+    if (!fullName.trim()) return setStatus("Please enter your name.");
     if (!dob) return setStatus("Please enter your date of birth.");
     const years = Math.floor((Date.now() - new Date(dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000));
     if (Number.isNaN(years) || years < 13) return setStatus("You must be at least 13.");
@@ -958,7 +960,7 @@ export default function Home() {
       password,
       options: {
         emailRedirectTo: redirectTo,
-        data: { dob, country_code: countryCode, accepted_terms: true, marketing_opt_in: marketingOptIn },
+        data: { full_name: fullName, dob, country_code: countryCode, accepted_terms: true, marketing_opt_in: marketingOptIn },
       },
     });
     if (error) return setStatus(error.message);
@@ -1048,6 +1050,7 @@ export default function Home() {
     setPhotoStepPreviewUrl("");
     setPhotoStepState("idle");
     setOnboardingStep(0);
+    setFullName("");
     setOnboardingDisplayName("");
     setOnboardingCity("");
     setOnboardingBio("");
@@ -3974,6 +3977,8 @@ export default function Home() {
               <input className="border rounded-xl px-3 py-3" placeholder="you@email.com" type="email" name="email" autoComplete="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
               {authMode === "signup" && (
                 <>
+                  <label className="text-xs font-medium text-gray-600">Full name</label>
+                  <input className="border rounded-xl px-3 py-3" placeholder="Your name" name="name" autoComplete="name" value={fullName} onChange={(e) => setFullName(e.target.value)} required />
                   <label className="text-sm font-medium">Date of birth (DOB)</label>
                   <input className="border rounded-xl px-3 py-3" type="date" name="bday" autoComplete="bday" value={dob} onChange={(e) => setDob(e.target.value)} required />
                   <p className="text-xs text-gray-500">Use your birthday (MM/DD/YYYY).</p>
