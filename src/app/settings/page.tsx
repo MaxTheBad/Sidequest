@@ -63,7 +63,7 @@ export default function SettingsPage() {
   const [blockedRefreshTick, setBlockedRefreshTick] = useState(0);
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
   const initialProfileSnapshotRef = useRef<string>("");
-  const initialProfileSnapshot = useMemo(() => {
+  const initialProfileSnapshot = (() => {
     if (!initialProfileSnapshotRef.current) return null;
     try {
       return JSON.parse(initialProfileSnapshotRef.current) as {
@@ -78,7 +78,7 @@ export default function SettingsPage() {
     } catch {
       return null;
     }
-  }, [displayName, countryCode, city, region, bio, showLocation, friendsVisibility]);
+  })();
   const initialUsername = initialProfileSnapshot?.displayName || "";
   const usernameAvailability = useUsernameAvailability(displayName, userId, initialUsername);
 
@@ -241,9 +241,43 @@ export default function SettingsPage() {
   async function saveProfile(e: FormEvent) {
     e.preventDefault();
     if (!supabase || !userId) return setStatus("Not signed in.");
-    const { error } = await supabase
-      .from("profiles")
-      .upsert({
+    const initial = initialProfileSnapshot || {
+      displayName: "",
+      countryCode: "",
+      city: "",
+      region: "",
+      bio: "",
+      showLocation: false,
+      friendsVisibility: "public" as const,
+    };
+    const changedFields = [
+      initial.displayName !== displayName ? "username" : null,
+      initial.countryCode !== countryCode ? "country" : null,
+      initial.city !== city ? "city" : null,
+      initial.region !== region ? "state/region" : null,
+      initial.bio !== bio ? "bio" : null,
+      initial.showLocation !== showLocation ? "location visibility" : null,
+      initial.friendsVisibility !== friendsVisibility ? "friends visibility" : null,
+    ].filter(Boolean) as string[];
+    const usernameChanged = normalizeUsername(displayName) !== normalizeUsername(initial.displayName || "");
+
+    const saveBaseProfile = async () =>
+      supabase
+        .from("profiles")
+        .upsert({
+          id: userId,
+          city,
+          region: region || null,
+          country_code: countryCode || null,
+          bio,
+          friends_visibility: friendsVisibility,
+          show_location: showLocation,
+          radius_km: radiusKm,
+          avatar_url: avatarUrl || null,
+        });
+
+    const saveNameAndBase = async () =>
+      supabase.from("profiles").upsert({
         id: userId,
         username: displayName,
         display_name: displayName,
@@ -256,6 +290,15 @@ export default function SettingsPage() {
         radius_km: radiusKm,
         avatar_url: avatarUrl || null,
       });
+
+    let warning: string | null = null;
+    const profileSaveResult = usernameChanged ? await saveNameAndBase() : await saveBaseProfile();
+    let { error } = profileSaveResult;
+
+    if (usernameChanged && error?.message.toLowerCase().includes("once every 24 hours")) {
+      warning = "You can only change your username once every 24 hours.";
+      ({ error } = await saveBaseProfile());
+    }
 
     if (error) return setStatus(error.message);
 
@@ -273,9 +316,13 @@ export default function SettingsPage() {
     });
 
     if (metaErr) return setStatus(metaErr.message);
-    setStatus("Profile saved ✅");
+    if (warning) {
+      setStatus(`You can only change your username once every 24 hours. Other changes saved: ${changedFields.filter((f) => f !== "username").join(", ") || "none"}.`);
+    } else {
+      setStatus(`Profile saved ✅${changedFields.length ? ` Updated: ${changedFields.join(", ")}.` : ""}`);
+    }
     initialProfileSnapshotRef.current = JSON.stringify({
-      displayName,
+      displayName: usernameChanged && warning ? initial.displayName || "" : displayName,
       countryCode,
       city,
       region,
@@ -286,6 +333,8 @@ export default function SettingsPage() {
   }
 
   const isProfileDirty = useMemo(() => {
+    const normalizedInitialUsername = normalizeUsername(initialProfileSnapshot?.displayName || "");
+    const normalizedCurrentUsername = normalizeUsername(displayName);
     const current = JSON.stringify({
       displayName,
       countryCode,
@@ -295,8 +344,8 @@ export default function SettingsPage() {
       showLocation,
       friendsVisibility,
     });
-    return current !== initialProfileSnapshotRef.current;
-  }, [displayName, countryCode, city, region, bio, showLocation, friendsVisibility]);
+    return current !== initialProfileSnapshotRef.current || normalizedCurrentUsername !== normalizedInitialUsername;
+  }, [displayName, countryCode, city, region, bio, showLocation, friendsVisibility, initialProfileSnapshot]);
 
   function resetProfileForm() {
     if (!initialProfileSnapshot) return;
@@ -684,10 +733,6 @@ export default function SettingsPage() {
                 ) : null}
                 {usernameAvailability === "taken" ? <p className="text-sm text-red-600">That username is already taken.</p> : null}
                 {usernameAvailability === "error" ? <p className="text-sm text-amber-600">Could not check username availability.</p> : null}
-                {status === "You can only change your username once every 24 hours." ? (
-                  <p className="text-sm text-amber-700">You can only change your username once every 24 hours.</p>
-                ) : null}
-
                 <label className="text-sm font-medium">Date of birth</label>
                 <input type="date" className="border rounded px-3 py-2" value={dob} onChange={(e) => setDob(e.target.value)} />
 
@@ -730,8 +775,14 @@ export default function SettingsPage() {
                   <option value="private">Private (friends only)</option>
                 </select>
 
-                <div className="flex items-center gap-3 pt-1">
-                  {status === "Profile saved ✅" ? <p className="text-sm text-emerald-700">Profile saved ✅</p> : null}
+                <div className="flex flex-col gap-1 pt-1">
+                  {status.includes("24 hours") ? <p className="text-sm text-red-600">You can only change your username once every 24 hours.</p> : null}
+                  {status.includes("Other changes saved:") ? (
+                    <p className="text-sm text-emerald-700">
+                      {`Other changes saved: ${status.split("Other changes saved: ")[1] || ""}`}
+                    </p>
+                  ) : null}
+                  {status.startsWith("Profile saved ✅") ? <p className="text-sm text-emerald-700">{status}</p> : null}
                   <button
                     type="button"
                     className="text-sm underline underline-offset-2 text-gray-600 disabled:opacity-40"
