@@ -499,7 +499,7 @@ export default function SettingsPage() {
           <Link href="/" className="border rounded px-3 py-2 text-sm">Back</Link>
         </div>
 
-        {status && <p className="text-sm rounded border bg-amber-50 px-3 py-2 sticky top-2 z-30">{status}</p>}
+        {status && <p className="text-sm rounded border bg-amber-50 px-3 py-2">{status}</p>}
 
         <div className="flex gap-2 flex-wrap">
           <button className={`px-3 py-2 rounded ${tab === "profile" ? "bg-black text-white" : "border"}`} onClick={() => setTab("profile")}>Profile</button>
@@ -658,6 +658,7 @@ export default function SettingsPage() {
                 </select>
 
                 <button className="bg-black text-white rounded px-3 py-2 mt-1">Save profile</button>
+                {status === "Profile saved ✅" ? <p className="text-sm text-emerald-700 -mt-1">Profile saved ✅</p> : null}
               </form>
             )}
 
@@ -871,7 +872,7 @@ export default function SettingsPage() {
 
             {userId ? (
               <div className="pt-3 border-t">
-                <button type="button" className="w-full border border-red-300 bg-red-50 px-4 py-3 text-sm font-medium text-red-700 transition hover:bg-red-100" onClick={() => setShowSignOutConfirm(true)}>
+                <button type="button" className="w-full rounded bg-black px-3 py-2 text-sm font-medium text-white transition hover:bg-slate-800" onClick={() => setShowSignOutConfirm(true)}>
                   Sign out
                 </button>
               </div>
