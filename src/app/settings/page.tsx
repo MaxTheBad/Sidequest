@@ -658,7 +658,6 @@ export default function SettingsPage() {
                 </select>
 
                 <button className="bg-black text-white rounded px-3 py-2 mt-1">Save profile</button>
-                {status === "Profile saved ✅" ? <p className="text-sm text-emerald-700 -mt-1">Profile saved ✅</p> : null}
               </form>
             )}
 
@@ -872,7 +871,7 @@ export default function SettingsPage() {
 
             {userId ? (
               <div className="pt-3 border-t">
-                <button type="button" className="w-full rounded bg-black px-3 py-2 text-sm font-medium text-white transition hover:bg-slate-800" onClick={() => setShowSignOutConfirm(true)}>
+                <button type="button" className="w-full rounded bg-red-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-red-700" onClick={() => setShowSignOutConfirm(true)}>
                   Sign out
                 </button>
               </div>
