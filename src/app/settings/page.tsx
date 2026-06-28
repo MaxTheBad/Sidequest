@@ -816,6 +816,9 @@ export default function SettingsPage() {
                 >
                   Save profile
                 </button>
+                <Link href="/profile" className="text-sm font-medium text-slate-700 underline underline-offset-4 w-fit">
+                  View my profile
+                </Link>
               </form>
             )}
 
