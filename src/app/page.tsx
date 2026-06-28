@@ -367,6 +367,7 @@ export default function Home() {
   const [dob, setDob] = useState("");
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [marketingOptIn, setMarketingOptIn] = useState(false);
+  const [hideCityOnBio, setHideCityOnBio] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [pendingVerifyEmail, setPendingVerifyEmail] = useState("");
@@ -958,11 +959,19 @@ export default function Home() {
     const { error } = await supabase.auth.signUp({
       email,
       password,
-      options: {
-        emailRedirectTo: redirectTo,
-        data: { full_name: fullName, dob, country_code: countryCode, accepted_terms: true, marketing_opt_in: marketingOptIn },
-      },
-    });
+        options: {
+          emailRedirectTo: redirectTo,
+          data: {
+            full_name: fullName,
+            dob,
+            country_code: countryCode,
+            accepted_terms: true,
+            marketing_opt_in: marketingOptIn,
+            show_location: !hideCityOnBio,
+            hide_city_on_bio: hideCityOnBio,
+          },
+        },
+      });
     if (error) return setStatus(error.message);
 
     setPendingVerifyEmail(email);
@@ -1001,12 +1010,14 @@ export default function Home() {
     const md = metadata || {};
     const nameFromMeta = (typeof md.full_name === "string" && md.full_name) || (typeof md.name === "string" && md.name) || "";
     const fallbackName = (emailValue || "").split("@")[0] || "SideQuest user";
+    const showLocation = typeof md.show_location === "boolean" ? md.show_location : false;
     await supabase.from("profiles").upsert({
       id: uid,
       display_name: nameFromMeta || fallbackName,
       username: null,
       avatar_url: (typeof md.avatar_url === "string" && md.avatar_url) || null,
       country_code: (typeof md.country_code === "string" && md.country_code) || null,
+      show_location: showLocation,
     });
   }
 
@@ -1081,7 +1092,7 @@ export default function Home() {
     if (!supabase || !uid) return;
 
     const [{ data: profile }, { data: hobbyRows }] = await Promise.all([
-      supabase.from("profiles").select("display_name,city,bio,radius_km,onboarding_done").eq("id", uid).maybeSingle(),
+      supabase.from("profiles").select("display_name,city,bio,radius_km,onboarding_done,show_location,avatar_url,avatar_source_url").eq("id", uid).maybeSingle(),
       supabase.from("user_hobbies").select("hobby_id,is_primary").eq("user_id", uid),
     ]);
 
@@ -1090,7 +1101,7 @@ export default function Home() {
     setOnboardingBio(profile?.bio || "");
     setOnboardingInterestIds(savedHobbyIds);
     setOnboardingDone(Boolean(profile?.onboarding_done));
-    setOnboardingExistingAvatarUrl((profile as { avatar_source_url?: string | null; avatar_url?: string | null } | null)?.avatar_source_url || (profile as { avatar_url?: string | null } | null)?.avatar_url || "");
+    setOnboardingExistingAvatarUrl(profile?.avatar_source_url || profile?.avatar_url || "");
   }
 
   async function maybeShowOnboarding(uid: string | null, emailValue?: string | null) {
@@ -1200,6 +1211,7 @@ export default function Home() {
         region: null,
         country_code: countryCode || null,
         bio: onboardingBio.trim() || null,
+        show_location: !hideCityOnBio,
         onboarding_done: true,
       });
       if (profileError) throw profileError;
@@ -4016,6 +4028,10 @@ export default function Home() {
                       <span>Send me updates/promos (optional).</span>
                     </label>
                   </div>
+                  <label className="flex gap-2 items-start leading-5 text-sm">
+                    <input className="mt-0.5" type="checkbox" checked={hideCityOnBio} onChange={(e) => setHideCityOnBio(e.target.checked)} />
+                    <span>Hide city on bio</span>
+                  </label>
                 </>
               )}
 
