@@ -66,12 +66,21 @@ export default function SettingsPage() {
   const initialProfileSnapshot = useMemo(() => {
     if (!initialProfileSnapshotRef.current) return null;
     try {
-      return JSON.parse(initialProfileSnapshotRef.current) as { displayName?: string };
+      return JSON.parse(initialProfileSnapshotRef.current) as {
+        displayName?: string;
+        countryCode?: string;
+        city?: string;
+        region?: string;
+        bio?: string;
+        showLocation?: boolean;
+        friendsVisibility?: "public" | "private";
+      };
     } catch {
       return null;
     }
   }, [displayName, countryCode, city, region, bio, showLocation, friendsVisibility]);
-  const usernameAvailability = useUsernameAvailability(displayName, userId, initialProfileSnapshot?.displayName || "");
+  const initialUsername = initialProfileSnapshot?.displayName || "";
+  const usernameAvailability = useUsernameAvailability(displayName, userId, initialUsername);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -288,6 +297,18 @@ export default function SettingsPage() {
     });
     return current !== initialProfileSnapshotRef.current;
   }, [displayName, countryCode, city, region, bio, showLocation, friendsVisibility]);
+
+  function resetProfileForm() {
+    if (!initialProfileSnapshot) return;
+    setDisplayName(initialProfileSnapshot.displayName || "");
+    setCountryCode(initialProfileSnapshot.countryCode || "US");
+    setCity(initialProfileSnapshot.city || "");
+    setRegion(initialProfileSnapshot.region || "");
+    setBio(initialProfileSnapshot.bio || "");
+    setShowLocation(Boolean(initialProfileSnapshot.showLocation));
+    setFriendsVisibility(initialProfileSnapshot.friendsVisibility || "public");
+    setStatus("");
+  }
 
 
   async function makeCroppedAvatar(file: File) {
@@ -658,11 +679,14 @@ export default function SettingsPage() {
                 <label className="text-sm font-medium">Username</label>
                 <input className="border rounded px-3 py-2" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
                 {usernameAvailability === "checking" ? <p className="text-sm text-gray-500">Checking username...</p> : null}
-                {usernameAvailability === "available" && normalizeUsername(displayName) !== normalizeUsername(initialProfileSnapshotRef.current ? JSON.parse(initialProfileSnapshotRef.current).displayName || "" : "") ? (
+                {usernameAvailability === "available" && normalizeUsername(displayName) !== normalizeUsername(initialUsername) ? (
                   <p className="text-sm text-emerald-600">Username is available.</p>
                 ) : null}
                 {usernameAvailability === "taken" ? <p className="text-sm text-red-600">That username is already taken.</p> : null}
                 {usernameAvailability === "error" ? <p className="text-sm text-amber-600">Could not check username availability.</p> : null}
+                {status === "You can only change your username once every 24 hours." ? (
+                  <p className="text-sm text-amber-700">You can only change your username once every 24 hours.</p>
+                ) : null}
 
                 <label className="text-sm font-medium">Date of birth</label>
                 <input type="date" className="border rounded px-3 py-2" value={dob} onChange={(e) => setDob(e.target.value)} />
@@ -706,7 +730,17 @@ export default function SettingsPage() {
                   <option value="private">Private (friends only)</option>
                 </select>
 
-                {status === "Profile saved ✅" ? <p className="text-sm text-emerald-700 -mb-1">Profile saved ✅</p> : null}
+                <div className="flex items-center gap-3 pt-1">
+                  {status === "Profile saved ✅" ? <p className="text-sm text-emerald-700">Profile saved ✅</p> : null}
+                  <button
+                    type="button"
+                    className="text-sm underline underline-offset-2 text-gray-600 disabled:opacity-40"
+                    onClick={resetProfileForm}
+                    disabled={!isProfileDirty}
+                  >
+                    Revert changes
+                  </button>
+                </div>
                 <button
                   className="rounded px-3 py-2 mt-1 text-white disabled:cursor-not-allowed disabled:text-gray-500"
                   style={{ backgroundColor: isProfileDirty ? "#111827" : "#d1d5db" }}
