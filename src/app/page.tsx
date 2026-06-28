@@ -1051,7 +1051,6 @@ export default function Home() {
     setPhotoStepState("idle");
     setOnboardingStep(0);
     setFullName("");
-    setOnboardingDisplayName("");
     setOnboardingCity("");
     setOnboardingBio("");
     setOnboardingInterestIds([]);
