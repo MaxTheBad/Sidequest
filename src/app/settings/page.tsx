@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, PointerEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, PointerEvent, useEffect, useMemo, useRef, useState } from "react";
 import CityAutocompleteInput from "@/components/city-autocomplete-input";
 import { COUNTRY_OPTIONS } from "@/lib/countries";
 import { getSupabaseClient } from "@/lib/supabase";
@@ -60,6 +60,7 @@ export default function SettingsPage() {
   const [blockedProfiles, setBlockedProfiles] = useState<BlockedProfile[]>([]);
   const [blockedRefreshTick, setBlockedRefreshTick] = useState(0);
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
+  const initialProfileSnapshotRef = useRef<string>("");
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -114,6 +115,15 @@ export default function SettingsPage() {
         const region = (navigator.language.split("-")[1] || "US").toUpperCase();
         if (region.length === 2) { setCountryCode(region); }
       }
+      initialProfileSnapshotRef.current = JSON.stringify({
+        displayName: profile?.username || profile?.display_name || metaName || "",
+        countryCode: profile?.country_code || metaCountry || "",
+        city: profile?.city ?? (typeof authMeta.city === "string" ? authMeta.city : ""),
+        region: profile?.region ?? (typeof authMeta.region === "string" ? authMeta.region : ""),
+        bio: profile?.bio ?? (typeof authMeta.bio === "string" ? authMeta.bio : ""),
+        showLocation: typeof profile?.show_location === "boolean" ? profile.show_location : Boolean(authMeta.show_location),
+        friendsVisibility: ((profile?.friends_visibility as "public" | "private") || "public"),
+      });
 
       const { data: acceptedRows } = await supabase
         .from("friends")
@@ -244,7 +254,29 @@ export default function SettingsPage() {
 
     if (metaErr) return setStatus(metaErr.message);
     setStatus("Profile saved ✅");
+    initialProfileSnapshotRef.current = JSON.stringify({
+      displayName,
+      countryCode,
+      city,
+      region,
+      bio,
+      showLocation,
+      friendsVisibility,
+    });
   }
+
+  const isProfileDirty = useMemo(() => {
+    const current = JSON.stringify({
+      displayName,
+      countryCode,
+      city,
+      region,
+      bio,
+      showLocation,
+      friendsVisibility,
+    });
+    return current !== initialProfileSnapshotRef.current;
+  }, [displayName, countryCode, city, region, bio, showLocation, friendsVisibility]);
 
 
   async function makeCroppedAvatar(file: File) {
@@ -657,7 +689,13 @@ export default function SettingsPage() {
                   <option value="private">Private (friends only)</option>
                 </select>
 
-                <button className="bg-black text-white rounded px-3 py-2 mt-1">Save profile</button>
+                {status === "Profile saved ✅" ? <p className="text-sm text-emerald-700">Profile saved ✅</p> : null}
+                <button
+                  className="rounded px-3 py-2 mt-1 bg-black text-white disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500"
+                  disabled={!isProfileDirty}
+                >
+                  Save profile
+                </button>
               </form>
             )}
 
