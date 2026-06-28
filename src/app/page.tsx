@@ -1191,9 +1191,11 @@ export default function Home() {
         }
       }
 
+      const profileName = viewerName || userEmail.split("@")[0] || "SideQuest user";
       const { error: profileError } = await supabase.from("profiles").upsert({
         id: userId,
         username: null,
+        display_name: profileName,
         city: onboardingCity.trim() || null,
         region: null,
         country_code: countryCode || null,

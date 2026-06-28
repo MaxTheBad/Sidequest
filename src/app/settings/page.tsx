@@ -608,7 +608,7 @@ export default function SettingsPage() {
                   )}
                 </div>
 
-                <label className="text-sm font-medium">Name</label>
+                <label className="text-sm font-medium">Display name</label>
                 <input className="border rounded px-3 py-2" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
 
                 <label className="text-sm font-medium">Date of birth</label>
