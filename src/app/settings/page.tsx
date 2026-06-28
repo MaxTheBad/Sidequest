@@ -89,7 +89,7 @@ export default function SettingsPage() {
         .maybeSingle();
 
       const { data: authUser } = await supabase.auth.getUser();
-      const authMeta = (authUser.data.user?.user_metadata || {}) as Record<string, unknown>;
+      const authMeta = (authUser.user?.user_metadata || {}) as Record<string, unknown>;
 
       setCity(profile?.city ?? (typeof authMeta.city === "string" ? authMeta.city : ""));
       setRegion(profile?.region ?? (typeof authMeta.region === "string" ? authMeta.region : ""));
