@@ -84,7 +84,7 @@ export default function SettingsPage() {
 
       const { data: profile } = await supabase
         .from("profiles")
-        .select("display_name,city,region,country_code,bio,friends_visibility,show_location,radius_km,avatar_url,avatar_source_url")
+        .select("display_name,username,city,region,country_code,bio,friends_visibility,show_location,radius_km,avatar_url,avatar_source_url")
         .eq("id", uid)
         .maybeSingle();
 
@@ -98,7 +98,7 @@ export default function SettingsPage() {
       const u = await supabase.auth.getUser();
       const meta = (u.data.user?.user_metadata || {}) as Record<string, unknown>;
       const metaName = (typeof meta.full_name === "string" && meta.full_name) || (typeof meta.name === "string" && meta.name) || "";
-      setDisplayName(profile?.display_name || metaName || "");
+      setDisplayName(profile?.username || profile?.display_name || metaName || "");
       const metaAvatar = typeof meta.avatar_url === "string" ? meta.avatar_url : "";
       const resolvedAvatar = profile?.avatar_url || metaAvatar || "";
       setAvatarUrl(resolvedAvatar);
@@ -215,7 +215,7 @@ export default function SettingsPage() {
       .from("profiles")
       .upsert({
         id: userId,
-        username: null,
+        username: displayName,
         display_name: displayName,
         city,
         region: region || null,
@@ -608,7 +608,7 @@ export default function SettingsPage() {
                   )}
                 </div>
 
-                <label className="text-sm font-medium">Display name</label>
+                <label className="text-sm font-medium">Username</label>
                 <input className="border rounded px-3 py-2" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
 
                 <label className="text-sm font-medium">Date of birth</label>

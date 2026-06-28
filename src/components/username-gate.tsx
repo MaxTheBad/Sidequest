@@ -26,11 +26,11 @@ export default function UsernameGate() {
       }
       const { data, error: profileError } = await supabase
         .from("profiles")
-        .select("username")
+        .select("username,display_name")
         .eq("id", uid)
         .maybeSingle();
       if (!profileError) {
-        const nextUsername = data?.username || "";
+        const nextUsername = data?.username || data?.display_name || "";
         setSavedUsername(nextUsername);
         setUsername(nextUsername);
         setRequired(!nextUsername);
@@ -53,7 +53,8 @@ export default function UsernameGate() {
 
     setSaving(true);
     setError("");
-    const { error: saveError } = await supabase.from("profiles").upsert({ id: userId, username: normalizeUsername(username) });
+    const normalized = normalizeUsername(username);
+    const { error: saveError } = await supabase.from("profiles").upsert({ id: userId, username: normalized, display_name: normalized });
     setSaving(false);
 
     if (saveError) return setError(usernameErrorMessage(saveError.message));
