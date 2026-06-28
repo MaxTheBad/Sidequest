@@ -88,27 +88,27 @@ export default function SettingsPage() {
         .eq("id", uid)
         .maybeSingle();
 
-      setCity(profile?.city ?? "");
-      setRegion(profile?.region ?? "");
-      setRadiusKm(Number(profile?.radius_km || 15));
-      setBio(profile?.bio ?? "");
-      setFriendsVisibility(((profile?.friends_visibility as "public" | "private") || "public"));
-      setShowLocation(Boolean(profile?.show_location));
+      const { data: authUser } = await supabase.auth.getUser();
+      const authMeta = (authUser.data.user?.user_metadata || {}) as Record<string, unknown>;
 
-      const u = await supabase.auth.getUser();
-      const meta = (u.data.user?.user_metadata || {}) as Record<string, unknown>;
-      const metaName = (typeof meta.full_name === "string" && meta.full_name) || (typeof meta.name === "string" && meta.name) || "";
+      setCity(profile?.city ?? (typeof authMeta.city === "string" ? authMeta.city : ""));
+      setRegion(profile?.region ?? (typeof authMeta.region === "string" ? authMeta.region : ""));
+      setRadiusKm(Number(profile?.radius_km || 15));
+      setBio(profile?.bio ?? (typeof authMeta.bio === "string" ? authMeta.bio : ""));
+      setFriendsVisibility(((profile?.friends_visibility as "public" | "private") || "public"));
+      setShowLocation(typeof profile?.show_location === "boolean" ? profile.show_location : Boolean(authMeta.show_location));
+      const metaName = (typeof authMeta.full_name === "string" && authMeta.full_name) || (typeof authMeta.name === "string" && authMeta.name) || "";
       setDisplayName(profile?.username || profile?.display_name || metaName || "");
-      const metaAvatar = typeof meta.avatar_url === "string" ? meta.avatar_url : "";
+      const metaAvatar = typeof authMeta.avatar_url === "string" ? authMeta.avatar_url : "";
       const resolvedAvatar = profile?.avatar_url || metaAvatar || "";
       setAvatarUrl(resolvedAvatar);
 
       if (!profile?.avatar_url && metaAvatar) {
         await supabase.from("profiles").upsert({ id: uid, avatar_url: metaAvatar });
       }
-      setMarketingOptIn(Boolean(meta.marketing_opt_in));
-      if (typeof meta.dob === "string") setDob(meta.dob);
-      const metaCountry = typeof meta.country_code === "string" ? meta.country_code : "";
+      setMarketingOptIn(Boolean(authMeta.marketing_opt_in));
+      if (typeof authMeta.dob === "string") setDob(authMeta.dob);
+      const metaCountry = typeof authMeta.country_code === "string" ? authMeta.country_code : "";
       if (metaCountry.length === 2) { const cc = metaCountry.toUpperCase(); setCountryCode(cc); }
       else if (typeof navigator !== "undefined") {
         const region = (navigator.language.split("-")[1] || "US").toUpperCase();
@@ -234,6 +234,10 @@ export default function SettingsPage() {
         full_name: displayName,
         dob: dob || null,
         country_code: countryCode,
+        city: city || null,
+        region: region || null,
+        bio: bio || null,
+        show_location: showLocation,
         avatar_url: avatarUrl || null,
       },
     });

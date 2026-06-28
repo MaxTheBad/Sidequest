@@ -1216,6 +1216,17 @@ export default function Home() {
       });
       if (profileError) throw profileError;
 
+      const { error: metaError } = await supabase.auth.updateUser({
+        data: {
+          full_name: profileName,
+          city: onboardingCity.trim() || null,
+          bio: onboardingBio.trim() || null,
+          country_code: countryCode || null,
+          show_location: !hideCityOnBio,
+        },
+      });
+      if (metaError) throw metaError;
+
       if (uploadedPhotoUrl) {
         const { error: avatarError } = await supabase.from("profiles").upsert({
           id: userId,
