@@ -645,6 +645,9 @@ export default function SettingsPage() {
           <>
             {tab === "profile" && (
               <form onSubmit={saveProfile} className="grid gap-2">
+                <Link href="/profile" className="w-fit rounded-full border px-3 py-2 text-sm font-medium text-slate-700">
+                  View my profile
+                </Link>
                 <label className="text-sm font-medium">Profile photo</label>
                 <div className="grid gap-2 rounded-xl border p-3 bg-gray-50">
                   <input
@@ -816,9 +819,6 @@ export default function SettingsPage() {
                 >
                   Save profile
                 </button>
-                <Link href="/profile" className="text-sm font-medium text-slate-700 underline underline-offset-4 w-fit">
-                  View my profile
-                </Link>
               </form>
             )}
 
