@@ -74,7 +74,6 @@ export default function SettingsPage() {
         bio?: string;
         showLocation?: boolean;
         friendsVisibility?: "public" | "private";
-        usernameChangedAt?: string | null;
       };
     } catch {
       return null;
@@ -106,7 +105,7 @@ export default function SettingsPage() {
 
       const { data: profile } = await supabase
         .from("profiles")
-        .select("display_name,username,username_changed_at,city,region,country_code,bio,friends_visibility,show_location,radius_km,avatar_url,avatar_source_url")
+        .select("display_name,username,city,region,country_code,bio,friends_visibility,show_location,radius_km,avatar_url,avatar_source_url")
         .eq("id", uid)
         .maybeSingle();
 
@@ -144,7 +143,6 @@ export default function SettingsPage() {
         bio: profile?.bio ?? (typeof authMeta.bio === "string" ? authMeta.bio : ""),
         showLocation: typeof profile?.show_location === "boolean" ? profile.show_location : Boolean(authMeta.show_location),
         friendsVisibility: ((profile?.friends_visibility as "public" | "private") || "public"),
-        usernameChangedAt: profile?.username_changed_at || null,
       });
 
       const { data: acceptedRows } = await supabase
@@ -293,10 +291,14 @@ export default function SettingsPage() {
         avatar_url: avatarUrl || null,
       });
 
-    const usernameChangedAt = initialProfileSnapshot?.usernameChangedAt ? new Date(initialProfileSnapshot.usernameChangedAt).getTime() : 0;
-    const usernameCooldownActive = usernameChanged && usernameChangedAt > 0 && Date.now() - usernameChangedAt < 24 * 60 * 60 * 1000;
-    const profileSaveResult = usernameCooldownActive ? await saveBaseProfile() : (usernameChanged ? await saveNameAndBase() : await saveBaseProfile());
-    const { error } = profileSaveResult;
+    let warning: string | null = null;
+    const profileSaveResult = usernameChanged ? await saveNameAndBase() : await saveBaseProfile();
+    let { error } = profileSaveResult;
+
+    if (usernameChanged && error?.message.toLowerCase().includes("once every 24 hours")) {
+      warning = "You can only change your username once every 24 hours.";
+      ({ error } = await saveBaseProfile());
+    }
 
     if (error) return setStatus(error.message);
 
@@ -314,21 +316,19 @@ export default function SettingsPage() {
     });
 
     if (metaErr) return setStatus(metaErr.message);
-    if (usernameCooldownActive) {
-      const otherChanges = changedFields.filter((f) => f !== "username");
-      setStatus(`You can only change your username once every 24 hours.${otherChanges.length ? ` Other changes saved: ${otherChanges.join(", ")}.` : ""}`);
+    if (warning) {
+      setStatus(`You can only change your username once every 24 hours. Other changes saved: ${changedFields.filter((f) => f !== "username").join(", ") || "none"}.`);
     } else {
       setStatus(`Profile saved ✅${changedFields.length ? ` Updated: ${changedFields.join(", ")}.` : ""}`);
     }
     initialProfileSnapshotRef.current = JSON.stringify({
-      displayName,
+      displayName: usernameChanged && warning ? initial.displayName || "" : displayName,
       countryCode,
       city,
       region,
       bio,
       showLocation,
       friendsVisibility,
-      usernameChangedAt: initial.usernameChangedAt || null,
     });
   }
 
