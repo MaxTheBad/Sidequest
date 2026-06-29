@@ -10,7 +10,7 @@ import { CANONICAL_CATEGORIES, resolveCanonicalCategory, suggestCanonicalCategor
 import { getCategoryFallbackMedia } from "@/lib/category-default-media";
 import { readStoredUserLocation, writeStoredUserLocation } from "@/lib/location-distance";
 import { isImageLikeFile, prepareImageForUpload } from "@/lib/media-optimize";
-import { compressVideoForUpload } from "@/lib/video-optimize";
+import { compressVideoForUpload, VIDEO_MAX_DURATION_SECONDS } from "@/lib/video-optimize";
 import { collectQuestStorageUrls, removeStoragePublicUrls } from "@/lib/storage.js";
 import { APP_EVENT_NAMES, APP_NAME } from "@/lib/app-brand";
 import { AppIcon } from "@/components/app-icons";
@@ -33,6 +33,9 @@ type DraftMediaItem = {
   url?: string;
   file?: File;
   thumbnailUrl?: string | null;
+  durationSeconds?: number | null;
+  trimStartSeconds?: number;
+  trimEndSeconds?: number;
 };
 
 type Quest = {
@@ -1460,7 +1463,7 @@ export default function Home() {
     if (file.size > 60 * 1024 * 1024) throw new Error("Video must be under 60MB.");
 
     const duration = await getVideoDurationSeconds(file);
-    if (duration > 15.2) throw new Error("Video must be 15 seconds or less.");
+    if (duration > VIDEO_MAX_DURATION_SECONDS + 0.2) throw new Error(`Video must be ${VIDEO_MAX_DURATION_SECONDS} seconds or less.`);
 
     const ext = (file.name.split(".").pop() || "mp4").toLowerCase();
     const filePath = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
@@ -1551,7 +1554,7 @@ export default function Home() {
     }
   }
 
-  async function uploadQuestMediaFiles(items: Array<{ file: File; label: string; thumbnailUrl?: string | null }>) {
+  async function uploadQuestMediaFiles(items: Array<{ file: File; label: string; thumbnailUrl?: string | null; trimStartSeconds?: number; trimEndSeconds?: number }>) {
     if (!supabase || !userId) throw new Error("Not signed in.");
     const uploaded: QuestMediaItem[] = [];
 
@@ -1563,12 +1566,26 @@ export default function Home() {
 
       const file = looksImage
         ? await prepareImageForUpload(originalFile, { maxWidth: 1600, maxHeight: 1600, quality: 0.82 })
-        : (isVideo ? await compressVideoForUpload(originalFile, { maxWidth: 960, maxHeight: 960, videoBitsPerSecond: 900_000 }) : originalFile);
+        : (isVideo
+          ? await compressVideoForUpload(originalFile, {
+            maxWidth: 960,
+            maxHeight: 960,
+            maxDurationSeconds: VIDEO_MAX_DURATION_SECONDS,
+            trimStartSeconds: item.trimStartSeconds,
+            trimEndSeconds: item.trimEndSeconds,
+          })
+          : originalFile);
 
       const isImage = file.type.startsWith("image/");
       const isCompressedVideo = file.type.startsWith("video/");
       if (isImage && file.size > 8 * 1024 * 1024) throw new Error("Compressed images must be under 8MB.");
-      if (isCompressedVideo && file.size > 60 * 1024 * 1024) throw new Error("Videos must be under 60MB.");
+      if (isCompressedVideo) {
+        const duration = await getVideoDurationSeconds(file);
+        if (duration > VIDEO_MAX_DURATION_SECONDS + 0.2) {
+          throw new Error(`Video must be trimmed to ${VIDEO_MAX_DURATION_SECONDS}s before posting.`);
+        }
+        if (file.size > 60 * 1024 * 1024) throw new Error("Videos must be under 60MB.");
+      }
 
       let thumbnailUrl = item.thumbnailUrl || null;
       if (isCompressedVideo && !thumbnailUrl) {
@@ -1733,8 +1750,8 @@ export default function Home() {
     try {
       const duration = await getVideoDurationSeconds(file);
       setQuestVideoDurationSec(duration);
-      if (duration > 15.2) {
-        setStatus(`Video is ${duration.toFixed(1)}s. Max is 15s for now. Longer videos coming soon.`);
+      if (duration > VIDEO_MAX_DURATION_SECONDS + 0.2) {
+        setStatus(`Video is ${duration.toFixed(1)}s. Max is ${VIDEO_MAX_DURATION_SECONDS}s for now. Longer videos coming soon.`);
         return;
       }
       setQuestVideoFile(file);
@@ -1763,7 +1780,27 @@ export default function Home() {
           setStatus(err instanceof Error ? err.message : "Could not process image.");
         }
       } else if (picked.type.startsWith("video/") && vidLeft > 0) {
-        added.push({ id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, file: picked, label: "", type: "video", source: "new" });
+        try {
+          const duration = await getVideoDurationSeconds(picked);
+          const trimStartSeconds = 0;
+          const trimEndSeconds = Math.min(duration || VIDEO_MAX_DURATION_SECONDS, VIDEO_MAX_DURATION_SECONDS);
+          added.push({
+            id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+            file: picked,
+            label: "",
+            type: "video",
+            source: "new",
+            durationSeconds: duration,
+            trimStartSeconds,
+            trimEndSeconds,
+          });
+          if (duration > VIDEO_MAX_DURATION_SECONDS + 0.2) {
+            setStatus(`Video is ${duration.toFixed(1)}s. Trim it to ${VIDEO_MAX_DURATION_SECONDS}s before posting.`);
+          }
+        } catch (err) {
+          setStatus(err instanceof Error ? err.message : "Could not read video.");
+          continue;
+        }
         vidLeft -= 1;
       }
     }
@@ -1802,6 +1839,26 @@ export default function Home() {
   }, [mediaDraftItems, mediaPreviewUrls]);
 
   const selectedMediaItem = mediaDraftItems.find((m) => m.id === selectedMediaId) || null;
+  const selectedTrimStart = selectedMediaItem?.trimStartSeconds ?? 0;
+  const selectedTrimEnd = selectedMediaItem?.trimEndSeconds ?? Math.min(selectedMediaVideoDuration || VIDEO_MAX_DURATION_SECONDS, VIDEO_MAX_DURATION_SECONDS);
+  const selectedTrimLength = Math.max(0, selectedTrimEnd - selectedTrimStart);
+  const selectedVideoNeedsTrim = selectedMediaItem?.type === "video" && selectedMediaVideoDuration > VIDEO_MAX_DURATION_SECONDS + 0.2;
+
+  function formatDuration(seconds: number) {
+    if (!Number.isFinite(seconds)) return "0.0s";
+    return `${Math.max(0, seconds).toFixed(1)}s`;
+  }
+
+  function updateSelectedVideoTrim(nextStart: number) {
+    if (!selectedMediaItem || selectedMediaItem.type !== "video") return;
+    const duration = selectedMediaItem.durationSeconds || selectedMediaVideoDuration || VIDEO_MAX_DURATION_SECONDS;
+    const maxStart = Math.max(0, duration - VIDEO_MAX_DURATION_SECONDS);
+    const trimStartSeconds = Math.max(0, Math.min(nextStart, maxStart));
+    const trimEndSeconds = Math.min(duration, trimStartSeconds + VIDEO_MAX_DURATION_SECONDS);
+    setMediaDraftItems((prev) => prev.map((m) => m.id === selectedMediaItem.id ? { ...m, trimStartSeconds, trimEndSeconds } : m));
+    const vid = selectedMediaVideoRef.current;
+    if (vid && Number.isFinite(trimStartSeconds)) vid.currentTime = trimStartSeconds;
+  }
 
   useEffect(() => {
     setVideoThumbStatus("");
@@ -1812,6 +1869,14 @@ export default function Home() {
     const vid = selectedMediaVideoRef.current;
     if (vid && Number.isFinite(vid.duration) && vid.duration > 0) {
       setSelectedMediaVideoDuration(vid.duration);
+      if (selectedMediaItem.source === "new" && selectedMediaItem.durationSeconds === undefined) {
+        setMediaDraftItems((prev) => prev.map((m) => m.id === selectedMediaItem.id ? {
+          ...m,
+          durationSeconds: vid.duration,
+          trimStartSeconds: m.trimStartSeconds ?? 0,
+          trimEndSeconds: m.trimEndSeconds ?? Math.min(vid.duration, VIDEO_MAX_DURATION_SECONDS),
+        } : m));
+      }
     }
   }, [selectedMediaItem?.id, selectedMediaItem?.type]);
 
@@ -2366,7 +2431,13 @@ export default function Home() {
     try {
       const newDraftItems = mediaDraftItems.filter((m) => m.source === "new" && m.file);
       const uploadedMedia = newDraftItems.length
-        ? await uploadQuestMediaFiles(newDraftItems.map((m) => ({ file: m.file as File, label: m.label, thumbnailUrl: m.thumbnailUrl || null })))
+        ? await uploadQuestMediaFiles(newDraftItems.map((m) => ({
+          file: m.file as File,
+          label: m.label,
+          thumbnailUrl: m.thumbnailUrl || null,
+          trimStartSeconds: m.trimStartSeconds,
+          trimEndSeconds: m.trimEndSeconds,
+        })))
         : [];
 
       let uploadIdx = 0;
@@ -4520,11 +4591,27 @@ export default function Home() {
                           controls
                           playsInline
                           preload="metadata"
+                          onTimeUpdate={() => {
+                            const vid = selectedMediaVideoRef.current;
+                            if (!vid || !selectedVideoNeedsTrim) return;
+                            if (vid.currentTime > selectedTrimEnd + 0.05) {
+                              vid.pause();
+                              vid.currentTime = selectedTrimEnd;
+                            }
+                          }}
                           onLoadedMetadata={() => {
                             const vid = selectedMediaVideoRef.current;
                             if (vid && Number.isFinite(vid.duration) && vid.duration > 0) {
                               setSelectedMediaVideoDuration(vid.duration);
                               vid.currentTime = Math.min(vid.currentTime || 0, vid.duration);
+                              if (selectedMediaItem.source === "new" && selectedMediaItem.durationSeconds === undefined) {
+                                setMediaDraftItems((prev) => prev.map((m) => m.id === selectedMediaItem.id ? {
+                                  ...m,
+                                  durationSeconds: vid.duration,
+                                  trimStartSeconds: m.trimStartSeconds ?? 0,
+                                  trimEndSeconds: m.trimEndSeconds ?? Math.min(vid.duration, VIDEO_MAX_DURATION_SECONDS),
+                                } : m));
+                              }
                             }
                           }}
                         />
@@ -4541,13 +4628,47 @@ export default function Home() {
                     />
                     {selectedMediaItem.type === "video" ? (
                       <div className="grid gap-2 rounded-lg border bg-gray-50 p-2">
+                        {selectedVideoNeedsTrim ? (
+                          <div className="grid gap-2 rounded-lg border border-amber-200 bg-amber-50 p-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="text-[11px] font-medium text-amber-900">Trim to {VIDEO_MAX_DURATION_SECONDS}s</div>
+                              <div className="text-[10px] text-amber-800">
+                                {formatDuration(selectedTrimStart)} - {formatDuration(selectedTrimEnd)}
+                              </div>
+                            </div>
+                            <input
+                              type="range"
+                              min="0"
+                              max={Math.max(0, selectedMediaVideoDuration - VIDEO_MAX_DURATION_SECONDS)}
+                              step="0.1"
+                              value={selectedTrimStart}
+                              onChange={(e) => updateSelectedVideoTrim(Number(e.target.value))}
+                              className="w-full"
+                            />
+                            <div className="flex items-center justify-between gap-2 text-[10px] text-amber-800">
+                              <span>Selected clip: {formatDuration(selectedTrimLength)}</span>
+                              <button
+                                type="button"
+                                className="rounded-full bg-amber-900 px-3 py-1.5 font-medium text-white"
+                                onClick={() => {
+                                  const vid = selectedMediaVideoRef.current;
+                                  if (!vid) return;
+                                  vid.currentTime = selectedTrimStart;
+                                  void vid.play();
+                                }}
+                              >
+                                Preview trim
+                              </button>
+                            </div>
+                          </div>
+                        ) : null}
                         <div className="text-[11px] font-medium text-gray-700">Video frame</div>
                         <input
                           type="range"
-                          min="0"
-                          max={Math.max(1, selectedMediaVideoDuration || 1)}
+                          min={selectedVideoNeedsTrim ? selectedTrimStart : 0}
+                          max={selectedVideoNeedsTrim ? selectedTrimEnd : Math.max(1, selectedMediaVideoDuration || 1)}
                           step="0.05"
-                          defaultValue="0"
+                          value={Math.min(Math.max(selectedMediaVideoRef.current?.currentTime || selectedTrimStart || 0, selectedVideoNeedsTrim ? selectedTrimStart : 0), selectedVideoNeedsTrim ? selectedTrimEnd : Math.max(1, selectedMediaVideoDuration || 1))}
                           onChange={(e) => {
                             const vid = selectedMediaVideoRef.current;
                             if (!vid) return;
