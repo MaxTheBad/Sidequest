@@ -1011,10 +1011,16 @@ export default function Home() {
     const nameFromMeta = (typeof md.full_name === "string" && md.full_name) || (typeof md.name === "string" && md.name) || "";
     const fallbackName = (emailValue || "").split("@")[0] || "SideQuest user";
     const showLocation = typeof md.show_location === "boolean" ? md.show_location : false;
+    const { data: existingProfile } = await supabase
+      .from("profiles")
+      .select("username,username_changed_at")
+      .eq("id", uid)
+      .maybeSingle();
     await supabase.from("profiles").upsert({
       id: uid,
       display_name: nameFromMeta || fallbackName,
-      username: null,
+      username: existingProfile?.username || null,
+      username_changed_at: existingProfile?.username_changed_at || null,
       avatar_url: (typeof md.avatar_url === "string" && md.avatar_url) || null,
       country_code: (typeof md.country_code === "string" && md.country_code) || null,
       show_location: showLocation,
@@ -1203,9 +1209,15 @@ export default function Home() {
       }
 
       const profileName = viewerName || userEmail.split("@")[0] || "SideQuest user";
+      const { data: existingProfile } = await supabase
+        .from("profiles")
+        .select("username,username_changed_at")
+        .eq("id", userId)
+        .maybeSingle();
       const { error: profileError } = await supabase.from("profiles").upsert({
         id: userId,
-        username: null,
+        username: existingProfile?.username || null,
+        username_changed_at: existingProfile?.username_changed_at || null,
         display_name: profileName,
         city: onboardingCity.trim() || null,
         region: null,
