@@ -131,14 +131,13 @@ export default function SettingsPage() {
       setMarketingOptIn(Boolean(authMeta.marketing_opt_in));
       if (typeof authMeta.dob === "string") setDob(authMeta.dob);
       const metaCountry = typeof authMeta.country_code === "string" ? authMeta.country_code : "";
-      if (metaCountry.length === 2) { const cc = metaCountry.toUpperCase(); setCountryCode(cc); }
-      else if (typeof navigator !== "undefined") {
-        const region = (navigator.language.split("-")[1] || "US").toUpperCase();
-        if (region.length === 2) { setCountryCode(region); }
-      }
+      const browserCountry =
+        typeof navigator !== "undefined" ? (navigator.language.split("-")[1] || "US").toUpperCase() : "US";
+      const resolvedCountryCode = (profile?.country_code || metaCountry || (browserCountry.length === 2 ? browserCountry : "US")).toUpperCase();
+      setCountryCode(resolvedCountryCode);
       initialProfileSnapshotRef.current = JSON.stringify({
         displayName: profile?.username || profile?.display_name || metaName || "",
-        countryCode: profile?.country_code || metaCountry || "",
+        countryCode: resolvedCountryCode,
         city: profile?.city ?? (typeof authMeta.city === "string" ? authMeta.city : ""),
         region: profile?.region ?? (typeof authMeta.region === "string" ? authMeta.region : ""),
         bio: profile?.bio ?? (typeof authMeta.bio === "string" ? authMeta.bio : ""),
@@ -360,6 +359,7 @@ export default function SettingsPage() {
       bio,
       showLocation,
       friendsVisibility,
+      usernameChangedAt: initialProfileSnapshot?.usernameChangedAt || null,
     });
     return current !== initialProfileSnapshotRef.current || normalizedCurrentUsername !== normalizedInitialUsername;
   }, [displayName, countryCode, city, region, bio, showLocation, friendsVisibility, initialProfileSnapshot]);
