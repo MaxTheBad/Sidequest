@@ -470,7 +470,10 @@ export default function Home() {
   const [selectedMediaId, setSelectedMediaId] = useState<string | null>(null);
   const [videoThumbStatus, setVideoThumbStatus] = useState("");
   const [selectedMediaVideoDuration, setSelectedMediaVideoDuration] = useState(0);
+  const [selectedTrimPreviewTime, setSelectedTrimPreviewTime] = useState(0);
+  const [selectedTrimDragMode, setSelectedTrimDragMode] = useState<"start" | "end" | "scrub" | null>(null);
   const selectedMediaVideoRef = useRef<HTMLVideoElement | null>(null);
+  const selectedTrimTrackRef = useRef<HTMLDivElement | null>(null);
   const [removeExistingVideo, setRemoveExistingVideo] = useState(false);
   const liveVideoInputRef = useRef<HTMLInputElement | null>(null);
   const uploadVideoInputRef = useRef<HTMLInputElement | null>(null);
@@ -1874,10 +1877,43 @@ export default function Home() {
     if (vid && Number.isFinite(trimStartSeconds)) vid.currentTime = trimStartSeconds;
   }
 
+  function updateSelectedVideoTrimEnd(nextEnd: number) {
+    if (!selectedMediaItem || selectedMediaItem.type !== "video") return;
+    const duration = selectedMediaItem.durationSeconds || selectedMediaVideoDuration || VIDEO_MAX_DURATION_SECONDS;
+    const trimEndSeconds = Math.max(Math.min(duration, nextEnd), selectedTrimStart + 0.2);
+    const trimStartSeconds = Math.min(selectedTrimStart, Math.max(0, trimEndSeconds - VIDEO_MAX_DURATION_SECONDS));
+    setMediaDraftItems((prev) => prev.map((m) => m.id === selectedMediaItem.id ? {
+      ...m,
+      trimStartSeconds,
+      trimEndSeconds: Math.min(duration, Math.max(trimEndSeconds, trimStartSeconds + 0.2)),
+    } : m));
+    const vid = selectedMediaVideoRef.current;
+    if (vid && Number.isFinite(trimEndSeconds)) vid.currentTime = trimEndSeconds;
+  }
+
+  function seekSelectedTrimPreview(nextTime: number) {
+    if (!selectedMediaItem || selectedMediaItem.type !== "video") return;
+    const duration = selectedMediaItem.durationSeconds || selectedMediaVideoDuration || VIDEO_MAX_DURATION_SECONDS;
+    const clamped = Math.max(selectedTrimStart, Math.min(nextTime, Math.min(selectedTrimEnd, duration)));
+    setSelectedTrimPreviewTime(clamped);
+    const vid = selectedMediaVideoRef.current;
+    if (vid) vid.currentTime = clamped;
+  }
+
+  function timeFromTrimTrackClientX(clientX: number) {
+    const track = selectedTrimTrackRef.current;
+    if (!track) return selectedTrimStart;
+    const rect = track.getBoundingClientRect();
+    const ratio = rect.width > 0 ? Math.min(1, Math.max(0, (clientX - rect.left) / rect.width)) : 0;
+    return ratio * (selectedMediaVideoDuration || VIDEO_MAX_DURATION_SECONDS);
+  }
+
   useEffect(() => {
     setVideoThumbStatus("");
     if (!selectedMediaItem || selectedMediaItem.type !== "video") {
       setSelectedMediaVideoDuration(0);
+      setSelectedTrimPreviewTime(0);
+      setSelectedTrimDragMode(null);
       return;
     }
     const vid = selectedMediaVideoRef.current;
@@ -1893,6 +1929,45 @@ export default function Home() {
       }
     }
   }, [selectedMediaItem?.id, selectedMediaItem?.type]);
+
+  useEffect(() => {
+    if (!selectedMediaItem || selectedMediaItem.type !== "video") return;
+    if (!selectedMediaVideoRef.current) return;
+    const vid = selectedMediaVideoRef.current;
+    const onMove = (e: globalThis.PointerEvent) => {
+      if (!selectedTrimDragMode || !selectedTrimTrackRef.current) return;
+      const nextTime = timeFromTrimTrackClientX(e.clientX);
+      if (selectedTrimDragMode === "start") {
+        const duration = selectedMediaItem.durationSeconds || selectedMediaVideoDuration || VIDEO_MAX_DURATION_SECONDS;
+        const maxStart = Math.max(0, duration - VIDEO_MAX_DURATION_SECONDS);
+        const trimStartSeconds = Math.max(0, Math.min(nextTime, Math.min(maxStart, selectedTrimEnd - 0.2)));
+        const trimEndSeconds = Math.min(duration, Math.max(selectedTrimEnd, trimStartSeconds + 0.2));
+        setMediaDraftItems((prev) => prev.map((m) => m.id === selectedMediaItem.id ? { ...m, trimStartSeconds, trimEndSeconds } : m));
+        vid.currentTime = trimStartSeconds;
+        setSelectedTrimPreviewTime(trimStartSeconds);
+      } else if (selectedTrimDragMode === "end") {
+        const duration = selectedMediaItem.durationSeconds || selectedMediaVideoDuration || VIDEO_MAX_DURATION_SECONDS;
+        const trimEndSeconds = Math.max(selectedTrimStart + 0.2, Math.min(nextTime, duration));
+        const trimStartSeconds = Math.min(selectedTrimStart, Math.max(0, trimEndSeconds - VIDEO_MAX_DURATION_SECONDS));
+        setMediaDraftItems((prev) => prev.map((m) => m.id === selectedMediaItem.id ? { ...m, trimStartSeconds, trimEndSeconds } : m));
+        vid.currentTime = trimEndSeconds;
+        setSelectedTrimPreviewTime(trimEndSeconds);
+      } else {
+        seekSelectedTrimPreview(nextTime);
+      }
+    };
+    const onUp = () => {
+      setSelectedTrimDragMode(null);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+    };
+  }, [selectedTrimDragMode, selectedMediaItem?.id, selectedMediaItem?.type, selectedMediaVideoDuration, selectedTrimEnd, selectedTrimStart]);
 
   function openEditModal(q: Quest) {
     setEditingQuestId(q.id);
@@ -4641,81 +4716,130 @@ export default function Home() {
                       }}
                     />
                     {selectedMediaItem.type === "video" ? (
-                      <div className="grid gap-2 rounded-lg border bg-gray-50 p-2">
-                        {selectedVideoNeedsTrim ? (
-                          <div className="grid gap-2 rounded-lg border border-amber-200 bg-amber-50 p-2">
-                            <div className="flex items-center justify-between gap-2">
-                              <div className="text-[11px] font-medium text-amber-900">Trim to {VIDEO_MAX_DURATION_SECONDS}s</div>
-                              <div className="text-[10px] text-amber-800">
-                                {formatDuration(selectedTrimStart)} - {formatDuration(selectedTrimEnd)}
-                              </div>
-                            </div>
-                            <input
-                              type="range"
-                              min="0"
-                              max={Math.max(0, selectedMediaVideoDuration - VIDEO_MAX_DURATION_SECONDS)}
-                              step="0.1"
-                              value={selectedTrimStart}
-                              onChange={(e) => updateSelectedVideoTrim(Number(e.target.value))}
-                              className="w-full"
-                            />
-                            <div className="flex items-center justify-between gap-2 text-[10px] text-amber-800">
-                              <span>Selected clip: {formatDuration(selectedTrimLength)}</span>
-                              <button
-                                type="button"
-                                className="rounded-full bg-amber-900 px-3 py-1.5 font-medium text-white"
-                                onClick={() => {
-                                  const vid = selectedMediaVideoRef.current;
-                                  if (!vid) return;
-                                  vid.currentTime = selectedTrimStart;
-                                  void vid.play();
-                                }}
-                              >
-                                Preview trim
-                              </button>
+                      <div className="grid gap-3 rounded-xl border bg-gray-50 p-3">
+                        <div className="grid gap-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="text-[11px] font-medium uppercase tracking-wide text-gray-600">Trim video</div>
+                            <div className="text-[11px] text-gray-500">
+                              {formatDuration(selectedTrimStart)} - {formatDuration(selectedTrimEnd)}
                             </div>
                           </div>
-                        ) : null}
-                        <div className="text-[11px] font-medium text-gray-700">Video frame</div>
-                        <input
-                          type="range"
-                          min={selectedVideoNeedsTrim ? selectedTrimStart : 0}
-                          max={selectedVideoNeedsTrim ? selectedTrimEnd : Math.max(1, selectedMediaVideoDuration || 1)}
-                          step="0.05"
-                          value={Math.min(Math.max(selectedMediaVideoRef.current?.currentTime || selectedTrimStart || 0, selectedVideoNeedsTrim ? selectedTrimStart : 0), selectedVideoNeedsTrim ? selectedTrimEnd : Math.max(1, selectedMediaVideoDuration || 1))}
-                          onChange={(e) => {
-                            const vid = selectedMediaVideoRef.current;
-                            if (!vid) return;
-                            const nextTime = Number(e.target.value);
-                            if (Number.isFinite(nextTime)) vid.currentTime = nextTime;
-                          }}
-                          className="w-full"
-                        />
-                        <div className="flex items-center justify-between gap-2">
-                          <button
-                            type="button"
-                            className="rounded-full bg-black px-3 py-1.5 text-[11px] font-medium text-white"
-                            onClick={async () => {
-                              setVideoThumbStatus("Capturing thumbnail…");
-                              try {
-                                const thumbnailUrl = await captureSelectedVideoThumbnail();
-                                setMediaDraftItems((prev) => prev.map((m) => m.id === selectedMediaItem.id ? { ...m, thumbnailUrl } : m));
-                                setVideoThumbStatus("Thumbnail saved ✅");
-                              } catch (err) {
-                                setVideoThumbStatus(err instanceof Error ? err.message : "Could not capture thumbnail.");
+                          <div
+                            ref={selectedTrimTrackRef}
+                            className="relative h-16 overflow-hidden rounded-2xl border border-gray-300 bg-black"
+                            onPointerDown={(e) => {
+                              const nextTime = timeFromTrimTrackClientX(e.clientX);
+                              const handleHitPadding = 0.04 * (selectedMediaVideoDuration || VIDEO_MAX_DURATION_SECONDS);
+                              if (Math.abs(nextTime - selectedTrimStart) <= handleHitPadding) {
+                                setSelectedTrimDragMode("start");
+                              } else if (Math.abs(nextTime - selectedTrimEnd) <= handleHitPadding) {
+                                setSelectedTrimDragMode("end");
+                              } else {
+                                setSelectedTrimDragMode("scrub");
                               }
+                              seekSelectedTrimPreview(nextTime);
                             }}
                           >
-                            Use current frame
-                          </button>
-                          <span className="text-[10px] text-gray-500 leading-4">{videoThumbStatus || (selectedMediaItem.thumbnailUrl ? "Thumbnail selected" : "Pick a frame, then save it.")}</span>
-                        </div>
-                        {selectedMediaItem.thumbnailUrl ? (
-                          <div className="grid gap-1">
-                            <div className="text-xs text-gray-500">Current thumbnail</div>
-                            <img src={selectedMediaItem.thumbnailUrl} alt="Video thumbnail" className="w-full max-h-24 rounded-md object-cover" />
+                            <video
+                              src={mediaPreviewUrls.get(selectedMediaItem.id) || ""}
+                              muted
+                              playsInline
+                              preload="metadata"
+                              className="absolute inset-0 h-full w-full object-cover opacity-70"
+                              aria-hidden="true"
+                            />
+                            <div className="absolute inset-0 bg-black/20" />
+                            <div
+                              className="absolute inset-y-0 bg-yellow-400/30 border-y border-yellow-300"
+                              style={{
+                                left: `${(selectedTrimStart / Math.max(selectedMediaVideoDuration || 1, 1)) * 100}%`,
+                                width: `${(Math.max(selectedTrimLength, 0.2) / Math.max(selectedMediaVideoDuration || 1, 1)) * 100}%`,
+                              }}
+                            />
+                            <div
+                              className="absolute inset-y-0 w-3 -translate-x-1/2 bg-white shadow-[0_0_0_1px_rgba(0,0,0,0.15)]"
+                              style={{ left: `${(selectedTrimStart / Math.max(selectedMediaVideoDuration || 1, 1)) * 100}%` }}
+                            />
+                            <div
+                              className="absolute inset-y-0 w-3 -translate-x-1/2 bg-white shadow-[0_0_0_1px_rgba(0,0,0,0.15)]"
+                              style={{ left: `${(selectedTrimEnd / Math.max(selectedMediaVideoDuration || 1, 1)) * 100}%` }}
+                            />
+                            <div
+                              className="absolute inset-y-2 left-0 w-1 rounded-full bg-yellow-400"
+                              style={{ left: `${(selectedTrimPreviewTime / Math.max(selectedMediaVideoDuration || 1, 1)) * 100}%` }}
+                            />
                           </div>
-                        ) : null}
+                          <div className="flex items-center justify-between gap-2 text-[10px] text-gray-500">
+                            <span>Drag either white handle. Drag inside the strip to scrub.</span>
+                            <span>{selectedMediaVideoDuration ? `${selectedMediaVideoDuration.toFixed(1)}s total` : ""}</span>
+                          </div>
+                        </div>
+                        <div className="grid gap-2 rounded-2xl border border-gray-200 bg-white p-3 shadow-sm">
+                          <div className="overflow-hidden rounded-xl border bg-black/5">
+                            <video
+                              ref={selectedMediaVideoRef}
+                              src={mediaPreviewUrls.get(selectedMediaItem.id) || ""}
+                              className="h-56 w-full bg-black object-cover sm:h-64"
+                              controls
+                              playsInline
+                              preload="metadata"
+                              onTimeUpdate={() => {
+                                const vid = selectedMediaVideoRef.current;
+                                if (!vid || !selectedVideoNeedsTrim) return;
+                                if (vid.currentTime > selectedTrimEnd + 0.05) {
+                                  vid.pause();
+                                  vid.currentTime = selectedTrimEnd;
+                                }
+                                if (vid.currentTime < selectedTrimStart - 0.05) {
+                                  vid.currentTime = selectedTrimStart;
+                                }
+                                setSelectedTrimPreviewTime(vid.currentTime);
+                              }}
+                              onLoadedMetadata={() => {
+                                const vid = selectedMediaVideoRef.current;
+                                if (vid && Number.isFinite(vid.duration) && vid.duration > 0) {
+                                  setSelectedMediaVideoDuration(vid.duration);
+                                  const defaultStart = Math.min(selectedTrimStart || 0, Math.max(0, vid.duration - VIDEO_MAX_DURATION_SECONDS));
+                                  if (selectedMediaItem.source === "new" && selectedMediaItem.durationSeconds === undefined) {
+                                    setMediaDraftItems((prev) => prev.map((m) => m.id === selectedMediaItem.id ? {
+                                      ...m,
+                                      durationSeconds: vid.duration,
+                                      trimStartSeconds: m.trimStartSeconds ?? defaultStart,
+                                      trimEndSeconds: m.trimEndSeconds ?? Math.min(vid.duration, defaultStart + VIDEO_MAX_DURATION_SECONDS),
+                                    } : m));
+                                  }
+                                  vid.currentTime = Math.min(vid.currentTime || defaultStart, vid.duration);
+                                  setSelectedTrimPreviewTime(vid.currentTime);
+                                }
+                              }}
+                            />
+                          </div>
+                          <div className="flex items-center justify-between gap-2">
+                            <button
+                              type="button"
+                              className="rounded-full bg-black px-3 py-1.5 text-[11px] font-medium text-white"
+                              onClick={async () => {
+                                setVideoThumbStatus("Capturing thumbnail…");
+                                try {
+                                  const thumbnailUrl = await captureSelectedVideoThumbnail();
+                                  setMediaDraftItems((prev) => prev.map((m) => m.id === selectedMediaItem.id ? { ...m, thumbnailUrl } : m));
+                                  setVideoThumbStatus("Thumbnail saved ✅");
+                                } catch (err) {
+                                  setVideoThumbStatus(err instanceof Error ? err.message : "Could not capture thumbnail.");
+                                }
+                              }}
+                            >
+                              Use current frame
+                            </button>
+                            <span className="text-[10px] text-gray-500 leading-4">{videoThumbStatus || (selectedMediaItem.thumbnailUrl ? "Thumbnail selected" : "Pick a frame, then save it.")}</span>
+                          </div>
+                          {selectedMediaItem.thumbnailUrl ? (
+                            <div className="grid gap-1">
+                              <div className="text-xs text-gray-500">Current thumbnail</div>
+                              <img src={selectedMediaItem.thumbnailUrl} alt="Video thumbnail" className="w-full max-h-24 rounded-md object-cover" />
+                            </div>
+                          ) : null}
+                        </div>
                       </div>
                     ) : null}
                   </div>
