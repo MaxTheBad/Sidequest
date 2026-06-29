@@ -253,10 +253,10 @@ const TITLE_SUGGESTIONS_BY_CATEGORY: Record<string, string[]> = {
   ],
 };
 const MEDIA_LABEL_HINTS = [
-  "Photo of front of building",
-  "Video of last event",
-  "Photo of seating area",
-  "Video walkthrough",
+  "Photo of the activity in progress",
+  "Short clip of you doing the activity",
+  "Photo of the meetup spot",
+  "Video of the venue or route",
 ];
 const FALLBACK_COUNTRIES = [
   "United States", "Canada", "United Kingdom", "Australia", "Brazil", "India", "Mexico", "Germany", "France", "Spain", "Italy", "Portugal", "Japan", "South Korea", "Argentina", "Chile", "Colombia", "Netherlands", "Belgium", "Sweden", "Norway", "Denmark", "Finland", "Ireland", "New Zealand", "South Africa"
@@ -1734,7 +1734,7 @@ export default function Home() {
       const duration = await getVideoDurationSeconds(file);
       setQuestVideoDurationSec(duration);
       if (duration > 15.2) {
-        setStatus(`Video is ${duration.toFixed(1)}s. Max is 15s.`);
+        setStatus(`Video is ${duration.toFixed(1)}s. Max is 15s for now. Longer videos coming soon.`);
         return;
       }
       setQuestVideoFile(file);
@@ -4440,6 +4440,12 @@ export default function Home() {
                   }}
                   className="border rounded-xl px-2.5 py-2 text-sm sm:px-3 sm:py-2.5 sm:text-base"
                 />
+                <p className="text-[10px] leading-4 sm:text-xs text-gray-500">
+                  Add photos or short clips of you doing the activity, the meetup spot, or the setting so people know what to expect.
+                </p>
+                <p className="text-[10px] leading-4 sm:text-xs text-gray-500">
+                  Videos can be up to 15 seconds for now. Longer videos coming soon.
+                </p>
                 <p className="text-[10px] leading-4 sm:text-xs text-gray-500">Drag thumbnails to reorder. First item is Main. Tap an item to edit its caption below.</p>
 
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 auto-rows-fr">
