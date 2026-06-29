@@ -269,6 +269,7 @@ export default function SettingsPage() {
       usernameChangedAtMs > 0 &&
       Date.now() - usernameChangedAtMs < 24 * 60 * 60 * 1000;
     let usernameBlocked = usernameCooldownActive;
+    const nextUsernameChangedAt = usernameChanged && !usernameCooldownActive ? new Date().toISOString() : initial.usernameChangedAt || null;
 
     const saveBaseProfile = async () =>
       supabase
@@ -290,6 +291,7 @@ export default function SettingsPage() {
         id: userId,
         username: displayName,
         display_name: displayName,
+        username_changed_at: nextUsernameChangedAt,
         city,
         region: region || null,
         country_code: countryCode || null,
@@ -344,7 +346,7 @@ export default function SettingsPage() {
       bio,
       showLocation,
       friendsVisibility,
-      usernameChangedAt: initial.usernameChangedAt || null,
+      usernameChangedAt: usernameBlocked ? initial.usernameChangedAt || null : nextUsernameChangedAt,
     });
   }
 
