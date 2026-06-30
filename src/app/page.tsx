@@ -473,6 +473,7 @@ export default function Home() {
   const [selectedMediaVideoDuration, setSelectedMediaVideoDuration] = useState(0);
   const [selectedTrimPreviewTime, setSelectedTrimPreviewTime] = useState(0);
   const [selectedTrimDragMode, setSelectedTrimDragMode] = useState<"start" | "end" | "scrub" | null>(null);
+  const [selectedTrimFrameUrls, setSelectedTrimFrameUrls] = useState<string[]>([]);
   const selectedMediaVideoRef = useRef<HTMLVideoElement | null>(null);
   const selectedTrimTrackRef = useRef<HTMLDivElement | null>(null);
   const [removeExistingVideo, setRemoveExistingVideo] = useState(false);
@@ -1876,6 +1877,8 @@ export default function Home() {
 
   useEffect(() => {
     setVideoThumbStatus("");
+    selectedTrimFrameUrls.forEach((url) => URL.revokeObjectURL(url));
+    setSelectedTrimFrameUrls([]);
     if (!selectedMediaItem || selectedMediaItem.type !== "video") {
       setSelectedMediaVideoDuration(0);
       setSelectedTrimPreviewTime(0);
@@ -1895,6 +1898,87 @@ export default function Home() {
       }
     }
   }, [selectedMediaItem?.id, selectedMediaItem?.type]);
+
+  useEffect(() => {
+    if (!selectedMediaItem || selectedMediaItem.type !== "video") return;
+    const videoUrl = mediaPreviewUrls.get(selectedMediaItem.id) || "";
+    if (!videoUrl) return;
+
+    let cancelled = false;
+    const nextFrameUrls: string[] = [];
+    const cleanup = () => {
+      nextFrameUrls.forEach((url) => URL.revokeObjectURL(url));
+    };
+
+    const buildFilmstrip = async () => {
+      const video = document.createElement("video");
+      video.src = videoUrl;
+      video.muted = true;
+      video.playsInline = true;
+      video.preload = "auto";
+
+      await new Promise<void>((resolve, reject) => {
+        video.onloadedmetadata = () => resolve();
+        video.onerror = () => reject(new Error("Could not read video metadata."));
+      });
+
+      const duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 0;
+      if (!duration) return;
+      const frameCount = 9;
+      const captureTimes = Array.from({ length: frameCount }, (_, idx) => {
+        const ratio = (idx + 0.5) / frameCount;
+        const target = selectedMediaItem.source === "new" && selectedMediaItem.trimConfigured
+          ? selectedTrimStart + ratio * Math.max(0.2, selectedTrimLength)
+          : ratio * duration;
+        return Math.min(duration - 0.05, Math.max(0, target));
+      });
+
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+
+      for (const time of captureTimes) {
+        if (cancelled) return;
+        await new Promise<void>((resolve, reject) => {
+          const onSeeked = () => {
+            video.removeEventListener("seeked", onSeeked);
+            resolve();
+          };
+          video.addEventListener("seeked", onSeeked, { once: true });
+          try {
+            video.currentTime = time;
+          } catch (err) {
+            video.removeEventListener("seeked", onSeeked);
+            reject(err);
+          }
+        });
+
+        canvas.width = 120;
+        canvas.height = 74;
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.78));
+        if (!blob || cancelled) continue;
+        const frameUrl = URL.createObjectURL(blob);
+        nextFrameUrls.push(frameUrl);
+      }
+
+      if (!cancelled) {
+        setSelectedTrimFrameUrls(nextFrameUrls);
+      } else {
+        cleanup();
+      }
+    };
+
+    void buildFilmstrip().catch(() => {
+      cleanup();
+      if (!cancelled) setSelectedTrimFrameUrls([]);
+    });
+
+    return () => {
+      cancelled = true;
+      cleanup();
+    };
+  }, [mediaPreviewUrls, selectedMediaItem?.id, selectedMediaItem?.type, selectedMediaItem?.source, selectedMediaItem?.trimConfigured, selectedTrimLength, selectedTrimStart]);
 
   useEffect(() => {
     if (!selectedMediaItem || selectedMediaItem.type !== "video") return;
@@ -4716,15 +4800,27 @@ export default function Home() {
                               seekSelectedTrimPreview(nextTime);
                             }}
                           >
-                            <video
-                              src={mediaPreviewUrls.get(selectedMediaItem.id) || ""}
-                              muted
-                              playsInline
-                              preload="metadata"
-                              className="absolute inset-0 h-full w-full object-cover opacity-75"
-                              aria-hidden="true"
-                            />
-                            <div className="absolute inset-0 bg-black/30" />
+                            <div className="absolute inset-0 grid grid-cols-9">
+                              {selectedTrimFrameUrls.length ? selectedTrimFrameUrls.map((frameUrl, idx) => (
+                                <img
+                                  key={`${frameUrl}-${idx}`}
+                                  src={frameUrl}
+                                  alt=""
+                                  aria-hidden="true"
+                                  className="h-full w-full object-cover"
+                                />
+                              )) : (
+                                <video
+                                  src={mediaPreviewUrls.get(selectedMediaItem.id) || ""}
+                                  muted
+                                  playsInline
+                                  preload="metadata"
+                                  className="absolute inset-0 h-full w-full object-cover opacity-75"
+                                  aria-hidden="true"
+                                />
+                              )}
+                            </div>
+                            <div className="absolute inset-0 bg-black/25" />
                             <div
                               className="absolute inset-y-0 bg-black/45"
                               style={{ width: `${(selectedTrimStart / Math.max(selectedMediaVideoDuration || 1, 1)) * 100}%` }}
