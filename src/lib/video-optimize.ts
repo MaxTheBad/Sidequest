@@ -28,9 +28,14 @@ function pickVideoMimeType() {
 function adaptiveVideoBitrate(width: number, height: number, requested?: number) {
   if (requested) return requested;
   const pixels = width * height;
-  if (pixels <= 360 * 640) return 550_000;
-  if (pixels <= 720 * 720) return 750_000;
-  return 950_000;
+  if (pixels <= 360 * 640) return 850_000;
+  if (pixels <= 854 * 480) return 1_400_000;
+  return 1_800_000;
+}
+
+function evenDimension(value: number) {
+  const rounded = Math.max(2, Math.round(value));
+  return rounded % 2 === 0 ? rounded : rounded - 1;
 }
 
 export async function compressVideoForUpload(file: File, opts: VideoOptimizeOptions = {}) {
@@ -60,8 +65,8 @@ export async function compressVideoForUpload(file: File, opts: VideoOptimizeOpti
     const shouldTrim = trimStart > 0.05 || sourceDuration > maxDurationSeconds + 0.2 || outputDuration < sourceDuration - 0.2;
 
     const ratio = Math.min(1, maxWidth / (video.videoWidth || 1), maxHeight / (video.videoHeight || 1));
-    const outW = Math.max(2, Math.round((video.videoWidth || 2) * ratio));
-    const outH = Math.max(2, Math.round((video.videoHeight || 2) * ratio));
+    const outW = evenDimension((video.videoWidth || 2) * ratio);
+    const outH = evenDimension((video.videoHeight || 2) * ratio);
 
     const canvas = document.createElement("canvas");
     canvas.width = outW;

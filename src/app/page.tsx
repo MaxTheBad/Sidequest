@@ -10,7 +10,7 @@ import { CANONICAL_CATEGORIES, resolveCanonicalCategory, suggestCanonicalCategor
 import { getCategoryFallbackMedia } from "@/lib/category-default-media";
 import { readStoredUserLocation, writeStoredUserLocation } from "@/lib/location-distance";
 import { isImageLikeFile, prepareImageForUpload } from "@/lib/media-optimize";
-import { VIDEO_MAX_DURATION_SECONDS } from "@/lib/video-optimize";
+import { compressVideoForUpload, VIDEO_MAX_DURATION_SECONDS } from "@/lib/video-optimize";
 import { collectQuestStorageUrls, removeStoragePublicUrls } from "@/lib/storage.js";
 import { APP_EVENT_NAMES, APP_NAME } from "@/lib/app-brand";
 import { AppIcon } from "@/components/app-icons";
@@ -1570,27 +1570,14 @@ export default function Home() {
       const file = looksImage
         ? await prepareImageForUpload(originalFile, { maxWidth: 1600, maxHeight: 1600, quality: 0.82 })
         : (isVideo
-          ? await (async () => {
-            const form = new FormData();
-            form.append("file", originalFile);
-            form.append("trimStartSeconds", String(item.trimStartSeconds ?? 0));
-            form.append("trimEndSeconds", String(item.trimEndSeconds ?? VIDEO_MAX_DURATION_SECONDS));
-            form.append("maxDurationSeconds", String(VIDEO_MAX_DURATION_SECONDS));
-            form.append("maxDimension", "960");
-            const response = await fetch("/api/video/compress", { method: "POST", body: form });
-            if (!response.ok) {
-              let message = "Video compression failed.";
-              try {
-                const body = await response.json();
-                if (typeof body?.error === "string") message = body.error;
-              } catch {
-                message = await response.text();
-              }
-              throw new Error(message);
-            }
-            const blob = await response.blob();
-            return new File([blob], originalFile.name.replace(/\.[^/.]+$/, "") + ".mp4", { type: "video/mp4" });
-          })()
+          ? await compressVideoForUpload(originalFile, {
+            maxWidth: 854,
+            maxHeight: 480,
+            maxDurationSeconds: VIDEO_MAX_DURATION_SECONDS,
+            trimStartSeconds: item.trimStartSeconds,
+            trimEndSeconds: item.trimEndSeconds,
+            videoBitsPerSecond: 1_400_000,
+          })
           : originalFile);
 
       const isImage = file.type.startsWith("image/");
