@@ -1852,6 +1852,7 @@ export default function Home() {
   const selectedTrimLengthLabel = `${selectedTrimLength.toFixed(1)}s total`;
   const selectedTrimLengthIsOverLimit = selectedTrimLength > VIDEO_MAX_DURATION_SECONDS + 0.2;
   const selectedVideoNeedsTrim = selectedMediaItem?.type === "video" && selectedMediaVideoDuration > VIDEO_MAX_DURATION_SECONDS + 0.2;
+  const selectedTrimHandleOffsetPx = 6;
 
   function formatDuration(seconds: number) {
     if (!Number.isFinite(seconds)) return "0.0s";
@@ -4832,16 +4833,16 @@ export default function Home() {
                             <div
                               className="absolute inset-y-[5px] rounded-[12px] border-[3px] border-yellow-400 bg-yellow-400/10 shadow-[0_0_0_1px_rgba(0,0,0,0.20)]"
                               style={{
-                                left: `${(selectedTrimStart / Math.max(selectedMediaVideoDuration || 1, 1)) * 100}%`,
-                                width: `${(Math.max(selectedTrimLength, 0.2) / Math.max(selectedMediaVideoDuration || 1, 1)) * 100}%`,
+                                left: `calc(${(selectedTrimStart / Math.max(selectedMediaVideoDuration || 1, 1)) * 100}% + ${selectedTrimHandleOffsetPx}px)`,
+                                width: `calc(${(Math.max(selectedTrimLength, 0.2) / Math.max(selectedMediaVideoDuration || 1, 1)) * 100}% - ${selectedTrimHandleOffsetPx * 2}px)`,
                               }}
                             />
                             <div
                               role="button"
                               aria-label="Trim start"
                               tabIndex={0}
-                              className="absolute inset-y-[5px] z-10 flex w-8 -translate-x-1/2 cursor-ew-resize items-center justify-center rounded-l-[12px] rounded-r-md bg-yellow-400 shadow-[0_0_0_1px_rgba(0,0,0,0.16),0_8px_18px_rgba(0,0,0,0.22)]"
-                              style={{ left: `${(selectedTrimStart / Math.max(selectedMediaVideoDuration || 1, 1)) * 100}%` }}
+                              className="absolute inset-y-[3px] z-10 flex w-10 -translate-x-1/2 cursor-ew-resize items-center justify-center rounded-l-[14px] rounded-r-md bg-yellow-400 shadow-[0_0_0_1px_rgba(0,0,0,0.16),0_8px_18px_rgba(0,0,0,0.22)]"
+                              style={{ left: `calc(${(selectedTrimStart / Math.max(selectedMediaVideoDuration || 1, 1)) * 100}% + ${selectedTrimHandleOffsetPx}px)` }}
                               onPointerDown={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
@@ -4855,8 +4856,8 @@ export default function Home() {
                               role="button"
                               aria-label="Trim end"
                               tabIndex={0}
-                              className="absolute inset-y-[5px] z-10 flex w-8 -translate-x-1/2 cursor-ew-resize items-center justify-center rounded-l-md rounded-r-[12px] bg-yellow-400 shadow-[0_0_0_1px_rgba(0,0,0,0.16),0_8px_18px_rgba(0,0,0,0.22)]"
-                              style={{ left: `${(selectedTrimEnd / Math.max(selectedMediaVideoDuration || 1, 1)) * 100}%` }}
+                              className="absolute inset-y-[3px] z-10 flex w-10 -translate-x-1/2 cursor-ew-resize items-center justify-center rounded-l-md rounded-r-[14px] bg-yellow-400 shadow-[0_0_0_1px_rgba(0,0,0,0.16),0_8px_18px_rgba(0,0,0,0.22)]"
+                              style={{ left: `calc(${(selectedTrimEnd / Math.max(selectedMediaVideoDuration || 1, 1)) * 100}% - ${selectedTrimHandleOffsetPx}px)` }}
                               onPointerDown={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
