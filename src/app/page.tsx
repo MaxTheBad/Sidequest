@@ -4905,12 +4905,6 @@ export default function Home() {
                             </button>
                             <span className="text-[10px] text-gray-500 leading-4">{videoThumbStatus || (selectedMediaItem.thumbnailUrl ? "Thumbnail selected" : "Pick a frame, then save it.")}</span>
                           </div>
-                          {selectedMediaItem.thumbnailUrl ? (
-                            <div className="grid gap-1">
-                              <div className="text-xs text-gray-500">Current thumbnail</div>
-                              <img src={selectedMediaItem.thumbnailUrl} alt="Video thumbnail" className="w-full max-h-24 rounded-md object-cover" />
-                            </div>
-                          ) : null}
                         </div>
                       </div>
                     ) : null}
