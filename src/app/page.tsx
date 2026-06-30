@@ -36,6 +36,7 @@ type DraftMediaItem = {
   durationSeconds?: number | null;
   trimStartSeconds?: number;
   trimEndSeconds?: number;
+  trimConfigured?: boolean;
 };
 
 type Quest = {
@@ -1787,7 +1788,7 @@ export default function Home() {
         try {
           const duration = await getVideoDurationSeconds(picked);
           const trimStartSeconds = 0;
-          const trimEndSeconds = Math.min(duration || VIDEO_MAX_DURATION_SECONDS, VIDEO_MAX_DURATION_SECONDS);
+          const trimEndSeconds = duration || VIDEO_MAX_DURATION_SECONDS;
           added.push({
             id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
             file: picked,
@@ -1797,6 +1798,7 @@ export default function Home() {
             durationSeconds: duration,
             trimStartSeconds,
             trimEndSeconds,
+            trimConfigured: false,
           });
           if (duration > VIDEO_MAX_DURATION_SECONDS + 0.2) {
             setStatus(`Video is ${duration.toFixed(1)}s. Trim it to ${VIDEO_MAX_DURATION_SECONDS}s before posting.`);
@@ -1844,7 +1846,7 @@ export default function Home() {
 
   const selectedMediaItem = mediaDraftItems.find((m) => m.id === selectedMediaId) || null;
   const selectedTrimStart = selectedMediaItem?.trimStartSeconds ?? 0;
-  const selectedTrimEnd = selectedMediaItem?.trimEndSeconds ?? Math.min(selectedMediaVideoDuration || VIDEO_MAX_DURATION_SECONDS, VIDEO_MAX_DURATION_SECONDS);
+  const selectedTrimEnd = selectedMediaItem?.trimEndSeconds ?? (selectedMediaVideoDuration || VIDEO_MAX_DURATION_SECONDS);
   const selectedTrimLength = Math.max(0, selectedTrimEnd - selectedTrimStart);
   const selectedTrimLengthLabel = `${selectedTrimLength.toFixed(1)}s total`;
   const selectedTrimLengthIsOverLimit = selectedTrimLength > VIDEO_MAX_DURATION_SECONDS + 0.2;
@@ -1888,7 +1890,7 @@ export default function Home() {
           ...m,
           durationSeconds: vid.duration,
           trimStartSeconds: m.trimStartSeconds ?? 0,
-          trimEndSeconds: m.trimEndSeconds ?? Math.min(vid.duration, VIDEO_MAX_DURATION_SECONDS),
+          trimEndSeconds: m.trimEndSeconds ?? vid.duration,
         } : m));
       }
     }
@@ -1906,14 +1908,14 @@ export default function Home() {
         const maxStart = Math.max(0, duration - VIDEO_MAX_DURATION_SECONDS);
         const trimStartSeconds = Math.max(0, Math.min(nextTime, Math.min(maxStart, selectedTrimEnd - 0.2)));
         const trimEndSeconds = Math.min(duration, Math.max(selectedTrimEnd, trimStartSeconds + 0.2));
-        setMediaDraftItems((prev) => prev.map((m) => m.id === selectedMediaItem.id ? { ...m, trimStartSeconds, trimEndSeconds } : m));
+        setMediaDraftItems((prev) => prev.map((m) => m.id === selectedMediaItem.id ? { ...m, trimStartSeconds, trimEndSeconds, trimConfigured: true } : m));
         vid.currentTime = trimStartSeconds;
         setSelectedTrimPreviewTime(trimStartSeconds);
       } else if (selectedTrimDragMode === "end") {
         const duration = selectedMediaItem.durationSeconds || selectedMediaVideoDuration || VIDEO_MAX_DURATION_SECONDS;
         const trimEndSeconds = Math.max(selectedTrimStart + 0.2, Math.min(nextTime, duration));
         const trimStartSeconds = Math.min(selectedTrimStart, Math.max(0, trimEndSeconds - VIDEO_MAX_DURATION_SECONDS));
-        setMediaDraftItems((prev) => prev.map((m) => m.id === selectedMediaItem.id ? { ...m, trimStartSeconds, trimEndSeconds } : m));
+        setMediaDraftItems((prev) => prev.map((m) => m.id === selectedMediaItem.id ? { ...m, trimStartSeconds, trimEndSeconds, trimConfigured: true } : m));
         vid.currentTime = trimEndSeconds;
         setSelectedTrimPreviewTime(trimEndSeconds);
       } else {
@@ -2482,6 +2484,10 @@ export default function Home() {
     setSavingQuest(true);
     setStatus(editingQuestId ? "Updating listing…" : "Posting listing…");
     try {
+      const untrimmedLongVideo = mediaDraftItems.find((m) => m.type === "video" && (m.durationSeconds ?? 0) > VIDEO_MAX_DURATION_SECONDS + 0.2 && !m.trimConfigured);
+      if (untrimmedLongVideo) {
+        throw new Error(`Trim the video to ${VIDEO_MAX_DURATION_SECONDS}s or less before posting.`);
+      }
       const newDraftItems = mediaDraftItems.filter((m) => m.source === "new" && m.file);
       const uploadedMedia = newDraftItems.length
         ? await uploadQuestMediaFiles(newDraftItems.map((m) => ({
