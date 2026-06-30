@@ -473,8 +473,12 @@ export default function Home() {
   const [selectedTrimPreviewTime, setSelectedTrimPreviewTime] = useState(0);
   const [selectedTrimDragMode, setSelectedTrimDragMode] = useState<"start" | "end" | "scrub" | null>(null);
   const [selectedTrimFrameUrls, setSelectedTrimFrameUrls] = useState<string[]>([]);
+  const [selectedThumbnailPreviewTime, setSelectedThumbnailPreviewTime] = useState(0);
+  const [selectedThumbnailDragging, setSelectedThumbnailDragging] = useState(false);
   const selectedMediaVideoRef = useRef<HTMLVideoElement | null>(null);
   const selectedTrimTrackRef = useRef<HTMLDivElement | null>(null);
+  const selectedThumbnailVideoRef = useRef<HTMLVideoElement | null>(null);
+  const selectedThumbnailTrackRef = useRef<HTMLDivElement | null>(null);
   const [removeExistingVideo, setRemoveExistingVideo] = useState(false);
   const liveVideoInputRef = useRef<HTMLInputElement | null>(null);
   const uploadVideoInputRef = useRef<HTMLInputElement | null>(null);
@@ -1493,7 +1497,7 @@ export default function Home() {
   }
 
   async function captureSelectedVideoThumbnail() {
-    const video = selectedMediaVideoRef.current;
+    const video = selectedThumbnailVideoRef.current || selectedMediaVideoRef.current;
     const selected = selectedMediaItem;
     if (!video || !selected || selected.type !== "video") return;
     if (!video.videoWidth || !video.videoHeight) throw new Error("Video is not ready yet.");
@@ -1875,6 +1879,23 @@ export default function Home() {
     return ratio * (selectedMediaVideoDuration || VIDEO_MAX_DURATION_SECONDS);
   }
 
+  function timeFromThumbnailTrackClientX(clientX: number) {
+    const track = selectedThumbnailTrackRef.current;
+    if (!track) return selectedThumbnailPreviewTime;
+    const rect = track.getBoundingClientRect();
+    const ratio = rect.width > 0 ? Math.min(1, Math.max(0, (clientX - rect.left) / rect.width)) : 0;
+    return ratio * (selectedMediaVideoDuration || VIDEO_MAX_DURATION_SECONDS);
+  }
+
+  function seekSelectedThumbnailPreview(nextTime: number) {
+    if (!selectedMediaItem || selectedMediaItem.type !== "video") return;
+    const duration = selectedMediaItem.durationSeconds || selectedMediaVideoDuration || VIDEO_MAX_DURATION_SECONDS;
+    const clamped = Math.max(0, Math.min(nextTime, duration));
+    setSelectedThumbnailPreviewTime(clamped);
+    const vid = selectedThumbnailVideoRef.current;
+    if (vid) vid.currentTime = clamped;
+  }
+
   useEffect(() => {
     setVideoThumbStatus("");
     selectedTrimFrameUrls.forEach((url) => URL.revokeObjectURL(url));
@@ -1883,6 +1904,8 @@ export default function Home() {
       setSelectedMediaVideoDuration(0);
       setSelectedTrimPreviewTime(0);
       setSelectedTrimDragMode(null);
+      setSelectedThumbnailPreviewTime(0);
+      setSelectedThumbnailDragging(false);
       return;
     }
     const vid = selectedMediaVideoRef.current;
@@ -1898,6 +1921,14 @@ export default function Home() {
       }
     }
   }, [selectedMediaItem?.id, selectedMediaItem?.type]);
+
+  useEffect(() => {
+    if (!selectedMediaItem || selectedMediaItem.type !== "video") return;
+    const nextTime = Math.min(selectedTrimStart, selectedMediaVideoDuration || selectedTrimEnd || VIDEO_MAX_DURATION_SECONDS);
+    setSelectedThumbnailPreviewTime(nextTime);
+    const vid = selectedThumbnailVideoRef.current;
+    if (vid && Number.isFinite(nextTime)) vid.currentTime = nextTime;
+  }, [selectedMediaItem?.id, selectedMediaItem?.type, selectedTrimStart, selectedTrimEnd, selectedMediaVideoDuration]);
 
   useEffect(() => {
     if (!selectedMediaItem || selectedMediaItem.type !== "video") return;
@@ -2018,6 +2049,22 @@ export default function Home() {
       window.removeEventListener("pointercancel", onUp);
     };
   }, [selectedTrimDragMode, selectedMediaItem?.id, selectedMediaItem?.type, selectedMediaVideoDuration, selectedTrimEnd, selectedTrimStart]);
+
+  useEffect(() => {
+    if (!selectedThumbnailDragging || !selectedMediaItem || selectedMediaItem.type !== "video") return;
+    const onMove = (e: globalThis.PointerEvent) => {
+      seekSelectedThumbnailPreview(timeFromThumbnailTrackClientX(e.clientX));
+    };
+    const onUp = () => setSelectedThumbnailDragging(false);
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+    };
+  }, [selectedThumbnailDragging, selectedMediaItem?.id, selectedMediaItem?.type, selectedMediaVideoDuration, selectedThumbnailPreviewTime]);
 
   function openEditModal(q: Quest) {
     setEditingQuestId(q.id);
@@ -4850,12 +4897,50 @@ export default function Home() {
                             </button>
                             <span className="text-[10px] text-gray-500 leading-4">{videoThumbStatus || (selectedMediaItem.thumbnailUrl ? "Thumbnail selected" : "Pick a frame, then save it.")}</span>
                           </div>
-                          {selectedMediaItem.thumbnailUrl ? (
-                            <div className="grid gap-1">
-                              <div className="text-xs text-gray-500">Current thumbnail</div>
-                              <img src={selectedMediaItem.thumbnailUrl} alt="Video thumbnail" className="w-full max-h-24 rounded-md object-cover" />
+                          <div className="grid gap-2">
+                            <div className="flex items-center justify-between gap-2 text-xs text-gray-500">
+                              <span>Current thumbnail</span>
+                              <span>{formatDuration(selectedThumbnailPreviewTime)}</span>
                             </div>
-                          ) : null}
+                            <div className="overflow-hidden rounded-md border bg-black">
+                              <video
+                                ref={selectedThumbnailVideoRef}
+                                src={mediaPreviewUrls.get(selectedMediaItem.id) || ""}
+                                className="h-24 w-full object-cover"
+                                muted
+                                playsInline
+                                preload="metadata"
+                                onLoadedMetadata={() => {
+                                  const vid = selectedThumbnailVideoRef.current;
+                                  if (!vid) return;
+                                  const nextTime = Math.min(selectedThumbnailPreviewTime || selectedTrimStart, vid.duration || selectedMediaVideoDuration || VIDEO_MAX_DURATION_SECONDS);
+                                  vid.currentTime = Number.isFinite(nextTime) ? nextTime : 0;
+                                  setSelectedThumbnailPreviewTime(Number.isFinite(nextTime) ? nextTime : 0);
+                                }}
+                                onTimeUpdate={() => {
+                                  const vid = selectedThumbnailVideoRef.current;
+                                  if (vid && selectedThumbnailDragging) setSelectedThumbnailPreviewTime(vid.currentTime);
+                                }}
+                              />
+                            </div>
+                            <div
+                              ref={selectedThumbnailTrackRef}
+                              className="relative h-8 touch-none overflow-hidden rounded-full border border-gray-200 bg-gray-100"
+                              onPointerDown={(e) => {
+                                e.preventDefault();
+                                setSelectedThumbnailDragging(true);
+                                seekSelectedThumbnailPreview(timeFromThumbnailTrackClientX(e.clientX));
+                              }}
+                            >
+                              <div className="absolute inset-y-0 left-0 bg-[#0c5063]/20" style={{ width: `${(selectedThumbnailPreviewTime / Math.max(selectedMediaVideoDuration || 1, 1)) * 100}%` }} />
+                              <div
+                                className="absolute top-1/2 flex h-7 w-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-[#0c5063] shadow-md"
+                                style={{ left: `${(selectedThumbnailPreviewTime / Math.max(selectedMediaVideoDuration || 1, 1)) * 100}%` }}
+                              >
+                                <span className="h-3.5 w-0.5 rounded-full bg-white/95" />
+                              </div>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     ) : null}
