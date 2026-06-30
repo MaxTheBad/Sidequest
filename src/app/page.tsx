@@ -1846,6 +1846,8 @@ export default function Home() {
   const selectedTrimStart = selectedMediaItem?.trimStartSeconds ?? 0;
   const selectedTrimEnd = selectedMediaItem?.trimEndSeconds ?? Math.min(selectedMediaVideoDuration || VIDEO_MAX_DURATION_SECONDS, VIDEO_MAX_DURATION_SECONDS);
   const selectedTrimLength = Math.max(0, selectedTrimEnd - selectedTrimStart);
+  const selectedTrimLengthLabel = `${selectedTrimLength.toFixed(1)}s total`;
+  const selectedTrimLengthIsOverLimit = selectedTrimLength > VIDEO_MAX_DURATION_SECONDS + 0.2;
   const selectedVideoNeedsTrim = selectedMediaItem?.type === "video" && selectedMediaVideoDuration > VIDEO_MAX_DURATION_SECONDS + 0.2;
 
   function formatDuration(seconds: number) {
@@ -4769,7 +4771,15 @@ export default function Home() {
                           </div>
                           <div className="flex items-center justify-between gap-2 text-[10px] text-gray-500">
                             <span>Drag the yellow ends. Drag inside the strip to scrub.</span>
-                            <span>{selectedMediaVideoDuration ? `${selectedMediaVideoDuration.toFixed(1)}s total` : ""}</span>
+                            <span
+                              className={
+                                selectedTrimLengthIsOverLimit
+                                  ? "font-medium text-red-500"
+                                  : "font-medium text-emerald-600"
+                              }
+                            >
+                              {selectedTrimLengthLabel}
+                            </span>
                           </div>
                         </div>
                         <div className="grid gap-2 rounded-2xl border border-gray-200 bg-white p-3 shadow-sm">
