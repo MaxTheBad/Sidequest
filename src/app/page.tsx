@@ -4724,49 +4724,6 @@ export default function Home() {
                       </div>
                       <div className="text-[11px] text-gray-500">Edit caption and frame below</div>
                     </div>
-                    <div className="overflow-hidden rounded-xl border bg-black/5">
-                      {selectedMediaItem.type === "image" ? (
-                        <img src={mediaPreviewUrls.get(selectedMediaItem.id) || ""} alt={selectedMediaItem.label || "Media preview"} className="h-56 w-full object-cover sm:h-64" />
-                      ) : (
-                        <video
-                          ref={selectedMediaVideoRef}
-                          src={mediaPreviewUrls.get(selectedMediaItem.id) || ""}
-                          className="h-56 w-full bg-black object-cover sm:h-64"
-                          controls
-                          playsInline
-                          preload="metadata"
-                          onTimeUpdate={() => {
-                            const vid = selectedMediaVideoRef.current;
-                            if (!vid) return;
-                            if (selectedVideoNeedsTrim) {
-                              if (vid.currentTime > selectedTrimEnd + 0.05) {
-                                vid.pause();
-                                vid.currentTime = selectedTrimEnd;
-                              }
-                              if (vid.currentTime < selectedTrimStart - 0.05) {
-                                vid.currentTime = selectedTrimStart;
-                              }
-                            }
-                            setSelectedTrimPreviewTime(vid.currentTime);
-                          }}
-                          onLoadedMetadata={() => {
-                            const vid = selectedMediaVideoRef.current;
-                            if (vid && Number.isFinite(vid.duration) && vid.duration > 0) {
-                              setSelectedMediaVideoDuration(vid.duration);
-                              vid.currentTime = Math.min(vid.currentTime || 0, vid.duration);
-                              if (selectedMediaItem.source === "new" && selectedMediaItem.durationSeconds === undefined) {
-                                setMediaDraftItems((prev) => prev.map((m) => m.id === selectedMediaItem.id ? {
-                                  ...m,
-                                  durationSeconds: vid.duration,
-                                  trimStartSeconds: m.trimStartSeconds ?? 0,
-                                  trimEndSeconds: m.trimEndSeconds ?? Math.min(vid.duration, VIDEO_MAX_DURATION_SECONDS),
-                                } : m));
-                              }
-                            }
-                          }}
-                        />
-                      )}
-                    </div>
                     <input
                       className="border rounded-xl px-2.5 py-2 text-sm"
                       placeholder={`e.g., ${MEDIA_LABEL_HINTS[0]}`}
