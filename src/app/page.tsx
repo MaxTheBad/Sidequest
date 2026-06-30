@@ -467,7 +467,6 @@ export default function Home() {
   const [questMediaFiles, setQuestMediaFiles] = useState<Array<{ id: string; file: File; label: string }>>([]);
   const [existingMediaItems, setExistingMediaItems] = useState<QuestMediaItem[]>([]);
   const [mediaDraftItems, setMediaDraftItems] = useState<DraftMediaItem[]>([]);
-  const [dragMediaId, setDragMediaId] = useState<string | null>(null);
   const [selectedMediaId, setSelectedMediaId] = useState<string | null>(null);
   const [videoThumbStatus, setVideoThumbStatus] = useState("");
   const [selectedMediaVideoDuration, setSelectedMediaVideoDuration] = useState(0);
@@ -4661,60 +4660,6 @@ export default function Home() {
                 <p className="text-[10px] leading-4 sm:text-xs text-gray-500">
                   Videos can be up to 15 seconds for now. Longer videos coming soon.
                 </p>
-                <p className="text-[10px] leading-4 sm:text-xs text-gray-500">Drag thumbnails to reorder. First item is Main. Tap an item to edit its caption below.</p>
-
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 auto-rows-fr">
-                  {mediaDraftItems.map((item, idx) => {
-                    const previewUrl = mediaPreviewUrls.get(item.id) || "";
-                    return (
-                      <button
-                        key={item.id}
-                        type="button"
-                        draggable
-                        onClick={() => setSelectedMediaId(item.id)}
-                        onDragStart={() => setDragMediaId(item.id)}
-                        onDragOver={(e) => e.preventDefault()}
-                        onDrop={() => {
-                          if (!dragMediaId || dragMediaId === item.id) return;
-                          setMediaDraftItems((prev) => {
-                            const from = prev.findIndex((m) => m.id === dragMediaId);
-                            const to = prev.findIndex((m) => m.id === item.id);
-                            if (from < 0 || to < 0) return prev;
-                            const next = [...prev];
-                            const [moved] = next.splice(from, 1);
-                            next.splice(to, 0, moved);
-                            return next;
-                          });
-                          setDragMediaId(null);
-                        }}
-                        className={`relative aspect-[4/3] overflow-hidden rounded-xl border bg-white ${selectedMediaId === item.id ? "ring-2 ring-blue-500" : ""}`}
-                      >
-                        {item.type === "image" ? (
-                          <img src={previewUrl} alt={item.label || "Media preview"} className="h-full w-full object-cover" />
-                        ) : (
-                          <video src={previewUrl} poster={item.thumbnailUrl || undefined} className="h-full w-full object-cover bg-black" muted playsInline preload="metadata" />
-                        )}
-                        {idx === 0 && <span className="absolute left-1.5 top-1.5 px-1.5 py-0.5 rounded bg-black text-white text-[10px]">Main</span>}
-                        <span className="absolute right-1.5 bottom-1.5 text-[10px] px-1.5 py-0.5 rounded bg-black/70 text-white">{item.type === "image" ? "Photo" : "Video"}</span>
-                        <span
-                          className="absolute -right-1 -top-1 h-6 w-6 rounded-full bg-white border flex items-center justify-center text-sm"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setMediaDraftItems((prev) => prev.filter((m) => m.id !== item.id));
-                            if (selectedMediaId === item.id) {
-                              const remaining = mediaDraftItems.filter((m) => m.id !== item.id);
-                              setSelectedMediaId(remaining[0]?.id || null);
-                            }
-                          }}
-                        >
-                          ×
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-
                 {selectedMediaItem ? (
                   <div className="grid gap-2 rounded-2xl border bg-white p-3 shadow-sm">
                     <div className="flex items-center justify-between gap-2">
