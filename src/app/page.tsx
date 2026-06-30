@@ -1853,31 +1853,6 @@ export default function Home() {
     return `${Math.max(0, seconds).toFixed(1)}s`;
   }
 
-  function updateSelectedVideoTrim(nextStart: number) {
-    if (!selectedMediaItem || selectedMediaItem.type !== "video") return;
-    const duration = selectedMediaItem.durationSeconds || selectedMediaVideoDuration || VIDEO_MAX_DURATION_SECONDS;
-    const maxStart = Math.max(0, duration - VIDEO_MAX_DURATION_SECONDS);
-    const trimStartSeconds = Math.max(0, Math.min(nextStart, maxStart));
-    const trimEndSeconds = Math.min(duration, trimStartSeconds + VIDEO_MAX_DURATION_SECONDS);
-    setMediaDraftItems((prev) => prev.map((m) => m.id === selectedMediaItem.id ? { ...m, trimStartSeconds, trimEndSeconds } : m));
-    const vid = selectedMediaVideoRef.current;
-    if (vid && Number.isFinite(trimStartSeconds)) vid.currentTime = trimStartSeconds;
-  }
-
-  function updateSelectedVideoTrimEnd(nextEnd: number) {
-    if (!selectedMediaItem || selectedMediaItem.type !== "video") return;
-    const duration = selectedMediaItem.durationSeconds || selectedMediaVideoDuration || VIDEO_MAX_DURATION_SECONDS;
-    const trimEndSeconds = Math.max(Math.min(duration, nextEnd), selectedTrimStart + 0.2);
-    const trimStartSeconds = Math.min(selectedTrimStart, Math.max(0, trimEndSeconds - VIDEO_MAX_DURATION_SECONDS));
-    setMediaDraftItems((prev) => prev.map((m) => m.id === selectedMediaItem.id ? {
-      ...m,
-      trimStartSeconds,
-      trimEndSeconds: Math.min(duration, Math.max(trimEndSeconds, trimStartSeconds + 0.2)),
-    } : m));
-    const vid = selectedMediaVideoRef.current;
-    if (vid && Number.isFinite(trimEndSeconds)) vid.currentTime = trimEndSeconds;
-  }
-
   function seekSelectedTrimPreview(nextTime: number) {
     if (!selectedMediaItem || selectedMediaItem.type !== "video") return;
     const duration = selectedMediaItem.durationSeconds || selectedMediaVideoDuration || VIDEO_MAX_DURATION_SECONDS;
@@ -4669,11 +4644,17 @@ export default function Home() {
                           preload="metadata"
                           onTimeUpdate={() => {
                             const vid = selectedMediaVideoRef.current;
-                            if (!vid || !selectedVideoNeedsTrim) return;
-                            if (vid.currentTime > selectedTrimEnd + 0.05) {
-                              vid.pause();
-                              vid.currentTime = selectedTrimEnd;
+                            if (!vid) return;
+                            if (selectedVideoNeedsTrim) {
+                              if (vid.currentTime > selectedTrimEnd + 0.05) {
+                                vid.pause();
+                                vid.currentTime = selectedTrimEnd;
+                              }
+                              if (vid.currentTime < selectedTrimStart - 0.05) {
+                                vid.currentTime = selectedTrimStart;
+                              }
                             }
+                            setSelectedTrimPreviewTime(vid.currentTime);
                           }}
                           onLoadedMetadata={() => {
                             const vid = selectedMediaVideoRef.current;
@@ -4713,7 +4694,7 @@ export default function Home() {
                           </div>
                           <div
                             ref={selectedTrimTrackRef}
-                            className="relative h-16 overflow-hidden rounded-2xl border border-gray-300 bg-black"
+                            className="relative h-[74px] touch-none overflow-hidden rounded-[18px] border border-gray-300 bg-black"
                             onPointerDown={(e) => {
                               const nextTime = timeFromTrimTrackClientX(e.clientX);
                               const handleHitPadding = 0.04 * (selectedMediaVideoDuration || VIDEO_MAX_DURATION_SECONDS);
@@ -4732,75 +4713,66 @@ export default function Home() {
                               muted
                               playsInline
                               preload="metadata"
-                              className="absolute inset-0 h-full w-full object-cover opacity-70"
+                              className="absolute inset-0 h-full w-full object-cover opacity-75"
                               aria-hidden="true"
                             />
-                            <div className="absolute inset-0 bg-black/20" />
+                            <div className="absolute inset-0 bg-black/30" />
                             <div
-                              className="absolute inset-y-0 bg-yellow-400/30 border-y border-yellow-300"
+                              className="absolute inset-y-0 bg-black/45"
+                              style={{ width: `${(selectedTrimStart / Math.max(selectedMediaVideoDuration || 1, 1)) * 100}%` }}
+                            />
+                            <div
+                              className="absolute inset-y-0 right-0 bg-black/45"
+                              style={{ width: `${(Math.max(0, selectedMediaVideoDuration - selectedTrimEnd) / Math.max(selectedMediaVideoDuration || 1, 1)) * 100}%` }}
+                            />
+                            <div
+                              className="absolute inset-y-[5px] rounded-[12px] border-[3px] border-yellow-400 bg-yellow-400/10 shadow-[0_0_0_1px_rgba(0,0,0,0.20)]"
                               style={{
                                 left: `${(selectedTrimStart / Math.max(selectedMediaVideoDuration || 1, 1)) * 100}%`,
                                 width: `${(Math.max(selectedTrimLength, 0.2) / Math.max(selectedMediaVideoDuration || 1, 1)) * 100}%`,
                               }}
                             />
                             <div
-                              className="absolute inset-y-0 w-3 -translate-x-1/2 bg-white shadow-[0_0_0_1px_rgba(0,0,0,0.15)]"
+                              role="button"
+                              aria-label="Trim start"
+                              tabIndex={0}
+                              className="absolute inset-y-[5px] z-10 flex w-8 -translate-x-1/2 cursor-ew-resize items-center justify-center rounded-l-[12px] rounded-r-md bg-yellow-400 shadow-[0_0_0_1px_rgba(0,0,0,0.16),0_8px_18px_rgba(0,0,0,0.22)]"
                               style={{ left: `${(selectedTrimStart / Math.max(selectedMediaVideoDuration || 1, 1)) * 100}%` }}
-                            />
+                              onPointerDown={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setSelectedTrimDragMode("start");
+                                seekSelectedTrimPreview(selectedTrimStart);
+                              }}
+                            >
+                              <span className="text-lg font-black leading-none text-black">‹</span>
+                            </div>
                             <div
-                              className="absolute inset-y-0 w-3 -translate-x-1/2 bg-white shadow-[0_0_0_1px_rgba(0,0,0,0.15)]"
+                              role="button"
+                              aria-label="Trim end"
+                              tabIndex={0}
+                              className="absolute inset-y-[5px] z-10 flex w-8 -translate-x-1/2 cursor-ew-resize items-center justify-center rounded-l-md rounded-r-[12px] bg-yellow-400 shadow-[0_0_0_1px_rgba(0,0,0,0.16),0_8px_18px_rgba(0,0,0,0.22)]"
                               style={{ left: `${(selectedTrimEnd / Math.max(selectedMediaVideoDuration || 1, 1)) * 100}%` }}
-                            />
+                              onPointerDown={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setSelectedTrimDragMode("end");
+                                seekSelectedTrimPreview(selectedTrimEnd);
+                              }}
+                            >
+                              <span className="text-lg font-black leading-none text-black">›</span>
+                            </div>
                             <div
-                              className="absolute inset-y-2 left-0 w-1 rounded-full bg-yellow-400"
+                              className="absolute inset-y-2 z-20 w-1 -translate-x-1/2 rounded-full bg-white shadow-[0_0_0_1px_rgba(0,0,0,0.25)]"
                               style={{ left: `${(selectedTrimPreviewTime / Math.max(selectedMediaVideoDuration || 1, 1)) * 100}%` }}
                             />
                           </div>
                           <div className="flex items-center justify-between gap-2 text-[10px] text-gray-500">
-                            <span>Drag either white handle. Drag inside the strip to scrub.</span>
+                            <span>Drag the yellow ends. Drag inside the strip to scrub.</span>
                             <span>{selectedMediaVideoDuration ? `${selectedMediaVideoDuration.toFixed(1)}s total` : ""}</span>
                           </div>
                         </div>
                         <div className="grid gap-2 rounded-2xl border border-gray-200 bg-white p-3 shadow-sm">
-                          <div className="overflow-hidden rounded-xl border bg-black/5">
-                            <video
-                              ref={selectedMediaVideoRef}
-                              src={mediaPreviewUrls.get(selectedMediaItem.id) || ""}
-                              className="h-56 w-full bg-black object-cover sm:h-64"
-                              controls
-                              playsInline
-                              preload="metadata"
-                              onTimeUpdate={() => {
-                                const vid = selectedMediaVideoRef.current;
-                                if (!vid || !selectedVideoNeedsTrim) return;
-                                if (vid.currentTime > selectedTrimEnd + 0.05) {
-                                  vid.pause();
-                                  vid.currentTime = selectedTrimEnd;
-                                }
-                                if (vid.currentTime < selectedTrimStart - 0.05) {
-                                  vid.currentTime = selectedTrimStart;
-                                }
-                                setSelectedTrimPreviewTime(vid.currentTime);
-                              }}
-                              onLoadedMetadata={() => {
-                                const vid = selectedMediaVideoRef.current;
-                                if (vid && Number.isFinite(vid.duration) && vid.duration > 0) {
-                                  setSelectedMediaVideoDuration(vid.duration);
-                                  const defaultStart = Math.min(selectedTrimStart || 0, Math.max(0, vid.duration - VIDEO_MAX_DURATION_SECONDS));
-                                  if (selectedMediaItem.source === "new" && selectedMediaItem.durationSeconds === undefined) {
-                                    setMediaDraftItems((prev) => prev.map((m) => m.id === selectedMediaItem.id ? {
-                                      ...m,
-                                      durationSeconds: vid.duration,
-                                      trimStartSeconds: m.trimStartSeconds ?? defaultStart,
-                                      trimEndSeconds: m.trimEndSeconds ?? Math.min(vid.duration, defaultStart + VIDEO_MAX_DURATION_SECONDS),
-                                    } : m));
-                                  }
-                                  vid.currentTime = Math.min(vid.currentTime || defaultStart, vid.duration);
-                                  setSelectedTrimPreviewTime(vid.currentTime);
-                                }
-                              }}
-                            />
-                          </div>
                           <div className="flex items-center justify-between gap-2">
                             <button
                               type="button"
