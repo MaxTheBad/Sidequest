@@ -478,6 +478,7 @@ export default function Home() {
   const [selectedThumbnailDragging, setSelectedThumbnailDragging] = useState(false);
   const [selectedThumbnailAspectRatio, setSelectedThumbnailAspectRatio] = useState<number | null>(null);
   const selectedMediaVideoRef = useRef<HTMLVideoElement | null>(null);
+  const selectedMediaPreviewCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const selectedTrimTrackRef = useRef<HTMLDivElement | null>(null);
   const selectedThumbnailVideoRef = useRef<HTMLVideoElement | null>(null);
   const selectedThumbnailTrackRef = useRef<HTMLDivElement | null>(null);
@@ -1889,12 +1890,27 @@ export default function Home() {
     if (vid) vid.currentTime = clamped;
   }
 
+  function paintSelectedMediaPreviewFrame() {
+    const video = selectedMediaVideoRef.current;
+    const canvas = selectedMediaPreviewCanvasRef.current;
+    if (!video || !canvas || !video.videoWidth || !video.videoHeight || video.readyState < 2) return;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  }
+
   function seekSelectedTrimVideoTime(nextTime: number) {
     if (!selectedMediaItem || selectedMediaItem.type !== "video") return;
     const duration = selectedMediaItem.durationSeconds || selectedMediaVideoDuration || VIDEO_MAX_DURATION_SECONDS;
     const clamped = Math.max(0, Math.min(nextTime, duration));
     const vid = selectedMediaVideoRef.current;
-    if (vid) vid.currentTime = clamped;
+    if (!vid) return;
+    vid.pause();
+    vid.currentTime = clamped;
+    paintSelectedMediaPreviewFrame();
+    window.setTimeout(paintSelectedMediaPreviewFrame, 80);
   }
 
   function timeFromTrimTrackClientX(clientX: number) {
@@ -4764,7 +4780,7 @@ export default function Home() {
                       </div>
                       <div className="text-[11px] text-gray-500">Edit caption and frame below</div>
                     </div>
-                    <div className="overflow-hidden rounded-xl border bg-black/5" style={selectedMediaPreviewStyle}>
+                    <div className="relative overflow-hidden rounded-xl border bg-black/5" style={selectedMediaPreviewStyle}>
                       {selectedMediaItem.type === "image" ? (
                         <img
                           src={mediaPreviewUrls.get(selectedMediaItem.id) || ""}
@@ -4776,6 +4792,7 @@ export default function Home() {
                           }}
                         />
                       ) : (
+                        <>
                           <video
                           ref={selectedMediaVideoRef}
                           src={mediaPreviewUrls.get(selectedMediaItem.id) || ""}
@@ -4797,6 +4814,14 @@ export default function Home() {
                             }
                             if (!selectedTrimDragMode || selectedTrimDragMode === "scrub") {
                               setSelectedTrimPreviewTime(vid.currentTime);
+                            }
+                            if (selectedTrimDragMode === "start" || selectedTrimDragMode === "end") {
+                              paintSelectedMediaPreviewFrame();
+                            }
+                          }}
+                          onSeeked={() => {
+                            if (selectedTrimDragMode === "start" || selectedTrimDragMode === "end") {
+                              paintSelectedMediaPreviewFrame();
                             }
                           }}
                           onLoadedMetadata={() => {
@@ -4828,6 +4853,14 @@ export default function Home() {
                             }
                           }}
                         />
+                          <canvas
+                            ref={selectedMediaPreviewCanvasRef}
+                            aria-hidden="true"
+                            className={`absolute inset-0 h-full w-full bg-black object-cover transition-opacity duration-100 ${
+                              selectedTrimDragMode === "start" || selectedTrimDragMode === "end" ? "opacity-100" : "pointer-events-none opacity-0"
+                            }`}
+                          />
+                        </>
                       )}
                     </div>
                     <input
