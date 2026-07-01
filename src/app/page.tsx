@@ -4769,13 +4769,13 @@ export default function Home() {
                           }}
                         />
                       ) : (
-                        <video
+                          <video
                           ref={selectedMediaVideoRef}
                           src={mediaPreviewUrls.get(selectedMediaItem.id) || ""}
                           className="h-full w-full bg-black object-cover"
                           controls
                           playsInline
-                          preload="metadata"
+                          preload="auto"
                           onTimeUpdate={() => {
                             const vid = selectedMediaVideoRef.current;
                             if (!vid) return;
@@ -4805,6 +4805,18 @@ export default function Home() {
                                   trimStartSeconds: m.trimStartSeconds ?? 0,
                                   trimEndSeconds: m.trimEndSeconds ?? Math.min(vid.duration, VIDEO_MAX_DURATION_SECONDS),
                                 } : m));
+                              }
+                            }
+                          }}
+                          onLoadedData={() => {
+                            const vid = selectedMediaVideoRef.current;
+                            if (!vid || !Number.isFinite(vid.duration) || vid.duration <= 0) return;
+                            const target = Math.min(selectedTrimPreviewTime || selectedTrimStart || 0, vid.duration);
+                            if (Number.isFinite(target)) {
+                              try {
+                                vid.currentTime = target;
+                              } catch {
+                                // Ignore transient browser seek errors.
                               }
                             }
                           }}
