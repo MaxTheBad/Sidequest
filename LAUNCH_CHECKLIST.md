@@ -42,6 +42,7 @@ Required feature areas from migrations:
 - Listing media gallery and quest videos
 - Moderation reports, actions, email queue, and dispatch
 - Security audit events and media ownership records
+- Security audit retention cleanup
 - Notifications and notification state
 - Onboarding, usernames, profile photos, and welcome email flags
 - Anti-spam rate limits
