@@ -8,6 +8,7 @@ import { getSupabaseClient } from "@/lib/supabase";
 import { resolveCanonicalCategory } from "@/lib/category-suggestions.js";
 import { AppIcon } from "@/components/app-icons";
 import { formatReportReference } from "@/lib/reporting";
+import { recordSecurityAudit } from "@/lib/security-audit";
 
 type Listing = {
   id: string;
@@ -592,6 +593,23 @@ export default function ListingPage() {
       setReportFeedback(error.message || "We couldn't submit that report right now. Please try again in a moment.");
       return;
     }
+    {
+      const { data: auditSession } = await supabase.auth.getSession();
+      await recordSecurityAudit(
+        {
+          event_type: "report_submitted",
+          user_id: userId,
+          metadata: {
+            report_id: reportId,
+            context_type: reportContext,
+            target_type: "user",
+            target_id: reportTargetUserId,
+            quest_id: listing.id,
+          },
+        },
+        auditSession.session?.access_token,
+      );
+    }
 
     const notify = await fetch("/api/report-alert", {
       method: "POST",
@@ -691,6 +709,20 @@ export default function ListingPage() {
     });
     setSendingQuestion(false);
     if (error) return setStatus(error.message);
+    {
+      const { data: auditSession } = await supabase.auth.getSession();
+      await recordSecurityAudit(
+        {
+          event_type: "message_sent",
+          user_id: userId,
+          metadata: {
+            quest_id: listing.id,
+            message_mode: questionMode,
+          },
+        },
+        auditSession.session?.access_token,
+      );
+    }
 
     setShowQuestionModal(false);
     setQuestionText("");

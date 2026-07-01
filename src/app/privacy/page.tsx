@@ -13,7 +13,8 @@ export default function PrivacyPage() {
           <li>Account information such as email address and login metadata.</li>
           <li>Profile details you choose to share, such as name, photo, bio, and location.</li>
           <li>Content you create, including quests, messages, and reports.</li>
-          <li>Device and usage information needed for security, analytics, and app reliability.</li>
+          <li>Uploaded media records, including the account that uploaded the file and where it appears in the app.</li>
+          <li>Security and usage information such as IP address, browser/user-agent, device type, Cloudflare request metadata, timestamps, and bot-protection results.</li>
         </ul>
 
         <h2 className="font-semibold">How We Use Data</h2>
@@ -21,6 +22,7 @@ export default function PrivacyPage() {
           <li>To create and manage your account.</li>
           <li>To match users, show content, and support core app features.</li>
           <li>To detect abuse, improve safety, and maintain service quality.</li>
+          <li>To investigate spam, fake accounts, unsafe behavior, account abuse, and policy violations.</li>
           <li>To send important account and product emails.</li>
         </ul>
 
@@ -51,6 +53,10 @@ export default function PrivacyPage() {
           We use reasonable safeguards to protect the information we store. We keep data only as long as needed to
           provide the service, meet legal obligations, resolve disputes, and enforce our policies.
         </p>
+        <p className="text-sm text-gray-700">
+          Raw IP addresses and similar security logs are used for abuse prevention and investigation. Access is limited
+          to operational and moderation needs, and these records should not be used for advertising targeting.
+        </p>
 
         <h2 className="font-semibold">Contact</h2>
         <p className="text-sm text-gray-700">
@@ -59,7 +65,7 @@ export default function PrivacyPage() {
           in the footer.
         </p>
 
-        <p className="text-xs text-gray-500">Last updated: June 2026</p>
+        <p className="text-xs text-gray-500">Last updated: July 2026</p>
       </section>
     </main>
   );

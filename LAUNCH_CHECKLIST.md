@@ -8,6 +8,7 @@ Use this before promoting a deployment from preview/staging to production.
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `NEXT_PUBLIC_SITE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
+- `SECURITY_AUDIT_IP_HASH_SALT` (recommended, rotate carefully)
 - `NEXT_PUBLIC_TURNSTILE_SITE_KEY`
 - `TURNSTILE_SECRET_KEY`
 - `SMTP_HOST`
@@ -40,6 +41,7 @@ Required feature areas from migrations:
 - Join approval and exact-location privacy
 - Listing media gallery and quest videos
 - Moderation reports, actions, email queue, and dispatch
+- Security audit events and media ownership records
 - Notifications and notification state
 - Onboarding, usernames, profile photos, and welcome email flags
 - Anti-spam rate limits
@@ -62,9 +64,9 @@ Expected status:
 - Production build passes.
 - High-severity audit passes. Current Next may still report a moderate nested PostCSS advisory until an upstream patched Next release is available.
 
-## Preview Smoke Test
+## Cloudflare Preview Smoke Test
 
-On a Vercel preview using production-like environment variables:
+On a Cloudflare Pages preview using production-like environment variables:
 
 - Public pages load: `/`, `/privacy`, `/terms`, `/tos`, `/delete-account`, `/robots.txt`, `/sitemap.xml`.
 - Unauthenticated protected views redirect or prompt for sign-in: `/inbox`, `/settings`, `/profile`, `/notifications`, `/joined`.

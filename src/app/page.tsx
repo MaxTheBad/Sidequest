@@ -16,6 +16,7 @@ import { APP_EVENT_NAMES, APP_NAME } from "@/lib/app-brand";
 import { AppIcon } from "@/components/app-icons";
 import { TurnstileInvisible } from "@/components/turnstile-invisible";
 import { formatReportReference } from "@/lib/reporting";
+import { recordSecurityAudit, type MediaAuditInput } from "@/lib/security-audit";
 
 type Hobby = { id: string; name: string; category: string | null };
 type QuestMediaItem = {
@@ -24,6 +25,8 @@ type QuestMediaItem = {
   label?: string | null;
   thumbnailUrl?: string | null;
 };
+
+type UploadedQuestMediaItem = QuestMediaItem & { audit?: MediaAuditInput };
 
 type DraftMediaItem = {
   id: string;
@@ -949,6 +952,10 @@ export default function Home() {
     const { data } = await supabase.auth.getSession();
     setUserId(data.session?.user?.id ?? null);
     setUserEmail(data.session?.user?.email ?? "");
+    await recordSecurityAudit(
+      { event_type: "login_password_success", user_id: data.session?.user?.id ?? null },
+      data.session?.access_token,
+    );
     setShowAuthModal(false);
     setStatus("Signed in ✅");
     await maybeShowPhotoOnboarding(data.session?.user?.id ?? null);
@@ -971,7 +978,7 @@ export default function Home() {
       body: JSON.stringify({ token: authTurnstileToken, action: "signup" }),
     });
     if (!verify.ok) return setStatus("Verification failed. Please try again.");
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
         options: {
@@ -988,6 +995,12 @@ export default function Home() {
         },
       });
     if (error) return setStatus(error.message);
+    await recordSecurityAudit({
+      event_type: "signup_password_submitted",
+      user_id: data.user?.id ?? null,
+      turnstile_success: true,
+      metadata: { provider: "email", email_confirm_required: !data.session },
+    }, data.session?.access_token);
 
     setPendingVerifyEmail(email);
     setResendCooldown(60);
@@ -1042,8 +1055,21 @@ export default function Home() {
     });
   }
 
+  async function auditMediaUpload(media: MediaAuditInput) {
+    const { data } = supabase ? await supabase.auth.getSession() : { data: { session: null } };
+    await recordSecurityAudit(
+      {
+        event_type: "media_uploaded",
+        user_id: media.user_id,
+        media,
+      },
+      data.session?.access_token,
+    );
+  }
+
   async function socialLogin(provider: "google" | "facebook" | "apple") {
     if (!supabase) return;
+    await recordSecurityAudit({ event_type: "oauth_started", metadata: { provider } });
     const { error } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo } });
     if (error) {
       setStatus(`OAuth failed: ${error.message}`);
@@ -1190,6 +1216,26 @@ export default function Home() {
         .upload(originalFilePath, onboardingPhotoFile, { upsert: false, contentType: onboardingPhotoFile.type || "image/jpeg" });
       if (originalUploadError) throw originalUploadError;
       const { data: originalData } = supabase.storage.from("profile-photos").getPublicUrl(originalFilePath);
+      await auditMediaUpload({
+        user_id: userId,
+        bucket_id: "profile-photos",
+        object_path: filePath,
+        public_url: publicData.publicUrl,
+        media_type: "image",
+        mime_type: "image/jpeg",
+        size_bytes: blob.size,
+        source_context: "onboarding_photo",
+      });
+      await auditMediaUpload({
+        user_id: userId,
+        bucket_id: "profile-photos",
+        object_path: originalFilePath,
+        public_url: originalData.publicUrl,
+        media_type: "image",
+        mime_type: onboardingPhotoFile.type || "image/jpeg",
+        size_bytes: onboardingPhotoFile.size,
+        source_context: "profile_photo_original",
+      });
       const { error: profileError } = await supabase.from("profiles").upsert({
         id: userId,
         avatar_url: publicData.publicUrl,
@@ -1407,6 +1453,16 @@ export default function Home() {
     }
 
     const { data: publicData } = supabase.storage.from("profile-photos").getPublicUrl(filePath);
+    await auditMediaUpload({
+      user_id: userId,
+      bucket_id: "profile-photos",
+      object_path: filePath,
+      public_url: publicData.publicUrl,
+      media_type: "image",
+      mime_type: "image/jpeg",
+      size_bytes: cropped.size,
+      source_context: "profile_photo",
+    });
     let { error: profileError } = await supabase.from("profiles").upsert({
       id: userId,
       avatar_url: publicData.publicUrl,
@@ -1485,6 +1541,16 @@ export default function Home() {
     if (error) throw new Error(error.message);
 
     const { data } = supabase.storage.from("quest-videos").getPublicUrl(filePath);
+    await auditMediaUpload({
+      user_id: userId,
+      bucket_id: "quest-videos",
+      object_path: filePath,
+      public_url: data.publicUrl,
+      media_type: "video",
+      mime_type: file.type || "video/mp4",
+      size_bytes: file.size,
+      source_context: "quest_video",
+    });
     return data.publicUrl;
   }
 
@@ -1497,6 +1563,16 @@ export default function Home() {
       .upload(filePath, file, { upsert: false, contentType: file.type || "image/jpeg" });
     if (error) throw new Error(error.message);
     const { data } = supabase.storage.from("quest-media").getPublicUrl(filePath);
+    await auditMediaUpload({
+      user_id: userId,
+      bucket_id: "quest-media",
+      object_path: filePath,
+      public_url: data.publicUrl,
+      media_type: "image",
+      mime_type: file.type || "image/jpeg",
+      size_bytes: file.size,
+      source_context: "quest_media_thumbnail",
+    });
     return data.publicUrl;
   }
 
@@ -1581,7 +1657,7 @@ export default function Home() {
     onProgress?: (completedSteps: number, totalSteps: number, label: string) => void,
   ) {
     if (!supabase || !userId) throw new Error("Not signed in.");
-    const uploaded: QuestMediaItem[] = [];
+    const uploaded: UploadedQuestMediaItem[] = [];
     const totalSteps = Math.max(1, items.length * 3);
     let completedSteps = 0;
     const report = (label: string) => {
@@ -1643,11 +1719,27 @@ export default function Home() {
       report(`${isImage ? "Photo" : "Video"} ${idx + 1} uploaded`);
 
       const { data } = supabase.storage.from("quest-media").getPublicUrl(filePath);
+      const audit: MediaAuditInput = {
+        user_id: userId,
+        bucket_id: "quest-media",
+        object_path: filePath,
+        public_url: data.publicUrl,
+        media_type: isImage ? "image" : "video",
+        mime_type: file.type || (isImage ? "image/jpeg" : "video/mp4"),
+        size_bytes: file.size,
+        source_context: "quest_media",
+        metadata: {
+          label: item.label.trim() || null,
+          has_thumbnail: Boolean(thumbnailUrl),
+        },
+      };
+      await auditMediaUpload(audit);
       uploaded.push({
         url: data.publicUrl,
         type: isImage ? "image" : "video",
         label: item.label.trim() || null,
         thumbnailUrl,
+        audit,
       });
     }
 
@@ -2767,6 +2859,27 @@ export default function Home() {
           .eq("id", editingQuestId)
           .eq("creator_id", activeUserId);
         if (error) throw new Error(error.message);
+        const { data: auditSession } = await supabase.auth.getSession();
+        await recordSecurityAudit(
+          {
+            event_type: "quest_updated",
+            user_id: activeUserId,
+            turnstile_success: true,
+            metadata: { quest_id: editingQuestId, media_count: nextMediaItems.length },
+          },
+          auditSession.session?.access_token,
+        );
+        for (const uploaded of uploadedMedia) {
+          if (!uploaded.audit) continue;
+          await recordSecurityAudit(
+            {
+              event_type: "media_uploaded",
+              user_id: activeUserId,
+              media: { ...uploaded.audit, quest_id: editingQuestId },
+            },
+            auditSession.session?.access_token,
+          );
+        }
         setQuestSaveProgress({ percent: 94, label: "Cleaning up media" });
 
         try {
@@ -2806,6 +2919,29 @@ export default function Home() {
         const { data, error } = await supabase.from("quests").insert(insertPayload).select("id").single();
         if (error) throw new Error(error.message);
         if (data?.id) await supabase.from("quest_members").insert({ quest_id: data.id, user_id: activeUserId, role: "creator" });
+        const { data: auditSession } = await supabase.auth.getSession();
+        await recordSecurityAudit(
+          {
+            event_type: "quest_created",
+            user_id: activeUserId,
+            turnstile_success: true,
+            metadata: { quest_id: data?.id ?? null, media_count: nextMediaItems.length },
+          },
+          auditSession.session?.access_token,
+        );
+        if (data?.id) {
+          for (const uploaded of uploadedMedia) {
+            if (!uploaded.audit) continue;
+            await recordSecurityAudit(
+              {
+                event_type: "media_uploaded",
+                user_id: activeUserId,
+                media: { ...uploaded.audit, quest_id: data.id },
+              },
+              auditSession.session?.access_token,
+            );
+          }
+        }
         setQuestSaveProgress({ percent: 94, label: "Finishing post" });
         setStatus(`Quest posted ✅${creatorLocationWarning}`);
         setLastQuestCreateMs(Date.now());
@@ -3007,6 +3143,23 @@ export default function Home() {
       setReportFeedback(error.message || "We couldn't submit that report right now. Please try again in a moment.");
       return;
     }
+    {
+      const { data: auditSession } = await supabase.auth.getSession();
+      await recordSecurityAudit(
+        {
+          event_type: "report_submitted",
+          user_id: userId,
+          turnstile_success: true,
+          metadata: {
+            report_id: reportId,
+            context_type: reportContext,
+            target_type: "listing",
+            target_id: reportTarget.id,
+          },
+        },
+        auditSession.session?.access_token,
+      );
+    }
 
     const notify = await fetch("/api/report-alert", {
       method: "POST",
@@ -3049,6 +3202,20 @@ export default function Home() {
     });
     setSendingQuestion(false);
     if (error) return setStatus(error.message);
+    {
+      const { data: auditSession } = await supabase.auth.getSession();
+      await recordSecurityAudit(
+        {
+          event_type: "message_sent",
+          user_id: userId,
+          metadata: {
+            quest_id: questionTarget.id,
+            message_mode: questionMode,
+          },
+        },
+        auditSession.session?.access_token,
+      );
+    }
 
     setShowQuestionModal(false);
     setQuestionTarget(null);

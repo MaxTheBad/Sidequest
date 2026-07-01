@@ -8,6 +8,7 @@ import { getSupabaseClient } from "@/lib/supabase";
 import { isImageLikeFile, prepareImageForUpload } from "@/lib/media-optimize";
 import { useUsernameAvailability } from "@/lib/use-username-availability";
 import { normalizeUsername } from "@/lib/username";
+import { recordSecurityAudit } from "@/lib/security-audit";
 
 type Tab = "profile" | "account" | "preferences" | "friends" | "blocked";
 type SocialProfile = { id: string; display_name: string | null; avatar_url: string | null; username: string | null };
@@ -475,6 +476,41 @@ export default function SettingsPage() {
       return setStatus(`Photo upload failed: ${originalUploadError.message}`);
     }
     const { data: originalData } = supabase.storage.from("profile-photos").getPublicUrl(originalFilePath);
+    const { data: auditSession } = await supabase.auth.getSession();
+    await recordSecurityAudit(
+      {
+        event_type: "media_uploaded",
+        user_id: userId,
+        media: {
+          user_id: userId,
+          bucket_id: "profile-photos",
+          object_path: filePath,
+          public_url: publicData.publicUrl,
+          media_type: "image",
+          mime_type: "image/jpeg",
+          size_bytes: cropped.size,
+          source_context: "profile_photo",
+        },
+      },
+      auditSession.session?.access_token,
+    );
+    await recordSecurityAudit(
+      {
+        event_type: "media_uploaded",
+        user_id: userId,
+        media: {
+          user_id: userId,
+          bucket_id: "profile-photos",
+          object_path: originalFilePath,
+          public_url: originalData.publicUrl,
+          media_type: "image",
+          mime_type: photoFile.type || "image/jpeg",
+          size_bytes: photoFile.size,
+          source_context: "profile_photo_original",
+        },
+      },
+      auditSession.session?.access_token,
+    );
 
     let { error: profileErr } = await supabase
       .from("profiles")
