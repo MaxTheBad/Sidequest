@@ -3753,7 +3753,7 @@ export default function Home() {
 
             return (
             <article key={q.id} className={`quest-card w-full bg-white border border-slate-200 shadow-[0_14px_40px_rgba(15,23,42,0.08)] overflow-hidden ${feedViewMode === "list" ? "rounded-none sm:rounded-[1.75rem] h-[calc(100svh-10.75rem)] sm:h-auto flex flex-col xl:h-[calc(100dvh-8.25rem)] xl:flex xl:flex-col" : "rounded-[2rem]"}`}>
-              <div className={`p-3 flex items-center justify-between gap-2 ${feedViewMode === "list" ? "sm:p-4 absolute top-0 left-0 right-0 z-30 bg-gradient-to-b from-black/22 via-black/12 via-black/6 to-transparent py-2 sm:py-3 text-white border-0 backdrop-blur-[0.75px]" : ""}`}>
+              <div className={`p-3 flex items-center justify-between gap-2 ${feedViewMode === "list" ? "sm:p-4 absolute top-0 left-0 right-0 z-40 bg-gradient-to-b from-black/22 via-black/12 via-black/6 to-transparent py-2 sm:py-3 text-white border-0 backdrop-blur-[0.75px]" : ""}`}>
                 <Link href={`/profile/${q.creator_id}`} className="flex items-center gap-2 min-w-0">
                   {creatorProfile?.avatar_url ? (
                     <img src={creatorProfile.avatar_url} alt="Creator" className="h-9 w-9 rounded-full object-cover border" />
@@ -3775,14 +3775,14 @@ export default function Home() {
                   </div>
                   <div className="relative">
                     <button
-                      className="border rounded px-2 py-1 text-xs"
+                      className={`border text-xs ${feedViewMode === "list" ? "inline-flex h-9 w-9 items-center justify-center rounded-full border-white/25 bg-black/35 p-0 text-white backdrop-blur-sm" : "rounded px-2 py-1"}`}
                       aria-label="Listing options"
                       onClick={() => setOpenCardMenuQuestId((v) => (v === q.id ? null : q.id))}
                     >
                       <AppIcon name="more" className="h-5 w-5" />
                     </button>
                     {openCardMenuQuestId === q.id && (
-                      <div className="absolute right-0 mt-1 w-36 rounded-xl border bg-white shadow-md z-20 overflow-hidden">
+                      <div className="absolute right-0 mt-1 w-36 rounded-xl border bg-white shadow-md z-50 overflow-hidden">
                         {userId === q.creator_id && (
                           <>
                             <button className="block w-full text-left px-3 py-2 text-sm text-slate-900 hover:bg-gray-50" onClick={() => { setOpenCardMenuQuestId(null); openEditModal(q); }}>
@@ -3858,7 +3858,7 @@ export default function Home() {
                             />
                             <button
                               type="button"
-                              className="absolute top-3 right-3 z-30 inline-flex h-9 w-9 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-sm transition hover:bg-black/65"
+                              className="absolute top-14 right-3 z-30 inline-flex h-9 w-9 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-sm transition hover:bg-black/65 sm:top-16"
                               aria-label="Fullscreen"
                               title="Fullscreen"
                               onClick={(e) => {
