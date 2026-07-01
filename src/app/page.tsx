@@ -4877,11 +4877,18 @@ export default function Home() {
                             </span>
                           </div>
                         </div>
-                        <div className="grid gap-2 rounded-2xl border border-gray-200 bg-white p-3 shadow-sm">
+                        <div className="grid gap-3 rounded-2xl border-2 border-[#0c5063]/20 bg-white p-3 shadow-sm">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <div className="text-[11px] font-semibold uppercase tracking-wide text-[#0c5063]">Thumbnail selector</div>
+                              <div className="text-[11px] leading-4 text-gray-500">Drag the slider, then save the frame.</div>
+                            </div>
+                            <span className="shrink-0 rounded-full bg-[#0c5063]/10 px-2 py-1 text-[10px] font-medium text-[#0c5063]">{formatDuration(selectedThumbnailPreviewTime)}</span>
+                          </div>
                           <div className="flex items-center justify-between gap-2">
                             <button
                               type="button"
-                              className="rounded-full bg-black px-3 py-1.5 text-[11px] font-medium text-white"
+                              className="rounded-full bg-[#0c5063] px-3 py-1.5 text-[11px] font-semibold text-white shadow-sm"
                               onClick={async () => {
                                 setVideoThumbStatus("Capturing thumbnail…");
                                 try {
@@ -4898,15 +4905,11 @@ export default function Home() {
                             <span className="text-[10px] text-gray-500 leading-4">{videoThumbStatus || (selectedMediaItem.thumbnailUrl ? "Thumbnail selected" : "Pick a frame, then save it.")}</span>
                           </div>
                           <div className="grid gap-2">
-                            <div className="flex items-center justify-between gap-2 text-xs text-gray-500">
-                              <span>Current thumbnail</span>
-                              <span>{formatDuration(selectedThumbnailPreviewTime)}</span>
-                            </div>
-                            <div className="overflow-hidden rounded-md border bg-black">
+                            <div className="overflow-hidden rounded-xl border-2 border-[#0c5063]/25 bg-black shadow-inner">
                               <video
                                 ref={selectedThumbnailVideoRef}
                                 src={mediaPreviewUrls.get(selectedMediaItem.id) || ""}
-                                className="h-24 w-full object-cover"
+                                className="h-40 w-full object-cover sm:h-48"
                                 muted
                                 playsInline
                                 preload="metadata"
@@ -4925,7 +4928,7 @@ export default function Home() {
                             </div>
                             <div
                               ref={selectedThumbnailTrackRef}
-                              className="relative h-8 touch-none overflow-hidden rounded-full border border-gray-200 bg-gray-100"
+                              className="relative h-10 touch-none overflow-hidden rounded-full border border-[#0c5063]/20 bg-[#0c5063]/10"
                               onPointerDown={(e) => {
                                 e.preventDefault();
                                 setSelectedThumbnailDragging(true);
@@ -4934,10 +4937,10 @@ export default function Home() {
                             >
                               <div className="absolute inset-y-0 left-0 bg-[#0c5063]/20" style={{ width: `${(selectedThumbnailPreviewTime / Math.max(selectedMediaVideoDuration || 1, 1)) * 100}%` }} />
                               <div
-                                className="absolute top-1/2 flex h-7 w-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-[#0c5063] shadow-md"
+                                className="absolute top-1/2 flex h-9 w-9 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-[#0c5063] shadow-md ring-2 ring-white"
                                 style={{ left: `${(selectedThumbnailPreviewTime / Math.max(selectedMediaVideoDuration || 1, 1)) * 100}%` }}
                               >
-                                <span className="h-3.5 w-0.5 rounded-full bg-white/95" />
+                                <span className="h-4 w-0.5 rounded-full bg-white/95" />
                               </div>
                             </div>
                           </div>
