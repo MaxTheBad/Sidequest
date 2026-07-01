@@ -3303,8 +3303,13 @@ export default function Home() {
     if (!ok) return;
 
     const quest = quests.find((q) => q.id === id) || null;
-    const { error } = await supabase.from("quests").delete().eq("id", id).eq("creator_id", userId);
+    const { error, count } = await supabase
+      .from("quests")
+      .delete({ count: "exact" })
+      .eq("id", id)
+      .eq("creator_id", userId);
     if (error) return setStatus(error.message);
+    if (!count) return setStatus("Listing was not deleted. The database delete policy may need to be applied.");
     if (quest) {
       try {
         await cleanupQuestStorage(quest, []);

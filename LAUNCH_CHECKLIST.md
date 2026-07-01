@@ -40,6 +40,7 @@ Required feature areas from migrations:
 - Friends, blocks, and message visibility
 - Join approval and exact-location privacy
 - Listing media gallery and quest videos
+- Creator quest delete policy
 - Moderation reports, actions, email queue, and dispatch
 - Security audit events and media ownership records
 - Security audit retention cleanup

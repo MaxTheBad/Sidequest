@@ -754,8 +754,13 @@ export default function ListingPage() {
     const ok = window.confirm("Delete this listing? This cannot be undone.");
     if (!ok) return;
 
-    const { error } = await supabase.from("quests").delete().eq("id", listing.id).eq("creator_id", userId);
+    const { error, count } = await supabase
+      .from("quests")
+      .delete({ count: "exact" })
+      .eq("id", listing.id)
+      .eq("creator_id", userId);
     if (error) return setStatus(error.message);
+    if (!count) return setStatus("Listing was not deleted. The database delete policy may need to be applied.");
     router.push("/");
   }
 
