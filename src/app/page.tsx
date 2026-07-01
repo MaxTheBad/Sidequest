@@ -475,6 +475,7 @@ export default function Home() {
   const [selectedTrimFrameUrls, setSelectedTrimFrameUrls] = useState<string[]>([]);
   const [selectedThumbnailPreviewTime, setSelectedThumbnailPreviewTime] = useState(0);
   const [selectedThumbnailDragging, setSelectedThumbnailDragging] = useState(false);
+  const [selectedThumbnailAspectRatio, setSelectedThumbnailAspectRatio] = useState<number | null>(null);
   const selectedMediaVideoRef = useRef<HTMLVideoElement | null>(null);
   const selectedTrimTrackRef = useRef<HTMLDivElement | null>(null);
   const selectedThumbnailVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -1856,6 +1857,9 @@ export default function Home() {
   const selectedTrimLengthIsOverLimit = selectedTrimLength > VIDEO_MAX_DURATION_SECONDS + 0.2;
   const selectedVideoNeedsTrim = selectedMediaItem?.type === "video" && selectedMediaVideoDuration > VIDEO_MAX_DURATION_SECONDS + 0.2;
   const selectedTrimHandleOffsetPx = 6;
+  const selectedThumbnailPreviewStyle = {
+    aspectRatio: selectedThumbnailAspectRatio || 9 / 16,
+  };
 
   function formatDuration(seconds: number) {
     if (!Number.isFinite(seconds)) return "0.0s";
@@ -1906,6 +1910,7 @@ export default function Home() {
       setSelectedTrimDragMode(null);
       setSelectedThumbnailPreviewTime(0);
       setSelectedThumbnailDragging(false);
+      setSelectedThumbnailAspectRatio(null);
       return;
     }
     const vid = selectedMediaVideoRef.current;
@@ -4905,17 +4910,21 @@ export default function Home() {
                             <span className="text-[10px] text-gray-500 leading-4">{videoThumbStatus || (selectedMediaItem.thumbnailUrl ? "Thumbnail selected" : "Pick a frame, then save it.")}</span>
                           </div>
                           <div className="grid gap-2">
-                            <div className="mx-auto w-1/2 overflow-hidden rounded-xl border-2 border-[#0c5063]/25 bg-black shadow-inner">
+                            <div
+                              className="mx-auto w-1/2 overflow-hidden rounded-xl border-2 border-[#0c5063]/25 bg-black shadow-inner"
+                              style={selectedThumbnailPreviewStyle}
+                            >
                               <video
                                 ref={selectedThumbnailVideoRef}
                                 src={mediaPreviewUrls.get(selectedMediaItem.id) || ""}
-                                className="h-40 w-full object-contain sm:h-48"
+                                className="h-full w-full object-cover"
                                 muted
                                 playsInline
                                 preload="metadata"
                                 onLoadedMetadata={() => {
                                   const vid = selectedThumbnailVideoRef.current;
                                   if (!vid) return;
+                                  if (vid.videoWidth && vid.videoHeight) setSelectedThumbnailAspectRatio(vid.videoWidth / vid.videoHeight);
                                   const nextTime = Math.min(selectedThumbnailPreviewTime || selectedTrimStart, vid.duration || selectedMediaVideoDuration || VIDEO_MAX_DURATION_SECONDS);
                                   vid.currentTime = Number.isFinite(nextTime) ? nextTime : 0;
                                   setSelectedThumbnailPreviewTime(Number.isFinite(nextTime) ? nextTime : 0);
