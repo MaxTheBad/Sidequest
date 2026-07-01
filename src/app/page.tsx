@@ -1958,6 +1958,7 @@ export default function Home() {
       video.muted = true;
       video.playsInline = true;
       video.preload = "auto";
+      video.load();
 
       await new Promise<void>((resolve, reject) => {
         video.onloadedmetadata = () => resolve();
@@ -1982,14 +1983,24 @@ export default function Home() {
       for (const time of captureTimes) {
         if (cancelled) return;
         await new Promise<void>((resolve, reject) => {
+          if (Math.abs(video.currentTime - time) < 0.03 && video.readyState >= 2) {
+            resolve();
+            return;
+          }
           const onSeeked = () => {
+            window.clearTimeout(timeout);
             video.removeEventListener("seeked", onSeeked);
             resolve();
           };
+          const timeout = window.setTimeout(() => {
+            video.removeEventListener("seeked", onSeeked);
+            video.readyState >= 2 ? resolve() : reject(new Error("Could not seek video frame."));
+          }, 1200);
           video.addEventListener("seeked", onSeeked, { once: true });
           try {
             video.currentTime = time;
           } catch (err) {
+            window.clearTimeout(timeout);
             video.removeEventListener("seeked", onSeeked);
             reject(err);
           }
@@ -4827,9 +4838,14 @@ export default function Home() {
                                   src={mediaPreviewUrls.get(selectedMediaItem.id) || ""}
                                   muted
                                   playsInline
-                                  preload="metadata"
+                                  preload="auto"
                                   className="absolute inset-0 h-full w-full object-cover opacity-75"
                                   aria-hidden="true"
+                                  onLoadedMetadata={(e) => {
+                                    const video = e.currentTarget;
+                                    const target = Math.min(selectedTrimStart || 0.2, Math.max(0, (video.duration || VIDEO_MAX_DURATION_SECONDS) - 0.05));
+                                    video.currentTime = Number.isFinite(target) ? target : 0;
+                                  }}
                                 />
                               )}
                             </div>
