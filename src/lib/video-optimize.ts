@@ -18,6 +18,8 @@ function getElementCaptureStream(video: HTMLVideoElement): MediaStream | null {
 }
 
 function pickVideoMimeType() {
+  if (MediaRecorder.isTypeSupported("video/mp4;codecs=avc1.42E01E,mp4a.40.2")) return "video/mp4;codecs=avc1.42E01E,mp4a.40.2";
+  if (MediaRecorder.isTypeSupported("video/mp4")) return "video/mp4";
   if (MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus")) return "video/webm;codecs=vp9,opus";
   if (MediaRecorder.isTypeSupported("video/webm;codecs=vp8,opus")) return "video/webm;codecs=vp8,opus";
   if (MediaRecorder.isTypeSupported("video/webm;codecs=vp9")) return "video/webm;codecs=vp9";
@@ -28,9 +30,9 @@ function pickVideoMimeType() {
 function adaptiveVideoBitrate(width: number, height: number, requested?: number) {
   if (requested) return requested;
   const pixels = width * height;
-  if (pixels <= 360 * 640) return 850_000;
-  if (pixels <= 854 * 480) return 1_400_000;
-  return 1_800_000;
+  if (pixels <= 360 * 640) return 1_400_000;
+  if (pixels <= 854 * 480) return 2_400_000;
+  return 3_600_000;
 }
 
 function evenDimension(value: number) {
@@ -86,7 +88,7 @@ export async function compressVideoForUpload(file: File, opts: VideoOptimizeOpti
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("Could not initialize video compressor.");
 
-    const stream = canvas.captureStream(24);
+    const stream = canvas.captureStream(30);
     const elementStream = getElementCaptureStream(video);
     elementStream?.getAudioTracks().forEach((track) => stream.addTrack(track));
     const mimeType = pickVideoMimeType();
@@ -94,7 +96,7 @@ export async function compressVideoForUpload(file: File, opts: VideoOptimizeOpti
     const recorder = new MediaRecorder(stream, {
       mimeType,
       videoBitsPerSecond: adaptiveVideoBitrate(outW, outH, opts.videoBitsPerSecond),
-      audioBitsPerSecond: elementStream?.getAudioTracks().length ? 96_000 : undefined,
+      audioBitsPerSecond: elementStream?.getAudioTracks().length ? 128_000 : undefined,
     });
     const chunks: BlobPart[] = [];
 
@@ -156,7 +158,8 @@ export async function compressVideoForUpload(file: File, opts: VideoOptimizeOpti
     const blob = new Blob(chunks, { type: mimeType || "video/webm" });
     if (!blob.size) return file;
 
-    const next = new File([blob], file.name.replace(/\.[^/.]+$/, "") + ".webm", { type: blob.type || "video/webm" });
+    const extension = blob.type.includes("mp4") ? "mp4" : "webm";
+    const next = new File([blob], file.name.replace(/\.[^/.]+$/, "") + `.${extension}`, { type: blob.type || mimeType || "video/webm" });
     // If no trim was requested or needed, keep the original when browser encoding grows the file.
     return shouldTrim || next.size < file.size ? next : file;
   } catch {

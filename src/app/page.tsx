@@ -1677,12 +1677,12 @@ export default function Home() {
         ? await prepareImageForUpload(originalFile, { maxWidth: 1600, maxHeight: 1600, quality: 0.82 })
         : (isVideo
           ? await compressVideoForUpload(originalFile, {
-            maxWidth: 854,
-            maxHeight: 480,
+            maxWidth: 1280,
+            maxHeight: 720,
             maxDurationSeconds: VIDEO_MAX_DURATION_SECONDS,
             trimStartSeconds: item.trimStartSeconds,
             trimEndSeconds: item.trimEndSeconds,
-            videoBitsPerSecond: 1_400_000,
+            videoBitsPerSecond: 3_600_000,
           })
           : originalFile);
       report(isVideo ? `Video ${idx + 1} ready` : `Photo ${idx + 1} ready`);
