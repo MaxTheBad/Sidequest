@@ -1935,11 +1935,12 @@ export default function Home() {
 
   useEffect(() => {
     if (!selectedMediaItem || selectedMediaItem.type !== "video") return;
+    if (selectedThumbnailPreviewTime > 0) return;
     const nextTime = Math.min(selectedTrimStart, selectedMediaVideoDuration || selectedTrimEnd || VIDEO_MAX_DURATION_SECONDS);
     setSelectedThumbnailPreviewTime(nextTime);
     const vid = selectedThumbnailVideoRef.current;
     if (vid && Number.isFinite(nextTime)) vid.currentTime = nextTime;
-  }, [selectedMediaItem?.id, selectedMediaItem?.type, selectedTrimStart, selectedTrimEnd, selectedMediaVideoDuration]);
+  }, [selectedMediaItem?.id, selectedMediaItem?.type, selectedTrimStart, selectedTrimEnd, selectedMediaVideoDuration, selectedThumbnailPreviewTime]);
 
   useEffect(() => {
     if (!selectedMediaItem || selectedMediaItem.type !== "video") return;
@@ -2037,6 +2038,18 @@ export default function Home() {
     if (!selectedMediaItem || selectedMediaItem.type !== "video") return;
     if (!selectedMediaVideoRef.current) return;
     const vid = selectedMediaVideoRef.current;
+    let raf = 0;
+    const schedulePreviewUpdate = (time: number) => {
+      setSelectedTrimPreviewTime(time);
+      if (raf) cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        try {
+          vid.currentTime = time;
+        } catch {
+          // Ignore seek errors while the browser is still loading metadata.
+        }
+      });
+    };
     const onMove = (e: globalThis.PointerEvent) => {
       if (!selectedTrimDragMode || !selectedTrimTrackRef.current) return;
       const nextTime = timeFromTrimTrackClientX(e.clientX);
@@ -2046,15 +2059,13 @@ export default function Home() {
         const trimStartSeconds = Math.max(0, Math.min(nextTime, Math.min(maxStart, selectedTrimEnd - 0.2)));
         const trimEndSeconds = Math.min(duration, Math.max(selectedTrimEnd, trimStartSeconds + 0.2));
         setMediaDraftItems((prev) => prev.map((m) => m.id === selectedMediaItem.id ? { ...m, trimStartSeconds, trimEndSeconds, trimConfigured: true } : m));
-        vid.currentTime = trimStartSeconds;
-        setSelectedTrimPreviewTime(trimStartSeconds);
+        schedulePreviewUpdate(trimStartSeconds);
       } else if (selectedTrimDragMode === "end") {
         const duration = selectedMediaItem.durationSeconds || selectedMediaVideoDuration || VIDEO_MAX_DURATION_SECONDS;
         const trimEndSeconds = Math.max(selectedTrimStart + 0.2, Math.min(nextTime, duration));
         const trimStartSeconds = Math.min(selectedTrimStart, Math.max(0, trimEndSeconds - VIDEO_MAX_DURATION_SECONDS));
         setMediaDraftItems((prev) => prev.map((m) => m.id === selectedMediaItem.id ? { ...m, trimStartSeconds, trimEndSeconds, trimConfigured: true } : m));
-        vid.currentTime = trimEndSeconds;
-        setSelectedTrimPreviewTime(trimEndSeconds);
+        schedulePreviewUpdate(trimEndSeconds);
       } else {
         seekSelectedTrimPreview(nextTime);
       }
@@ -2066,6 +2077,7 @@ export default function Home() {
     window.addEventListener("pointerup", onUp);
     window.addEventListener("pointercancel", onUp);
     return () => {
+      if (raf) cancelAnimationFrame(raf);
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
       window.removeEventListener("pointercancel", onUp);
@@ -4841,12 +4853,14 @@ export default function Home() {
                                   preload="auto"
                                   className="absolute inset-0 h-full w-full object-cover opacity-75"
                                   aria-hidden="true"
-                                  onLoadedMetadata={(e) => {
-                                    const video = e.currentTarget;
-                                    const target = Math.min(selectedTrimStart || 0.2, Math.max(0, (video.duration || VIDEO_MAX_DURATION_SECONDS) - 0.05));
-                                    video.currentTime = Number.isFinite(target) ? target : 0;
-                                  }}
-                                />
+                                onLoadedMetadata={(e) => {
+                                  const video = e.currentTarget;
+                                  const target = Number.isFinite(selectedTrimPreviewTime) && selectedTrimPreviewTime > 0
+                                    ? selectedTrimPreviewTime
+                                    : Math.min(selectedTrimStart || 0.2, Math.max(0, (video.duration || VIDEO_MAX_DURATION_SECONDS) - 0.05));
+                                  video.currentTime = Number.isFinite(target) ? target : 0;
+                                }}
+                              />
                               )}
                             </div>
                             <div className="absolute inset-0 bg-black/25" />
