@@ -1857,7 +1857,7 @@ export default function Home() {
   const selectedTrimLengthLabel = `${selectedTrimLength.toFixed(1)}s total`;
   const selectedTrimLengthIsOverLimit = selectedTrimLength > VIDEO_MAX_DURATION_SECONDS + 0.2;
   const selectedVideoNeedsTrim = selectedMediaItem?.type === "video" && selectedMediaVideoDuration > VIDEO_MAX_DURATION_SECONDS + 0.2;
-  const selectedTrimHandleOffsetPx = 6;
+  const selectedTrimHandleOffsetPx = 12;
   const selectedThumbnailPreviewStyle = {
     aspectRatio: selectedThumbnailAspectRatio || 9 / 16,
   };
@@ -4810,7 +4810,7 @@ export default function Home() {
                           </div>
                           <div
                             ref={selectedTrimTrackRef}
-                            className="relative h-[74px] touch-none overflow-hidden rounded-[18px] border border-gray-300 bg-black"
+                            className="relative h-[90px] touch-none overflow-hidden rounded-[18px] border border-gray-300 bg-black"
                             onPointerDown={(e) => {
                               const nextTime = timeFromTrimTrackClientX(e.clientX);
                               const handleHitPadding = 0.04 * (selectedMediaVideoDuration || VIDEO_MAX_DURATION_SECONDS);
@@ -4859,7 +4859,7 @@ export default function Home() {
                               style={{ width: `${(Math.max(0, selectedMediaVideoDuration - selectedTrimEnd) / Math.max(selectedMediaVideoDuration || 1, 1)) * 100}%` }}
                             />
                             <div
-                              className="absolute inset-y-[5px] rounded-[12px] border-[3px] border-yellow-400 bg-yellow-400/10 shadow-[0_0_0_1px_rgba(0,0,0,0.20)]"
+                              className="absolute inset-y-[8px] rounded-[14px] border-[3px] border-yellow-400 bg-yellow-400/10 shadow-[0_0_0_1px_rgba(0,0,0,0.20)]"
                               style={{
                                 left: `calc(${(selectedTrimStart / Math.max(selectedMediaVideoDuration || 1, 1)) * 100}% + ${selectedTrimHandleOffsetPx}px)`,
                                 width: `calc(${(Math.max(selectedTrimLength, 0.2) / Math.max(selectedMediaVideoDuration || 1, 1)) * 100}% - ${selectedTrimHandleOffsetPx * 2}px)`,
@@ -4869,7 +4869,7 @@ export default function Home() {
                               role="button"
                               aria-label="Trim start"
                               tabIndex={0}
-                              className="absolute inset-y-[3px] z-10 flex w-10 -translate-x-1/2 cursor-ew-resize items-center justify-center rounded-l-[14px] rounded-r-md bg-yellow-400 shadow-[0_0_0_1px_rgba(0,0,0,0.16),0_8px_18px_rgba(0,0,0,0.22)]"
+                              className="absolute inset-y-[1px] z-10 flex w-12 -translate-x-1/2 cursor-ew-resize items-center justify-center rounded-l-[16px] rounded-r-md bg-yellow-400 shadow-[0_0_0_1px_rgba(0,0,0,0.16),0_8px_18px_rgba(0,0,0,0.22)]"
                               style={{ left: `calc(${(selectedTrimStart / Math.max(selectedMediaVideoDuration || 1, 1)) * 100}% + ${selectedTrimHandleOffsetPx}px)` }}
                               onPointerDown={(e) => {
                                 e.preventDefault();
@@ -4884,7 +4884,7 @@ export default function Home() {
                               role="button"
                               aria-label="Trim end"
                               tabIndex={0}
-                              className="absolute inset-y-[3px] z-10 flex w-10 -translate-x-1/2 cursor-ew-resize items-center justify-center rounded-l-md rounded-r-[14px] bg-yellow-400 shadow-[0_0_0_1px_rgba(0,0,0,0.16),0_8px_18px_rgba(0,0,0,0.22)]"
+                              className="absolute inset-y-[1px] z-10 flex w-12 -translate-x-1/2 cursor-ew-resize items-center justify-center rounded-l-md rounded-r-[16px] bg-yellow-400 shadow-[0_0_0_1px_rgba(0,0,0,0.16),0_8px_18px_rgba(0,0,0,0.22)]"
                               style={{ left: `calc(${(selectedTrimEnd / Math.max(selectedMediaVideoDuration || 1, 1)) * 100}% - ${selectedTrimHandleOffsetPx}px)` }}
                               onPointerDown={(e) => {
                                 e.preventDefault();
