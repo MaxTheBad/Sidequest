@@ -4905,11 +4905,11 @@ export default function Home() {
                             <span className="text-[10px] text-gray-500 leading-4">{videoThumbStatus || (selectedMediaItem.thumbnailUrl ? "Thumbnail selected" : "Pick a frame, then save it.")}</span>
                           </div>
                           <div className="grid gap-2">
-                            <div className="overflow-hidden rounded-xl border-2 border-[#0c5063]/25 bg-black shadow-inner">
+                            <div className="mx-auto w-1/2 overflow-hidden rounded-xl border-2 border-[#0c5063]/25 bg-black shadow-inner">
                               <video
                                 ref={selectedThumbnailVideoRef}
                                 src={mediaPreviewUrls.get(selectedMediaItem.id) || ""}
-                                className="h-40 w-full object-cover sm:h-48"
+                                className="h-40 w-full object-contain sm:h-48"
                                 muted
                                 playsInline
                                 preload="metadata"
