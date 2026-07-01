@@ -2072,16 +2072,13 @@ export default function Home() {
       const nextTime = timeFromTrimTrackClientX(e.clientX);
       if (selectedTrimDragMode === "start") {
         const duration = selectedMediaItem.durationSeconds || selectedMediaVideoDuration || VIDEO_MAX_DURATION_SECONDS;
-        const maxStart = Math.max(0, duration - VIDEO_MAX_DURATION_SECONDS);
-        const trimStartSeconds = Math.max(0, Math.min(nextTime, Math.min(maxStart, selectedTrimEnd - 0.2)));
-        const trimEndSeconds = Math.min(duration, Math.max(selectedTrimEnd, trimStartSeconds + 0.2));
-        setMediaDraftItems((prev) => prev.map((m) => m.id === selectedMediaItem.id ? { ...m, trimStartSeconds, trimEndSeconds, trimConfigured: true } : m));
+        const trimStartSeconds = Math.max(0, Math.min(nextTime, selectedTrimEnd - 0.2));
+        setMediaDraftItems((prev) => prev.map((m) => m.id === selectedMediaItem.id ? { ...m, trimStartSeconds, trimConfigured: true } : m));
         schedulePreviewUpdate(trimStartSeconds);
       } else if (selectedTrimDragMode === "end") {
         const duration = selectedMediaItem.durationSeconds || selectedMediaVideoDuration || VIDEO_MAX_DURATION_SECONDS;
         const trimEndSeconds = Math.max(selectedTrimStart + 0.2, Math.min(nextTime, duration));
-        const trimStartSeconds = Math.min(selectedTrimStart, Math.max(0, trimEndSeconds - VIDEO_MAX_DURATION_SECONDS));
-        setMediaDraftItems((prev) => prev.map((m) => m.id === selectedMediaItem.id ? { ...m, trimStartSeconds, trimEndSeconds, trimConfigured: true } : m));
+        setMediaDraftItems((prev) => prev.map((m) => m.id === selectedMediaItem.id ? { ...m, trimEndSeconds, trimConfigured: true } : m));
         schedulePreviewUpdate(trimEndSeconds);
       } else {
         seekSelectedTrimPreview(nextTime);
@@ -4859,12 +4856,14 @@ export default function Home() {
                               const handleHitPadding = 0.04 * (selectedMediaVideoDuration || VIDEO_MAX_DURATION_SECONDS);
                               if (Math.abs(nextTime - selectedTrimStart) <= handleHitPadding) {
                                 setSelectedTrimDragMode("start");
+                                seekSelectedTrimVideoTime(selectedTrimStart);
                               } else if (Math.abs(nextTime - selectedTrimEnd) <= handleHitPadding) {
                                 setSelectedTrimDragMode("end");
+                                seekSelectedTrimVideoTime(selectedTrimEnd);
                               } else {
                                 setSelectedTrimDragMode("scrub");
+                                seekSelectedTrimPreview(nextTime);
                               }
-                              seekSelectedTrimPreview(nextTime);
                             }}
                           >
                             <div className="absolute inset-0 grid grid-cols-9">
@@ -4920,7 +4919,7 @@ export default function Home() {
                                 e.preventDefault();
                                 e.stopPropagation();
                                 setSelectedTrimDragMode("start");
-                                seekSelectedTrimPreview(selectedTrimStart);
+                                seekSelectedTrimVideoTime(selectedTrimStart);
                               }}
                             >
                               <span className="text-lg font-black leading-none text-black">‹</span>
@@ -4935,7 +4934,7 @@ export default function Home() {
                                 e.preventDefault();
                                 e.stopPropagation();
                                 setSelectedTrimDragMode("end");
-                                seekSelectedTrimPreview(selectedTrimEnd);
+                                seekSelectedTrimVideoTime(selectedTrimEnd);
                               }}
                             >
                               <span className="text-lg font-black leading-none text-black">›</span>
