@@ -1879,6 +1879,14 @@ export default function Home() {
     if (vid) vid.currentTime = clamped;
   }
 
+  function seekSelectedTrimVideoTime(nextTime: number) {
+    if (!selectedMediaItem || selectedMediaItem.type !== "video") return;
+    const duration = selectedMediaItem.durationSeconds || selectedMediaVideoDuration || VIDEO_MAX_DURATION_SECONDS;
+    const clamped = Math.max(0, Math.min(nextTime, duration));
+    const vid = selectedMediaVideoRef.current;
+    if (vid) vid.currentTime = clamped;
+  }
+
   function timeFromTrimTrackClientX(clientX: number) {
     const track = selectedTrimTrackRef.current;
     if (!track) return selectedTrimStart;
@@ -2040,11 +2048,10 @@ export default function Home() {
     const vid = selectedMediaVideoRef.current;
     let raf = 0;
     const schedulePreviewUpdate = (time: number) => {
-      setSelectedTrimPreviewTime(time);
       if (raf) cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => {
         try {
-          vid.currentTime = time;
+          seekSelectedTrimVideoTime(time);
         } catch {
           // Ignore seek errors while the browser is still loading metadata.
         }
@@ -4781,7 +4788,9 @@ export default function Home() {
                                 vid.currentTime = selectedTrimStart;
                               }
                             }
-                            setSelectedTrimPreviewTime(vid.currentTime);
+                            if (!selectedTrimDragMode || selectedTrimDragMode === "scrub") {
+                              setSelectedTrimPreviewTime(vid.currentTime);
+                            }
                           }}
                           onLoadedMetadata={() => {
                             const vid = selectedMediaVideoRef.current;
