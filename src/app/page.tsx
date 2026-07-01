@@ -470,6 +470,7 @@ export default function Home() {
   const [selectedMediaId, setSelectedMediaId] = useState<string | null>(null);
   const [videoThumbStatus, setVideoThumbStatus] = useState("");
   const [selectedMediaVideoDuration, setSelectedMediaVideoDuration] = useState(0);
+  const [selectedMediaAspectRatio, setSelectedMediaAspectRatio] = useState<number | null>(null);
   const [selectedTrimPreviewTime, setSelectedTrimPreviewTime] = useState(0);
   const [selectedTrimDragMode, setSelectedTrimDragMode] = useState<"start" | "end" | "scrub" | null>(null);
   const [selectedTrimFrameUrls, setSelectedTrimFrameUrls] = useState<string[]>([]);
@@ -1860,6 +1861,9 @@ export default function Home() {
   const selectedThumbnailPreviewStyle = {
     aspectRatio: selectedThumbnailAspectRatio || 9 / 16,
   };
+  const selectedMediaPreviewStyle = {
+    aspectRatio: selectedMediaAspectRatio || (selectedMediaItem?.type === "video" ? 16 / 9 : 4 / 3),
+  };
 
   function formatDuration(seconds: number) {
     if (!Number.isFinite(seconds)) return "0.0s";
@@ -1902,10 +1906,12 @@ export default function Home() {
 
   useEffect(() => {
     setVideoThumbStatus("");
+    setSelectedMediaAspectRatio(null);
     selectedTrimFrameUrls.forEach((url) => URL.revokeObjectURL(url));
     setSelectedTrimFrameUrls([]);
     if (!selectedMediaItem || selectedMediaItem.type !== "video") {
       setSelectedMediaVideoDuration(0);
+      setSelectedMediaAspectRatio(null);
       setSelectedTrimPreviewTime(0);
       setSelectedTrimDragMode(null);
       setSelectedThumbnailPreviewTime(0);
@@ -4721,14 +4727,22 @@ export default function Home() {
                       </div>
                       <div className="text-[11px] text-gray-500">Edit caption and frame below</div>
                     </div>
-                    <div className="overflow-hidden rounded-xl border bg-black/5">
+                    <div className="overflow-hidden rounded-xl border bg-black/5" style={selectedMediaPreviewStyle}>
                       {selectedMediaItem.type === "image" ? (
-                        <img src={mediaPreviewUrls.get(selectedMediaItem.id) || ""} alt={selectedMediaItem.label || "Media preview"} className="h-56 w-full object-cover sm:h-64" />
+                        <img
+                          src={mediaPreviewUrls.get(selectedMediaItem.id) || ""}
+                          alt={selectedMediaItem.label || "Media preview"}
+                          className="h-full w-full object-cover"
+                          onLoad={(e) => {
+                            const img = e.currentTarget;
+                            if (img.naturalWidth && img.naturalHeight) setSelectedMediaAspectRatio(img.naturalWidth / img.naturalHeight);
+                          }}
+                        />
                       ) : (
                         <video
                           ref={selectedMediaVideoRef}
                           src={mediaPreviewUrls.get(selectedMediaItem.id) || ""}
-                          className="h-56 w-full bg-black object-cover sm:h-64"
+                          className="h-full w-full bg-black object-cover"
                           controls
                           playsInline
                           preload="metadata"
@@ -4750,6 +4764,7 @@ export default function Home() {
                             const vid = selectedMediaVideoRef.current;
                             if (vid && Number.isFinite(vid.duration) && vid.duration > 0) {
                               setSelectedMediaVideoDuration(vid.duration);
+                              if (vid.videoWidth && vid.videoHeight) setSelectedMediaAspectRatio(vid.videoWidth / vid.videoHeight);
                               vid.currentTime = Math.min(vid.currentTime || 0, vid.duration);
                               if (selectedMediaItem.source === "new" && selectedMediaItem.durationSeconds === undefined) {
                                 setMediaDraftItems((prev) => prev.map((m) => m.id === selectedMediaItem.id ? {
