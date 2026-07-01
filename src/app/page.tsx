@@ -486,6 +486,7 @@ export default function Home() {
   const liveVideoInputRef = useRef<HTMLInputElement | null>(null);
   const uploadVideoInputRef = useRef<HTMLInputElement | null>(null);
   const [savingQuest, setSavingQuest] = useState(false);
+  const [questSaveProgress, setQuestSaveProgress] = useState<{ percent: number; label: string }>({ percent: 0, label: "" });
   const [lastQuestCreateMs, setLastQuestCreateMs] = useState(0);
   const [editingQuestId, setEditingQuestId] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, boolean>>({});
@@ -1575,16 +1576,27 @@ export default function Home() {
     }
   }
 
-  async function uploadQuestMediaFiles(items: Array<{ file: File; label: string; thumbnailUrl?: string | null; trimStartSeconds?: number; trimEndSeconds?: number }>) {
+  async function uploadQuestMediaFiles(
+    items: Array<{ file: File; label: string; thumbnailUrl?: string | null; trimStartSeconds?: number; trimEndSeconds?: number }>,
+    onProgress?: (completedSteps: number, totalSteps: number, label: string) => void,
+  ) {
     if (!supabase || !userId) throw new Error("Not signed in.");
     const uploaded: QuestMediaItem[] = [];
+    const totalSteps = Math.max(1, items.length * 3);
+    let completedSteps = 0;
+    const report = (label: string) => {
+      completedSteps = Math.min(totalSteps, completedSteps + 1);
+      onProgress?.(completedSteps, totalSteps, label);
+    };
 
-    for (const item of items) {
+    for (let idx = 0; idx < items.length; idx += 1) {
+      const item = items[idx];
       const originalFile = item.file;
       const isVideo = originalFile.type.startsWith("video/");
       const looksImage = isImageLikeFile(originalFile);
       if (!looksImage && !isVideo) throw new Error("Media must be an image or video file.");
 
+      onProgress?.(completedSteps, totalSteps, isVideo ? `Preparing video ${idx + 1} of ${items.length}` : `Preparing photo ${idx + 1} of ${items.length}`);
       const file = looksImage
         ? await prepareImageForUpload(originalFile, { maxWidth: 1600, maxHeight: 1600, quality: 0.82 })
         : (isVideo
@@ -1597,6 +1609,7 @@ export default function Home() {
             videoBitsPerSecond: 1_400_000,
           })
           : originalFile);
+      report(isVideo ? `Video ${idx + 1} ready` : `Photo ${idx + 1} ready`);
 
       const isImage = file.type.startsWith("image/");
       const isCompressedVideo = file.type.startsWith("video/");
@@ -1618,13 +1631,16 @@ export default function Home() {
           thumbnailUrl = null;
         }
       }
+      report(isCompressedVideo ? `Video ${idx + 1} thumbnail ready` : `Photo ${idx + 1} checked`);
 
+      onProgress?.(completedSteps, totalSteps, `Uploading ${isImage ? "photo" : "video"} ${idx + 1} of ${items.length}`);
       const ext = (file.name.split(".").pop() || (isImage ? "jpg" : "mp4")).toLowerCase();
       const filePath = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
       const { error } = await supabase.storage
         .from("quest-media")
         .upload(filePath, file, { upsert: false, contentType: file.type || (isImage ? "image/jpeg" : "video/mp4") });
       if (error) throw new Error(error.message);
+      report(`${isImage ? "Photo" : "Video"} ${idx + 1} uploaded`);
 
       const { data } = supabase.storage.from("quest-media").getPublicUrl(filePath);
       uploaded.push({
@@ -2674,9 +2690,11 @@ export default function Home() {
     });
     if (!questVerify.ok) {
       setSavingQuest(false);
+      setQuestSaveProgress({ percent: 0, label: "" });
       return setStatus("Verification failed. Please try again.");
     }
     setSavingQuest(true);
+    setQuestSaveProgress({ percent: 8, label: editingQuestId ? "Starting update" : "Starting post" });
     setStatus(editingQuestId ? "Updating listing…" : "Posting listing…");
     try {
       const untrimmedLongVideo = mediaDraftItems.find((m) => m.type === "video" && (m.durationSeconds ?? 0) > VIDEO_MAX_DURATION_SECONDS + 0.2 && !m.trimConfigured);
@@ -2684,15 +2702,23 @@ export default function Home() {
         throw new Error(`Trim the video to ${VIDEO_MAX_DURATION_SECONDS}s or less before posting.`);
       }
       const newDraftItems = mediaDraftItems.filter((m) => m.source === "new" && m.file);
+      setQuestSaveProgress({ percent: newDraftItems.length ? 12 : 55, label: newDraftItems.length ? "Preparing media" : "Saving quest" });
       const uploadedMedia = newDraftItems.length
-        ? await uploadQuestMediaFiles(newDraftItems.map((m) => ({
-          file: m.file as File,
-          label: m.label,
-          thumbnailUrl: m.thumbnailUrl || null,
-          trimStartSeconds: m.trimStartSeconds,
-          trimEndSeconds: m.trimEndSeconds,
-        })))
+        ? await uploadQuestMediaFiles(
+          newDraftItems.map((m) => ({
+            file: m.file as File,
+            label: m.label,
+            thumbnailUrl: m.thumbnailUrl || null,
+            trimStartSeconds: m.trimStartSeconds,
+            trimEndSeconds: m.trimEndSeconds,
+          })),
+          (completed, total, label) => {
+            const mediaPercent = total > 0 ? completed / total : 1;
+            setQuestSaveProgress({ percent: Math.min(82, Math.round(12 + mediaPercent * 70)), label });
+          },
+        )
         : [];
+      setQuestSaveProgress({ percent: 86, label: editingQuestId ? "Updating quest" : "Saving quest" });
 
       let uploadIdx = 0;
       const nextMediaItems: QuestMediaItem[] = mediaDraftItems
@@ -2729,6 +2755,7 @@ export default function Home() {
           .eq("id", editingQuestId)
           .eq("creator_id", activeUserId);
         if (error) throw new Error(error.message);
+        setQuestSaveProgress({ percent: 94, label: "Cleaning up media" });
 
         try {
           await cleanupQuestStorage(
@@ -2767,19 +2794,23 @@ export default function Home() {
         const { data, error } = await supabase.from("quests").insert(insertPayload).select("id").single();
         if (error) throw new Error(error.message);
         if (data?.id) await supabase.from("quest_members").insert({ quest_id: data.id, user_id: activeUserId, role: "creator" });
+        setQuestSaveProgress({ percent: 94, label: "Finishing post" });
         setStatus(`Quest posted ✅${creatorLocationWarning}`);
         setLastQuestCreateMs(Date.now());
       }
 
+      setQuestSaveProgress({ percent: 98, label: "Refreshing feed" });
       resetQuestForm();
       setShowCreateModal(false);
       setQuestTurnstileToken("");
       await loadQuests();
+      setQuestSaveProgress({ percent: 100, label: "Posted" });
     } catch (err) {
       setStatus(err instanceof Error ? err.message : "Could not save listing.");
     } finally {
       publicVisibilityBypassRef.current = false;
       setSavingQuest(false);
+      setQuestSaveProgress({ percent: 0, label: "" });
     }
   }
 
@@ -5106,7 +5137,20 @@ export default function Home() {
 
               <TurnstileInvisible onToken={setQuestTurnstileToken} />
 
-              {savingQuest && <div className="text-sm rounded border bg-blue-50 px-3 py-2">Working on it… uploading media and saving listing.</div>}
+              {savingQuest && (
+                <div className="grid gap-2 rounded border bg-blue-50 px-3 py-2 text-sm text-slate-800">
+                  <div className="flex items-center justify-between gap-3">
+                    <span>{questSaveProgress.label || "Uploading media and saving listing"}</span>
+                    <span className="shrink-0 font-semibold tabular-nums">{Math.max(1, Math.min(99, questSaveProgress.percent || 1))}%</span>
+                  </div>
+                  <div className="h-2 overflow-hidden rounded-full bg-blue-100">
+                    <div
+                      className="h-full rounded-full bg-[#0c5063] transition-[width] duration-300"
+                      style={{ width: `${Math.max(1, Math.min(99, questSaveProgress.percent || 1))}%` }}
+                    />
+                  </div>
+                </div>
+              )}
             </form>
           </div>
           <div className="fixed bottom-0 left-0 right-0 z-[60] px-4 pb-[max(12px,env(safe-area-inset-bottom))] pt-3 md:pb-4">
