@@ -1892,6 +1892,18 @@ export default function Home() {
     aspectRatio: selectedMediaAspectRatio || (selectedMediaItem?.type === "video" ? 16 / 9 : 4 / 3),
   };
 
+  function removeDraftMediaItem(mediaId: string) {
+    setMediaDraftItems((prev) => {
+      const removeIndex = prev.findIndex((item) => item.id === mediaId);
+      const next = prev.filter((item) => item.id !== mediaId);
+      setSelectedMediaId((current) => {
+        if (current !== mediaId) return current;
+        return next[Math.min(removeIndex, Math.max(0, next.length - 1))]?.id || null;
+      });
+      return next;
+    });
+  }
+
   function formatDuration(seconds: number) {
     if (!Number.isFinite(seconds)) return "0.0s";
     return `${Math.max(0, seconds).toFixed(1)}s`;
@@ -4804,12 +4816,22 @@ export default function Home() {
                 </p>
                 {selectedMediaItem ? (
                   <div className="grid gap-2 rounded-2xl border bg-white p-3 shadow-sm">
-                    <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-start justify-between gap-2">
                       <div>
                         <div className="text-[11px] font-medium uppercase tracking-wide text-gray-500">Selected media</div>
                         <div className="text-sm font-semibold text-gray-900">{selectedMediaItem.type === "image" ? "Photo" : "Video"} preview</div>
                       </div>
-                      <div className="text-[11px] text-gray-500">Edit caption and frame below</div>
+                      <div className="flex shrink-0 items-center gap-2">
+                        <span className="hidden text-[11px] text-gray-500 sm:inline">Edit caption and frame below</span>
+                        <button
+                          type="button"
+                          className="rounded-full border border-red-200 bg-red-50 px-3 py-1 text-[11px] font-semibold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                          disabled={savingQuest}
+                          onClick={() => removeDraftMediaItem(selectedMediaItem.id)}
+                        >
+                          Remove
+                        </button>
+                      </div>
                     </div>
                     <div className="relative overflow-hidden rounded-xl border bg-black/5" style={selectedMediaPreviewStyle}>
                       {selectedMediaItem.type === "image" ? (
