@@ -754,13 +754,20 @@ export default function ListingPage() {
     const ok = window.confirm("Delete this listing? This cannot be undone.");
     if (!ok) return;
 
-    const { error, count } = await supabase
-      .from("quests")
-      .delete({ count: "exact" })
-      .eq("id", listing.id)
-      .eq("creator_id", userId);
-    if (error) return setStatus(error.message);
-    if (!count) return setStatus("Listing was not deleted. The database delete policy may need to be applied.");
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData.session?.access_token;
+    if (!token) return setStatus("Log in to delete this listing.");
+
+    const res = await fetch("/api/quests/delete", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ quest_id: listing.id }),
+    });
+    const result = (await res.json().catch(() => null)) as { ok?: boolean; error?: string; storageCleanupError?: string } | null;
+    if (!res.ok || !result?.ok) return setStatus(result?.error || "Listing was not deleted. Please try again.");
     router.push("/");
   }
 
