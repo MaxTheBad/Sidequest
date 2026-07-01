@@ -38,6 +38,18 @@ function evenDimension(value: number) {
   return rounded % 2 === 0 ? rounded : rounded - 1;
 }
 
+function withTimeout<T>(promise: Promise<T>, ms: number, message: string) {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => {
+      timer = setTimeout(() => reject(new Error(message)), ms);
+    }),
+  ]).finally(() => {
+    if (timer) clearTimeout(timer);
+  }) as Promise<T>;
+}
+
 export async function compressVideoForUpload(file: File, opts: VideoOptimizeOptions = {}) {
   const maxWidth = opts.maxWidth ?? 960;
   const maxHeight = opts.maxHeight ?? 960;
@@ -52,10 +64,10 @@ export async function compressVideoForUpload(file: File, opts: VideoOptimizeOpti
     video.muted = true;
     video.playsInline = true;
 
-    await new Promise<void>((resolve, reject) => {
+    await withTimeout(new Promise<void>((resolve, reject) => {
       video.onloadedmetadata = () => resolve();
       video.onerror = () => reject(new Error("Could not read video metadata."));
-    });
+    }), 10000, "Timed out reading video metadata.");
 
     const sourceDuration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 0;
     const trimStart = Math.max(0, Math.min(opts.trimStartSeconds ?? 0, Math.max(0, sourceDuration - 0.1)));
@@ -90,7 +102,7 @@ export async function compressVideoForUpload(file: File, opts: VideoOptimizeOpti
       if (e.data && e.data.size > 0) chunks.push(e.data);
     };
 
-    await new Promise<void>((resolve, reject) => {
+    await withTimeout(new Promise<void>((resolve, reject) => {
       if (Math.abs(video.currentTime - trimStart) < 0.05) {
         resolve();
         return;
@@ -106,7 +118,7 @@ export async function compressVideoForUpload(file: File, opts: VideoOptimizeOpti
         video.removeEventListener("seeked", onSeeked);
         reject(err);
       }
-    });
+    }), 10000, "Timed out preparing the trimmed video.");
 
     await new Promise<void>((resolve, reject) => {
       recorder.onerror = () => reject(new Error("Video compression failed."));

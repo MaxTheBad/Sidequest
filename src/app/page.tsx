@@ -1528,25 +1528,35 @@ export default function Home() {
       video.preload = "auto";
       video.crossOrigin = "anonymous";
 
-      await new Promise<void>((resolve, reject) => {
-        video.onloadedmetadata = () => resolve();
-        video.onerror = () => reject(new Error("Could not read video metadata."));
-      });
+      await Promise.race([
+        new Promise<void>((resolve, reject) => {
+          video.onloadedmetadata = () => resolve();
+          video.onerror = () => reject(new Error("Could not read video metadata."));
+        }),
+        new Promise<void>((_, reject) => {
+          window.setTimeout(() => reject(new Error("Timed out reading video metadata.")), 8000);
+        }),
+      ]);
 
       const targetTime = Number.isFinite(video.duration) && video.duration > 0 ? Math.min(0.2, Math.max(0, video.duration - 0.2)) : 0.2;
-      await new Promise<void>((resolve, reject) => {
-        const onSeeked = () => {
-          video.removeEventListener("seeked", onSeeked);
-          resolve();
-        };
-        video.addEventListener("seeked", onSeeked, { once: true });
+      await Promise.race([
+        new Promise<void>((resolve, reject) => {
+          const onSeeked = () => {
+            video.removeEventListener("seeked", onSeeked);
+            resolve();
+          };
+          video.addEventListener("seeked", onSeeked, { once: true });
         try {
           video.currentTime = targetTime;
-        } catch (err) {
-          video.removeEventListener("seeked", onSeeked);
-          reject(err);
-        }
-      });
+          } catch (err) {
+            video.removeEventListener("seeked", onSeeked);
+            reject(err);
+          }
+        }),
+        new Promise<void>((_, reject) => {
+          window.setTimeout(() => reject(new Error("Timed out generating thumbnail.")), 8000);
+        }),
+      ]);
 
       const canvas = document.createElement("canvas");
       canvas.width = video.videoWidth;
