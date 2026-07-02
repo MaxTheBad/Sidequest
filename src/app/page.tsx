@@ -377,6 +377,7 @@ export default function Home() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [pendingVerifyEmail, setPendingVerifyEmail] = useState("");
+  const [pendingVerifyCode, setPendingVerifyCode] = useState("");
   const [resendCooldown, setResendCooldown] = useState(0);
   const [showPhotoStepModal, setShowPhotoStepModal] = useState(false);
   const [photoStepFile, setPhotoStepFile] = useState<File | null>(null);
@@ -1037,6 +1038,33 @@ export default function Home() {
     if (error) return setStatus(error.message);
     setResendCooldown(60);
     setStatus("Verification email resent ✅");
+  }
+
+  async function verifySignupCode(e?: FormEvent) {
+    e?.preventDefault();
+    if (!supabase || !pendingVerifyEmail) return;
+    const code = pendingVerifyCode.trim();
+    if (!/^\d{6}$/.test(code)) {
+      setStatus("Enter the 6-digit code from your email.");
+      return;
+    }
+    const { data, error } = await supabase.auth.verifyOtp({
+      email: pendingVerifyEmail,
+      token: code,
+      type: "email",
+    });
+    if (error) {
+      setStatus(error.message);
+      return;
+    }
+    setPendingVerifyEmail("");
+    setPendingVerifyCode("");
+    setResendCooldown(0);
+    setShowAuthModal(false);
+    setUserId(data.user?.id ?? null);
+    setUserEmail(data.user?.email ?? pendingVerifyEmail);
+    setStatus("Signed in ✅");
+    await maybeShowPhotoOnboarding(data.user?.id ?? null);
   }
 
   async function ensureProfileRow(uid: string, emailValue?: string | null, metadata?: Record<string, unknown> | null) {
@@ -4551,6 +4579,32 @@ export default function Home() {
             </div>
 
             {status && <div className="text-sm rounded-xl border border-amber-300 bg-amber-100/90 text-amber-950 px-3 py-2">{status}</div>}
+
+            {!!pendingVerifyEmail && (
+              <form onSubmit={verifySignupCode} className="grid gap-2 rounded-xl border border-emerald-300 bg-emerald-50 p-3">
+                <div className="text-sm text-emerald-950">
+                  Sent to <b>{pendingVerifyEmail}</b>. Enter the 6-digit code from the email, or use the link in the message.
+                </div>
+                <input
+                  className="border rounded-xl px-3 py-3 tracking-[0.3em] text-center text-lg bg-white"
+                  placeholder="123456"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={6}
+                  value={pendingVerifyCode}
+                  onChange={(e) => setPendingVerifyCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                />
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <button type="submit" className="rounded-xl bg-[color:var(--accent-secondary)] py-3 font-semibold text-white shadow-md shadow-black/10">
+                    Verify code
+                  </button>
+                  <button type="button" className="rounded-xl border border-[var(--border)] py-3 font-semibold" disabled={resendCooldown > 0} onClick={() => void resendVerification()}>
+                    {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : "Resend email"}
+                  </button>
+                </div>
+              </form>
+            )}
 
             <form onSubmit={authMode === "signup" ? signUpWithPassword : signInWithPassword} className="grid gap-2 sm:gap-3" autoComplete="on">
               <label className="text-xs font-medium text-gray-600">Email</label>
