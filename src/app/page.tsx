@@ -1018,8 +1018,8 @@ export default function Home() {
 
     setPendingVerifyEmail(email);
     setResendCooldown(60);
-    setShowAuthModal(false);
     setAuthTurnstileToken("");
+    setPendingVerifyCode("");
     setStatus("✅ Verification email sent. Please confirm your email.");
   }
 
@@ -4589,8 +4589,12 @@ export default function Home() {
                   className="border rounded-xl px-3 py-3 tracking-[0.3em] text-center text-lg bg-white text-slate-900 caret-slate-900"
                   placeholder="123456"
                   type="text"
+                  name="signup-confirmation-code"
                   inputMode="numeric"
                   autoComplete="one-time-code"
+                  autoCapitalize="off"
+                  autoCorrect="off"
+                  spellCheck={false}
                   maxLength={6}
                   value={pendingVerifyCode}
                   onChange={(e) => setPendingVerifyCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
