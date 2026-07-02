@@ -4583,11 +4583,11 @@ export default function Home() {
             {!!pendingVerifyEmail && (
               <form onSubmit={verifySignupCode} className="grid gap-2 rounded-xl border border-emerald-300 bg-emerald-50 p-3">
                 <div className="text-sm text-emerald-950">
-                  Sent to <b>{pendingVerifyEmail}</b>. Enter the 6-digit code from the email, or use the link in the message.
+                  Sent to <b>{pendingVerifyEmail}</b>. Enter the 8-digit code from the email, or use the link in the message.
                 </div>
                 <input
                   className="border rounded-xl px-3 py-3 tracking-[0.3em] text-center text-lg bg-white text-slate-900 caret-slate-900"
-                  placeholder="123456"
+                  placeholder="12345678"
                   type="text"
                   name="signup-confirmation-code"
                   inputMode="numeric"
@@ -4595,9 +4595,9 @@ export default function Home() {
                   autoCapitalize="off"
                   autoCorrect="off"
                   spellCheck={false}
-                  maxLength={6}
+                  maxLength={8}
                   value={pendingVerifyCode}
-                  onChange={(e) => setPendingVerifyCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  onChange={(e) => setPendingVerifyCode(e.target.value.replace(/\D/g, "").slice(0, 8))}
                 />
                 <div className="grid gap-2 sm:grid-cols-2">
                   <button type="submit" className="rounded-xl bg-[color:var(--accent-secondary)] py-3 font-semibold text-white shadow-md shadow-black/10">

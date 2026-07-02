@@ -419,7 +419,7 @@ export default function App() {
     }
     setAuthStep("code");
     setOtpCode("");
-    setStatus("Check your email for the 6-digit code.");
+    setStatus("Check your email for the 8-digit code.");
   }
 
   async function verifyEmailCode() {
@@ -430,8 +430,8 @@ export default function App() {
       setStatus("Enter your email first.");
       return;
     }
-    if (!/^\d{6}$/.test(code)) {
-      setStatus("Enter the 6-digit code.");
+    if (!/^\d{8}$/.test(code)) {
+      setStatus("Enter the 8-digit code.");
       return;
     }
     const { error } = await supabase.auth.verifyOtp({
@@ -759,9 +759,9 @@ export default function App() {
               autoComplete="one-time-code"
               autoCorrect={false}
               keyboardType="number-pad"
-              maxLength={6}
+              maxLength={8}
               onChangeText={setOtpCode}
-              placeholder="6-digit code"
+              placeholder="8-digit code"
               placeholderTextColor="#8b7d70"
               style={styles.input}
               value={otpCode}
