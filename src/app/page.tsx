@@ -404,6 +404,7 @@ export default function Home() {
   const [onboardingPhotoDragging, setOnboardingPhotoDragging] = useState(false);
   const [onboardingPhotoLastPointer, setOnboardingPhotoLastPointer] = useState<{ x: number; y: number } | null>(null);
   const [authReady, setAuthReady] = useState(false);
+  const signupCodeRef = useRef<HTMLFormElement | null>(null);
 
   const [hobbies, setHobbies] = useState<Hobby[]>([]);
   const [quests, setQuests] = useState<Quest[]>([]);
@@ -1066,6 +1067,13 @@ export default function Home() {
     setStatus("Signed in ✅");
     await maybeShowPhotoOnboarding(data.user?.id ?? null);
   }
+
+  useEffect(() => {
+    if (!pendingVerifyEmail) return;
+    window.requestAnimationFrame(() => {
+      signupCodeRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }, [pendingVerifyEmail]);
 
   async function ensureProfileRow(uid: string, emailValue?: string | null, metadata?: Record<string, unknown> | null) {
     if (!supabase || !uid) return;
@@ -4581,7 +4589,7 @@ export default function Home() {
             {status && <div className="text-sm rounded-xl border border-amber-300 bg-amber-100/90 text-amber-950 px-3 py-2">{status}</div>}
 
             {!!pendingVerifyEmail && (
-              <form onSubmit={verifySignupCode} className="grid gap-2 rounded-xl border border-emerald-300 bg-emerald-50 p-3">
+              <form ref={signupCodeRef} onSubmit={verifySignupCode} className="grid gap-2 rounded-xl border border-emerald-300 bg-emerald-50 p-3">
                 <div className="text-sm text-emerald-950">
                   Sent to <b>{pendingVerifyEmail}</b>. Enter the 8-digit code from the email, or use the link in the message.
                 </div>
@@ -4610,7 +4618,8 @@ export default function Home() {
               </form>
             )}
 
-            <form onSubmit={authMode === "signup" ? signUpWithPassword : signInWithPassword} className="grid gap-2 sm:gap-3" autoComplete="on">
+            {!pendingVerifyEmail ? (
+              <form onSubmit={authMode === "signup" ? signUpWithPassword : signInWithPassword} className="grid gap-2 sm:gap-3" autoComplete="on">
               <label className="text-xs font-medium text-gray-600">Email</label>
               <input className="border rounded-xl px-3 py-3 text-slate-900 caret-slate-900 bg-white" placeholder="you@email.com" type="email" name="email" autoComplete="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
               {authMode === "signup" && (
@@ -4657,7 +4666,8 @@ export default function Home() {
 
               <TurnstileInvisible onToken={setAuthTurnstileToken} />
               <button className="rounded-xl bg-[color:var(--accent-secondary)] py-3 font-semibold text-white shadow-md shadow-black/10">{authMode === "signup" ? "Create account" : "Log in"}</button>
-            </form>
+              </form>
+            ) : null}
 
             <div className="pt-1 sm:pt-2 space-y-3">
               <div className="grid gap-2 sm:gap-3 sm:grid-cols-3">
