@@ -1,0 +1,24 @@
+{
+  "expo": {
+    "name": "QuestHat",
+    "slug": "questhat",
+    "scheme": "questhat",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "bundleIdentifier": "com.questhat.app",
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSCameraUsageDescription": "QuestHat uses the camera so you can add profile and quest photos.",
+        "NSPhotoLibraryUsageDescription": "QuestHat uses your photo library so you can attach media to quests.",
+        "NSLocationWhenInUseUsageDescription": "QuestHat uses your location to show nearby quests and estimate distance."
+      }
+    },
+    "extra": {
+      "supabaseUrl": "https://ipjewvmmzmxakoewqlfo.supabase.co/",
+      "supabaseAnonKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlwamV3dm1tem14YWtvZXdxbGZvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI4Mjg1MTYsImV4cCI6MjA4ODQwNDUxNn0.VaP8G8enHWZTfK5RtwhkRFHaeBeukuE7aWR9yyy7Io0",
+      "siteUrl": "https://questhat.com"
+    }
+  }
+}
