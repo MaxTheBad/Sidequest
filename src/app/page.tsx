@@ -83,7 +83,6 @@ function getQuestCategoryDisplay(q?: { hobbies?: { name?: string | null; categor
 }
 
 type AuthMode = "login" | "signup";
-type AuthStep = "email" | "code";
 type ProfilePhotoStep = "idle" | "ready" | "uploading";
 type Bookmark = { quest_id: string };
 type Membership = { quest_id: string; status?: "pending" | "approved" | "declined" };
@@ -367,11 +366,8 @@ export default function Home() {
   const [reportTurnstileToken, setReportTurnstileToken] = useState("");
   const [questTurnstileToken, setQuestTurnstileToken] = useState("");
   const [authMode, setAuthMode] = useState<AuthMode>("login");
-  const [authStep, setAuthStep] = useState<AuthStep>("email");
-
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [otpCode, setOtpCode] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [dob, setDob] = useState("");
@@ -968,74 +964,14 @@ export default function Home() {
     e?.preventDefault();
     if (!supabase) return;
     if (!email.trim()) return setStatus("Enter your email first.");
-    if (authMode === "signup") {
-      if (!authTurnstileToken.trim()) return setStatus("Complete the verification check before signing up.");
-      if (!fullName.trim()) return setStatus("Please enter your name.");
-      if (!dob) return setStatus("Please enter your date of birth.");
-      const years = Math.floor((Date.now() - new Date(dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000));
-      if (Number.isNaN(years) || years < 13) return setStatus("You must be at least 13.");
-      if (!acceptTerms) return setStatus("You must accept Terms.");
-
-      const verify = await fetch("/api/turnstile/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token: authTurnstileToken, action: "signup" }),
-      });
-      if (!verify.ok) return setStatus("Verification failed. Please try again.");
-    }
-
-    const shouldCreateUser = authMode === "signup";
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: {
-        emailRedirectTo: redirectTo,
-        shouldCreateUser,
-        data: shouldCreateUser ? {
-          full_name: fullName,
-          dob,
-          country_code: countryCode,
-          accepted_terms: true,
-          marketing_opt_in: marketingOptIn,
-          show_location: !hideCityOnBio,
-          hide_city_on_bio: hideCityOnBio,
-        } : undefined,
-      },
+      options: { emailRedirectTo: redirectTo },
     });
     if (error) return setStatus(error.message);
-    setAuthStep("code");
-    setOtpCode("");
     setPendingVerifyEmail(email);
-    if (authMode === "signup") {
-      await recordSecurityAudit({
-        event_type: "signup_password_submitted",
-        user_id: null,
-        turnstile_success: true,
-        metadata: { provider: "email_otp", email_confirm_required: true },
-      });
-      setAuthTurnstileToken("");
-    }
     setResendCooldown(60);
-    setStatus("✅ Check your email for the 6-digit code.");
-  }
-
-  async function verifyEmailCode(e?: FormEvent) {
-    e?.preventDefault();
-    if (!supabase) return;
-    if (!email.trim()) return setStatus("Enter your email first.");
-    if (!/^\d{6}$/.test(otpCode.trim())) return setStatus("Enter the 6-digit code.");
-    const { data, error } = await supabase.auth.verifyOtp({
-      email,
-      token: otpCode.trim(),
-      type: "email",
-    });
-    if (error) return setStatus(error.message);
-    setUserId(data.user?.id ?? null);
-    setUserEmail(data.user?.email ?? email);
-    setShowAuthModal(false);
-    setAuthStep("email");
-    setOtpCode("");
-    setStatus("Signed in ✅");
-    await maybeShowPhotoOnboarding(data.user?.id ?? null);
+    setStatus("✅ Verification email sent.");
   }
 
   async function signUpWithPassword(e: FormEvent) {
@@ -1097,16 +1033,10 @@ export default function Home() {
 
   async function resendVerification() {
     if (!supabase || !pendingVerifyEmail || resendCooldown > 0) return;
-    const { error } = await supabase.auth.signInWithOtp({
-      email: pendingVerifyEmail,
-      options: {
-        emailRedirectTo: redirectTo,
-        shouldCreateUser: true,
-      },
-    });
+    const { error } = await supabase.auth.resend({ type: "signup", email: pendingVerifyEmail, options: { emailRedirectTo: redirectTo } });
     if (error) return setStatus(error.message);
     setResendCooldown(60);
-    setStatus("Verification code resent ✅");
+    setStatus("Verification email resent ✅");
   }
 
   async function ensureProfileRow(uid: string, emailValue?: string | null, metadata?: Record<string, unknown> | null) {
@@ -4622,56 +4552,21 @@ export default function Home() {
 
             {status && <div className="text-sm rounded-xl border border-amber-300 bg-amber-100/90 text-amber-950 px-3 py-2">{status}</div>}
 
-            <form onSubmit={(e) => { e.preventDefault(); }} className="grid gap-2 sm:gap-3" autoComplete="on">
+            <form onSubmit={authMode === "signup" ? signUpWithPassword : signInWithPassword} className="grid gap-2 sm:gap-3" autoComplete="on">
               <label className="text-xs font-medium text-gray-600">Email</label>
-              <input
-                className="border rounded-xl px-3 py-3"
-                placeholder="you@email.com"
-                type="email"
-                name="email"
-                autoComplete="email"
-                inputMode="email"
-                value={email}
-                onChange={(e) => {
-                  setEmail(e.target.value);
-                  setAuthStep("email");
-                }}
-                required
-              />
-              {authStep === "code" ? (
-                <>
-                  <label className="text-xs font-medium text-gray-600">6-digit code</label>
-                  <input
-                    className="border rounded-xl px-3 py-3 tracking-[0.3em] text-center text-lg"
-                    placeholder="123456"
-                    type="text"
-                    name="otp-code"
-                    autoComplete="one-time-code"
-                    inputMode="numeric"
-                    maxLength={6}
-                    value={otpCode}
-                    onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                    required
-                  />
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    <button type="button" className="rounded-xl bg-[color:var(--accent-secondary)] py-3 font-semibold text-white shadow-md shadow-black/10" onClick={(e) => void verifyEmailCode(e as unknown as FormEvent)}>
-                      Verify code
-                    </button>
-                    <button type="button" className="rounded-xl border border-[var(--border)] py-3 font-semibold" onClick={() => void sendEmailCode()}>
-                      Resend code
-                    </button>
-                    <button type="button" className="rounded-xl border border-[var(--border)] py-3 font-semibold" onClick={() => setAuthStep("email")}>
-                      Back
-                    </button>
-                  </div>
-                </>
-              ) : authMode === "signup" && (
+              <input className="border rounded-xl px-3 py-3" placeholder="you@email.com" type="email" name="email" autoComplete="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+              {authMode === "signup" && (
                 <>
                   <label className="text-xs font-medium text-gray-600">Full name</label>
                   <input className="border rounded-xl px-3 py-3" placeholder="Your name" name="name" autoComplete="name" value={fullName} onChange={(e) => setFullName(e.target.value)} required />
                   <label className="text-sm font-medium">Date of birth (DOB)</label>
                   <input className="border rounded-xl px-3 py-3" type="date" name="bday" autoComplete="bday" value={dob} onChange={(e) => setDob(e.target.value)} required />
                   <p className="text-xs text-gray-500">Use your birthday (MM/DD/YYYY).</p>
+                  <label className="text-xs font-medium text-gray-600">Password</label>
+                  <div className="flex gap-2">
+                    <input className="border rounded-xl px-3 py-3 flex-1" placeholder="Password" type={showPassword ? "text" : "password"} name="new-password" autoComplete="new-password" autoCapitalize="none" autoCorrect="off" spellCheck={false} value={password} onChange={(e) => setPassword(e.target.value)} required />
+                    <button type="button" className="rounded-xl border border-[var(--border)] px-3" onClick={() => setShowPassword((s) => !s)}>{showPassword ? "Hide" : "Show"}</button>
+                  </div>
                   <label className="text-xs font-medium text-gray-600">Confirm password</label>
                   <div className="flex gap-2">
                     <input className="border rounded-xl px-3 py-3 flex-1" placeholder="Confirm password" type={showConfirmPassword ? "text" : "password"} name="confirm-password" autoComplete="new-password" autoCapitalize="none" autoCorrect="off" spellCheck={false} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required />
@@ -4695,36 +4590,15 @@ export default function Home() {
                       <span>Send me updates/promos (optional).</span>
                     </label>
                   </div>
+                  <label className="flex gap-2 items-start leading-5 text-sm">
+                    <input className="mt-0.5" type="checkbox" checked={hideCityOnBio} onChange={(e) => setHideCityOnBio(e.target.checked)} />
+                    <span>Hide city on bio</span>
+                  </label>
                 </>
               )}
 
               <TurnstileInvisible onToken={setAuthTurnstileToken} />
-
-              {authStep === "email" ? (
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <button type="button" className="rounded-xl bg-[color:var(--accent-secondary)] py-3 font-semibold text-white shadow-md shadow-black/10" onClick={() => void sendEmailCode()}>
-                    {authMode === "signup" ? "Send sign-up code" : "Send login code"}
-                  </button>
-                  <button
-                    type="button"
-                    className="rounded-xl border border-[var(--border)] py-3 font-semibold"
-                    onClick={() => {
-                      if (authMode === "signup") {
-                        if (!authTurnstileToken.trim()) return setStatus("Complete the verification check before signing up.");
-                        if (!fullName.trim()) return setStatus("Please enter your name.");
-                        if (!dob) return setStatus("Please enter your date of birth.");
-                        if (!acceptTerms) return setStatus("You must accept Terms.");
-                        if (!Object.values(passwordChecks).every(Boolean)) return setStatus("Password requirements not met.");
-                        void signUpWithPassword({ preventDefault() {} } as FormEvent);
-                        return;
-                      }
-                      void signInWithPassword({ preventDefault() {} } as FormEvent);
-                    }}
-                  >
-                    {authMode === "signup" ? "Create with password" : "Log in with password"}
-                  </button>
-                </div>
-              ) : null}
+              <button className="rounded-xl bg-[color:var(--accent-secondary)] py-3 font-semibold text-white shadow-md shadow-black/10">{authMode === "signup" ? "Create account" : "Log in"}</button>
             </form>
 
             <div className="pt-1 sm:pt-2 space-y-3">
@@ -4747,7 +4621,7 @@ export default function Home() {
               {authMode === "login" && <button type="button" className="text-sm font-medium underline underline-offset-2" onClick={() => setShowTroubleModal(true)}>Trouble signing in?</button>}
             </div>
 
-            {!!pendingVerifyEmail && <div className="text-sm rounded-xl border border-emerald-300 bg-emerald-50 p-3">Code sent to <b>{pendingVerifyEmail}</b>. <button className="underline" disabled={resendCooldown > 0} onClick={() => void resendVerification()}>{resendCooldown > 0 ? `Resend in ${resendCooldown}s` : "Resend code"}</button></div>}
+            {!!pendingVerifyEmail && <div className="text-sm rounded-xl border border-emerald-300 bg-emerald-50 p-3">Email sent to <b>{pendingVerifyEmail}</b>. <button className="underline" disabled={resendCooldown > 0} onClick={() => void resendVerification()}>{resendCooldown > 0 ? `Resend in ${resendCooldown}s` : "Resend"}</button></div>}
           </div>
         </div>
       )}
