@@ -1044,8 +1044,8 @@ export default function Home() {
     e?.preventDefault();
     if (!supabase || !pendingVerifyEmail) return;
     const code = pendingVerifyCode.trim();
-    if (!/^\d{6}$/.test(code)) {
-      setStatus("Enter the 6-digit code from your email.");
+    if (!/^\d{8}$/.test(code)) {
+      setStatus("Enter the 8-digit code from your email.");
       return;
     }
     const { data, error } = await supabase.auth.verifyOtp({
