@@ -4586,7 +4586,7 @@ export default function Home() {
                   Sent to <b>{pendingVerifyEmail}</b>. Enter the 6-digit code from the email, or use the link in the message.
                 </div>
                 <input
-                  className="border rounded-xl px-3 py-3 tracking-[0.3em] text-center text-lg bg-white"
+                  className="border rounded-xl px-3 py-3 tracking-[0.3em] text-center text-lg bg-white text-slate-900 caret-slate-900"
                   placeholder="123456"
                   type="text"
                   inputMode="numeric"
@@ -4608,22 +4608,22 @@ export default function Home() {
 
             <form onSubmit={authMode === "signup" ? signUpWithPassword : signInWithPassword} className="grid gap-2 sm:gap-3" autoComplete="on">
               <label className="text-xs font-medium text-gray-600">Email</label>
-              <input className="border rounded-xl px-3 py-3" placeholder="you@email.com" type="email" name="email" autoComplete="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+              <input className="border rounded-xl px-3 py-3 text-slate-900 caret-slate-900 bg-white" placeholder="you@email.com" type="email" name="email" autoComplete="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
               {authMode === "signup" && (
                 <>
                   <label className="text-xs font-medium text-gray-600">Full name</label>
-                  <input className="border rounded-xl px-3 py-3" placeholder="Your name" name="name" autoComplete="name" value={fullName} onChange={(e) => setFullName(e.target.value)} required />
+                  <input className="border rounded-xl px-3 py-3 text-slate-900 caret-slate-900 bg-white" placeholder="Your name" name="name" autoComplete="name" value={fullName} onChange={(e) => setFullName(e.target.value)} required />
                   <label className="text-sm font-medium">Date of birth (DOB)</label>
-                  <input className="border rounded-xl px-3 py-3" type="date" name="bday" autoComplete="bday" value={dob} onChange={(e) => setDob(e.target.value)} required />
+                  <input className="border rounded-xl px-3 py-3 text-slate-900 caret-slate-900 bg-white" type="date" name="bday" autoComplete="bday" value={dob} onChange={(e) => setDob(e.target.value)} required />
                   <p className="text-xs text-gray-500">Use your birthday (MM/DD/YYYY).</p>
                   <label className="text-xs font-medium text-gray-600">Password</label>
                   <div className="flex gap-2">
-                    <input className="border rounded-xl px-3 py-3 flex-1" placeholder="Password" type={showPassword ? "text" : "password"} name="new-password" autoComplete="new-password" autoCapitalize="none" autoCorrect="off" spellCheck={false} value={password} onChange={(e) => setPassword(e.target.value)} required />
+                    <input className="border rounded-xl px-3 py-3 flex-1 text-slate-900 caret-slate-900 bg-white" placeholder="Password" type={showPassword ? "text" : "password"} name="new-password" autoComplete="new-password" autoCapitalize="none" autoCorrect="off" spellCheck={false} value={password} onChange={(e) => setPassword(e.target.value)} required />
                     <button type="button" className="rounded-xl border border-[var(--border)] px-3" onClick={() => setShowPassword((s) => !s)}>{showPassword ? "Hide" : "Show"}</button>
                   </div>
                   <label className="text-xs font-medium text-gray-600">Confirm password</label>
                   <div className="flex gap-2">
-                    <input className="border rounded-xl px-3 py-3 flex-1" placeholder="Confirm password" type={showConfirmPassword ? "text" : "password"} name="confirm-password" autoComplete="new-password" autoCapitalize="none" autoCorrect="off" spellCheck={false} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required />
+                    <input className="border rounded-xl px-3 py-3 flex-1 text-slate-900 caret-slate-900 bg-white" placeholder="Confirm password" type={showConfirmPassword ? "text" : "password"} name="confirm-password" autoComplete="new-password" autoCapitalize="none" autoCorrect="off" spellCheck={false} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required />
                     <button type="button" className="rounded-xl border border-[var(--border)] px-3" onClick={() => setShowConfirmPassword((s) => !s)}>{showConfirmPassword ? "Hide" : "Show"}</button>
                   </div>
                   <div className="text-xs rounded-xl border border-[var(--border)] p-2.5 bg-[color:var(--muted)] leading-5">
