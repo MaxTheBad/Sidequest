@@ -3852,7 +3852,7 @@ export default function Home() {
               </div>
 
               {feedMediaItems.length > 0 ? (
-                <div className="relative flex-1 min-h-[280px] md:min-h-[360px] bg-black">
+                <div className="relative flex-none h-[54svh] min-h-[320px] md:flex-1 md:min-h-[360px] bg-black">
                   <div
                     className={`w-full h-full overflow-x-auto snap-x snap-mandatory flex ${feedViewMode === "list" ? "gap-0" : ""}`}
                     onScroll={(e) => {
@@ -3862,7 +3862,7 @@ export default function Home() {
                     }}
                   >
                     {feedMediaItems.map((m, i) => (
-                      <div key={`${m.url}-${i}`} className={`relative w-full h-full shrink-0 snap-start bg-black overflow-hidden ${feedViewMode === "list" ? "min-h-[280px] md:min-h-[360px]" : "aspect-[4/3] lg:aspect-[4/3]"}`}>
+                      <div key={`${m.url}-${i}`} className={`relative w-full h-full shrink-0 snap-start bg-black overflow-hidden ${feedViewMode === "list" ? "min-h-[320px] md:min-h-[360px]" : "aspect-[4/3] lg:aspect-[4/3]"}`}>
                         {m.type === "image" ? (
                           <button type="button" className="w-full h-full block overflow-hidden" onClick={() => setExpandedMedia({ items: feedMediaItems, index: i })}>
                         <img
@@ -3934,7 +3934,7 @@ export default function Home() {
                   </div>
                 </div>
               ) : (
-                <div className={`relative border-y overflow-hidden ${feedViewMode === "list" ? "h-full min-h-[280px] md:flex-1 md:min-h-[360px] xl:flex-1 xl:min-h-[360px]" : "h-[22vh] sm:h-[18vh] lg:h-[14vw] max-h-[220px]"}`} style={{ background: fallbackVisual.gradient, clipPath: feedViewMode === "list" ? "polygon(0 0, 100% 0, 100% 94%, 0 100%)" : undefined }}>
+                <div className={`relative border-y overflow-hidden ${feedViewMode === "list" ? "h-[54svh] min-h-[320px] md:flex-1 md:min-h-[360px] xl:flex-1 xl:min-h-[360px]" : "h-[22vh] sm:h-[18vh] lg:h-[14vw] max-h-[220px]"}`} style={{ background: fallbackVisual.gradient, clipPath: feedViewMode === "list" ? "polygon(0 0, 100% 0, 100% 94%, 0 100%)" : undefined }}>
                   <img src={fallbackVisual.imageUrl} alt={fallbackVisual.title} className="absolute inset-0 h-full w-full object-cover" />
                   <div className="absolute inset-0 bg-black/10" />
                   <div className="absolute inset-0 opacity-60" style={{ background: "linear-gradient(180deg, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.45) 100%)" }} />
