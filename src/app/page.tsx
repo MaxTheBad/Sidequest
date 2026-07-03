@@ -4628,52 +4628,60 @@ export default function Home() {
 
             {authMode !== "signup" || !pendingVerifyEmail ? (
               <form onSubmit={authMode === "signup" ? signUpWithPassword : signInWithPassword} className="grid gap-2 sm:gap-3" autoComplete="on">
-              <label className="text-xs font-medium text-gray-600">Email</label>
-              <input className="border rounded-xl px-3 py-3 text-slate-900 caret-slate-900 bg-white" placeholder="you@email.com" type="email" name="email" autoComplete="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-              {authMode === "signup" && (
-                <>
-                  <label className="text-xs font-medium text-gray-600">Full name</label>
-                  <input className="border rounded-xl px-3 py-3 text-slate-900 caret-slate-900 bg-white" placeholder="Your name" name="name" autoComplete="name" value={fullName} onChange={(e) => setFullName(e.target.value)} required />
-                  <label className="text-sm font-medium">Date of birth (DOB)</label>
-                  <input className="border rounded-xl px-3 py-3 text-slate-900 caret-slate-900 bg-white" type="date" name="bday" autoComplete="bday" value={dob} onChange={(e) => setDob(e.target.value)} required />
-                  <p className="text-xs text-gray-500">Use your birthday (MM/DD/YYYY).</p>
-                  <label className="text-xs font-medium text-gray-600">Password</label>
-                  <div className="flex gap-2">
-                    <input className="border rounded-xl px-3 py-3 flex-1 text-slate-900 caret-slate-900 bg-white" placeholder="Password" type={showPassword ? "text" : "password"} name="new-password" autoComplete="new-password" autoCapitalize="none" autoCorrect="off" spellCheck={false} value={password} onChange={(e) => setPassword(e.target.value)} required />
-                    <button type="button" className="rounded-xl border border-[var(--border)] px-3" onClick={() => setShowPassword((s) => !s)}>{showPassword ? "Hide" : "Show"}</button>
-                  </div>
-                  <label className="text-xs font-medium text-gray-600">Confirm password</label>
-                  <div className="flex gap-2">
-                    <input className="border rounded-xl px-3 py-3 flex-1 text-slate-900 caret-slate-900 bg-white" placeholder="Confirm password" type={showConfirmPassword ? "text" : "password"} name="confirm-password" autoComplete="new-password" autoCapitalize="none" autoCorrect="off" spellCheck={false} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required />
-                    <button type="button" className="rounded-xl border border-[var(--border)] px-3" onClick={() => setShowConfirmPassword((s) => !s)}>{showConfirmPassword ? "Hide" : "Show"}</button>
-                  </div>
-                  <div className="text-xs rounded-xl border border-[var(--border)] p-2.5 bg-[color:var(--muted)] leading-5">
-                    <p>{passwordChecks.minLength ? "✅" : "⬜"} 8+ characters</p>
-                    <p>{passwordChecks.uppercase ? "✅" : "⬜"} uppercase</p>
-                    <p>{passwordChecks.lowercase ? "✅" : "⬜"} lowercase</p>
-                    <p>{passwordChecks.number ? "✅" : "⬜"} number</p>
-                    <p>{passwordChecks.special ? "✅" : "⬜"} special</p>
-                    <p>{passwordChecks.match ? "✅" : "⬜"} passwords match</p>
-                  </div>
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-6">
-                    <label className="flex gap-2 items-start leading-5 text-sm sm:flex-1">
-                      <input className="mt-0.5" type="checkbox" checked={acceptTerms} onChange={(e) => setAcceptTerms(e.target.checked)} />
-                      <span>I accept the <a href="/terms" target="_blank" className="underline">Terms</a>.</span>
+                <label className="text-xs font-medium text-gray-600">Email</label>
+                <input className="border rounded-xl px-3 py-3 text-slate-900 caret-slate-900 bg-white" placeholder="you@email.com" type="email" name="email" autoComplete="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+                {authMode === "login" ? (
+                  <>
+                    <label className="text-xs font-medium text-gray-600">Password</label>
+                    <div className="flex gap-2">
+                      <input className="border rounded-xl px-3 py-3 flex-1 text-slate-900 caret-slate-900 bg-white" placeholder="Password" type={showPassword ? "text" : "password"} name="password" autoComplete="current-password" autoCapitalize="none" autoCorrect="off" spellCheck={false} value={password} onChange={(e) => setPassword(e.target.value)} required />
+                      <button type="button" className="rounded-xl border border-[var(--border)] px-3" onClick={() => setShowPassword((s) => !s)}>{showPassword ? "Hide" : "Show"}</button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <label className="text-xs font-medium text-gray-600">Full name</label>
+                    <input className="border rounded-xl px-3 py-3 text-slate-900 caret-slate-900 bg-white" placeholder="Your name" name="name" autoComplete="name" value={fullName} onChange={(e) => setFullName(e.target.value)} required />
+                    <label className="text-sm font-medium">Date of birth (DOB)</label>
+                    <input className="border rounded-xl px-3 py-3 text-slate-900 caret-slate-900 bg-white" type="date" name="bday" autoComplete="bday" value={dob} onChange={(e) => setDob(e.target.value)} required />
+                    <p className="text-xs text-gray-500">Use your birthday (MM/DD/YYYY).</p>
+                    <label className="text-xs font-medium text-gray-600">Password</label>
+                    <div className="flex gap-2">
+                      <input className="border rounded-xl px-3 py-3 flex-1 text-slate-900 caret-slate-900 bg-white" placeholder="Password" type={showPassword ? "text" : "password"} name="new-password" autoComplete="new-password" autoCapitalize="none" autoCorrect="off" spellCheck={false} value={password} onChange={(e) => setPassword(e.target.value)} required />
+                      <button type="button" className="rounded-xl border border-[var(--border)] px-3" onClick={() => setShowPassword((s) => !s)}>{showPassword ? "Hide" : "Show"}</button>
+                    </div>
+                    <label className="text-xs font-medium text-gray-600">Confirm password</label>
+                    <div className="flex gap-2">
+                      <input className="border rounded-xl px-3 py-3 flex-1 text-slate-900 caret-slate-900 bg-white" placeholder="Confirm password" type={showConfirmPassword ? "text" : "password"} name="confirm-password" autoComplete="new-password" autoCapitalize="none" autoCorrect="off" spellCheck={false} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required />
+                      <button type="button" className="rounded-xl border border-[var(--border)] px-3" onClick={() => setShowConfirmPassword((s) => !s)}>{showConfirmPassword ? "Hide" : "Show"}</button>
+                    </div>
+                    <div className="text-xs rounded-xl border border-[var(--border)] p-2.5 bg-[color:var(--muted)] leading-5">
+                      <p>{passwordChecks.minLength ? "✅" : "⬜"} 8+ characters</p>
+                      <p>{passwordChecks.uppercase ? "✅" : "⬜"} uppercase</p>
+                      <p>{passwordChecks.lowercase ? "✅" : "⬜"} lowercase</p>
+                      <p>{passwordChecks.number ? "✅" : "⬜"} number</p>
+                      <p>{passwordChecks.special ? "✅" : "⬜"} special</p>
+                      <p>{passwordChecks.match ? "✅" : "⬜"} passwords match</p>
+                    </div>
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-6">
+                      <label className="flex gap-2 items-start leading-5 text-sm sm:flex-1">
+                        <input className="mt-0.5" type="checkbox" checked={acceptTerms} onChange={(e) => setAcceptTerms(e.target.checked)} />
+                        <span>I accept the <a href="/terms" target="_blank" className="underline">Terms</a>.</span>
+                      </label>
+                      <label className="flex gap-2 items-start leading-5 text-sm sm:flex-1">
+                        <input className="mt-0.5" type="checkbox" checked={marketingOptIn} onChange={(e) => setMarketingOptIn(e.target.checked)} />
+                        <span>Send me updates/promos (optional).</span>
+                      </label>
+                    </div>
+                    <label className="flex gap-2 items-start leading-5 text-sm">
+                      <input className="mt-0.5" type="checkbox" checked={hideCityOnBio} onChange={(e) => setHideCityOnBio(e.target.checked)} />
+                      <span>Hide city on bio</span>
                     </label>
-                    <label className="flex gap-2 items-start leading-5 text-sm sm:flex-1">
-                      <input className="mt-0.5" type="checkbox" checked={marketingOptIn} onChange={(e) => setMarketingOptIn(e.target.checked)} />
-                      <span>Send me updates/promos (optional).</span>
-                    </label>
-                  </div>
-                  <label className="flex gap-2 items-start leading-5 text-sm">
-                    <input className="mt-0.5" type="checkbox" checked={hideCityOnBio} onChange={(e) => setHideCityOnBio(e.target.checked)} />
-                    <span>Hide city on bio</span>
-                  </label>
-                </>
-              )}
+                  </>
+                )}
 
-              <TurnstileInvisible onToken={setAuthTurnstileToken} />
-              <button className="rounded-xl bg-[color:var(--accent-secondary)] py-3 font-semibold text-white shadow-md shadow-black/10">{authMode === "signup" ? "Create account" : "Log in"}</button>
+                <TurnstileInvisible onToken={setAuthTurnstileToken} />
+                <button className="rounded-xl bg-[color:var(--accent-secondary)] py-3 font-semibold text-white shadow-md shadow-black/10">{authMode === "signup" ? "Create account" : "Log in"}</button>
               </form>
             ) : null}
 
