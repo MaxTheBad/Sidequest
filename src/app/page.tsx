@@ -1075,6 +1075,14 @@ export default function Home() {
     });
   }, [pendingVerifyEmail]);
 
+  useEffect(() => {
+    if (authMode === "login") {
+      setPendingVerifyEmail("");
+      setPendingVerifyCode("");
+      setResendCooldown(0);
+    }
+  }, [authMode]);
+
   async function ensureProfileRow(uid: string, emailValue?: string | null, metadata?: Record<string, unknown> | null) {
     if (!supabase || !uid) return;
     const md = metadata || {};
@@ -4588,7 +4596,7 @@ export default function Home() {
 
             {status && <div className="text-sm rounded-xl border border-amber-300 bg-amber-100/90 text-amber-950 px-3 py-2">{status}</div>}
 
-            {!!pendingVerifyEmail && (
+            {!!pendingVerifyEmail && authMode === "signup" && (
               <form ref={signupCodeRef} onSubmit={verifySignupCode} className="grid gap-2 rounded-xl border border-emerald-300 bg-emerald-50 p-3">
                 <div className="text-sm text-emerald-950">
                   Sent to <b>{pendingVerifyEmail}</b>. Enter the 8-digit code from the email, or use the link in the message.
@@ -4618,7 +4626,7 @@ export default function Home() {
               </form>
             )}
 
-            {!pendingVerifyEmail ? (
+            {authMode !== "signup" || !pendingVerifyEmail ? (
               <form onSubmit={authMode === "signup" ? signUpWithPassword : signInWithPassword} className="grid gap-2 sm:gap-3" autoComplete="on">
               <label className="text-xs font-medium text-gray-600">Email</label>
               <input className="border rounded-xl px-3 py-3 text-slate-900 caret-slate-900 bg-white" placeholder="you@email.com" type="email" name="email" autoComplete="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
