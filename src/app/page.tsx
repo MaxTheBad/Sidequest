@@ -3799,7 +3799,7 @@ export default function Home() {
             const distanceLabel = distanceByQuestId[q.id] || (userLocation && questCoords ? distanceLabelMiles(haversineMiles(userLocation.lat, userLocation.lon, questCoords.lat, questCoords.lon)) : "");
 
             return (
-            <article key={q.id} className={`quest-card w-full bg-white border border-slate-200 shadow-[0_14px_40px_rgba(15,23,42,0.08)] overflow-hidden ${feedViewMode === "list" ? "rounded-none sm:rounded-[1.75rem] h-[calc(100svh-10.75rem)] min-h-[680px] sm:h-auto sm:min-h-[680px] md:h-[calc(100svh-9.25rem)] md:min-h-[720px] md:flex md:flex-col lg:h-[calc(100dvh-8.5rem)] lg:min-h-[760px] xl:h-[calc(100dvh-8.25rem)] xl:min-h-[820px] xl:flex xl:flex-col" : "rounded-[2rem]"}`}>
+            <article key={q.id} className={`quest-card w-full bg-white border border-slate-200 shadow-[0_14px_40px_rgba(15,23,42,0.08)] overflow-hidden ${feedViewMode === "list" ? "rounded-none sm:rounded-[1.75rem] h-[calc(100svh-10.75rem)] min-h-[680px] flex flex-col sm:h-auto sm:min-h-[680px] md:h-[calc(100svh-9.25rem)] md:min-h-[720px] md:flex md:flex-col lg:h-[calc(100dvh-8.5rem)] lg:min-h-[760px] xl:h-[calc(100dvh-8.25rem)] xl:min-h-[820px] xl:flex xl:flex-col" : "rounded-[2rem]"}`}>
               <div className={`p-3 flex items-center justify-between gap-2 ${feedViewMode === "list" ? "sm:p-4 absolute top-0 left-0 right-0 z-40 bg-gradient-to-b from-black/22 via-black/12 via-black/6 to-transparent py-2 sm:py-3 text-white border-0 backdrop-blur-[0.75px]" : ""}`}>
                 <Link href={`/profile/${q.creator_id}`} className="flex items-center gap-2 min-w-0">
                   {creatorProfile?.avatar_url ? (
@@ -3852,7 +3852,7 @@ export default function Home() {
               </div>
 
               {feedMediaItems.length > 0 ? (
-                <div className="relative flex-none h-[54svh] min-h-[320px] md:flex-1 md:min-h-[360px] bg-black">
+                <div className="relative flex-1 min-h-[320px] md:flex-1 md:min-h-[360px] bg-black">
                   <div
                     className={`w-full h-full overflow-x-auto snap-x snap-mandatory flex ${feedViewMode === "list" ? "gap-0" : ""}`}
                     onScroll={(e) => {
@@ -3934,7 +3934,7 @@ export default function Home() {
                   </div>
                 </div>
               ) : (
-                <div className={`relative border-y overflow-hidden ${feedViewMode === "list" ? "h-[54svh] min-h-[320px] md:flex-1 md:min-h-[360px] xl:flex-1 xl:min-h-[360px]" : "h-[22vh] sm:h-[18vh] lg:h-[14vw] max-h-[220px]"}`} style={{ background: fallbackVisual.gradient, clipPath: feedViewMode === "list" ? "polygon(0 0, 100% 0, 100% 94%, 0 100%)" : undefined }}>
+                <div className={`relative border-y overflow-hidden ${feedViewMode === "list" ? "flex-1 min-h-[320px] md:flex-1 md:min-h-[360px] xl:flex-1 xl:min-h-[360px]" : "h-[22vh] sm:h-[18vh] lg:h-[14vw] max-h-[220px]"}`} style={{ background: fallbackVisual.gradient, clipPath: feedViewMode === "list" ? "polygon(0 0, 100% 0, 100% 94%, 0 100%)" : undefined }}>
                   <img src={fallbackVisual.imageUrl} alt={fallbackVisual.title} className="absolute inset-0 h-full w-full object-cover" />
                   <div className="absolute inset-0 bg-black/10" />
                   <div className="absolute inset-0 opacity-60" style={{ background: "linear-gradient(180deg, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.45) 100%)" }} />
