@@ -3044,14 +3044,8 @@ export default function Home() {
   }
 
   async function joinQuestWithCount(questId: string) {
-    const quest = quests.find((q) => q.id === questId);
-    if (!quest) return;
-    const beforeJoinedCount = joinedCountByQuestId[questId] || 0;
     await toggleJoinQuest(questId);
-    const hadPendingOrJoined = joinedQuestIds.includes(questId) || membershipStatusByQuest[questId] === "pending" || membershipStatusByQuest[questId] === "approved";
-    if (!hadPendingOrJoined) {
-      setJoinedCountByQuestId((prev) => ({ ...prev, [questId]: beforeJoinedCount + 1 }));
-    }
+    await loadQuests();
   }
 
   async function toggleBookmark(questId: string) {
@@ -4276,22 +4270,25 @@ export default function Home() {
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                void toggleJoinQuest(item.quest.id);
+                                void joinQuestWithCount(item.quest.id);
                               }}
-                            className={`inline-flex items-center justify-center rounded-full px-5 py-2.5 text-sm font-semibold transition ${
+                              className={`inline-flex items-center justify-center rounded-full px-5 py-2.5 text-sm font-semibold transition ${
                                 isActive
                                   ? "bg-white text-black"
                                   : "bg-[#0c5063] text-white"
                               }`}
                             >
                               Join
+                              <span className={`ml-2 rounded-full px-2 py-0.5 text-[11px] font-medium ${isActive ? "bg-slate-900/10 text-black" : "bg-white/15 text-white"}`}>
+                                {joinedCountByQuestId[item.quest.id] || 0}
+                              </span>
                             </button>
                           ) : (
                             <button
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                void toggleJoinQuest(item.quest.id);
+                                void joinQuestWithCount(item.quest.id);
                               }}
                               className={`inline-flex items-center justify-center rounded-full px-5 py-2.5 text-sm font-semibold transition ${
                                 isActive
@@ -4300,6 +4297,9 @@ export default function Home() {
                               }`}
                             >
                               Leave
+                              <span className={`ml-2 rounded-full px-2 py-0.5 text-[11px] font-medium ${isActive ? "bg-slate-900/10 text-black" : "bg-slate-900/10 text-slate-900"}`}>
+                                {joinedCountByQuestId[item.quest.id] || 0}
+                              </span>
                             </button>
                           )}
                         </div>
@@ -4570,7 +4570,7 @@ export default function Home() {
                 className={`rounded-full px-3 py-2 text-sm font-semibold transition ${authMode === "login" ? "bg-[color:var(--accent-secondary)] text-white shadow-md" : "text-[color:var(--foreground)]/80"}`}
                 onClick={() => setAuthMode("login")}
               >
-                Log in
+                Join / Sign in
               </button>
             </div>
 
@@ -4629,7 +4629,7 @@ export default function Home() {
             {authMode !== "signup" || !pendingVerifyEmail ? (
               <form onSubmit={authMode === "signup" ? signUpWithPassword : signInWithPassword} className="grid gap-2 sm:gap-3" autoComplete="on">
                 <label className="text-xs font-medium text-gray-600">Email</label>
-                <input className="border rounded-xl px-3 py-3 text-slate-900 caret-slate-900 bg-white" placeholder="you@email.com" type="email" name="email" autoComplete="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+                <input className="border rounded-xl px-3 py-3 text-slate-900 caret-slate-900 bg-white" placeholder="you@email.com" type="email" name="username" autoComplete="username email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
                 {authMode === "login" ? (
                   <>
                     <label className="text-xs font-medium text-gray-600">Password</label>
