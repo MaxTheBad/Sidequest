@@ -29,7 +29,8 @@ export default function SettingsPage() {
   const [userId, setUserId] = useState<string | null>(null);
   const [email, setEmail] = useState("");
 
-  const [displayName, setDisplayName] = useState("");
+  const [actualName, setActualName] = useState("");
+  const [username, setUsername] = useState("");
   const [countryCode, setCountryCode] = useState("US");
   const [city, setCity] = useState("");
   const [region, setRegion] = useState("");
@@ -68,7 +69,8 @@ export default function SettingsPage() {
     if (!initialProfileSnapshotRef.current) return null;
     try {
       return JSON.parse(initialProfileSnapshotRef.current) as {
-        displayName?: string;
+        actualName?: string;
+        username?: string;
         countryCode?: string;
         city?: string;
         region?: string;
@@ -81,8 +83,8 @@ export default function SettingsPage() {
       return null;
     }
   })();
-  const initialUsername = initialProfileSnapshot?.displayName || "";
-  const usernameAvailability = useUsernameAvailability(displayName, userId, initialUsername);
+  const initialUsername = initialProfileSnapshot?.username || "";
+  const usernameAvailability = useUsernameAvailability(username, userId, initialUsername);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -121,7 +123,8 @@ export default function SettingsPage() {
       setFriendsVisibility(((profile?.friends_visibility as "public" | "private") || "public"));
       setShowLocation(typeof profile?.show_location === "boolean" ? profile.show_location : Boolean(authMeta.show_location));
       const metaName = (typeof authMeta.full_name === "string" && authMeta.full_name) || (typeof authMeta.name === "string" && authMeta.name) || "";
-      setDisplayName(profile?.username || profile?.display_name || metaName || "");
+      setActualName(profile?.display_name || metaName || "");
+      setUsername(profile?.username || "");
       const metaAvatar = typeof authMeta.avatar_url === "string" ? authMeta.avatar_url : "";
       const resolvedAvatar = profile?.avatar_url || metaAvatar || "";
       setAvatarUrl(resolvedAvatar);
@@ -137,7 +140,8 @@ export default function SettingsPage() {
       const resolvedCountryCode = (profile?.country_code || metaCountry || (browserCountry.length === 2 ? browserCountry : "US")).toUpperCase();
       setCountryCode(resolvedCountryCode);
       initialProfileSnapshotRef.current = JSON.stringify({
-        displayName: profile?.username || profile?.display_name || metaName || "",
+        actualName: profile?.display_name || metaName || "",
+        username: profile?.username || "",
         countryCode: resolvedCountryCode,
         city: profile?.city ?? (typeof authMeta.city === "string" ? authMeta.city : ""),
         region: profile?.region ?? (typeof authMeta.region === "string" ? authMeta.region : ""),
@@ -244,7 +248,8 @@ export default function SettingsPage() {
     e.preventDefault();
     if (!supabase || !userId) return setStatus("Not signed in.");
     const initial = initialProfileSnapshot || {
-      displayName: "",
+      actualName: "",
+      username: "",
       countryCode: "",
       city: "",
       region: "",
@@ -254,7 +259,8 @@ export default function SettingsPage() {
       usernameChangedAt: null,
     };
     const changedFields = [
-      initial.displayName !== displayName ? "username" : null,
+      initial.actualName !== actualName ? "actual name" : null,
+      initial.username !== username ? "username" : null,
       initial.countryCode !== countryCode ? "country" : null,
       initial.city !== city ? "city" : null,
       initial.region !== region ? "state/region" : null,
@@ -262,7 +268,7 @@ export default function SettingsPage() {
       initial.showLocation !== showLocation ? "location visibility" : null,
       initial.friendsVisibility !== friendsVisibility ? "friends visibility" : null,
     ].filter(Boolean) as string[];
-    const usernameChanged = normalizeUsername(displayName) !== normalizeUsername(initial.displayName || "");
+    const usernameChanged = normalizeUsername(username) !== normalizeUsername(initial.username || "");
     const usernameChangedAtMs = initial.usernameChangedAt ? new Date(initial.usernameChangedAt).getTime() : 0;
     const usernameCooldownActive =
       usernameChanged &&
@@ -290,8 +296,8 @@ export default function SettingsPage() {
     const saveNameAndBase = async () =>
       supabase.from("profiles").upsert({
         id: userId,
-        username: displayName,
-        display_name: displayName,
+        username,
+        display_name: actualName,
         username_changed_at: nextUsernameChangedAt,
         city,
         region: region || null,
@@ -312,11 +318,11 @@ export default function SettingsPage() {
     }
 
     if (error) return setStatus(error.message);
-    const savedDisplayName = usernameBlocked ? initial.displayName || "" : displayName;
+    const savedActualName = actualName;
 
     const { error: metaErr } = await supabase.auth.updateUser({
       data: {
-        full_name: savedDisplayName,
+        full_name: savedActualName,
         dob: dob || null,
         country_code: countryCode,
         city: city || null,
@@ -330,7 +336,7 @@ export default function SettingsPage() {
     if (metaErr) return setStatus(metaErr.message);
     if (usernameBlocked) {
       const otherChanges = changedFields.filter((field) => field !== "username");
-      setDisplayName(savedDisplayName);
+      setActualName(savedActualName);
       setStatus(
         `You can only change your username once every 24 hours.${
           otherChanges.length ? ` Other changes saved: ${otherChanges.join(", ")}.` : ""
@@ -340,7 +346,8 @@ export default function SettingsPage() {
       setStatus(`Profile saved ✅${changedFields.length ? ` Updated: ${changedFields.join(", ")}.` : ""}`);
     }
     initialProfileSnapshotRef.current = JSON.stringify({
-      displayName: savedDisplayName,
+      actualName: savedActualName,
+      username,
       countryCode,
       city,
       region,
@@ -352,10 +359,11 @@ export default function SettingsPage() {
   }
 
   const isProfileDirty = useMemo(() => {
-    const normalizedInitialUsername = normalizeUsername(initialProfileSnapshot?.displayName || "");
-    const normalizedCurrentUsername = normalizeUsername(displayName);
+    const normalizedInitialUsername = normalizeUsername(initialProfileSnapshot?.username || "");
+    const normalizedCurrentUsername = normalizeUsername(username);
     const current = JSON.stringify({
-      displayName,
+      actualName,
+      username,
       countryCode,
       city,
       region,
@@ -365,11 +373,12 @@ export default function SettingsPage() {
       usernameChangedAt: initialProfileSnapshot?.usernameChangedAt || null,
     });
     return current !== initialProfileSnapshotRef.current || normalizedCurrentUsername !== normalizedInitialUsername;
-  }, [displayName, countryCode, city, region, bio, showLocation, friendsVisibility, initialProfileSnapshot]);
+  }, [actualName, username, countryCode, city, region, bio, showLocation, friendsVisibility, initialProfileSnapshot]);
 
   function resetProfileForm() {
     if (!initialProfileSnapshot) return;
-    setDisplayName(initialProfileSnapshot.displayName || "");
+    setActualName(initialProfileSnapshot.actualName || "");
+    setUsername(initialProfileSnapshot.username || "");
     setCountryCode(initialProfileSnapshot.countryCode || "US");
     setCity(initialProfileSnapshot.city || "");
     setRegion(initialProfileSnapshot.region || "");
@@ -783,14 +792,16 @@ export default function SettingsPage() {
                   )}
                 </div>
 
-                <label className="text-sm font-medium">Username</label>
-                <input className="border rounded px-3 py-2" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
+                <label className="text-sm font-medium">Actual name</label>
+                <input className="border rounded px-3 py-2" value={actualName} onChange={(e) => setActualName(e.target.value)} />
                 {usernameAvailability === "checking" ? <p className="text-sm text-gray-500">Checking username...</p> : null}
-                {usernameAvailability === "available" && normalizeUsername(displayName) !== normalizeUsername(initialUsername) ? (
+                {usernameAvailability === "available" && normalizeUsername(username) !== normalizeUsername(initialUsername) ? (
                   <p className="text-sm text-emerald-600">Username is available.</p>
                 ) : null}
                 {usernameAvailability === "taken" ? <p className="text-sm text-red-600">That username is already taken.</p> : null}
                 {usernameAvailability === "error" ? <p className="text-sm text-amber-600">Could not check username availability.</p> : null}
+                <label className="text-sm font-medium">Username</label>
+                <input className="border rounded px-3 py-2" value={username} onChange={(e) => setUsername(e.target.value)} />
                 <label className="text-sm font-medium">Date of birth</label>
                 <input type="date" className="border rounded px-3 py-2" value={dob} onChange={(e) => setDob(e.target.value)} />
 
@@ -850,13 +861,13 @@ export default function SettingsPage() {
                     Revert changes
                   </button>
                 </div>
-                <button
-                  className="rounded px-3 py-2 mt-1 text-white disabled:cursor-not-allowed disabled:text-gray-500"
-                  style={{ backgroundColor: isProfileDirty ? "#111827" : "#d1d5db" }}
-                  disabled={!isProfileDirty}
-                >
-                  Save profile
-                </button>
+                  <button
+                    className="rounded px-3 py-2 mt-1 text-white disabled:cursor-not-allowed disabled:text-gray-500"
+                    style={{ backgroundColor: isProfileDirty ? "#111827" : "#d1d5db" }}
+                    disabled={!isProfileDirty}
+                  >
+                    Save profile
+                  </button>
               </form>
             )}
 
