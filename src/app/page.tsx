@@ -8,6 +8,7 @@ import QuestMap from "@/components/quest-map";
 import { getSupabaseClient } from "@/lib/supabase";
 import { CANONICAL_CATEGORIES, resolveCanonicalCategory, suggestCanonicalCategories } from "@/lib/category-suggestions.js";
 import { getCategoryFallbackMedia } from "@/lib/category-default-media";
+import { TITLE_SUGGESTIONS, getCategoryTitleSuggestions } from "@questhat/shared";
 import { readStoredUserLocation, writeStoredUserLocation } from "@/lib/location-distance";
 import { isImageLikeFile, prepareImageForUpload } from "@/lib/media-optimize";
 import { compressVideoForUpload, VIDEO_MAX_DURATION_SECONDS } from "@/lib/video-optimize";
@@ -150,115 +151,6 @@ function CreateSelect({ value, options, placeholder, onChange, searchable = fals
   );
 }
 
-const TITLE_SUGGESTIONS = [
-  "Beginner tennis buddy this weekend",
-  "After-work climbing crew",
-  "Saturday table tennis group",
-  "Pickleball for total beginners",
-  "Morning run partners (3x/week)",
-];
-const TITLE_SUGGESTIONS_BY_CATEGORY: Record<string, string[]> = {
-  sports: [
-    "Pick a sports buddy and get reps in",
-    "Weekend game plan: play, practice, repeat",
-    "Join a casual sports crew this week",
-  ],
-  "indoor games": [
-    "Table time with a regular crew",
-    "Casual game night with accountability",
-    "Find your next indoor game partner",
-  ],
-  community: [
-    "Find a community event partner",
-    "Volunteer together this weekend",
-    "Join the neighborhood effort and follow through",
-  ],
-  build: [
-    "Lock in and ship your MVP in 14 days",
-    "Build in public: validate your idea this week",
-    "Find a co-builder and execute",
-  ],
-  learn: [
-    "Lock in for a focused study sprint",
-    "Learn SQL with an accountability buddy",
-    "Daily learning streak — no zero days",
-  ],
-  career: [
-    "Lock in on interview prep this weekend",
-    "Resume glow-up + job hunt execution",
-    "LinkedIn outreach sprint with accountability",
-  ],
-  "healthy lifestyle": [
-    "Lock in with a gym buddy",
-    "Cardio accountability crew (3x/week)",
-    "Healthy habits reset: sleep, food, movement",
-  ],
-  running: [
-    "Morning run partners (3x/week)",
-    "Easy pace run crew",
-    "5K training accountability",
-  ],
-  outdoors: [
-    "Lock in for a sunrise hike",
-    "Beginner-friendly trail day",
-    "Weekend adventure squad",
-  ],
-  social: [
-    "Meet new people and actually follow through",
-    "Communication skills practice circle",
-    "Community hang + good vibes only",
-  ],
-  money: [
-    "Lock in and execute a money plan",
-    "Budget reset sprint for this month",
-    "Side hustle ideas to action",
-  ],
-  creative: [
-    "Write for 30 minutes daily",
-    "Photo walk + editing session",
-    "Co-create content this weekend",
-  ],
-  "arts & crafts": [
-    "Saturday painting + coffee session",
-    "DIY craft night with accountability",
-    "Lock in and finish your art piece",
-  ],
-  painting: [
-    "Studio painting session tonight",
-    "Brush, canvas, repeat",
-    "Weekend plein air painting plan",
-  ],
-  "book club": [
-    "Monthly book club with real follow-through",
-    "Reading circle + discussion night",
-    "Finish the book and show up",
-  ],
-  sewing: [
-    "Sewing session with accountability",
-    "Finish that hem, patch, or project",
-    "Creative sewing night with momentum",
-  ],
-  "music / producer": [
-    "Producer lock-in session tonight",
-    "Beat-making sprint and feedback",
-    "Finish one track this week",
-  ],
-  fishing: [
-    "Early morning fishing trip",
-    "Cast off and keep the streak going",
-    "Weekend shoreline session",
-  ],
-  lifestyle: [
-    "Build a better morning routine",
-    "Declutter sprint + reset",
-    "Weekly productivity planning",
-  ],
-  wildcard: [
-    "Something different: let's explore it",
-    "My custom challenge starts now",
-    "Open idea lab — bring your wildcards",
-  ],
-};
 const MEDIA_LABEL_HINTS = [
   "Photo of the activity in progress",
   "Short clip of you doing the activity",
@@ -439,7 +331,7 @@ export default function Home() {
   const [coordsByQuestId, setCoordsByQuestId] = useState<Record<string, { lat: number; lon: number }>>({});
 
   const [title, setTitle] = useState("");
-  const [titlePlaceholder, setTitlePlaceholder] = useState(TITLE_SUGGESTIONS[0]);
+  const [titlePlaceholder, setTitlePlaceholder] = useState<string>(TITLE_SUGGESTIONS[0]);
   const [description, setDescription] = useState("");
   const [hobbyId, setHobbyId] = useState("");
   const [categoryInput, setCategoryInput] = useState("");
@@ -642,25 +534,12 @@ export default function Home() {
   }
 
   function pickTitleSuggestionByCategory(categoryName: string) {
-    const normalized = categoryName.trim().toLowerCase();
-    const canonical = resolveCanonicalCategory(categoryName)?.toLowerCase() || "";
-    const direct = TITLE_SUGGESTIONS_BY_CATEGORY[normalized] || (canonical ? TITLE_SUGGESTIONS_BY_CATEGORY[canonical] : null);
-    if (direct?.length) return direct[Math.floor(Math.random() * direct.length)];
-    const matchedKey = Object.keys(TITLE_SUGGESTIONS_BY_CATEGORY).find((key) => normalized.includes(key) || (canonical ? canonical.includes(key) : false));
-    if (matchedKey) {
-      const pool = TITLE_SUGGESTIONS_BY_CATEGORY[matchedKey];
-      return pool[Math.floor(Math.random() * pool.length)];
-    }
-    return TITLE_SUGGESTIONS_BY_CATEGORY.wildcard[Math.floor(Math.random() * TITLE_SUGGESTIONS_BY_CATEGORY.wildcard.length)];
+    const suggestions = getCategoryTitleSuggestions(categoryName);
+    return suggestions[Math.floor(Math.random() * suggestions.length)];
   }
 
   function getTitleSuggestionsByCategory(categoryName: string) {
-    const normalized = categoryName.trim().toLowerCase();
-    const canonical = resolveCanonicalCategory(categoryName)?.toLowerCase() || "";
-    const direct = TITLE_SUGGESTIONS_BY_CATEGORY[normalized] || (canonical ? TITLE_SUGGESTIONS_BY_CATEGORY[canonical] : null);
-    const matchedKey = Object.keys(TITLE_SUGGESTIONS_BY_CATEGORY).find((key) => normalized.includes(key) || (canonical ? canonical.includes(key) : false));
-    const pool = direct || (matchedKey ? TITLE_SUGGESTIONS_BY_CATEGORY[matchedKey] : null) || TITLE_SUGGESTIONS_BY_CATEGORY.wildcard;
-    return Array.from(new Set(pool)).slice(0, 3);
+    return getCategoryTitleSuggestions(categoryName);
   }
 
   function flagFieldError(field: string, message: string) {
@@ -1003,6 +882,8 @@ export default function Home() {
             dob,
             country_code: countryCode,
             accepted_terms: true,
+            accepted_eula: true,
+            eula_version: "2026-07-30",
             marketing_opt_in: marketingOptIn,
             show_location: !hideCityOnBio,
             hide_city_on_bio: hideCityOnBio,
@@ -4015,7 +3896,7 @@ export default function Home() {
                     </div>
                   </div>
                 </div>
-                <div className="px-4 py-3 bg-white">
+                <div className="quest-card-feed-footer px-4 py-3">
                   <div className="flex items-center gap-2">
                     <div className="flex items-center justify-start gap-2 flex-1 min-w-0">
                     {userId !== q.creator_id ? (
@@ -4040,14 +3921,14 @@ export default function Home() {
                       void askQuestion(q, "private");
                     }}>
                       <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                        <path d="M3.5 6.5A2.5 2.5 0 0 1 6 4h12a2.5 2.5 0 0 1 2.5 2.5v11A2.5 2.5 0 0 1 18 20H6a2.5 2.5 0 0 1-2.5-2.5v-11Z" />
-                        <path d="M5 7l7 5.5L19 7" />
+                        <rect x="3.5" y="5" width="17" height="14" rx="2.5" />
+                        <path d="m5 7 7 5 7-5" />
                       </svg>
                     </button>
                     <button className="inline-flex h-9 w-auto shrink-0 items-center justify-center gap-1 rounded-full bg-transparent px-1.5 text-sm font-medium text-slate-900 transition hover:text-[#0c5063] focus-visible:text-[#0c5063]" aria-label={`Share ${shareCountByQuestId[q.id] || 0}`} title="Share" onClick={() => void shareQuest(q)}>
                       <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                        <path d="M12 5v14" />
-                        <path d="m6 11 6-6 6 6" />
+                        <path d="M12 16V4" />
+                        <path d="m7 9 5-5 5 5" />
                         <path d="M5 19h14" />
                       </svg>
                       <span className="text-xs tabular-nums text-slate-700">{shareCountByQuestId[q.id] || 0}</span>
@@ -4055,7 +3936,7 @@ export default function Home() {
                     </div>
                     <button className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-transparent text-sm font-medium transition hover:text-[#0c5063] focus-visible:text-[#0c5063] ${bookmarkedQuestIds.includes(q.id) ? "text-[#0c5063]" : "text-slate-900"}`} aria-label={bookmarkedQuestIds.includes(q.id) ? "Saved" : "Save"} title={bookmarkedQuestIds.includes(q.id) ? "Saved" : "Save"} onClick={() => void toggleBookmark(q.id)}>
                       <svg viewBox="0 0 24 24" className="h-5 w-5" fill={bookmarkedQuestIds.includes(q.id) ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                        <path d="M12 3.5 14.6 8.8l5.9.9-4.3 4.2 1 5.9L12 17.1 6.8 19.8l1-5.9-4.3-4.2 5.9-.9L12 3.5Z" />
+                        <path d="m12 3 2.9 6 6.6.9-4.8 4.7 1.2 6.6-5.9-3.2-5.9 3.2 1.2-6.6-4.8-4.7 6.6-.9L12 3Z" />
                       </svg>
                     </button>
                   </div>
@@ -4137,13 +4018,13 @@ export default function Home() {
                       void askQuestion(q, "private");
                     }}>
                       <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                        <path d="M3.5 6.5A2.5 2.5 0 0 1 6 4h12a2.5 2.5 0 0 1 2.5 2.5v11A2.5 2.5 0 0 1 18 20H6a2.5 2.5 0 0 1-2.5-2.5v-11Z" />
-                        <path d="M5 7l7 5.5L19 7" />
+                        <rect x="3.5" y="5" width="17" height="14" rx="2.5" />
+                        <path d="m5 7 7 5 7-5" />
                       </svg>
                     </button>
                     <button className={`justify-self-end inline-flex h-10 w-10 items-center justify-center rounded-full bg-transparent text-sm font-medium transition hover:text-[#0c5063] focus-visible:text-[#0c5063] ${bookmarkedQuestIds.includes(q.id) ? "text-[#0c5063]" : "text-black dark:text-white"}`} aria-label={bookmarkedQuestIds.includes(q.id) ? "Saved" : "Save"} title={bookmarkedQuestIds.includes(q.id) ? "Saved" : "Save"} onClick={() => void toggleBookmark(q.id)}>
                       <svg viewBox="0 0 24 24" className="h-6 w-6" fill={bookmarkedQuestIds.includes(q.id) ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                        <path d="M12 3.5 14.6 8.8l5.9.9-4.3 4.2 1 5.9L12 17.1 6.8 19.8l1-5.9-4.3-4.2 5.9-.9L12 3.5Z" />
+                        <path d="m12 3 2.9 6 6.6.9-4.8 4.7 1.2 6.6-5.9-3.2-5.9 3.2 1.2-6.6-4.8-4.7 6.6-.9L12 3Z" />
                       </svg>
                     </button>
                   </div>

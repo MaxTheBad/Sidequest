@@ -38,6 +38,7 @@ type ReportRow = {
   created_at: string;
   updated_at: string | null;
   status_changed_at: string | null;
+  response_due_at: string | null;
   context_type: "listing_content" | "chat_behavior" | "profile_account" | "in_person";
   reason_code: string;
   details: string | null;
@@ -87,6 +88,17 @@ type ModerationTargetSummary = {
   severityScore: number;
 };
 
+type StaffMemberRow = {
+  user_id: string;
+  role: "moderator" | "senior_moderator" | "admin" | "super_admin";
+  active: boolean;
+  appointed_at: string;
+  updated_at: string;
+  display_name: string | null;
+  username: string | null;
+  avatar_url: string | null;
+};
+
 type ReportStatus = ReportRow["status"];
 type ReportActionType = ReportActionRow["action_type"];
 
@@ -117,6 +129,18 @@ function prettyLabel(input: string) {
     .replace(/[_-]+/g, " ")
     .replace(/\b\w/g, (ch) => ch.toUpperCase())
     .trim();
+}
+
+function responseDeadline(report: ReportRow) {
+  if (!report.response_due_at) return { label: "No deadline", overdue: false };
+  if (report.status === "resolved" || report.status === "dismissed") {
+    return { label: `Closed · due ${new Date(report.response_due_at).toLocaleString()}`, overdue: false };
+  }
+  const due = new Date(report.response_due_at);
+  return {
+    label: `${due.getTime() < Date.now() ? "OVERDUE" : "Due"} ${due.toLocaleString()}`,
+    overdue: due.getTime() < Date.now(),
+  };
 }
 
 function shortText(text: string | null | undefined, max = 120) {
@@ -192,6 +216,15 @@ export default function ModerationPage() {
   const supabase = getSupabaseClient();
   const [viewerId, setViewerId] = useState<string | null>(null);
   const [viewerRole, setViewerRole] = useState<string>("user");
+  const [mfaVerified, setMfaVerified] = useState(false);
+  const [mfaFactorId, setMfaFactorId] = useState("");
+  const [mfaQrCode, setMfaQrCode] = useState("");
+  const [mfaCode, setMfaCode] = useState("");
+  const [mfaBusy, setMfaBusy] = useState(false);
+  const [staffMembers, setStaffMembers] = useState<StaffMemberRow[]>([]);
+  const [staffIdentifier, setStaffIdentifier] = useState("");
+  const [staffRole, setStaffRole] = useState<StaffMemberRow["role"]>("moderator");
+  const [staffSaving, setStaffSaving] = useState(false);
   const [pageStatus, setPageStatus] = useState("Loading moderation reports...");
   const [reports, setReports] = useState<ReportRow[]>([]);
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
@@ -206,10 +239,8 @@ export default function ModerationPage() {
   const [filterSeverity, setFilterSeverity] = useState<"all" | ReportRow["severity"]>("all");
   const [search, setSearch] = useState("");
 
-  useEffect(() => {
-    if (!supabase) return;
-
-    const init = async () => {
+  async function initializeAccess() {
+      if (!supabase) return;
       const { data: auth } = await supabase.auth.getSession();
       const uid = auth.session?.user?.id ?? null;
       setViewerId(uid);
@@ -220,33 +251,39 @@ export default function ModerationPage() {
         return;
       }
 
-      const { data: profile, error: profileError } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", uid)
-        .maybeSingle();
+      const { data: accessData, error: accessError } = await supabase.rpc("get_my_staff_access");
 
-      if (profileError) {
-        if (profileError.message.toLowerCase().includes("role") || profileError.message.toLowerCase().includes("column")) {
-          setPageStatus("Moderation role DB not set up yet. Run sql/moderation-v1.sql");
+      if (accessError) {
+        if (accessError.message.toLowerCase().includes("function") || accessError.message.toLowerCase().includes("does not exist")) {
+          setPageStatus("Protected staff access is not deployed yet.");
           return;
         }
-        setPageStatus(profileError.message);
+        setPageStatus(accessError.message);
         return;
       }
 
-      const role = normalizeProfileRole((profile as { role?: string | null } | null)?.role);
+      const access = (Array.isArray(accessData) ? accessData[0] : accessData) as { staff_role?: string; is_active?: boolean; mfa_verified?: boolean } | null;
+      const role = normalizeProfileRole(access?.is_active ? access.staff_role : "user");
       setViewerRole(role);
+      setMfaVerified(Boolean(access?.mfa_verified));
 
       if (!isPrivilegedRole(role)) {
         setPageStatus("You do not have moderation access.");
         return;
       }
+      if (!access?.mfa_verified) {
+        setPageStatus("Multi-factor authentication is required before moderation data can be opened.");
+        return;
+      }
 
       await loadReports();
-    };
+      if (role === "admin" || role === "super_admin") await loadStaffMembers();
+  }
 
-    void init();
+  useEffect(() => {
+    if (!supabase) return;
+
+    void initializeAccess();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabase]);
 
@@ -263,7 +300,7 @@ export default function ModerationPage() {
     }
 
     setSelectedStatus(report.status);
-    setSelectedActionType(report.severity === "critical" ? "ban" : report.severity === "high" ? "suspend" : "request_more_info");
+    setSelectedActionType(report.severity === "critical" && viewerRole !== "moderator" ? "ban" : report.severity === "high" ? "suspend" : "request_more_info");
     setSelectedNote(report.resolution_note || report.details || "");
 
     if (!supabase) return;
@@ -289,7 +326,83 @@ export default function ModerationPage() {
     };
 
     void loadActions();
-  }, [reports, selectedReportId, supabase]);
+  }, [reports, selectedReportId, supabase, viewerRole]);
+
+  async function beginMfa() {
+    if (!supabase || mfaBusy) return;
+    setMfaBusy(true);
+    setPageStatus("");
+    const { data: factors, error: factorsError } = await supabase.auth.mfa.listFactors();
+    if (factorsError) {
+      setPageStatus(factorsError.message);
+      setMfaBusy(false);
+      return;
+    }
+    const verified = factors.totp.find((factor) => factor.status === "verified");
+    if (verified) {
+      setMfaFactorId(verified.id);
+      setMfaQrCode("");
+      setPageStatus("Enter the current code from your authenticator app.");
+      setMfaBusy(false);
+      return;
+    }
+    const { data, error } = await supabase.auth.mfa.enroll({ factorType: "totp", friendlyName: "QuestHat Moderation" });
+    if (error) {
+      setPageStatus(error.message);
+      setMfaBusy(false);
+      return;
+    }
+    setMfaFactorId(data.id);
+    setMfaQrCode(data.totp.qr_code);
+    setPageStatus("Scan the QR code, then enter the six-digit authenticator code.");
+    setMfaBusy(false);
+  }
+
+  async function verifyMfa() {
+    if (!supabase || !mfaFactorId || mfaCode.trim().length !== 6 || mfaBusy) return;
+    setMfaBusy(true);
+    const { error } = await supabase.auth.mfa.challengeAndVerify({ factorId: mfaFactorId, code: mfaCode.trim() });
+    if (error) {
+      setPageStatus(error.message);
+      setMfaBusy(false);
+      return;
+    }
+    await supabase.auth.refreshSession();
+    setMfaCode("");
+    setMfaQrCode("");
+    setMfaFactorId("");
+    setMfaBusy(false);
+    await initializeAccess();
+  }
+
+  async function loadStaffMembers() {
+    if (!supabase) return;
+    const { data, error } = await supabase.rpc("list_staff_members");
+    if (error) {
+      setPageStatus(error.message);
+      return;
+    }
+    setStaffMembers((data as StaffMemberRow[]) || []);
+  }
+
+  async function saveStaffMember(identifier: string, role: StaffMemberRow["role"], active: boolean) {
+    if (!supabase || staffSaving) return;
+    setStaffSaving(true);
+    setPageStatus("");
+    const { error } = await supabase.rpc("set_staff_member", {
+      p_identifier: identifier.trim(),
+      p_role: role,
+      p_active: active,
+    });
+    setStaffSaving(false);
+    if (error) {
+      setPageStatus(error.message);
+      return;
+    }
+    setStaffIdentifier("");
+    setPageStatus(active ? "Staff access saved." : "Staff access revoked immediately.");
+    await loadStaffMembers();
+  }
 
   async function loadReports() {
     if (!supabase) return;
@@ -300,7 +413,7 @@ export default function ModerationPage() {
       supabase
         .from("reports")
         .select(
-          "id,created_at,updated_at,status_changed_at,context_type,reason_code,details,status,severity,reporter_id,reported_user_id,quest_id,message_id,auto_flags,reviewed_by,reviewed_at,resolution_note,admin_assignee_id,reporter:profiles!reports_reporter_id_fkey(id,display_name,username,avatar_url),reported_user:profiles!reports_reported_user_id_fkey(id,display_name,username,avatar_url),quest:quests(id,title,city),message:messages(id,body,created_at),reviewed_by_profile:profiles!reports_reviewed_by_fkey(id,display_name,username,avatar_url),assignee:profiles!reports_admin_assignee_id_fkey(id,display_name,username,avatar_url)",
+          "id,created_at,updated_at,status_changed_at,response_due_at,context_type,reason_code,details,status,severity,reporter_id,reported_user_id,quest_id,message_id,auto_flags,reviewed_by,reviewed_at,resolution_note,admin_assignee_id,reporter:profiles!reports_reporter_id_fkey(id,display_name,username,avatar_url),reported_user:profiles!reports_reported_user_id_fkey(id,display_name,username,avatar_url),quest:quests(id,title,city),message:messages(id,body,created_at),reviewed_by_profile:profiles!reports_reviewed_by_fkey(id,display_name,username,avatar_url),assignee:profiles!reports_admin_assignee_id_fkey(id,display_name,username,avatar_url)",
         )
         .order("created_at", { ascending: false })
         .limit(200),
@@ -430,11 +543,11 @@ export default function ModerationPage() {
     const note = nextNote.trim() || null;
     setSaving(true);
 
-    const { error: actionError } = await supabase.from("report_actions").insert({
-      report_id: reportId,
-      actor_id: viewerId,
-      action_type: nextActionType,
-      note,
+    const { error: actionError } = await supabase.rpc("apply_moderation_enforcement", {
+      p_report_id: reportId,
+      p_status: nextStatus,
+      p_action_type: nextActionType,
+      p_note: note,
     });
 
     if (actionError) {
@@ -447,28 +560,8 @@ export default function ModerationPage() {
       return;
     }
 
-    const { error: updateError } = await supabase
-      .from("reports")
-      .update({
-        status: nextStatus,
-        reviewed_by: viewerId,
-        reviewed_at: new Date().toISOString(),
-        resolution_note: note,
-        admin_assignee_id: viewerId,
-      })
-      .eq("id", reportId);
-
     setSaving(false);
-    if (updateError) {
-      if (updateError.message.toLowerCase().includes("relation") || updateError.message.toLowerCase().includes("does not exist")) {
-        setPageStatus("Reports DB not set up yet. Run sql/reports-v1.sql and sql/moderation-v1.sql");
-        return;
-      }
-      setPageStatus(updateError.message);
-      return;
-    }
-
-    setPageStatus("Moderation action saved.");
+    setPageStatus(nextActionType === "ban" || nextActionType === "suspend" ? "Content removed and account ejected." : "Moderation action saved.");
     await loadReports();
     setSelectedReportId(reportId);
   }
@@ -516,7 +609,44 @@ export default function ModerationPage() {
 
         {!!pageStatus && <p className="text-sm rounded border bg-amber-50 px-3 py-2">{pageStatus}</p>}
 
-        {isPrivilegedRole(viewerRole) && (
+        {isPrivilegedRole(viewerRole) && !mfaVerified && (
+          <div className="mx-auto w-full max-w-lg space-y-4 rounded-2xl border border-amber-200 bg-amber-50 p-5">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.15em] text-amber-800">Protected staff access</p>
+              <h2 className="mt-1 text-xl font-bold">Authenticator verification required</h2>
+              <p className="mt-2 text-sm leading-6 text-gray-700">Reports and moderation actions remain locked until this session reaches MFA assurance level 2.</p>
+            </div>
+            {!mfaFactorId ? (
+              <button type="button" className="w-full rounded-xl bg-slate-950 px-4 py-3 font-semibold text-white disabled:opacity-50" disabled={mfaBusy} onClick={() => void beginMfa()}>
+                {mfaBusy ? "Checking..." : "Set up or verify authenticator"}
+              </button>
+            ) : (
+              <div className="space-y-3">
+                {mfaQrCode ? (
+                  <div className="rounded-xl border bg-white p-4 text-center">
+                    {/* Supabase returns a local data URL; no remote image is loaded. */}
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={mfaQrCode} alt="QuestHat moderation authenticator QR code" className="mx-auto h-48 w-48" />
+                  </div>
+                ) : null}
+                <input
+                  className="w-full rounded-xl border bg-white px-4 py-3 text-center text-lg tracking-[0.3em]"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={6}
+                  placeholder="000000"
+                  value={mfaCode}
+                  onChange={(event) => setMfaCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
+                />
+                <button type="button" className="w-full rounded-xl bg-slate-950 px-4 py-3 font-semibold text-white disabled:opacity-50" disabled={mfaBusy || mfaCode.length !== 6} onClick={() => void verifyMfa()}>
+                  {mfaBusy ? "Verifying..." : "Verify and unlock dashboard"}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {isPrivilegedRole(viewerRole) && mfaVerified && (
           <>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <div className="rounded-xl border bg-slate-50 p-3">
@@ -536,6 +666,51 @@ export default function ModerationPage() {
                 <p className="text-2xl font-bold">{emailQueuePending ?? "—"}</p>
               </div>
             </div>
+
+            {(viewerRole === "admin" || viewerRole === "super_admin") && (
+              <div className="rounded-2xl border border-slate-300 bg-slate-50 p-4 space-y-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.15em] text-slate-600">Admin only</p>
+                  <h2 className="text-base font-semibold">Moderation team</h2>
+                  <p className="text-sm text-gray-600">Assign by exact username or user ID. Access changes take effect immediately and are audited.</p>
+                </div>
+                <div className="grid gap-2 md:grid-cols-[minmax(220px,1fr)_190px_auto]">
+                  <input
+                    className="rounded-xl border bg-white px-3 py-2 text-sm"
+                    placeholder="Username or user ID"
+                    value={staffIdentifier}
+                    onChange={(event) => setStaffIdentifier(event.target.value)}
+                  />
+                  <select className="rounded-xl border bg-white px-3 py-2 text-sm" value={staffRole} onChange={(event) => setStaffRole(event.target.value as StaffMemberRow["role"])}>
+                    <option value="moderator">Moderator</option>
+                    <option value="senior_moderator">Senior moderator</option>
+                    <option value="admin">Admin</option>
+                    {viewerRole === "super_admin" ? <option value="super_admin">Super admin</option> : null}
+                  </select>
+                  <button type="button" className="rounded-xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" disabled={staffSaving || !staffIdentifier.trim()} onClick={() => void saveStaffMember(staffIdentifier, staffRole, true)}>
+                    {staffSaving ? "Saving..." : "Assign access"}
+                  </button>
+                </div>
+                <div className="grid gap-2 lg:grid-cols-2">
+                  {staffMembers.map((member) => (
+                    <div key={member.user_id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-white p-3">
+                      <div className="min-w-0">
+                        <p className="font-semibold truncate">{member.display_name || member.username || member.user_id}</p>
+                        <p className="text-xs text-gray-500">{member.username ? `@${member.username} · ` : ""}{prettyLabel(member.role)} · {member.active ? "Active" : "Revoked"}</p>
+                      </div>
+                      <button
+                        type="button"
+                        className={`rounded-lg border px-3 py-2 text-xs font-semibold disabled:opacity-50 ${member.active ? "border-red-200 text-red-700" : "border-emerald-200 text-emerald-700"}`}
+                        disabled={staffSaving || (member.user_id === viewerId && member.role === "super_admin")}
+                        onClick={() => void saveStaffMember(member.user_id, member.role, !member.active)}
+                      >
+                        {member.active ? "Revoke" : "Reactivate"}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="rounded-2xl border bg-white p-4 space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
@@ -638,6 +813,7 @@ export default function ModerationPage() {
                               <td className="py-3 px-3 whitespace-nowrap text-xs text-gray-500">
                                 <div>{new Date(report.created_at).toLocaleString()}</div>
                                 <div className="mt-1">{report.updated_at ? `Updated ${new Date(report.updated_at).toLocaleString()}` : ""}</div>
+                                <div className={`mt-1 font-semibold ${responseDeadline(report).overdue ? "text-red-700" : "text-amber-700"}`}>{responseDeadline(report).label}</div>
                               </td>
                               <td className="py-3 px-3">
                                 <div className="font-medium">{reportTargetSummary(report)}</div>
@@ -696,6 +872,7 @@ export default function ModerationPage() {
                       <div><span className="text-gray-500">Assignee:</span> {selectedAssignee?.display_name || selectedReport.admin_assignee_id || "—"}</div>
                       <div><span className="text-gray-500">Reviewed at:</span> {selectedReport.reviewed_at ? new Date(selectedReport.reviewed_at).toLocaleString() : "—"}</div>
                       <div><span className="text-gray-500">Status changed:</span> {selectedReport.status_changed_at ? new Date(selectedReport.status_changed_at).toLocaleString() : "—"}</div>
+                      <div className={responseDeadline(selectedReport).overdue ? "font-semibold text-red-700" : "font-medium text-amber-700"}><span>24-hour response:</span> {responseDeadline(selectedReport).label}</div>
                     </div>
 
                     <div className="rounded-xl border bg-white p-3 space-y-2">
@@ -720,7 +897,7 @@ export default function ModerationPage() {
 
                         <label className="text-xs font-medium text-gray-600">Action type</label>
                         <select className="border rounded px-3 py-2 text-sm" value={selectedActionType} onChange={(e) => setSelectedActionType(e.target.value as ReportActionType)}>
-                          {ACTION_OPTIONS.map((option) => (
+                          {ACTION_OPTIONS.filter((option) => option !== "ban" || viewerRole !== "moderator").map((option) => (
                             <option key={option} value={option}>{prettyLabel(option)}</option>
                           ))}
                         </select>
@@ -753,7 +930,7 @@ export default function ModerationPage() {
                           className="border rounded px-3 py-2 text-sm bg-white"
                           onClick={() => {
                             setSelectedStatus(selectedReport.status);
-                            setSelectedActionType(selectedReport.severity === "critical" ? "ban" : selectedReport.severity === "high" ? "suspend" : "request_more_info");
+                            setSelectedActionType(selectedReport.severity === "critical" && viewerRole !== "moderator" ? "ban" : selectedReport.severity === "high" ? "suspend" : "request_more_info");
                             setSelectedNote(selectedReport.resolution_note || selectedReport.details || "");
                           }}
                         >

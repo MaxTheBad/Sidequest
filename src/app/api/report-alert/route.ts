@@ -270,7 +270,7 @@ export async function POST(req: Request) {
 
   const { data: report, error } = await supabase
     .from("reports")
-    .select("id,created_at,status,severity,context_type,reason_code,details,auto_flags,reporter_id,reported_user_id,quest_id,message_id,reporter:profiles!reports_reporter_id_fkey(id,display_name,username),reported_user:profiles!reports_reported_user_id_fkey(id,display_name,username),quest:quests(id,title,city),message:messages(id,body,created_at)")
+    .select("id,created_at,response_due_at,status,severity,context_type,reason_code,details,auto_flags,reporter_id,reported_user_id,quest_id,message_id,reporter:profiles!reports_reporter_id_fkey(id,display_name,username),reported_user:profiles!reports_reported_user_id_fkey(id,display_name,username),quest:quests(id,title,city),message:messages(id,body,created_at)")
     .eq("id", body.report_id)
     .maybeSingle();
 
@@ -294,7 +294,7 @@ export async function POST(req: Request) {
   const message = Array.isArray(report.message) ? report.message[0] : report.message;
 
   const subjectBase = reportCount > 1 ? `${reportCount} reports` : "Report";
-  const subject = `[QuestHat moderation] ${subjectBase} · ${prettyLabel(report.severity)} ${prettyLabel(report.context_type)}`;
+  const subject = `[24h SLA] [QuestHat moderation] ${subjectBase} · ${prettyLabel(report.severity)} ${prettyLabel(report.context_type)}`;
   const reporterName = reporter?.username
     ? `${flags.reporter_name || reporter?.display_name || report.reporter_id} (@${reporter.username})`
     : flags.reporter_name || reporter?.display_name || report.reporter_id;
@@ -306,6 +306,7 @@ export async function POST(req: Request) {
     `A moderation alert was submitted in QuestHat.`,
     "",
     `Report reference: ${report.id}`,
+    `Response due: ${report.response_due_at ? new Date(report.response_due_at).toLocaleString() : "Within 24 hours"}`,
     `Count for this target: ${reportCount}`,
     `Target key: ${targetKey}`,
     `Context: ${prettyLabel(report.context_type)}`,

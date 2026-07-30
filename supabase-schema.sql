@@ -6,6 +6,7 @@ create extension if not exists pgcrypto;
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   display_name text,
+  display_name_changed_at timestamptz,
   username text,
   username_changed_at timestamptz,
   city text,
@@ -17,8 +18,32 @@ create table if not exists public.profiles (
   skill_level text check (skill_level in ('beginner','returning','intermediate','advanced')) default 'beginner',
   availability text,
   radius_km int default 15,
+  deactivated_at timestamptz,
+  eula_version text,
+  eula_accepted_at timestamptz,
+  moderation_status text not null default 'active' check (moderation_status in ('active','suspended','banned')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
+);
+
+create table if not exists public.staff_members (
+  user_id uuid primary key references public.profiles(id) on delete cascade,
+  role text not null check (role in ('moderator','senior_moderator','admin','super_admin')),
+  active boolean not null default true,
+  appointed_by uuid references public.profiles(id) on delete set null,
+  appointed_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.staff_audit_events (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  actor_id uuid references public.profiles(id) on delete set null,
+  target_user_id uuid not null references public.profiles(id) on delete cascade,
+  action text not null,
+  previous_role text,
+  new_role text,
+  metadata jsonb not null default '{}'::jsonb
 );
 
 create unique index if not exists profiles_username_lower_unique
@@ -65,6 +90,56 @@ drop trigger if exists enforce_profile_username_trigger on public.profiles;
 create trigger enforce_profile_username_trigger
 before insert or update of username on public.profiles
 for each row execute function public.enforce_profile_username();
+
+create or replace function public.enforce_profile_display_name()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+declare
+  normalized text;
+begin
+  if new.display_name is null or btrim(new.display_name) = '' then
+    new.display_name := null;
+    return new;
+  end if;
+
+  normalized := btrim(new.display_name);
+
+  if tg_op = 'INSERT' or old.display_name is null then
+    new.display_name_changed_at := now();
+  elsif btrim(old.display_name) is distinct from normalized then
+    if old.display_name_changed_at is not null
+       and old.display_name_changed_at > now() - interval '24 hours' then
+      raise exception using errcode = 'P0001',
+        message = 'You can only change your name once every 24 hours.';
+    end if;
+    new.display_name_changed_at := now();
+  else
+    new.display_name_changed_at := old.display_name_changed_at;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists enforce_profile_display_name_trigger on public.profiles;
+create trigger enforce_profile_display_name_trigger
+before insert or update of display_name on public.profiles
+for each row execute function public.enforce_profile_display_name();
+
+create table if not exists public.push_tokens (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  expo_push_token text not null unique,
+  platform text not null default 'ios',
+  active boolean not null default true,
+  last_seen_at timestamptz not null default now(),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create unique index if not exists push_tokens_user_token_idx
+  on public.push_tokens (user_id, expo_push_token);
 
 create table if not exists public.hobbies (
   id uuid primary key default gen_random_uuid(),

@@ -98,12 +98,12 @@ begin
     return new;
   end if;
 
-  select coalesce(display_name, 'Someone') into sender_name
+  select coalesce(display_name, username, 'Someone') into sender_name
   from public.profiles
   where id = new.sender_id;
 
   is_private := new.body like '[PRIVATE%';
-  clean_body := regexp_replace(new.body, '^\[(PUBLIC|PRIVATE)(?:\s+to=[0-9a-fA-F-]{36})?\]\s?', '', 'i');
+  clean_body := trim(regexp_replace(new.body, '^\[(PUBLIC|PRIVATE)(?:\s+to=[0-9a-fA-F-]{36})?\]\s?', '', 'i'));
 
   if is_private then
     recipient_id := coalesce(
@@ -118,10 +118,13 @@ begin
     perform public.create_notification(
       recipient_id,
       'message',
-      case when is_private then 'New private message' else 'New comment on your listing' end,
       case
-        when is_private then sender_name || ' sent you a private message.'
-        else sender_name || ' commented: ' || left(coalesce(clean_body, ''), 120)
+        when is_private then 'New message from ' || sender_name
+        else 'New comment on "' || left(coalesce(quest_row.title, 'this quest'), 70) || '"'
+      end,
+      case
+        when is_private then left(coalesce(nullif(clean_body, ''), 'Sent you a message.'), 180)
+        else sender_name || ': ' || left(coalesce(nullif(clean_body, ''), 'Left a comment.'), 160)
       end,
       case
         when is_private then '/inbox?thread=' || new.quest_id::text || ':private:' || new.sender_id::text || '&message=' || new.id::text

@@ -7,6 +7,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
   return [
     "",
     "/privacy",
+    "/support",
     "/terms",
     "/tos",
     "/delete-account",

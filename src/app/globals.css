@@ -107,6 +107,50 @@ html:not([data-theme="dark"]) .quest-list-overlay svg {
   stroke: currentColor;
 }
 
+html:not([data-theme="dark"]) .quest-card-feed-footer {
+  background: rgba(255, 255, 255, 0.98) !important;
+  color: var(--foreground) !important;
+  border-top: 1px solid var(--border) !important;
+  margin-top: -1px;
+  box-shadow: none !important;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+html[data-theme="dark"] .quest-card-feed-footer {
+  background: rgba(15, 14, 19, 0.96) !important;
+  color: #ffffff !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+  margin-top: -1px;
+  box-shadow: none !important;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+html:not([data-theme="dark"]) .quest-card-feed-footer .text-slate-900,
+html:not([data-theme="dark"]) .quest-card-feed-footer .text-slate-800,
+html:not([data-theme="dark"]) .quest-card-feed-footer .text-black {
+  color: var(--foreground) !important;
+}
+
+html[data-theme="dark"] .quest-card-feed-footer .text-slate-900,
+html[data-theme="dark"] .quest-card-feed-footer .text-slate-800,
+html[data-theme="dark"] .quest-card-feed-footer .text-black {
+  color: #ffffff !important;
+}
+
+html:not([data-theme="dark"]) .quest-card-feed-footer .text-slate-700,
+html:not([data-theme="dark"]) .quest-card-feed-footer .text-slate-600,
+html:not([data-theme="dark"]) .quest-card-feed-footer .text-slate-500 {
+  color: color-mix(in srgb, var(--foreground) 68%, transparent) !important;
+}
+
+html[data-theme="dark"] .quest-card-feed-footer .text-slate-700,
+html[data-theme="dark"] .quest-card-feed-footer .text-slate-600,
+html[data-theme="dark"] .quest-card-feed-footer .text-slate-500 {
+  color: rgba(255, 255, 255, 0.8) !important;
+}
+
 @keyframes blink-colors {
   0% {
     color: inherit;
@@ -655,9 +699,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   .rail-account { justify-content: space-between; padding-inline: 8px; }
 }
 
-.mobile-topbar, nav.nav-shell { background: color-mix(in srgb, var(--surface-elevated) 96%, transparent); }
+.mobile-topbar, nav.nav-shell { background: color-mix(in srgb, var(--surface-elevated) 96%, transparent); transition: background-color 180ms ease, border-color 180ms ease, backdrop-filter 180ms ease, -webkit-backdrop-filter 180ms ease; }
 .mobile-topbar.is-top { background: color-mix(in srgb, var(--surface-elevated) 100%, transparent); }
-.mobile-topbar.is-scrolled { background: color-mix(in srgb, var(--surface-elevated) 68%, transparent); }
+.mobile-topbar.is-scrolled { background: color-mix(in srgb, var(--surface-elevated) 86%, transparent); backdrop-filter: blur(16px) saturate(150%); -webkit-backdrop-filter: blur(16px) saturate(150%); }
+.mobile-topbar.is-transparent { background: rgba(255, 255, 255, 0.08); border-color: transparent; backdrop-filter: blur(16px) saturate(150%); -webkit-backdrop-filter: blur(16px) saturate(150%); }
 nav.nav-shell { border-color: var(--border) !important; box-shadow: 0 -8px 30px rgba(18,15,26,.07); }
 .nav-create { background: var(--accent-primary) !important; box-shadow: 0 8px 24px color-mix(in srgb, var(--accent-primary) 30%, transparent); }
 .nav-item-active { color: var(--accent-primary); background: transparent; }
@@ -891,8 +936,10 @@ button.border, a.border { min-height: 40px; border-radius: 999px; font-weight: 6
 
 html[data-theme="dark"] .desktop-rail,
 html[data-theme="dark"] .mobile-topbar.is-top,
+html[data-theme="dark"] .mobile-topbar.is-transparent,
 html[data-theme="dark"] nav.nav-shell { background: rgba(15,14,19,.96); }
 html[data-theme="dark"] .mobile-topbar.is-scrolled { background: rgba(15,14,19,.68); }
+html[data-theme="dark"] .mobile-topbar.is-transparent { background: rgba(15,14,19,.18); border-color: transparent; }
 html[data-theme="dark"] img { color-scheme: dark; }
 
 /* ============================================

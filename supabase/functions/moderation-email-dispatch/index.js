@@ -54,15 +54,6 @@ async function sendSmtpEmail({
   to,
   subject,
   text,
-}: {
-  host: string;
-  port: number;
-  user: string;
-  password: string;
-  from: string;
-  to: string;
-  subject: string;
-  text: string;
 }) {
   const { connect } = await import("cloudflare:sockets");
   const socket = connect(
@@ -165,7 +156,7 @@ async function buildReportSummary(supabase, reportId) {
   const { data, error } = await supabase
     .from("reports")
     .select(
-      "id,created_at,status,severity,context_type,reason_code,details,auto_flags,reporter_id,reported_user_id,quest_id,message_id,reporter:profiles!reports_reporter_id_fkey(id,display_name),reported_user:profiles!reports_reported_user_id_fkey(id,display_name),quest:quests(id,title,city),message:messages(id,body,created_at)",
+      "id,created_at,response_due_at,status,severity,context_type,reason_code,details,auto_flags,reporter_id,reported_user_id,quest_id,message_id,reporter:profiles!reports_reporter_id_fkey(id,display_name),reported_user:profiles!reports_reported_user_id_fkey(id,display_name),quest:quests(id,title,city),message:messages(id,body,created_at)",
     )
     .eq("id", reportId)
     .maybeSingle();
@@ -269,12 +260,13 @@ Deno.serve(async (req) => {
       const reporterName = reportMeta.reporter_name || reporter?.display_name || report.reporter_id;
       const referenceId = String(reportMeta.reference_id || report.id);
       const reportedUserLabel = reportedProfile?.display_name || report.reported_user_id || "—";
-      const subject = `[Sidequest moderation] ${prettyLabel(queueRow.queue_reason)} · ${prettyLabel(report.severity)} report`;
+      const subject = `[24h SLA] [QuestHat moderation] ${prettyLabel(queueRow.queue_reason)} · ${prettyLabel(report.severity)} report`;
       const bodyLines = [
         `A moderation alert was queued in Sidequest.`,
         ``,
         `Reference: ${referenceId}`,
         `Report ID: ${report.id}`,
+        `Response due: ${report.response_due_at ? new Date(report.response_due_at).toLocaleString() : "Within 24 hours"}`,
         `Queue reason: ${prettyLabel(queueRow.queue_reason)}`,
         `Status: ${prettyLabel(report.status)}`,
         `Severity: ${prettyLabel(report.severity)}`,

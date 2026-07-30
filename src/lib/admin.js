@@ -1,4 +1,4 @@
-export const PRIVILEGED_ROLES = ["moderator", "admin", "super_admin"];
+export const PRIVILEGED_ROLES = ["moderator", "senior_moderator", "admin", "super_admin"];
 
 export function normalizeProfileRole(role) {
   const value = (role || "").toString().trim().toLowerCase();

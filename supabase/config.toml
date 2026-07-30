@@ -1,0 +1,12 @@
+project_id = "ipjewvmmzmxakoewqlfo"
+
+[functions.push-notification-dispatch]
+# Database triggers authenticate with x-push-dispatch-secret before any push is sent.
+verify_jwt = false
+
+[functions.account-deletion]
+# The function validates the bearer token with Supabase Auth before deleting.
+verify_jwt = false
+
+[functions.moderation-email-dispatch]
+entrypoint = "./functions/moderation-email-dispatch/index.js"

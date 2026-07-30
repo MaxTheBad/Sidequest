@@ -8,6 +8,7 @@ import "./globals.css";
 import BottomNav from "@/components/bottom-nav";
 import GlobalTopBar from "@/components/global-top-bar";
 import UsernameGate from "@/components/username-gate";
+import EulaGate from "@/components/eula-gate";
 import { APP_NAME } from "@/lib/app-brand";
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://questhat.com";
@@ -93,6 +94,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased pt-[60px] pb-28 md:pl-[84px] md:pt-0 md:pb-0 xl:pl-[248px]`}
       >
         <GlobalTopBar />
+        <EulaGate />
         <UsernameGate />
         {children}
         <footer className="app-footer mt-16 border-t border-slate-200 bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/75">
@@ -118,6 +120,9 @@ export default function RootLayout({
                 </Link>
                 <Link href="/privacy" className="hover:text-slate-800 underline-offset-4 hover:underline">
                   Privacy
+                </Link>
+                <Link href="/support" className="hover:text-slate-800 underline-offset-4 hover:underline">
+                  Support
                 </Link>
                 <Link href="/delete-account" className="hover:text-slate-800 underline-offset-4 hover:underline">
                   Delete data

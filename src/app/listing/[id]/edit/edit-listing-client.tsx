@@ -6,33 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import CityAutocompleteInput from "@/components/city-autocomplete-input";
 import { getSupabaseClient } from "@/lib/supabase";
 import { CANONICAL_CATEGORIES, resolveCanonicalCategory, suggestCanonicalCategories } from "@/lib/category-suggestions.js";
-
-const TITLE_SUGGESTIONS = [
-  "Beginner tennis buddy this weekend",
-  "After-work climbing crew",
-  "Saturday table tennis group",
-  "Pickleball for total beginners",
-  "Morning run partners (3x/week)",
-];
-
-const TITLE_SUGGESTIONS_BY_CATEGORY: Record<string, string[]> = {
-  build: ["Lock in and ship your MVP in 14 days", "Build in public: validate your idea this week", "Find a co-builder and execute"],
-  learn: ["Lock in for a focused study sprint", "Learn SQL with an accountability buddy", "Daily learning streak — no zero days"],
-  career: ["Lock in on interview prep this weekend", "Resume glow-up + job hunt execution", "LinkedIn outreach sprint with accountability"],
-  "healthy lifestyle": ["Lock in with a gym buddy", "Cardio accountability crew (3x/week)", "Healthy habits reset: sleep, food, movement"],
-  running: ["Morning run partners (3x/week)", "Easy pace run crew", "5K training accountability"],
-  outdoors: ["Lock in for a sunrise hike", "Beginner-friendly trail day", "Weekend adventure squad"],
-  social: ["Meet new people and actually follow through", "Communication skills practice circle", "Community hang + good vibes only"],
-  money: ["Lock in and execute a money plan", "Budget reset sprint for this month", "Side hustle ideas to action"],
-  creative: ["Write for 30 minutes daily", "Photo walk + editing session", "Co-create content this weekend"],
-  "arts & crafts": ["Saturday painting + coffee session", "DIY craft night with accountability", "Lock in and finish your art piece"],
-  painting: ["Studio painting session tonight", "Brush, canvas, repeat", "Weekend plein air painting plan"],
-  "book club": ["Monthly book club with real follow-through", "Reading circle + discussion night", "Finish the book and show up"],
-  sewing: ["Sewing session with accountability", "Finish that hem, patch, or project", "Creative sewing night with momentum"],
-  "music / producer": ["Producer lock-in session tonight", "Beat-making sprint and feedback", "Finish one track this week"],
-  lifestyle: ["Build a better morning routine", "Declutter sprint + reset", "Weekly productivity planning"],
-  wildcard: ["Something different: let's explore it", "My custom challenge starts now", "Open idea lab — bring your wildcards"],
-};
+import { TITLE_SUGGESTIONS, getCategoryTitleSuggestions } from "@questhat/shared";
 
 type Hobby = { id: string; name: string };
 
@@ -45,15 +19,8 @@ function slugify(text: string) {
 }
 
 function pickTitleSuggestionByCategory(categoryName: string) {
-  const normalized = categoryName.trim().toLowerCase();
-  const direct = TITLE_SUGGESTIONS_BY_CATEGORY[normalized];
-  if (direct?.length) return direct[Math.floor(Math.random() * direct.length)];
-  const matchedKey = Object.keys(TITLE_SUGGESTIONS_BY_CATEGORY).find((key) => normalized.includes(key));
-  if (matchedKey) {
-    const pool = TITLE_SUGGESTIONS_BY_CATEGORY[matchedKey];
-    return pool[Math.floor(Math.random() * pool.length)];
-  }
-  return TITLE_SUGGESTIONS[Math.floor(Math.random() * TITLE_SUGGESTIONS.length)];
+  const suggestions = getCategoryTitleSuggestions(categoryName);
+  return suggestions[Math.floor(Math.random() * suggestions.length)];
 }
 
 export default function EditListingPage() {

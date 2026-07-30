@@ -64,12 +64,17 @@ export default function SettingsPage() {
   const [blockedProfiles, setBlockedProfiles] = useState<BlockedProfile[]>([]);
   const [blockedRefreshTick, setBlockedRefreshTick] = useState(0);
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
+  const [deactivatedAt, setDeactivatedAt] = useState<string | null>(null);
+  const [accountActionLoading, setAccountActionLoading] = useState<"deactivate" | "restore" | "delete" | null>(null);
+  const [showDeleteAccountConfirm, setShowDeleteAccountConfirm] = useState(false);
+  const [deleteAccountConfirmation, setDeleteAccountConfirmation] = useState("");
   const initialProfileSnapshotRef = useRef<string>("");
   const initialProfileSnapshot = (() => {
     if (!initialProfileSnapshotRef.current) return null;
     try {
       return JSON.parse(initialProfileSnapshotRef.current) as {
         actualName?: string;
+        actualNameChangedAt?: string | null;
         username?: string;
         countryCode?: string;
         city?: string;
@@ -109,7 +114,7 @@ export default function SettingsPage() {
 
       const { data: profile } = await supabase
         .from("profiles")
-        .select("display_name,username,username_changed_at,city,region,country_code,bio,friends_visibility,show_location,radius_km,avatar_url,avatar_source_url")
+        .select("display_name,display_name_changed_at,username,username_changed_at,city,region,country_code,bio,friends_visibility,show_location,radius_km,avatar_url,avatar_source_url,deactivated_at")
         .eq("id", uid)
         .maybeSingle();
 
@@ -128,6 +133,7 @@ export default function SettingsPage() {
       const metaAvatar = typeof authMeta.avatar_url === "string" ? authMeta.avatar_url : "";
       const resolvedAvatar = profile?.avatar_url || metaAvatar || "";
       setAvatarUrl(resolvedAvatar);
+      setDeactivatedAt(profile?.deactivated_at || null);
 
       if (!profile?.avatar_url && metaAvatar) {
         await supabase.from("profiles").upsert({ id: uid, avatar_url: metaAvatar });
@@ -141,6 +147,7 @@ export default function SettingsPage() {
       setCountryCode(resolvedCountryCode);
       initialProfileSnapshotRef.current = JSON.stringify({
         actualName: profile?.display_name || metaName || "",
+        actualNameChangedAt: profile?.display_name_changed_at || null,
         username: profile?.username || "",
         countryCode: resolvedCountryCode,
         city: profile?.city ?? (typeof authMeta.city === "string" ? authMeta.city : ""),
@@ -249,6 +256,7 @@ export default function SettingsPage() {
     if (!supabase || !userId) return setStatus("Not signed in.");
     const initial = initialProfileSnapshot || {
       actualName: "",
+      actualNameChangedAt: null,
       username: "",
       countryCode: "",
       city: "",
@@ -268,6 +276,13 @@ export default function SettingsPage() {
       initial.showLocation !== showLocation ? "location visibility" : null,
       initial.friendsVisibility !== friendsVisibility ? "friends visibility" : null,
     ].filter(Boolean) as string[];
+    const actualNameChanged = actualName.trim() !== (initial.actualName || "").trim();
+    const actualNameChangedAtMs = initial.actualNameChangedAt ? new Date(initial.actualNameChangedAt).getTime() : 0;
+    const actualNameCooldownActive =
+      actualNameChanged &&
+      Number.isFinite(actualNameChangedAtMs) &&
+      actualNameChangedAtMs > 0 &&
+      Date.now() - actualNameChangedAtMs < 24 * 60 * 60 * 1000;
     const usernameChanged = normalizeUsername(username) !== normalizeUsername(initial.username || "");
     const usernameChangedAtMs = initial.usernameChangedAt ? new Date(initial.usernameChangedAt).getTime() : 0;
     const usernameCooldownActive =
@@ -275,8 +290,10 @@ export default function SettingsPage() {
       Number.isFinite(usernameChangedAtMs) &&
       usernameChangedAtMs > 0 &&
       Date.now() - usernameChangedAtMs < 24 * 60 * 60 * 1000;
+    let actualNameBlocked = actualNameCooldownActive;
     let usernameBlocked = usernameCooldownActive;
     const nextUsernameChangedAt = usernameChanged && !usernameCooldownActive ? new Date().toISOString() : initial.usernameChangedAt || null;
+    const nextActualNameChangedAt = actualNameChanged && !actualNameCooldownActive ? new Date().toISOString() : initial.actualNameChangedAt || null;
 
     const saveBaseProfile = async () =>
       supabase
@@ -298,6 +315,7 @@ export default function SettingsPage() {
         id: userId,
         username,
         display_name: actualName,
+        display_name_changed_at: nextActualNameChangedAt,
         username_changed_at: nextUsernameChangedAt,
         city,
         region: region || null,
@@ -309,9 +327,16 @@ export default function SettingsPage() {
         avatar_url: avatarUrl || null,
       });
 
-    const profileSaveResult = usernameChanged && !usernameCooldownActive ? await saveNameAndBase() : await saveBaseProfile();
+    const profileSaveResult =
+      actualNameChanged || usernameChanged
+        ? await saveNameAndBase()
+        : await saveBaseProfile();
     let { error } = profileSaveResult;
 
+    if (actualNameChanged && !actualNameCooldownActive && error?.message.toLowerCase().includes("once every 24 hours")) {
+      actualNameBlocked = true;
+      ({ error } = await saveBaseProfile());
+    }
     if (usernameChanged && !usernameCooldownActive && error?.message.toLowerCase().includes("once every 24 hours")) {
       usernameBlocked = true;
       ({ error } = await saveBaseProfile());
@@ -334,11 +359,11 @@ export default function SettingsPage() {
     });
 
     if (metaErr) return setStatus(metaErr.message);
-    if (usernameBlocked) {
+    if (actualNameBlocked || usernameBlocked) {
       const otherChanges = changedFields.filter((field) => field !== "username");
       setActualName(savedActualName);
       setStatus(
-        `You can only change your username once every 24 hours.${
+        `${actualNameBlocked ? "You can only change your name once every 24 hours." : "You can only change your username once every 24 hours."}${
           otherChanges.length ? ` Other changes saved: ${otherChanges.join(", ")}.` : ""
         }`,
       );
@@ -347,6 +372,7 @@ export default function SettingsPage() {
     }
     initialProfileSnapshotRef.current = JSON.stringify({
       actualName: savedActualName,
+      actualNameChangedAt: actualNameBlocked ? initial.actualNameChangedAt || null : nextActualNameChangedAt,
       username,
       countryCode,
       city,
@@ -614,6 +640,56 @@ export default function SettingsPage() {
     setNewPassword("");
     setConfirmPassword("");
     setStatus("Password updated ✅");
+  }
+
+  async function deactivateAccount() {
+    if (!supabase || accountActionLoading) return;
+    if (!window.confirm("Deactivate your account? Your profile and listings will be hidden and notifications will stop. You can restore everything the next time you sign in.")) return;
+    setAccountActionLoading("deactivate");
+    setStatus("");
+    try {
+      const { error } = await supabase.rpc("deactivate_my_account");
+      if (error) throw error;
+      await supabase.auth.signOut();
+      window.location.assign("/");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not deactivate the account.");
+      setAccountActionLoading(null);
+    }
+  }
+
+  async function restoreAccount() {
+    if (!supabase || accountActionLoading) return;
+    setAccountActionLoading("restore");
+    setStatus("");
+    try {
+      const { error } = await supabase.rpc("reactivate_my_account");
+      if (error) throw error;
+      setDeactivatedAt(null);
+      setStatus("Account restored ✅");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not restore the account.");
+    } finally {
+      setAccountActionLoading(null);
+    }
+  }
+
+  async function permanentlyDeleteAccount() {
+    if (!supabase || deleteAccountConfirmation !== "DELETE" || accountActionLoading) return;
+    setAccountActionLoading("delete");
+    setStatus("");
+    try {
+      const { data, error } = await supabase.functions.invoke("account-deletion", {
+        body: { confirmation: deleteAccountConfirmation },
+      });
+      if (error) throw error;
+      if (!data?.ok) throw new Error(data?.error || "Could not delete the account.");
+      await supabase.auth.signOut();
+      window.location.assign("/");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not delete the account.");
+      setAccountActionLoading(null);
+    }
   }
 
   async function savePreferences(e: FormEvent) {
@@ -895,6 +971,39 @@ export default function SettingsPage() {
 
                   <button className="border rounded px-3 py-2">Update password</button>
                 </form>
+
+                <div className="border-t pt-5 space-y-3">
+                  <div>
+                    <h3 className="font-semibold text-lg">Account controls</h3>
+                    <p className="text-sm text-gray-600">Take a reversible break or permanently remove your account.</p>
+                  </div>
+                  <div className="rounded-2xl border bg-gray-50 p-4 space-y-3">
+                    <div>
+                      <p className="font-semibold">Deactivate temporarily</p>
+                      <p className="text-sm text-gray-600">Hide your profile and listings and stop notifications. Restore everything by signing in again.</p>
+                    </div>
+                    <button type="button" className="rounded-xl border bg-white px-3 py-2 text-sm font-medium disabled:opacity-50" onClick={() => void deactivateAccount()} disabled={Boolean(accountActionLoading)}>
+                      {accountActionLoading === "deactivate" ? "Deactivating..." : "Deactivate account"}
+                    </button>
+                  </div>
+                  <div className="rounded-2xl border border-red-200 bg-red-50 p-4 space-y-3">
+                    <div>
+                      <p className="font-semibold text-red-800">Delete permanently</p>
+                      <p className="text-sm text-red-700">Delete your profile, listings, messages, memberships, saved items, and uploaded media. This cannot be undone.</p>
+                    </div>
+                    <button
+                      type="button"
+                      className="rounded-xl border border-red-300 bg-white px-3 py-2 text-sm font-medium text-red-700 disabled:opacity-50"
+                      onClick={() => {
+                        setDeleteAccountConfirmation("");
+                        setShowDeleteAccountConfirm(true);
+                      }}
+                      disabled={Boolean(accountActionLoading)}
+                    >
+                      Delete account
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -1108,6 +1217,51 @@ export default function SettingsPage() {
                 Sign out
               </button>
             </div>
+          </div>
+        </div>
+      ) : null}
+
+      {deactivatedAt && !showDeleteAccountConfirm ? (
+        <div className="fixed inset-0 z-[160] bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-md rounded-3xl bg-white border p-6 space-y-4 text-center shadow-2xl">
+            <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-cyan-50 text-cyan-800 text-2xl">Ⅱ</div>
+            <div>
+              <h3 className="font-semibold text-xl">Your account is deactivated</h3>
+              <p className="mt-2 text-sm text-gray-600">Your profile and listings remain hidden. Restore the account to return with your data intact.</p>
+            </div>
+            <button type="button" className="w-full rounded-xl bg-slate-950 px-4 py-3 font-medium text-white disabled:opacity-50" onClick={() => void restoreAccount()} disabled={Boolean(accountActionLoading)}>
+              {accountActionLoading === "restore" ? "Restoring..." : "Restore account"}
+            </button>
+            <button type="button" className="w-full rounded-xl border px-4 py-3 font-medium disabled:opacity-50" onClick={() => void signOut()} disabled={Boolean(accountActionLoading)}>Keep deactivated and sign out</button>
+            <button type="button" className="text-sm font-medium text-red-700" onClick={() => setShowDeleteAccountConfirm(true)}>Delete permanently instead</button>
+          </div>
+        </div>
+      ) : null}
+
+      {showDeleteAccountConfirm ? (
+        <div className="fixed inset-0 z-[170] bg-black/65 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-md rounded-3xl bg-white border p-6 space-y-4 shadow-2xl">
+            <div>
+              <h3 className="font-semibold text-xl text-red-800">Permanently delete account?</h3>
+              <p className="mt-2 text-sm text-gray-600">This permanently removes your account data and uploaded media. It cannot be undone.</p>
+            </div>
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-medium text-amber-900">Type DELETE below to continue.</div>
+            <input
+              className="w-full rounded-xl border px-3 py-3"
+              value={deleteAccountConfirmation}
+              onChange={(event) => setDeleteAccountConfirmation(event.target.value.toUpperCase())}
+              placeholder="Type DELETE"
+              disabled={accountActionLoading === "delete"}
+            />
+            <button
+              type="button"
+              className="w-full rounded-xl bg-red-600 px-4 py-3 font-medium text-white disabled:bg-gray-300"
+              onClick={() => void permanentlyDeleteAccount()}
+              disabled={deleteAccountConfirmation !== "DELETE" || Boolean(accountActionLoading)}
+            >
+              {accountActionLoading === "delete" ? "Deleting..." : "Delete permanently"}
+            </button>
+            <button type="button" className="w-full rounded-xl border px-4 py-3" onClick={() => setShowDeleteAccountConfirm(false)} disabled={accountActionLoading === "delete"}>Cancel</button>
           </div>
         </div>
       ) : null}

@@ -16,14 +16,19 @@ export default function GlobalTopBar() {
   const router = useRouter();
   const pathname = usePathname();
   const [isScrolled, setIsScrolled] = useState(false);
+  const [isScrollingDown, setIsScrollingDown] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [userLabel, setUserLabel] = useState("");
   const [userRole, setUserRole] = useState("user");
   const [notificationCount, setNotificationCount] = useState(0);
 
   useEffect(() => {
+    let lastScrollY = typeof window !== "undefined" ? window.scrollY : 0;
     const updateScrollState = () => {
-      setIsScrolled(window.scrollY > 8);
+      const currentY = window.scrollY;
+      setIsScrolled(currentY > 8);
+      setIsScrollingDown(currentY > 8 && currentY > lastScrollY + 2);
+      lastScrollY = currentY;
     };
     updateScrollState();
     window.addEventListener("scroll", updateScrollState, { passive: true });
@@ -124,11 +129,11 @@ export default function GlobalTopBar() {
 
   return (
     <>
-      <header className={`mobile-topbar fixed top-0 inset-x-0 z-50 border-b nav-shell md:hidden ${isScrolled ? "is-scrolled" : "is-top"}`}>
+      <header className={`mobile-topbar fixed top-0 inset-x-0 z-50 border-b nav-shell md:hidden ${isScrolled ? (isScrollingDown ? "is-transparent" : "is-scrolled") : "is-top"}`}>
       <div className="h-[60px] px-4 flex items-center justify-between gap-3">
         <Link href="/" className="nav-brand flex items-center gap-2 text-[15px] tracking-tight">
           <Image src="/questhat-logo.png" alt={APP_NAME} width={34} height={18} className="h-5 w-auto" priority />
-          <span>{APP_NAME}</span>
+          <span className="font-semibold">{APP_NAME}</span>
         </Link>
         <div className="flex items-center gap-2">
           <button className="icon-control relative" aria-label="Notifications" onClick={() => navigate("/notifications")}><AppIcon name="bell" className="h-5 w-5" />{notificationCount > 0 && <span className="nav-badge">{notificationCount > 9 ? "9+" : notificationCount}</span>}</button>
