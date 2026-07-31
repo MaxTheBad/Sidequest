@@ -76,8 +76,11 @@ On a Cloudflare Pages preview using production-like environment variables:
 - Google, Facebook, and Apple auth providers either work or are intentionally hidden/disabled.
 - New user onboarding creates a profile, username gate works, and welcome email sends once.
 - Turnstile verifies on signup, quest creation, and report flows.
+- Cloudflare rate-limiting rules protect `/api/turnstile/verify`, `/api/report-alert`, and authentication callback traffic from IP-level floods.
+- Supabase migration `20260731143000_abuse_rate_limits_and_media_caps.sql` is applied so direct web/mobile database writes receive server-side cooldowns.
 - Quest creation, edit, delete, join request, approval, leave, and block flows work.
 - Public and private messages appear in listing pages, inbox, and notifications.
 - Profile photo, listing media, and listing video uploads render from Supabase storage.
+- Quests reject a fourth media item and storage rejects oversized, unsupported, or over-quota uploads.
 - Report submission creates a moderation record and sends moderation email.
 - Account deletion and Facebook data deletion endpoints return expected responses.

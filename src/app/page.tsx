@@ -29,6 +29,9 @@ type QuestMediaItem = {
 
 type UploadedQuestMediaItem = QuestMediaItem & { audit?: MediaAuditInput };
 
+const MAX_QUEST_MEDIA_ITEMS = 3;
+const MAX_QUEST_VIDEOS = 2;
+
 type DraftMediaItem = {
   id: string;
   type: "image" | "video";
@@ -1824,19 +1827,18 @@ export default function Home() {
   async function handleQuestMediaPicked(files: FileList | null) {
     if (!files?.length) return;
 
-    const existingImages = mediaDraftItems.filter((m) => m.type === "image").length;
     const existingVideos = mediaDraftItems.filter((m) => m.type === "video").length;
-
-    let imgLeft = Math.max(0, 2 - existingImages);
-    let vidLeft = Math.max(0, 2 - existingVideos);
+    let slotsLeft = Math.max(0, MAX_QUEST_MEDIA_ITEMS - mediaDraftItems.length);
+    let vidLeft = Math.max(0, MAX_QUEST_VIDEOS - existingVideos);
 
     const added: DraftMediaItem[] = [];
     for (const picked of Array.from(files)) {
-      if (isImageLikeFile(picked) && imgLeft > 0) {
+      if (slotsLeft <= 0) break;
+      if (isImageLikeFile(picked)) {
         try {
           const file = await prepareImageForUpload(picked, { maxWidth: 1600, maxHeight: 1600, quality: 0.82 });
           added.push({ id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, file, label: "", type: "image", source: "new" });
-          imgLeft -= 1;
+          slotsLeft -= 1;
         } catch (err) {
           setStatus(err instanceof Error ? err.message : "Could not process image.");
         }
@@ -1864,11 +1866,12 @@ export default function Home() {
           continue;
         }
         vidLeft -= 1;
+        slotsLeft -= 1;
       }
     }
 
     if (!added.length) {
-      setStatus("Max reached: up to 2 photos and 2 videos per listing.");
+      setStatus(`Max reached: ${MAX_QUEST_MEDIA_ITEMS} media items per quest, with up to ${MAX_QUEST_VIDEOS} videos.`);
       return;
     }
 
@@ -1877,7 +1880,7 @@ export default function Home() {
       if (!selectedMediaId && next.length) setSelectedMediaId(next[0].id);
       return next;
     });
-    if (added.length < files.length) setStatus("Only up to 2 photos and 2 videos are allowed.");
+    if (added.length < files.length) setStatus(`Only ${MAX_QUEST_MEDIA_ITEMS} media items are allowed per quest.`);
   }
 
   const mediaPreviewUrls = useMemo(() => {
@@ -2732,6 +2735,9 @@ export default function Home() {
     setQuestSaveProgress({ percent: 8, label: editingQuestId ? "Starting update" : "Starting post" });
     setStatus(editingQuestId ? "Updating listing…" : "Posting listing…");
     try {
+      if (mediaDraftItems.length > MAX_QUEST_MEDIA_ITEMS) {
+        throw new Error(`Remove media until only ${MAX_QUEST_MEDIA_ITEMS} items remain.`);
+      }
       const untrimmedLongVideo = mediaDraftItems.find((m) => m.type === "video" && (m.durationSeconds ?? 0) > VIDEO_MAX_DURATION_SECONDS + 0.2 && !m.trimConfigured);
       if (untrimmedLongVideo) {
         throw new Error(`Trim the video to ${VIDEO_MAX_DURATION_SECONDS}s or less before posting.`);
@@ -4931,20 +4937,24 @@ export default function Home() {
                 </div>
               </div>
 
-              <label className="text-xs font-medium uppercase tracking-wide text-slate-600">Media</label>
+              <div className="flex items-center justify-between gap-3">
+                <label className="text-xs font-medium uppercase tracking-wide text-slate-600">Media</label>
+                <span className="text-xs font-semibold text-slate-500">{mediaDraftItems.length}/{MAX_QUEST_MEDIA_ITEMS}</span>
+              </div>
               <div className="grid gap-2 rounded-xl border p-2 sm:p-3 bg-gray-50">
                 <input
                   type="file"
                   accept="image/*,video/*"
                   multiple
+                  disabled={mediaDraftItems.length >= MAX_QUEST_MEDIA_ITEMS || savingQuest}
                   onChange={(e) => {
                     void handleQuestMediaPicked(e.target.files);
                     e.currentTarget.value = "";
                   }}
-                  className="border rounded-xl px-2.5 py-2 text-sm sm:px-3 sm:py-2.5 sm:text-base"
+                  className="border rounded-xl px-2.5 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50 sm:px-3 sm:py-2.5 sm:text-base"
                 />
                 <p className="text-[10px] leading-4 sm:text-xs text-gray-500">
-                  Add photos or short clips of you doing the activity, the meetup spot, or the setting so people know what to expect.
+                  Add up to {MAX_QUEST_MEDIA_ITEMS} photos or short clips so people know what to expect. A maximum of {MAX_QUEST_VIDEOS} can be videos.
                 </p>
                 <p className="text-[10px] leading-4 sm:text-xs text-gray-500">
                   Videos can be up to 15 seconds for now. Longer videos coming soon.

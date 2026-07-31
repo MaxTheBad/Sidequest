@@ -41,6 +41,7 @@
 - A migration now backfills the single unique public profile name for legacy accounts and aligns `display_name` with `username`.
 - The supplied QA account was corrected directly so native profile testing could continue.
 - The migration has not been applied to the linked production database because the local Supabase CLI credential store remained unavailable during this run. Apply and verify it before release.
+- The anti-spam migration adds server-side message, quest, report, duplicate-content, and storage-upload limits plus a hard three-item quest media cap. It passed an isolated PostgreSQL schema application test and also requires production deployment.
 
 ## App Store Draft
 
