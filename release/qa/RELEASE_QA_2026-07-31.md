@@ -2,7 +2,7 @@
 
 ## Automated Gates
 
-- Production dependency audit: pass; no high-severity production dependency advisories.
+- Production dependency audit: pass; zero production dependency advisories.
 - Unit tests: pass, 12 of 12.
 - Mobile TypeScript check: pass.
 - Web production build: pass.
