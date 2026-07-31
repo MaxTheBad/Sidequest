@@ -6017,7 +6017,9 @@ function privateThreadIncludesUsers(
     const visibleApprovedMembers = selectedQuestMembers.filter((member) => (member.status || "approved") === "approved");
     const visibleGuests = visibleApprovedMembers.filter((member) => member.id !== selectedQuest.creator_id && member.role !== "creator");
     const showMembersSection = isManager || membershipStatus === "approved";
-    const fallbackVisual = getCategoryFallbackMedia(getCategory(selectedQuest));
+    const category = getCategory(selectedQuest);
+    const joinedCount = joinCountByQuestId[selectedQuest.id] || 0;
+    const fallbackVisual = getCategoryFallbackMedia(category);
     const fallbackImageUrl = `https://questhat.com${fallbackVisual.imagePath}`;
     const mediaItems = selectedQuest.media_items || [];
     return (
@@ -6033,19 +6035,66 @@ function privateThreadIncludesUsers(
             keyboardDismissMode="interactive"
           >
             {selectedQuestLoading ? <ActivityIndicator /> : null}
-            <View style={styles.row}>
-              <Text style={styles.questCategory}>{getCategory(selectedQuest)}</Text>
-              <Pressable onPress={() => setSelectedQuest(null)}>
-                <Text style={styles.link}>Close</Text>
-              </Pressable>
+            <LinearGradient colors={["#173b47", "#111923", "#10121a"]} locations={[0, 0.56, 1]} style={styles.questDetailHero}>
+              <View style={styles.questDetailHeroGlow} />
+              <View style={styles.questDetailTopRow}>
+                <View style={styles.questDetailCategoryPill}>
+                  <Ionicons name={getCategoryIcon(category)} size={15} color="#082f3a" />
+                  <Text style={styles.questDetailCategoryText}>{category}</Text>
+                </View>
+                <Pressable style={styles.questDetailCloseButton} onPress={() => setSelectedQuest(null)} accessibilityLabel="Close quest details">
+                  <Ionicons name="close" size={21} color="#f8fafc" />
+                </Pressable>
+              </View>
+              <Text style={styles.questDetailTitle}>{selectedQuest.title}</Text>
+              <View style={styles.questDetailChips}>
+                <View style={styles.questDetailChip}><Ionicons name="speedometer-outline" size={14} color="#b9dce4" /><Text style={styles.questDetailChipText}>{selectedQuest.skill_level || "Any level"}</Text></View>
+                <View style={styles.questDetailChip}><Ionicons name={selectedQuest.join_mode === "open" ? "lock-open-outline" : "shield-checkmark-outline"} size={14} color="#b9dce4" /><Text style={styles.questDetailChipText}>{selectedQuest.join_mode === "open" ? "Open to join" : "Approval required"}</Text></View>
+                <View style={styles.questDetailChip}><Ionicons name="people-outline" size={14} color="#b9dce4" /><Text style={styles.questDetailChipText}>{joinedCount} {joinedCount === 1 ? "person" : "people"} going</Text></View>
+              </View>
+            </LinearGradient>
+
+            <View style={styles.questDetailDescriptionCard}>
+              <View style={styles.questDetailSectionHeading}>
+                <Ionicons name="reader-outline" size={17} color="#9bd8e4" />
+                <Text style={styles.questDetailSectionLabel}>ABOUT THIS QUEST</Text>
+              </View>
+              <Text style={[styles.questDetailDescription, !selectedQuest.description && styles.questDetailDescriptionEmpty]}>
+                {selectedQuest.description || "The host has not added a description yet."}
+              </Text>
             </View>
-            <Text style={styles.questTitle}>{selectedQuest.title}</Text>
-            <Text style={styles.questMeta}>{[selectedQuest.skill_level || "Any level", selectedQuest.join_mode === "open" ? "Open" : "Approval", `group ${joinCountByQuestId[selectedQuest.id] || 0}`].join(" · ")}</Text>
-            {selectedQuest.description ? <Text style={styles.questDescription}>{selectedQuest.description}</Text> : <Text style={styles.detailMuted}>No description yet.</Text>}
-            <Text style={styles.questMeta}>{`Where: ${selectedQuest.city || "City tbd"}${canViewExactAddress && selectedQuest.exact_address ? ` · ${selectedQuest.exact_address}` : ""}`}</Text>
-            {!canViewExactAddress && selectedQuest.exact_address ? <Text style={styles.detailMuted}>The host will share this when they are ready, based on their privacy setting.</Text> : null}
-            <Text style={styles.questMeta}>{`When: ${selectedQuest.availability || "Let's find the best time"}`}</Text>
-            <Text style={styles.questMeta}>{`Posted ${formatDate(selectedQuest.created_at) || "recently"}`}</Text>
+
+            <View style={styles.questDetailFactsCard}>
+              <View style={styles.questDetailFactRow}>
+                <View style={styles.questDetailFactIcon}><Ionicons name="location-outline" size={19} color="#9bd8e4" /></View>
+                <View style={styles.questDetailFactCopy}>
+                  <Text style={styles.questDetailFactLabel}>LOCATION</Text>
+                  <Text style={styles.questDetailFactValue}>{`${selectedQuest.city || "City to be decided"}${canViewExactAddress && selectedQuest.exact_address ? ` · ${selectedQuest.exact_address}` : ""}`}</Text>
+                </View>
+              </View>
+              {!canViewExactAddress && selectedQuest.exact_address ? (
+                <View style={styles.questDetailPrivacyNote}>
+                  <Ionicons name="lock-closed-outline" size={15} color="#d6ad63" />
+                  <Text style={styles.questDetailPrivacyText}>Exact location stays private until the host shares it with you.</Text>
+                </View>
+              ) : null}
+              <View style={styles.questDetailFactDivider} />
+              <View style={styles.questDetailFactRow}>
+                <View style={styles.questDetailFactIcon}><Ionicons name="calendar-outline" size={19} color="#9bd8e4" /></View>
+                <View style={styles.questDetailFactCopy}>
+                  <Text style={styles.questDetailFactLabel}>WHEN</Text>
+                  <Text style={styles.questDetailFactValue}>{selectedQuest.availability || "Let's find the best time"}</Text>
+                </View>
+              </View>
+              <View style={styles.questDetailFactDivider} />
+              <View style={styles.questDetailFactRow}>
+                <View style={styles.questDetailFactIcon}><Ionicons name="time-outline" size={19} color="#9bd8e4" /></View>
+                <View style={styles.questDetailFactCopy}>
+                  <Text style={styles.questDetailFactLabel}>POSTED</Text>
+                  <Text style={styles.questDetailFactValue}>{formatDate(selectedQuest.created_at) || "Recently"}</Text>
+                </View>
+              </View>
+            </View>
             <View style={styles.peopleSection}>
               <Text style={styles.detailLabel}>Hosted by</Text>
               <Pressable
@@ -9638,6 +9687,173 @@ const styles = StyleSheet.create({
     color: "#d0d5df",
     fontSize: 14,
     lineHeight: 20,
+  },
+  questDetailHero: {
+    borderColor: "rgba(155,216,228,0.15)",
+    borderRadius: 22,
+    borderWidth: 1,
+    gap: 15,
+    overflow: "hidden",
+    padding: 18,
+    position: "relative",
+  },
+  questDetailHeroGlow: {
+    backgroundColor: "rgba(109,174,194,0.13)",
+    borderRadius: 999,
+    height: 180,
+    position: "absolute",
+    right: -65,
+    top: -95,
+    width: 180,
+  },
+  questDetailTopRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  questDetailCategoryPill: {
+    alignItems: "center",
+    backgroundColor: "#9bd8e4",
+    borderRadius: 999,
+    flexDirection: "row",
+    gap: 6,
+    paddingHorizontal: 11,
+    paddingVertical: 7,
+  },
+  questDetailCategoryText: {
+    color: "#082f3a",
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
+  },
+  questDetailCloseButton: {
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderColor: "rgba(255,255,255,0.1)",
+    borderRadius: 999,
+    borderWidth: 1,
+    height: 38,
+    justifyContent: "center",
+    width: 38,
+  },
+  questDetailTitle: {
+    color: "#ffffff",
+    fontSize: 27,
+    fontWeight: "900",
+    letterSpacing: -0.8,
+    lineHeight: 32,
+    maxWidth: "95%",
+  },
+  questDetailChips: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 7,
+  },
+  questDetailChip: {
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.07)",
+    borderColor: "rgba(255,255,255,0.09)",
+    borderRadius: 999,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 5,
+    minHeight: 31,
+    paddingHorizontal: 9,
+  },
+  questDetailChipText: {
+    color: "#dce9ed",
+    fontSize: 10,
+    fontWeight: "800",
+  },
+  questDetailDescriptionCard: {
+    backgroundColor: "#151923",
+    borderColor: "rgba(255,255,255,0.07)",
+    borderRadius: 18,
+    borderWidth: 1,
+    gap: 9,
+    padding: 15,
+  },
+  questDetailSectionHeading: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 7,
+  },
+  questDetailSectionLabel: {
+    color: "#9bc8d2",
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 1,
+  },
+  questDetailDescription: {
+    color: "#e4eaf0",
+    fontSize: 14,
+    lineHeight: 21,
+  },
+  questDetailDescriptionEmpty: {
+    color: "#7f8997",
+    fontStyle: "italic",
+  },
+  questDetailFactsCard: {
+    backgroundColor: "#151923",
+    borderColor: "rgba(255,255,255,0.07)",
+    borderRadius: 18,
+    borderWidth: 1,
+    padding: 14,
+  },
+  questDetailFactRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 11,
+    minHeight: 50,
+  },
+  questDetailFactIcon: {
+    alignItems: "center",
+    backgroundColor: "rgba(109,174,194,0.1)",
+    borderRadius: 12,
+    height: 39,
+    justifyContent: "center",
+    width: 39,
+  },
+  questDetailFactCopy: {
+    flex: 1,
+    gap: 3,
+    minWidth: 0,
+  },
+  questDetailFactLabel: {
+    color: "#71808e",
+    fontSize: 9,
+    fontWeight: "900",
+    letterSpacing: 0.9,
+  },
+  questDetailFactValue: {
+    color: "#eef3f6",
+    fontSize: 13,
+    fontWeight: "800",
+    lineHeight: 18,
+  },
+  questDetailFactDivider: {
+    backgroundColor: "rgba(255,255,255,0.06)",
+    height: 1,
+    marginLeft: 50,
+  },
+  questDetailPrivacyNote: {
+    alignItems: "flex-start",
+    backgroundColor: "rgba(214,173,99,0.08)",
+    borderColor: "rgba(214,173,99,0.16)",
+    borderRadius: 12,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 9,
+    marginLeft: 50,
+    padding: 10,
+  },
+  questDetailPrivacyText: {
+    color: "#c6ad81",
+    flex: 1,
+    fontSize: 10,
+    lineHeight: 15,
   },
   notificationHeader: {
     gap: 10,
