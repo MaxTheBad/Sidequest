@@ -325,6 +325,21 @@ function getCategory(quest: QuestPreview) {
   return "Category";
 }
 
+function getCategoryIcon(category: string): keyof typeof Ionicons.glyphMap {
+  const normalized = category.toLowerCase();
+  if (normalized.includes("book")) return "book-outline";
+  if (normalized.includes("music")) return "musical-notes-outline";
+  if (normalized.includes("art") || normalized.includes("craft")) return "color-palette-outline";
+  if (normalized.includes("food") || normalized.includes("cook")) return "restaurant-outline";
+  if (normalized.includes("fitness") || normalized.includes("health") || normalized.includes("sport")) return "barbell-outline";
+  if (normalized.includes("game")) return "game-controller-outline";
+  if (normalized.includes("career") || normalized.includes("business")) return "briefcase-outline";
+  if (normalized.includes("outdoor") || normalized.includes("nature")) return "leaf-outline";
+  if (normalized.includes("tech")) return "code-slash-outline";
+  if (normalized.includes("photo")) return "camera-outline";
+  return "sparkles-outline";
+}
+
 function slugify(input: string) {
   return input
     .toLowerCase()
@@ -535,6 +550,7 @@ export default function App() {
   const [feedViewMode, setFeedViewMode] = useState<"list" | "map">("list");
   const [homeSearchQuery, setHomeSearchQuery] = useState("");
   const [homeCategoryFilter, setHomeCategoryFilter] = useState("All");
+  const [selectedMapQuestId, setSelectedMapQuestId] = useState<string | null>(null);
   const [deviceLocation, setDeviceLocation] = useState<DeviceLocation | null>(null);
   const [locationStatus, setLocationStatus] = useState<"idle" | "loading" | "ready" | "denied" | "error">("idle");
   const [questCoordsById, setQuestCoordsById] = useState<Record<string, DeviceLocation>>({});
@@ -695,6 +711,7 @@ export default function App() {
   const [eulaRequired, setEulaRequired] = useState(false);
   const [eulaConsentChecked, setEulaConsentChecked] = useState(false);
   const [eulaSaving, setEulaSaving] = useState(false);
+  const homeMapRef = useRef<MapView | null>(null);
 
   useEffect(() => {
     void AsyncStorage.getItem(STORED_LOCATION_KEY).then((raw) => {
@@ -4115,6 +4132,66 @@ function privateThreadIncludesUsers(
   function renderHomeDiscoveryHeader(categories: string[], resultCount: number) {
     const firstName = (profile?.display_name || profile?.username || "").trim().split(/\s+/)[0];
     const locationLabel = profile?.city || (deviceLocation ? "Near you" : "Choose your area");
+    if (feedViewMode === "map") {
+      return (
+        <View style={styles.mapDiscovery}>
+          <View style={styles.mapDiscoveryHeading}>
+            <View style={styles.mapDiscoveryTitleBlock}>
+              <Text style={[styles.mapDiscoveryEyebrow, { color: isLightTheme ? "#0f5f73" : "#79bfd0" }]}>EXPLORE NEARBY</Text>
+              <Text style={[styles.mapDiscoveryTitle, { color: isLightTheme ? "#101827" : "#f8fafc" }]}>Find your next plan</Text>
+            </View>
+            <View style={[styles.mapDiscoveryLocation, { backgroundColor: isLightTheme ? "#e4f2f5" : "rgba(109,174,194,0.12)" }]}>
+              <Ionicons name="navigate" size={13} color={isLightTheme ? "#0f5f73" : "#9bd8e4"} />
+              <Text style={[styles.mapDiscoveryLocationText, { color: isLightTheme ? "#0f5f73" : "#9bd8e4" }]} numberOfLines={1}>{locationLabel}</Text>
+            </View>
+          </View>
+          <View
+            style={[
+              styles.mapSearchShell,
+              {
+                backgroundColor: isLightTheme ? "#ffffff" : "#171923",
+                borderColor: isLightTheme ? "rgba(15,23,42,0.1)" : "rgba(255,255,255,0.08)",
+              },
+            ]}
+          >
+            <Ionicons name="search" size={19} color={isLightTheme ? "#64748b" : "#8e98a8"} />
+            <TextInput
+              value={homeSearchQuery}
+              onChangeText={setHomeSearchQuery}
+              placeholder="Search this area"
+              placeholderTextColor={isLightTheme ? "#94a3b8" : "#778194"}
+              style={[styles.homeSearchInput, { color: isLightTheme ? "#101827" : "#f8fafc" }]}
+              returnKeyType="search"
+              clearButtonMode="while-editing"
+            />
+            <View style={[styles.mapSearchCount, { backgroundColor: isLightTheme ? "#edf6f7" : "rgba(109,174,194,0.1)" }]}>
+              <Text style={[styles.mapSearchCountText, { color: isLightTheme ? "#0f5f73" : "#9bd8e4" }]}>{resultCount}</Text>
+            </View>
+          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.homeCategoryRail}>
+            {categories.map((category) => {
+              const active = homeCategoryFilter === category;
+              return (
+                <Pressable
+                  key={category}
+                  style={[
+                    styles.homeCategoryChip,
+                    {
+                      backgroundColor: active ? "#0f5f73" : isLightTheme ? "#ffffff" : "#171923",
+                      borderColor: active ? "#0f5f73" : isLightTheme ? "rgba(15,23,42,0.1)" : "rgba(255,255,255,0.08)",
+                    },
+                  ]}
+                  onPress={() => setHomeCategoryFilter(category)}
+                >
+                  <Ionicons name={category === "All" ? "compass-outline" : getCategoryIcon(category)} size={15} color={active ? "#ffffff" : "#6daec2"} />
+                  <Text style={[styles.homeCategoryChipText, { color: active ? "#ffffff" : isLightTheme ? "#334155" : "#c7ced9" }]}>{category === "All" ? "All quests" : category}</Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+      );
+    }
     return (
       <View style={styles.homeDiscovery}>
         <LinearGradient colors={["#d9f1f4", "#a9d8e1", "#6daec2"]} style={styles.homeHero}>
@@ -4375,48 +4452,114 @@ function privateThreadIncludesUsers(
       })
       .filter((point): point is QuestMapPoint => Boolean(point));
 
+    const sortedPoints = points.slice().sort((a, b) => {
+      if (!deviceLocation) return a.quest.title.localeCompare(b.quest.title);
+      const aMiles = haversineMiles(deviceLocation.lat, deviceLocation.lon, a.coords.lat, a.coords.lon);
+      const bMiles = haversineMiles(deviceLocation.lat, deviceLocation.lon, b.coords.lat, b.coords.lon);
+      return aMiles - bMiles;
+    });
+    const selectedPoint = sortedPoints.find((point) => point.quest.id === selectedMapQuestId) || sortedPoints[0] || null;
     const mapPoints = [
       ...points.map((point) => point.coords),
       ...(deviceLocation ? [deviceLocation] : []),
     ];
-    const center = mapPoints.length
+    const center = deviceLocation || (mapPoints.length
       ? {
           lat: mapPoints.reduce((sum, point) => sum + point.lat, 0) / mapPoints.length,
           lon: mapPoints.reduce((sum, point) => sum + point.lon, 0) / mapPoints.length,
         }
-      : null;
-    const latDelta = mapPoints.length
-      ? Math.max(0.08, (Math.max(...mapPoints.map((point) => point.lat)) - Math.min(...mapPoints.map((point) => point.lat))) * 1.8 || 0.12)
-      : 0.12;
-    const lonDelta = mapPoints.length
-      ? Math.max(0.08, (Math.max(...mapPoints.map((point) => point.lon)) - Math.min(...mapPoints.map((point) => point.lon))) * 1.8 || 0.12)
-      : 0.12;
+      : null);
+    const localMapDelta = Math.max(0.12, Math.min(2.5, (settingsRadiusKm / 111) * 2.5));
+    const latDelta = deviceLocation
+      ? localMapDelta
+      : mapPoints.length
+        ? Math.max(0.08, (Math.max(...mapPoints.map((point) => point.lat)) - Math.min(...mapPoints.map((point) => point.lat))) * 1.8 || 0.12)
+        : 0.12;
+    const lonDelta = deviceLocation
+      ? localMapDelta
+      : mapPoints.length
+        ? Math.max(0.08, (Math.max(...mapPoints.map((point) => point.lon)) - Math.min(...mapPoints.map((point) => point.lon))) * 1.8 || 0.12)
+        : 0.12;
 
-    if (!deviceLocation) {
+    if (!center || !points.length) {
       return (
-        <View style={styles.mapPlaceholderCard}>
-          <Text style={styles.mapPlaceholderTitle}>Find quests near you</Text>
-          <Text style={styles.mapPlaceholderText}>Turn on location to see nearby quests on the map and calculate distance warnings.</Text>
-          <Pressable style={styles.primaryButton} onPress={() => void requestDeviceLocation("Location access is needed to show nearby quests.")}>
-            <Text style={styles.primaryButtonText}>{locationStatus === "loading" ? "Checking..." : "Use my location"}</Text>
+        <View style={[styles.mapPlaceholderCard, { backgroundColor: isLightTheme ? "#ffffff" : "#151722", borderColor: shellBorder }]}>
+          <LinearGradient colors={["#d9f1f4", "#8ec6d3"]} style={styles.mapPlaceholderIcon}>
+            <Ionicons name="map-outline" size={28} color="#0b5364" />
+          </LinearGradient>
+          <Text style={[styles.mapPlaceholderTitle, { color: shellText }]}>Nothing mapped here yet</Text>
+          <Text style={[styles.mapPlaceholderText, { color: shellMuted }]}>Try another category or clear your search to widen the map.</Text>
+          <Pressable
+            style={styles.mapPlaceholderAction}
+            onPress={() => {
+              setHomeSearchQuery("");
+              setHomeCategoryFilter("All");
+            }}
+          >
+            <Ionicons name="refresh" size={16} color="#082f3a" />
+            <Text style={styles.mapPlaceholderActionText}>Reset map</Text>
           </Pressable>
         </View>
       );
     }
 
-    if (!center || !points.length) {
-      return (
-        <View style={styles.mapPlaceholderCard}>
-          <Text style={styles.mapPlaceholderTitle}>No mapped quests yet</Text>
-          <Text style={styles.mapPlaceholderText}>We could not geocode these quest locations yet. List view still works.</Text>
-        </View>
-      );
+    function focusMapPoint(point: QuestMapPoint) {
+      setSelectedMapQuestId(point.quest.id);
+      homeMapRef.current?.animateToRegion({
+        latitude: point.coords.lat,
+        longitude: point.coords.lon,
+        latitudeDelta: 0.045,
+        longitudeDelta: 0.045,
+      }, 320);
     }
+
+    function fitAllMapPoints() {
+      const coordinates = [
+        ...points.map((point) => ({ latitude: point.coords.lat, longitude: point.coords.lon })),
+        ...(deviceLocation ? [{ latitude: deviceLocation.lat, longitude: deviceLocation.lon }] : []),
+      ];
+      if (coordinates.length === 1) {
+        homeMapRef.current?.animateToRegion({
+          ...coordinates[0],
+          latitudeDelta: 0.06,
+          longitudeDelta: 0.06,
+        }, 320);
+        return;
+      }
+      homeMapRef.current?.fitToCoordinates(coordinates, {
+        animated: true,
+        edgePadding: { top: 80, right: 54, bottom: 220, left: 54 },
+      });
+    }
+
+    const selectedQuest = selectedPoint?.quest || null;
+    const selectedCategory = selectedQuest ? getCategory(selectedQuest) : "";
+    const selectedCreator = selectedQuest ? getRelationOne(selectedQuest.profiles) : null;
+    const selectedFallback = selectedQuest ? getCategoryFallbackMedia(selectedCategory) : null;
+    const selectedMedia = selectedQuest?.media_items?.[0];
+    const selectedMediaUrl = selectedMedia?.thumbnailUrl || selectedMedia?.url || (selectedFallback ? `https://questhat.com${selectedFallback.imagePath}` : null);
+    const selectedMembership = selectedQuest ? membershipStatusByQuest[selectedQuest.id] || null : null;
+    const selectedIsJoined = selectedQuest ? joinedQuestIds.includes(selectedQuest.id) : false;
+    const selectedIsOwner = Boolean(selectedQuest && userId && selectedQuest.creator_id === userId);
+    const selectedIsSaved = Boolean(selectedQuest && bookmarkedQuestIds.includes(selectedQuest.id));
+    const selectedJoinLabel = selectedIsOwner
+      ? "Hosting"
+      : selectedMembership === "pending"
+        ? "Cancel request"
+        : selectedIsJoined
+          ? "Leave"
+          : selectedMembership === "declined"
+            ? "Request again"
+          : selectedQuest?.join_mode === "open"
+            ? "Join"
+            : "Request";
 
     return (
       <View style={styles.mapStack}>
-        <View style={styles.mapCard}>
+        <View style={[styles.mapStage, { borderColor: isLightTheme ? "rgba(15,23,42,0.11)" : "rgba(255,255,255,0.08)" }]}>
           <MapView
+            key={points.map((point) => point.quest.id).sort().join("|")}
+            ref={homeMapRef}
             style={styles.nativeMap}
             initialRegion={{
               latitude: center.lat,
@@ -4424,39 +4567,175 @@ function privateThreadIncludesUsers(
               latitudeDelta: latDelta,
               longitudeDelta: lonDelta,
             }}
-            showsUserLocation
-            showsMyLocationButton
+            userInterfaceStyle={isLightTheme ? "light" : "dark"}
+            showsUserLocation={Boolean(deviceLocation)}
+            showsMyLocationButton={false}
+            showsCompass={false}
+            mapPadding={{ top: 58, right: 12, bottom: 190, left: 12 }}
           >
-            {points.map(({ quest, coords }) => (
+            {points.map((point) => {
+              const { quest, coords } = point;
+              const isSelected = selectedPoint?.quest.id === quest.id;
+              const category = getCategory(quest);
+              return (
               <Marker
                 key={quest.id}
                 coordinate={{ latitude: coords.lat, longitude: coords.lon }}
-                title={quest.title}
-                description={quest.city || "City tbd"}
-                onCalloutPress={() => void openQuestDetail(quest.id)}
-              />
-            ))}
-          </MapView>
-        </View>
-        <View style={styles.mapQuestList}>
-          {points
-            .slice()
-            .sort((a, b) => {
-              const aMiles = deviceLocation ? haversineMiles(deviceLocation.lat, deviceLocation.lon, a.coords.lat, a.coords.lon) : 0;
-              const bMiles = deviceLocation ? haversineMiles(deviceLocation.lat, deviceLocation.lon, b.coords.lat, b.coords.lon) : 0;
-              return aMiles - bMiles;
-            })
-            .map(({ quest, distanceLabel }) => (
-              <Pressable key={quest.id} style={styles.mapQuestRow} onPress={() => void openQuestDetail(quest.id)}>
-                <View style={styles.row}>
-                  <Text style={styles.questCategory}>{getCategory(quest)}</Text>
-                  <Text style={styles.date}>{distanceLabel || "Nearby"}</Text>
+                anchor={{ x: 0.5, y: 1 }}
+                zIndex={isSelected ? 2 : 1}
+                onPress={() => focusMapPoint(point)}
+                tracksViewChanges={isSelected}
+              >
+                <View style={styles.mapMarkerShell}>
+                  <View style={[styles.mapMarker, isSelected && styles.mapMarkerSelected]}>
+                    <Ionicons name={getCategoryIcon(category)} size={isSelected ? 18 : 16} color={isSelected ? "#082f3a" : "#ffffff"} />
+                  </View>
+                  <View style={[styles.mapMarkerTip, isSelected && styles.mapMarkerTipSelected]} />
                 </View>
-                <Text style={styles.questTitle}>{quest.title}</Text>
-                <Text style={styles.questMeta}>{quest.city || "City tbd"}</Text>
+              </Marker>
+              );
+            })}
+          </MapView>
+          <View style={styles.mapTopOverlay} pointerEvents="box-none">
+            <View style={styles.mapActivityPill}>
+              <View style={styles.mapActivityDot} />
+              <Text style={styles.mapActivityText}>{points.length} {points.length === 1 ? "quest" : "quests"} mapped</Text>
+            </View>
+            <View style={styles.mapControlStack}>
+              <Pressable style={styles.mapControlButton} onPress={fitAllMapPoints} accessibilityLabel="Show every quest">
+                <Ionicons name="scan-outline" size={19} color="#102534" />
               </Pressable>
-            ))}
+              <Pressable
+                style={[styles.mapControlButton, deviceLocation && styles.mapControlButtonActive]}
+                onPress={() => {
+                  if (deviceLocation) {
+                    homeMapRef.current?.animateToRegion({
+                      latitude: deviceLocation.lat,
+                      longitude: deviceLocation.lon,
+                      latitudeDelta: 0.05,
+                      longitudeDelta: 0.05,
+                    }, 320);
+                  } else {
+                    void requestDeviceLocation("Turn on location to calculate exact distance from nearby quests.").then((location) => {
+                      if (!location) return;
+                      homeMapRef.current?.animateToRegion({
+                        latitude: location.lat,
+                        longitude: location.lon,
+                        latitudeDelta: 0.05,
+                        longitudeDelta: 0.05,
+                      }, 320);
+                    });
+                  }
+                }}
+                accessibilityLabel={deviceLocation ? "Center on my location" : "Turn on my location"}
+              >
+                {locationStatus === "loading" ? <ActivityIndicator size="small" color="#0f5f73" /> : <Ionicons name="navigate" size={18} color={deviceLocation ? "#ffffff" : "#102534"} />}
+              </Pressable>
+            </View>
+          </View>
+          {!deviceLocation ? (
+            <Pressable
+              style={styles.mapLocationNudge}
+              onPress={() => void requestDeviceLocation("Turn on location to calculate exact distance from nearby quests.")}
+            >
+              <Ionicons name="location-outline" size={15} color="#dff7fb" />
+              <Text style={styles.mapLocationNudgeText}>Turn on distance</Text>
+              <Ionicons name="chevron-forward" size={13} color="#9bd8e4" />
+            </Pressable>
+          ) : null}
+          {selectedQuest && selectedPoint ? (
+            <View style={styles.mapPreviewCard}>
+              <Pressable style={styles.mapPreviewMain} onPress={() => void openQuestDetail(selectedQuest.id)}>
+                {selectedMediaUrl ? (
+                  <Image source={{ uri: selectedMediaUrl }} style={styles.mapPreviewImage} />
+                ) : (
+                  <View style={styles.mapPreviewImageFallback}><Ionicons name={getCategoryIcon(selectedCategory)} size={24} color="#9bd8e4" /></View>
+                )}
+                <View style={styles.mapPreviewCopy}>
+                  <View style={styles.mapPreviewMetaRow}>
+                    <Text style={styles.mapPreviewCategory} numberOfLines={1}>{selectedCategory}</Text>
+                    <Text style={styles.mapPreviewDistance} numberOfLines={1}>{selectedPoint.distanceLabel || selectedQuest.city || "On the map"}</Text>
+                  </View>
+                  <Text style={styles.mapPreviewTitle} numberOfLines={2}>{selectedQuest.title}</Text>
+                  <View style={styles.mapPreviewHostRow}>
+                    <Ionicons name="person-circle-outline" size={14} color="#8493a5" />
+                    <Text style={styles.mapPreviewHost} numberOfLines={1}>
+                      {selectedCreator?.display_name || selectedCreator?.username || "QuestHat host"}
+                    </Text>
+                    <View style={styles.mapPreviewMetaDot} />
+                    <Text style={styles.mapPreviewHost} numberOfLines={1}>{selectedQuest.availability || "Time together"}</Text>
+                  </View>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#6daec2" />
+              </Pressable>
+              <View style={styles.mapPreviewActions}>
+                <Pressable
+                  style={[styles.mapPreviewSave, selectedIsSaved && styles.mapPreviewSaveActive]}
+                  onPress={() => void toggleBookmark(selectedQuest)}
+                  accessibilityLabel={selectedIsSaved ? "Remove saved quest" : "Save quest"}
+                >
+                  <Ionicons name={selectedIsSaved ? "star" : "star-outline"} size={18} color={selectedIsSaved ? "#082f3a" : "#d7dee8"} />
+                </Pressable>
+                <Pressable
+                  style={[styles.mapPreviewJoin, (selectedMembership === "pending" || selectedIsJoined || selectedIsOwner) && styles.mapPreviewJoinMuted]}
+                  onPress={() => {
+                    if (!selectedIsOwner) void toggleJoinQuestMobile(selectedQuest);
+                  }}
+                  disabled={selectedIsOwner}
+                >
+                  <Ionicons name={selectedIsOwner ? "sparkles" : selectedIsJoined ? "exit-outline" : selectedMembership === "pending" ? "close" : "add"} size={17} color="#082f3a" />
+                  <Text style={styles.mapPreviewJoinText}>{selectedJoinLabel}</Text>
+                </Pressable>
+              </View>
+            </View>
+          ) : null}
         </View>
+        <View style={styles.mapNearbyHeading}>
+          <View>
+            <Text style={[styles.mapNearbyEyebrow, { color: isLightTheme ? "#0f5f73" : "#79bfd0" }]}>QUICK LOOK</Text>
+            <Text style={[styles.mapNearbyTitle, { color: shellText }]}>{deviceLocation ? "Closest to you" : "Quests on this map"}</Text>
+          </View>
+          <Text style={[styles.mapNearbyHint, { color: shellMuted }]}>Tap to locate</Text>
+        </View>
+        <ScrollView
+          horizontal
+          nestedScrollEnabled
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.mapQuestRail}
+        >
+          {sortedPoints.map((point) => {
+            const { quest, distanceLabel } = point;
+            const category = getCategory(quest);
+            const media = quest.media_items?.[0];
+            const fallback = getCategoryFallbackMedia(category);
+            const imageUrl = media?.thumbnailUrl || media?.url || `https://questhat.com${fallback.imagePath}`;
+            const active = selectedPoint?.quest.id === quest.id;
+            return (
+              <Pressable
+                key={quest.id}
+                style={[
+                  styles.mapQuestTile,
+                  {
+                    backgroundColor: isLightTheme ? "#ffffff" : "#151722",
+                    borderColor: active ? "#6daec2" : isLightTheme ? "rgba(15,23,42,0.09)" : "rgba(255,255,255,0.07)",
+                  },
+                  active && styles.mapQuestTileActive,
+                ]}
+                onPress={() => focusMapPoint(point)}
+              >
+                <Image source={{ uri: imageUrl }} style={styles.mapQuestTileImage} />
+                <View style={styles.mapQuestTileCopy}>
+                  <View style={styles.mapQuestTileMeta}>
+                    <Ionicons name={getCategoryIcon(category)} size={13} color="#6daec2" />
+                    <Text style={[styles.mapQuestTileCategory, { color: isLightTheme ? "#0f5f73" : "#9bd8e4" }]} numberOfLines={1}>{category}</Text>
+                  </View>
+                  <Text style={[styles.mapQuestTileTitle, { color: shellText }]} numberOfLines={2}>{quest.title}</Text>
+                  <Text style={[styles.mapQuestTileDistance, { color: shellMuted }]} numberOfLines={1}>{distanceLabel || quest.city || "On the map"}</Text>
+                </View>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
       </View>
     );
   }
@@ -6784,12 +7063,7 @@ function privateThreadIncludesUsers(
                   </Pressable>
                   <Pressable
                     style={[styles.feedToggleButton, styles.headerFeedToggleButton, feedViewMode === "map" && styles.feedToggleButtonActive]}
-                    onPress={() => {
-                      setFeedViewMode("map");
-                      if (!deviceLocation && locationStatus !== "loading") {
-                        void requestDeviceLocation("Location access is needed to show nearby quests.");
-                      }
-                    }}
+                    onPress={() => setFeedViewMode("map")}
                   >
                     <Text style={[styles.feedToggleText, styles.headerFeedToggleText, feedViewMode === "map" && styles.feedToggleTextActive]}>Map</Text>
                   </Pressable>
@@ -10380,6 +10654,66 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingTop: 10,
   },
+  mapDiscovery: {
+    gap: 12,
+    paddingBottom: 12,
+    paddingHorizontal: 14,
+    paddingTop: 12,
+  },
+  mapDiscoveryHeading: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 2,
+  },
+  mapDiscoveryTitleBlock: {
+    flex: 1,
+  },
+  mapDiscoveryEyebrow: {
+    fontSize: 9,
+    fontWeight: "900",
+    letterSpacing: 1.4,
+    marginBottom: 3,
+  },
+  mapDiscoveryTitle: {
+    fontSize: 22,
+    fontWeight: "900",
+    letterSpacing: -0.5,
+  },
+  mapDiscoveryLocation: {
+    alignItems: "center",
+    borderRadius: 999,
+    flexDirection: "row",
+    gap: 5,
+    maxWidth: "42%",
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  mapDiscoveryLocationText: {
+    fontSize: 10,
+    fontWeight: "900",
+  },
+  mapSearchShell: {
+    alignItems: "center",
+    borderRadius: 18,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 9,
+    minHeight: 51,
+    paddingHorizontal: 14,
+  },
+  mapSearchCount: {
+    alignItems: "center",
+    borderRadius: 999,
+    justifyContent: "center",
+    minWidth: 29,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+  },
+  mapSearchCountText: {
+    fontSize: 10,
+    fontWeight: "900",
+  },
   homeHero: {
     borderRadius: 28,
     gap: 7,
@@ -10604,50 +10938,364 @@ const styles = StyleSheet.create({
     fontWeight: "900",
   },
   mapPlaceholderCard: {
-    backgroundColor: "#151722",
-    borderColor: "rgba(255,255,255,0.06)",
+    alignItems: "center",
     borderRadius: 24,
     borderWidth: 1,
     gap: 8,
-    marginHorizontal: 16,
-    padding: 18,
+    marginHorizontal: 14,
+    padding: 26,
+  },
+  mapPlaceholderIcon: {
+    alignItems: "center",
+    borderRadius: 22,
+    height: 58,
+    justifyContent: "center",
+    marginBottom: 4,
+    width: 58,
   },
   mapPlaceholderTitle: {
-    color: "#f8fafc",
     fontSize: 18,
-    fontWeight: "800",
+    fontWeight: "900",
   },
   mapPlaceholderText: {
-    color: "#aeb6c6",
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 12,
+    lineHeight: 18,
+    maxWidth: 270,
+    textAlign: "center",
+  },
+  mapPlaceholderAction: {
+    alignItems: "center",
+    backgroundColor: "#9bd8e4",
+    borderRadius: 14,
+    flexDirection: "row",
+    gap: 6,
+    marginTop: 8,
+    minHeight: 42,
+    paddingHorizontal: 15,
+  },
+  mapPlaceholderActionText: {
+    color: "#082f3a",
+    fontSize: 12,
+    fontWeight: "900",
   },
   mapStack: {
-    gap: 12,
-    paddingHorizontal: 16,
+    gap: 13,
+    paddingBottom: 12,
   },
-  mapCard: {
+  mapStage: {
     backgroundColor: "#151722",
-    borderColor: "rgba(255,255,255,0.06)",
-    borderRadius: 24,
+    borderRadius: 28,
     borderWidth: 1,
-    height: 360,
+    height: 550,
+    marginHorizontal: 14,
     overflow: "hidden",
+    position: "relative",
   },
   nativeMap: {
     flex: 1,
   },
-  mapQuestList: {
-    gap: 10,
-    paddingBottom: 12,
+  mapTopOverlay: {
+    alignItems: "flex-start",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    left: 12,
+    position: "absolute",
+    right: 12,
+    top: 12,
   },
-  mapQuestRow: {
-    backgroundColor: "#151722",
-    borderColor: "rgba(255,255,255,0.06)",
-    borderRadius: 20,
+  mapActivityPill: {
+    alignItems: "center",
+    backgroundColor: "rgba(10,20,29,0.84)",
+    borderColor: "rgba(255,255,255,0.14)",
+    borderRadius: 999,
     borderWidth: 1,
+    flexDirection: "row",
+    gap: 7,
+    paddingHorizontal: 11,
+    paddingVertical: 8,
+  },
+  mapActivityDot: {
+    backgroundColor: "#4ade80",
+    borderRadius: 999,
+    height: 7,
+    width: 7,
+  },
+  mapActivityText: {
+    color: "#ffffff",
+    fontSize: 10,
+    fontWeight: "900",
+  },
+  mapControlStack: {
+    gap: 8,
+  },
+  mapControlButton: {
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.94)",
+    borderColor: "rgba(15,23,42,0.1)",
+    borderRadius: 14,
+    borderWidth: 1,
+    height: 42,
+    justifyContent: "center",
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.14,
+    shadowRadius: 8,
+    width: 42,
+  },
+  mapControlButtonActive: {
+    backgroundColor: "#0f5f73",
+    borderColor: "#0f5f73",
+  },
+  mapLocationNudge: {
+    alignItems: "center",
+    backgroundColor: "rgba(10,20,29,0.86)",
+    borderColor: "rgba(255,255,255,0.12)",
+    borderRadius: 999,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 5,
+    left: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    position: "absolute",
+    top: 58,
+  },
+  mapLocationNudgeText: {
+    color: "#dff7fb",
+    fontSize: 10,
+    fontWeight: "900",
+  },
+  mapMarkerShell: {
+    alignItems: "center",
+  },
+  mapMarker: {
+    alignItems: "center",
+    backgroundColor: "#0f5f73",
+    borderColor: "#ffffff",
+    borderRadius: 16,
+    borderWidth: 2,
+    height: 34,
+    justifyContent: "center",
+    shadowColor: "#00131b",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.28,
+    shadowRadius: 5,
+    width: 34,
+  },
+  mapMarkerSelected: {
+    backgroundColor: "#9bd8e4",
+    borderColor: "#ffffff",
+    borderRadius: 19,
+    height: 40,
+    width: 40,
+  },
+  mapMarkerTip: {
+    borderLeftColor: "transparent",
+    borderLeftWidth: 5,
+    borderRightColor: "transparent",
+    borderRightWidth: 5,
+    borderTopColor: "#0f5f73",
+    borderTopWidth: 7,
+    marginTop: -2,
+  },
+  mapMarkerTipSelected: {
+    borderLeftWidth: 6,
+    borderRightWidth: 6,
+    borderTopColor: "#9bd8e4",
+    borderTopWidth: 8,
+  },
+  mapPreviewCard: {
+    backgroundColor: "rgba(13,18,27,0.96)",
+    borderColor: "rgba(255,255,255,0.13)",
+    borderRadius: 22,
+    borderWidth: 1,
+    bottom: 12,
+    left: 12,
+    padding: 10,
+    position: "absolute",
+    right: 12,
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.24,
+    shadowRadius: 16,
+  },
+  mapPreviewMain: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 10,
+  },
+  mapPreviewImage: {
+    backgroundColor: "#20313e",
+    borderRadius: 15,
+    height: 78,
+    width: 78,
+  },
+  mapPreviewImageFallback: {
+    alignItems: "center",
+    backgroundColor: "#20313e",
+    borderRadius: 15,
+    height: 78,
+    justifyContent: "center",
+    width: 78,
+  },
+  mapPreviewCopy: {
+    flex: 1,
+    gap: 4,
+    minWidth: 0,
+  },
+  mapPreviewMetaRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  mapPreviewCategory: {
+    color: "#9bd8e4",
+    flex: 1,
+    fontSize: 9,
+    fontWeight: "900",
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
+  },
+  mapPreviewDistance: {
+    color: "#d3dbe5",
+    fontSize: 9,
+    fontWeight: "800",
+    marginLeft: 7,
+    maxWidth: "46%",
+  },
+  mapPreviewTitle: {
+    color: "#ffffff",
+    fontSize: 15,
+    fontWeight: "900",
+    letterSpacing: -0.2,
+    lineHeight: 19,
+  },
+  mapPreviewHostRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 4,
+  },
+  mapPreviewHost: {
+    color: "#9aa6b5",
+    flexShrink: 1,
+    fontSize: 9,
+    fontWeight: "700",
+  },
+  mapPreviewMetaDot: {
+    backgroundColor: "#657384",
+    borderRadius: 999,
+    height: 3,
+    width: 3,
+  },
+  mapPreviewActions: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 9,
+  },
+  mapPreviewSave: {
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.07)",
+    borderColor: "rgba(255,255,255,0.09)",
+    borderRadius: 13,
+    borderWidth: 1,
+    height: 40,
+    justifyContent: "center",
+    width: 46,
+  },
+  mapPreviewSaveActive: {
+    backgroundColor: "#9bd8e4",
+    borderColor: "#9bd8e4",
+  },
+  mapPreviewJoin: {
+    alignItems: "center",
+    backgroundColor: "#9bd8e4",
+    borderRadius: 13,
+    flex: 1,
+    flexDirection: "row",
     gap: 6,
-    padding: 14,
+    height: 40,
+    justifyContent: "center",
+  },
+  mapPreviewJoinMuted: {
+    backgroundColor: "#6daec2",
+  },
+  mapPreviewJoinText: {
+    color: "#082f3a",
+    fontSize: 11,
+    fontWeight: "900",
+  },
+  mapNearbyHeading: {
+    alignItems: "flex-end",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingTop: 2,
+  },
+  mapNearbyEyebrow: {
+    fontSize: 9,
+    fontWeight: "900",
+    letterSpacing: 1.2,
+    marginBottom: 2,
+  },
+  mapNearbyTitle: {
+    fontSize: 18,
+    fontWeight: "900",
+    letterSpacing: -0.3,
+  },
+  mapNearbyHint: {
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  mapQuestRail: {
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingBottom: 4,
+  },
+  mapQuestTile: {
+    borderRadius: 18,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 10,
+    padding: 8,
+    width: 258,
+  },
+  mapQuestTileActive: {
+    shadowColor: "#0f5f73",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.14,
+    shadowRadius: 9,
+  },
+  mapQuestTileImage: {
+    backgroundColor: "#20313e",
+    borderRadius: 13,
+    height: 72,
+    width: 68,
+  },
+  mapQuestTileCopy: {
+    flex: 1,
+    gap: 4,
+    justifyContent: "center",
+    minWidth: 0,
+  },
+  mapQuestTileMeta: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 4,
+  },
+  mapQuestTileCategory: {
+    flex: 1,
+    fontSize: 9,
+    fontWeight: "900",
+    textTransform: "uppercase",
+  },
+  mapQuestTileTitle: {
+    fontSize: 12,
+    fontWeight: "900",
+    lineHeight: 15,
+  },
+  mapQuestTileDistance: {
+    fontSize: 9,
+    fontWeight: "700",
   },
   feedCard: {
     borderRadius: 27,
