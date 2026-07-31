@@ -42,12 +42,35 @@ end;
 $$;
 
 -- The product now presents one public identity instead of separate display and user names.
-alter table public.profiles disable trigger enforce_profile_display_name_trigger;
+do $$
+begin
+  if exists (
+    select 1
+    from pg_trigger
+    where tgrelid = 'public.profiles'::regclass
+      and tgname = 'enforce_profile_display_name_trigger'
+      and not tgisinternal
+  ) then
+    alter table public.profiles disable trigger enforce_profile_display_name_trigger;
+  end if;
+end;
+$$;
 
 update public.profiles
 set display_name = username
 where username is not null
   and display_name is distinct from username;
 
-alter table public.profiles enable trigger enforce_profile_display_name_trigger;
-
+do $$
+begin
+  if exists (
+    select 1
+    from pg_trigger
+    where tgrelid = 'public.profiles'::regclass
+      and tgname = 'enforce_profile_display_name_trigger'
+      and not tgisinternal
+  ) then
+    alter table public.profiles enable trigger enforce_profile_display_name_trigger;
+  end if;
+end;
+$$;

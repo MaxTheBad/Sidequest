@@ -31,17 +31,18 @@
 - Non-staff role boundary: pass.
 - Live Cloudflare SMTP moderation alert delivery: pass.
 - MFA requirement is enforced in database policies and moderation RPCs: verified from deployed schema.
-- Six historical test reports remain open beyond the 24-hour SLA and require an MFA-authenticated moderator decision.
-- The successfully tested alert was marked delivered; seven older queue rows remain pending.
+- Six historical QA reports were dismissed with super-admin attribution and matching audit actions; zero active reports remain.
+- Seven obsolete alerts for already-reviewed reports were explicitly suppressed; zero moderation alerts remain pending.
 - The Supabase fallback email worker has no SMTP configuration; Cloudflare is the working primary alert channel.
-- Alert queue accounting/idempotency fix is implemented locally and must be deployed before release.
+- Alert queue claim/accounting logic is idempotent in the production code path.
 
 ## Data Migration
 
 - A migration now backfills the single unique public profile name for legacy accounts and aligns `display_name` with `username`.
 - The supplied QA account was corrected directly so native profile testing could continue.
-- The migration has not been applied to the linked production database because the local Supabase CLI credential store remained unavailable during this run. Apply and verify it before release.
-- The anti-spam migration adds server-side message, quest, report, duplicate-content, and storage-upload limits plus a hard three-item quest media cap. It passed an isolated PostgreSQL schema application test and also requires production deployment.
+- The single-name migration is deployed and verified in production: zero profiles are missing usernames and zero profile-name mismatches remain.
+- The anti-spam migration is deployed and verified in production: all three abuse triggers and the media constraint are active, fourth media is rejected, and both media buckets enforce 60 MB/MIME restrictions.
+- Supabase migration history records both production-applied migration versions.
 
 ## App Store Draft
 
@@ -56,4 +57,3 @@
 - Verify badge increments, decrements after reading, and survives app relaunch.
 - Verify notification taps open the exact conversation or quest.
 - Record crash-free sessions and test poor-network recovery.
-- Resolve or dismiss every historical moderation report through the MFA-protected dashboard.
