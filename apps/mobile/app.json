@@ -6,19 +6,40 @@
     "version": "0.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
+    "icon": "./assets/icon.png",
     "ios": {
       "bundleIdentifier": "com.questhat.app",
       "supportsTablet": false,
+      "icon": "./assets/icon.png",
       "infoPlist": {
         "NSCameraUsageDescription": "QuestHat uses the camera so you can add profile and quest photos.",
         "NSPhotoLibraryUsageDescription": "QuestHat uses your photo library so you can attach media to quests.",
-        "NSLocationWhenInUseUsageDescription": "QuestHat uses your location to show nearby quests and estimate distance."
-      }
+        "NSLocationWhenInUseUsageDescription": "QuestHat uses your location to show nearby quests and estimate distance.",
+        "NSMotionUsageDescription": "QuestHat uses motion data to support device and media interactions in the app.",
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "buildNumber": "50"
     },
     "extra": {
       "supabaseUrl": "https://ipjewvmmzmxakoewqlfo.supabase.co/",
       "supabaseAnonKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlwamV3dm1tem14YWtvZXdxbGZvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI4Mjg1MTYsImV4cCI6MjA4ODQwNDUxNn0.VaP8G8enHWZTfK5RtwhkRFHaeBeukuE7aWR9yyy7Io0",
-      "siteUrl": "https://questhat.com"
-    }
+      "siteUrl": "https://questhat.com",
+      "eas": {
+        "projectId": "269b58c4-775f-48c4-8171-196d92901c8d"
+      }
+    },
+    "owner": "anlvio-llc",
+    "plugins": [
+      [
+        "expo-notifications",
+        {
+          "enableBackgroundRemoteNotifications": true
+        }
+      ],
+      "expo-video",
+      "expo-secure-store",
+      "expo-status-bar",
+      "expo-web-browser"
+    ]
   }
 }

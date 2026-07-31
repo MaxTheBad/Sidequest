@@ -1,6 +1,6 @@
-import { createPrivateKey, sign } from "node:crypto";
 import { readFileSync } from "node:fs";
 import process from "node:process";
+import { SignJWT, importPKCS8 } from "jose";
 
 function usage() {
   console.error(
@@ -18,37 +18,17 @@ if (!Number.isFinite(expiresInDays) || expiresInDays <= 0) {
   process.exit(1);
 }
 
-const privateKeyPem = readFileSync(keyPath, "utf8");
-const privateKey = createPrivateKey(privateKeyPem);
-
 const now = Math.floor(Date.now() / 1000);
-const payload = {
-  iss: teamId,
-  iat: now,
-  exp: now + Math.floor(expiresInDays * 24 * 60 * 60),
-  aud: "https://appleid.apple.com",
-  sub: servicesId,
-};
+const privateKeyPem = readFileSync(keyPath, "utf8");
 
-function base64Url(input) {
-  return Buffer.from(input).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
-}
+const privateKey = await importPKCS8(privateKeyPem, "ES256");
+const jwt = await new SignJWT({})
+  .setProtectedHeader({ alg: "ES256", kid: keyId, typ: "JWT" })
+  .setIssuer(teamId)
+  .setSubject(servicesId)
+  .setAudience("https://appleid.apple.com")
+  .setIssuedAt(now)
+  .setExpirationTime(now + Math.floor(expiresInDays * 24 * 60 * 60))
+  .sign(privateKey);
 
-const header = {
-  alg: "ES256",
-  kid: keyId,
-  typ: "JWT",
-};
-
-const encodedHeader = base64Url(JSON.stringify(header));
-const encodedPayload = base64Url(JSON.stringify(payload));
-const signingInput = `${encodedHeader}.${encodedPayload}`;
-
-const signature = sign(null, Buffer.from(signingInput), {
-  key: privateKey,
-  dsaEncoding: "ieee-p1363",
-});
-const encodedSignature = base64Url(signature);
-
-const jwt = `${signingInput}.${encodedSignature}`;
 process.stdout.write(jwt);

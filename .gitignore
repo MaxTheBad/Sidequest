@@ -19,10 +19,20 @@
 
 # production
 /build
+apps/mobile/build/
+apps/mobile/dist/
+apps/mobile/ios/build/
+apps/mobile/*.ipa
 
 # misc
 .DS_Store
 *.pem
+History
+*.p12
+*.mobileprovision
+AuthKey_*.p8
+*.xcuserstate
+xcuserdata/
 
 # debug
 npm-debug.log*
@@ -43,3 +53,19 @@ next-env.d.ts
 
 # expo
 apps/mobile/.expo/
+apps/mobile/ios/Pods/
+apps/mobile/ios/DerivedData/
+
+# local credentials and signing
+.signing/
+apps/mobile/credentials/
+apps/mobile/credentials.json
+
+# local tool state and generated previews
+supabase/.temp/
+tmp/
+apps/mobile-preview.png
+apps/mobile-live-preview.png
+apps/mobile-ui-parity.png
+photo1-transparent.png
+questhat-transparent.png
