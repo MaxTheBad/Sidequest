@@ -56,7 +56,7 @@ Run:
 npm test
 npm run lint
 npm run build
-npm audit --audit-level=high
+npm run audit:release
 ```
 
 Expected status:
@@ -64,7 +64,7 @@ Expected status:
 - Tests pass.
 - Lint has no errors. Warnings must be triaged before launch.
 - Production build passes.
-- High-severity audit passes. Current Next may still report a moderate nested PostCSS advisory until an upstream patched Next release is available.
+- Production dependencies have no high-severity advisories. Development-only tooling advisories are tracked separately and must not be force-fixed with incompatible major downgrades.
 
 ## Cloudflare Preview Smoke Test
 

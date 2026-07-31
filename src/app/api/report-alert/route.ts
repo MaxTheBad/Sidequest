@@ -2,6 +2,8 @@ import { createClient } from "@supabase/supabase-js";
 
 export const runtime = "edge";
 
+const DELIVERY_CLAIM = "__delivery_in_progress__";
+
 function escapeHtml(input: string) {
   return input
     .replaceAll("&", "&amp;")
@@ -277,6 +279,40 @@ export async function POST(req: Request) {
   if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
   if (!report) return Response.json({ ok: false, error: "Report not found." }, { status: 404 });
 
+  const { data: queueRow, error: queueError } = await supabase
+    .from("moderation_email_queue")
+    .select("id,attempts,last_error")
+    .eq("report_id", report.id)
+    .is("sent_at", null)
+    .or(`last_error.is.null,last_error.neq.${DELIVERY_CLAIM}`)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (queueError) return Response.json({ ok: false, error: queueError.message }, { status: 500 });
+  if (!queueRow) {
+    return Response.json({ ok: true, report_id: report.id, already_sent: true });
+  }
+
+  let claimQuery = supabase
+    .from("moderation_email_queue")
+    .update({
+      attempts: queueRow.attempts + 1,
+      last_error: DELIVERY_CLAIM,
+    })
+    .eq("id", queueRow.id)
+    .eq("attempts", queueRow.attempts)
+    .is("sent_at", null);
+  claimQuery = queueRow.last_error === null
+    ? claimQuery.is("last_error", null)
+    : claimQuery.eq("last_error", queueRow.last_error);
+  const { data: claimedRows, error: claimError } = await claimQuery.select("id");
+
+  if (claimError) return Response.json({ ok: false, error: claimError.message }, { status: 500 });
+  if (!claimedRows?.length) {
+    return Response.json({ ok: true, report_id: report.id, delivery_in_progress: true }, { status: 202 });
+  }
+
   const flags = (report.auto_flags || {}) as Record<string, string>;
   const targetKey = flags.report_target_key || report.id;
 
@@ -334,18 +370,39 @@ export async function POST(req: Request) {
     details: report.details || "—",
   });
 
-  for (const recipient of recipients) {
-    await sendSmtpEmail({
-      host: smtpHost,
-      port: smtpPort,
-      user: smtpUser,
-      password: smtpPassword,
-      from: smtpFrom,
-      to: recipient,
-      subject,
-      text: bodyText,
-      html: bodyHtml,
-    });
+  try {
+    for (const recipient of recipients) {
+      await sendSmtpEmail({
+        host: smtpHost,
+        port: smtpPort,
+        user: smtpUser,
+        password: smtpPassword,
+        from: smtpFrom,
+        to: recipient,
+        subject,
+        text: bodyText,
+        html: bodyHtml,
+      });
+    }
+  } catch (sendError) {
+    const message = sendError instanceof Error ? sendError.message : "Unknown email delivery error.";
+    await supabase
+      .from("moderation_email_queue")
+      .update({ last_error: message })
+      .eq("id", queueRow.id);
+    return Response.json({ ok: false, error: "Moderation alert delivery failed." }, { status: 502 });
+  }
+
+  const { error: deliveredError } = await supabase
+    .from("moderation_email_queue")
+    .update({
+      sent_at: new Date().toISOString(),
+      last_error: null,
+    })
+    .eq("id", queueRow.id);
+
+  if (deliveredError) {
+    return Response.json({ ok: false, error: deliveredError.message }, { status: 500 });
   }
 
   return Response.json({ ok: true, report_id: report.id, report_count: reportCount, recipients: recipients.length });

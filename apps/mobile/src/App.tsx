@@ -834,13 +834,23 @@ export default function App() {
       setQuestCoordsById({});
       return;
     }
+    setQuestCoordsById({});
     void (async () => {
-      const entries = await Promise.all(quests.map(async (quest) => {
-        const coords = await getQuestMapCoordinates(quest);
-        return [quest.id, coords] as const;
-      }));
-      if (cancelled) return;
-      setQuestCoordsById(Object.fromEntries(entries.filter(([, coords]) => coords).map(([id, coords]) => [id, coords!])));
+      const resolved: Record<string, DeviceLocation> = {};
+      let nextIndex = 0;
+      const worker = async () => {
+        while (!cancelled) {
+          const quest = quests[nextIndex++];
+          if (!quest) return;
+          const coords = await getQuestMapCoordinates(quest);
+          if (!coords || cancelled) continue;
+          resolved[quest.id] = coords;
+          setQuestCoordsById({ ...resolved });
+        }
+      };
+
+      // Keep geocoder traffic bounded; blasting the whole feed causes throttling.
+      await Promise.all(Array.from({ length: Math.min(3, quests.length) }, worker));
     })();
     return () => {
       cancelled = true;
@@ -2644,7 +2654,11 @@ function privateThreadIncludesUsers(
     const cityFromExact = normalizeQuestLocationQuery(deriveCityFromLocation(exact));
     const region = normalizeQuestLocationQuery((quest as QuestPreview & { region?: string | null }).region);
     const country = normalizeQuestLocationQuery((quest as QuestPreview & { country_code?: string | null }).country_code ? String((quest as QuestPreview & { country_code?: string | null }).country_code).toUpperCase() : null);
-    return Array.from(new Set([rawCity, cityFromExact, exact, region, country].filter(Boolean)));
+    const rawParts = rawCity.split(",").map((part) => part.trim()).filter(Boolean);
+    const exactParts = exact.split(",").map((part) => part.trim()).filter(Boolean);
+    const postalCode = [...rawParts, ...exactParts].find((part) => /^\d{4,6}$/.test(part));
+    const simpleCity = rawParts.find((part) => /[a-z]/i.test(part) && !/^(united states|usa)$/i.test(part));
+    return Array.from(new Set([rawCity, simpleCity, postalCode, cityFromExact, exact, region, country].filter(Boolean)));
   }
 
   async function fetchQuestCoordinates(query: string): Promise<DeviceLocation | null> {
@@ -5716,7 +5730,7 @@ function privateThreadIncludesUsers(
               <View style={styles.settingsSectionHeader}>
                 <View>
                   <Text style={styles.settingsSectionEyebrow}>PUBLIC PROFILE</Text>
-                  <Text style={styles.settingsSectionTitle}>How people see you</Text>
+                  <Text style={[styles.settingsSectionTitle, { color: shellText }]}>How people see you</Text>
                 </View>
                 {settingsProfileDirty ? <View style={styles.settingsUnsavedBadge}><View style={styles.settingsUnsavedDot} /><Text style={styles.settingsUnsavedText}>Unsaved</Text></View> : null}
               </View>
@@ -5820,7 +5834,7 @@ function privateThreadIncludesUsers(
           {settingsTab === "preferences" ? (
             <View style={styles.settingsTabContent}>
               <View style={styles.settingsSectionHeader}>
-                <View><Text style={styles.settingsSectionEyebrow}>YOUR EXPERIENCE</Text><Text style={styles.settingsSectionTitle}>Look, feel & alerts</Text></View>
+                <View><Text style={styles.settingsSectionEyebrow}>YOUR EXPERIENCE</Text><Text style={[styles.settingsSectionTitle, { color: shellText }]}>Look, feel & alerts</Text></View>
               </View>
 
               <View style={styles.settingsCard}>
@@ -5933,7 +5947,7 @@ function privateThreadIncludesUsers(
           {settingsTab === "people" ? (
             <View style={styles.settingsTabContent}>
               <View style={styles.settingsSectionHeader}>
-                <View><Text style={styles.settingsSectionEyebrow}>YOUR CIRCLE</Text><Text style={styles.settingsSectionTitle}>People & safety</Text></View>
+                <View><Text style={styles.settingsSectionEyebrow}>YOUR CIRCLE</Text><Text style={[styles.settingsSectionTitle, { color: shellText }]}>People & safety</Text></View>
               </View>
               <View style={styles.settingsPeopleStats}>
                 <View style={styles.settingsPeopleStat}><Text style={styles.settingsPeopleStatValue}>{settingsFriendsProfiles.length}</Text><Text style={styles.settingsPeopleStatLabel}>Friends</Text></View>
@@ -6011,7 +6025,7 @@ function privateThreadIncludesUsers(
           {settingsTab === "account" ? (
             <View style={styles.settingsTabContent}>
               <View style={styles.settingsSectionHeader}>
-                <View><Text style={styles.settingsSectionEyebrow}>SECURITY & ACCESS</Text><Text style={styles.settingsSectionTitle}>Your account</Text></View>
+                <View><Text style={styles.settingsSectionEyebrow}>SECURITY & ACCESS</Text><Text style={[styles.settingsSectionTitle, { color: shellText }]}>Your account</Text></View>
               </View>
 
               <View style={styles.settingsCard}>
