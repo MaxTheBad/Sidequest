@@ -186,6 +186,26 @@ type PushNavigationData = Record<string, unknown> & {
   sourceUserId?: string;
 };
 
+type NotificationPreferences = {
+  messages: boolean;
+  comments: boolean;
+  join_updates: boolean;
+  join_requests: boolean;
+  friend_requests: boolean;
+  followed_posts: boolean;
+  liked_categories: boolean;
+};
+
+const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
+  messages: true,
+  comments: true,
+  join_updates: true,
+  join_requests: true,
+  friend_requests: true,
+  followed_posts: false,
+  liked_categories: false,
+};
+
 type JoinRequestNotificationState = "pending" | "approved" | "declined" | "expired";
 
 type QuestMemberRow = {
@@ -643,6 +663,10 @@ export default function App() {
   const [pushPromptLoading, setPushPromptLoading] = useState(false);
   const [pushPromptDismissedAt, setPushPromptDismissedAt] = useState<number | null>(null);
   const [pushPermissionStatus, setPushPermissionStatus] = useState<"granted" | "denied" | "undetermined" | "unavailable" | "error" | null>(null);
+  const [showNotificationPreferences, setShowNotificationPreferences] = useState(false);
+  const [notificationPreferences, setNotificationPreferences] = useState<NotificationPreferences>(DEFAULT_NOTIFICATION_PREFERENCES);
+  const [notificationPreferencesLoading, setNotificationPreferencesLoading] = useState(false);
+  const [notificationPreferencesSaving, setNotificationPreferencesSaving] = useState(false);
   const [showReportProfileModal, setShowReportProfileModal] = useState(false);
   const [reportProfileReason, setReportProfileReason] = useState("inappropriate_profile");
   const [reportProfileDetails, setReportProfileDetails] = useState("");
@@ -1092,6 +1116,8 @@ export default function App() {
   useEffect(() => {
     if (!signedIn || !userId) {
       setPushPermissionStatus(null);
+      setShowNotificationPreferences(false);
+      setNotificationPreferences(DEFAULT_NOTIFICATION_PREFERENCES);
       return;
     }
 
@@ -1113,6 +1139,11 @@ export default function App() {
       cancelled = true;
       appStateSub.remove();
     };
+  }, [signedIn, userId]);
+
+  useEffect(() => {
+    if (!signedIn || !userId) return;
+    void loadNotificationPreferences(userId);
   }, [signedIn, userId]);
 
   useEffect(() => {
@@ -1991,6 +2022,53 @@ function privateThreadIncludesUsers(
     if (token) {
       pushTokenRegisteredForUserRef.current = userId;
       setStatus("Notifications enabled.");
+    }
+  }
+
+  async function loadNotificationPreferences(uid: string) {
+    if (!supabase) return;
+    setNotificationPreferencesLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("notification_preferences")
+        .select("messages,comments,join_updates,join_requests,friend_requests,followed_posts,liked_categories")
+        .eq("user_id", uid)
+        .maybeSingle();
+      if (error) throw error;
+      setNotificationPreferences(data ? {
+        messages: data.messages !== false,
+        comments: data.comments !== false,
+        join_updates: data.join_updates !== false,
+        join_requests: data.join_requests !== false,
+        friend_requests: data.friend_requests !== false,
+        followed_posts: data.followed_posts === true,
+        liked_categories: data.liked_categories === true,
+      } : DEFAULT_NOTIFICATION_PREFERENCES);
+    } catch (error) {
+      console.warn("notification preferences load failed", error instanceof Error ? error.message : String(error));
+    } finally {
+      setNotificationPreferencesLoading(false);
+    }
+  }
+
+  async function saveNotificationPreferences() {
+    if (!supabase || !userId) return;
+    setNotificationPreferencesSaving(true);
+    try {
+      const { error } = await supabase
+        .from("notification_preferences")
+        .upsert({
+          user_id: userId,
+          ...notificationPreferences,
+          updated_at: new Date().toISOString(),
+        });
+      if (error) throw error;
+      setStatus("Notification preferences saved.");
+      setShowNotificationPreferences(false);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not save notification preferences.");
+    } finally {
+      setNotificationPreferencesSaving(false);
     }
   }
 
@@ -5377,8 +5455,14 @@ function privateThreadIncludesUsers(
                 <View style={styles.settingsStatusRow}>
                   <View style={[styles.settingsStatusDot, pushPermissionStatus === "granted" && styles.settingsStatusDotOn]} />
                   <Text style={styles.settingsStatusText}>{pushPermissionStatus === "granted" ? "Notifications are on" : "Notifications are off"}</Text>
-                  <Pressable style={styles.settingsInlineButton} onPress={() => void enableNotificationsFromApp().catch((error) => console.warn("enable notifications failed", error instanceof Error ? error.message : String(error)))}>
-                    <Text style={styles.settingsInlineButtonText}>{pushPermissionStatus === "granted" ? "Manage" : "Turn on"}</Text>
+                  <Pressable
+                    style={styles.settingsInlineButton}
+                    onPress={() => {
+                      setShowNotificationPreferences(true);
+                      void loadNotificationPreferences(userId || "");
+                    }}
+                  >
+                    <Text style={styles.settingsInlineButtonText}>Manage</Text>
                   </Pressable>
                 </View>
               </View>
@@ -6425,6 +6509,110 @@ function privateThreadIncludesUsers(
     );
   }
 
+  function renderNotificationPreferencesModal() {
+    if (!showNotificationPreferences) return null;
+    const options: Array<{
+      key: keyof NotificationPreferences;
+      title: string;
+      description: string;
+      icon: keyof typeof Ionicons.glyphMap;
+    }> = [
+      { key: "messages", title: "Private messages", description: "New direct messages from other members.", icon: "mail-outline" },
+      { key: "comments", title: "Comments", description: "New comments on quests you host.", icon: "chatbox-outline" },
+      { key: "join_updates", title: "Join decisions", description: "When your request is accepted or declined.", icon: "checkmark-circle-outline" },
+      { key: "join_requests", title: "Join requests", description: "When someone asks to join your quest.", icon: "person-add-outline" },
+      { key: "friend_requests", title: "Friend requests", description: "New requests from people who want to connect.", icon: "people-outline" },
+      { key: "followed_posts", title: "Posts from people you follow", description: "New quests from your accepted connections.", icon: "radio-outline" },
+      { key: "liked_categories", title: "Liked category alerts", description: "New quests matching interests chosen during setup.", icon: "heart-outline" },
+    ];
+    const closeManager = () => {
+      setShowNotificationPreferences(false);
+      if (userId) void loadNotificationPreferences(userId);
+    };
+
+    return (
+      <Modal visible transparent animationType="fade" onRequestClose={closeManager}>
+        <View style={styles.modalBackdrop}>
+          <Pressable style={styles.modalBackdropPressable} onPress={closeManager} />
+          <View style={styles.notificationPreferencesCard} onStartShouldSetResponder={() => true}>
+            <View style={styles.notificationPreferencesHeader}>
+              <View style={styles.notificationPreferencesIcon}>
+                <Ionicons name="notifications-outline" size={23} color="#9bd8e4" />
+              </View>
+              <View style={styles.notificationPreferencesHeading}>
+                <Text style={styles.notificationPreferencesEyebrow}>PUSH ALERTS</Text>
+                <Text style={styles.notificationPreferencesTitle}>Choose what reaches you</Text>
+                <Text style={styles.notificationPreferencesSubtitle}>In-app activity stays available even when a push category is off.</Text>
+              </View>
+              <Pressable hitSlop={10} style={styles.notificationPreferencesClose} onPress={closeManager}>
+                <Ionicons name="close" size={21} color="#94a3b8" />
+              </Pressable>
+            </View>
+
+            <View style={styles.notificationSystemRow}>
+              <View style={[styles.settingsStatusDot, pushPermissionStatus === "granted" && styles.settingsStatusDotOn]} />
+              <View style={styles.notificationSystemCopy}>
+                <Text style={styles.notificationSystemTitle}>
+                  {pushPermissionStatus === "granted" ? "Allowed by iPhone" : pushPermissionStatus === "denied" ? "Blocked by iPhone" : "Not enabled on iPhone"}
+                </Text>
+                <Text style={styles.notificationSystemSubtitle}>QuestHat categories cannot override your iOS permission.</Text>
+              </View>
+              <Pressable
+                style={styles.notificationSystemButton}
+                onPress={() => {
+                  if (pushPermissionStatus === "granted") {
+                    void RNLinking.openSettings();
+                    return;
+                  }
+                  void enableNotificationsFromApp();
+                }}
+              >
+                <Ionicons name={pushPermissionStatus === "granted" ? "settings-outline" : "notifications-outline"} size={16} color="#9bd8e4" />
+              </Pressable>
+            </View>
+
+            <ScrollView style={styles.notificationPreferencesScroll} contentContainerStyle={styles.notificationPreferencesList} showsVerticalScrollIndicator={false}>
+              {notificationPreferencesLoading ? (
+                <View style={styles.notificationPreferencesLoading}>
+                  <ActivityIndicator color="#9bd8e4" />
+                  <Text style={styles.notificationPreferencesLoadingText}>Loading choices...</Text>
+                </View>
+              ) : options.map((option, index) => (
+                <View key={option.key}>
+                  <View style={styles.notificationPreferenceRow}>
+                    <View style={styles.notificationPreferenceIcon}>
+                      <Ionicons name={option.icon} size={18} color="#9bd8e4" />
+                    </View>
+                    <View style={styles.notificationPreferenceCopy}>
+                      <Text style={styles.notificationPreferenceTitle}>{option.title}</Text>
+                      <Text style={styles.notificationPreferenceDescription}>{option.description}</Text>
+                    </View>
+                    <Switch
+                      value={notificationPreferences[option.key]}
+                      onValueChange={(value) => setNotificationPreferences((current) => ({ ...current, [option.key]: value }))}
+                      trackColor={{ false: "#343846", true: "#6daec2" }}
+                      thumbColor="#f8fafc"
+                    />
+                  </View>
+                  {index < options.length - 1 ? <View style={styles.notificationPreferenceDivider} /> : null}
+                </View>
+              ))}
+            </ScrollView>
+
+            <Pressable
+              style={[styles.notificationPreferencesSave, (notificationPreferencesLoading || notificationPreferencesSaving) && styles.settingsSaveButtonDisabled]}
+              onPress={() => void saveNotificationPreferences()}
+              disabled={notificationPreferencesLoading || notificationPreferencesSaving}
+            >
+              {notificationPreferencesSaving ? <ActivityIndicator size="small" color="#082f3a" /> : <Ionicons name="checkmark" size={19} color="#082f3a" />}
+              <Text style={styles.notificationPreferencesSaveText}>{notificationPreferencesSaving ? "Saving..." : "Save notification choices"}</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+    );
+  }
+
   function renderAccountLifecycleModal() {
     if (showDeleteAccountModal) {
       const canDelete = deleteAccountConfirmation === "DELETE" && accountActionLoading !== "delete";
@@ -6679,6 +6867,7 @@ function privateThreadIncludesUsers(
           {renderQuestionModal()}
           {renderOnboardingWizard()}
           {renderPushPromptModal()}
+          {renderNotificationPreferencesModal()}
           {renderAuthModal()}
           {renderEulaModal()}
           {renderAccountLifecycleModal()}
@@ -8010,6 +8199,167 @@ const styles = StyleSheet.create({
   settingsInlineButtonText: {
     color: "#9bd8e4",
     fontSize: 11,
+    fontWeight: "900",
+  },
+  notificationPreferencesCard: {
+    alignSelf: "center",
+    backgroundColor: "#11131c",
+    borderColor: "rgba(255,255,255,0.09)",
+    borderRadius: 26,
+    borderWidth: 1,
+    maxHeight: "88%",
+    maxWidth: 500,
+    overflow: "hidden",
+    padding: 16,
+    width: "100%",
+  },
+  notificationPreferencesHeader: {
+    alignItems: "flex-start",
+    flexDirection: "row",
+    gap: 11,
+    marginBottom: 13,
+  },
+  notificationPreferencesIcon: {
+    alignItems: "center",
+    backgroundColor: "rgba(109,174,194,0.13)",
+    borderRadius: 14,
+    height: 43,
+    justifyContent: "center",
+    width: 43,
+  },
+  notificationPreferencesHeading: {
+    flex: 1,
+    gap: 2,
+  },
+  notificationPreferencesEyebrow: {
+    color: "#6daec2",
+    fontSize: 9,
+    fontWeight: "900",
+    letterSpacing: 1.3,
+  },
+  notificationPreferencesTitle: {
+    color: "#f8fafc",
+    fontSize: 18,
+    fontWeight: "900",
+    letterSpacing: -0.3,
+  },
+  notificationPreferencesSubtitle: {
+    color: "#8f99a8",
+    fontSize: 11,
+    lineHeight: 16,
+  },
+  notificationPreferencesClose: {
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderRadius: 999,
+    height: 34,
+    justifyContent: "center",
+    width: 34,
+  },
+  notificationSystemRow: {
+    alignItems: "center",
+    backgroundColor: "#0b0d14",
+    borderColor: "rgba(255,255,255,0.06)",
+    borderRadius: 15,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 9,
+    marginBottom: 10,
+    padding: 11,
+  },
+  notificationSystemCopy: {
+    flex: 1,
+    gap: 1,
+  },
+  notificationSystemTitle: {
+    color: "#e8edf3",
+    fontSize: 12,
+    fontWeight: "900",
+  },
+  notificationSystemSubtitle: {
+    color: "#778194",
+    fontSize: 10,
+    lineHeight: 14,
+  },
+  notificationSystemButton: {
+    alignItems: "center",
+    backgroundColor: "rgba(109,174,194,0.12)",
+    borderRadius: 11,
+    height: 34,
+    justifyContent: "center",
+    width: 34,
+  },
+  notificationPreferencesScroll: {
+    flexGrow: 0,
+  },
+  notificationPreferencesList: {
+    backgroundColor: "#171923",
+    borderColor: "rgba(255,255,255,0.06)",
+    borderRadius: 17,
+    borderWidth: 1,
+    overflow: "hidden",
+  },
+  notificationPreferencesLoading: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 9,
+    justifyContent: "center",
+    minHeight: 96,
+  },
+  notificationPreferencesLoadingText: {
+    color: "#9aa4b1",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  notificationPreferenceRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 10,
+    minHeight: 67,
+    paddingHorizontal: 11,
+    paddingVertical: 8,
+  },
+  notificationPreferenceIcon: {
+    alignItems: "center",
+    backgroundColor: "rgba(109,174,194,0.1)",
+    borderRadius: 11,
+    height: 36,
+    justifyContent: "center",
+    width: 36,
+  },
+  notificationPreferenceCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  notificationPreferenceTitle: {
+    color: "#edf2f5",
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  notificationPreferenceDescription: {
+    color: "#7f8997",
+    fontSize: 10,
+    lineHeight: 14,
+  },
+  notificationPreferenceDivider: {
+    backgroundColor: "rgba(255,255,255,0.055)",
+    height: 1,
+    marginLeft: 57,
+  },
+  notificationPreferencesSave: {
+    alignItems: "center",
+    backgroundColor: "#9bd8e4",
+    borderRadius: 15,
+    flexDirection: "row",
+    gap: 7,
+    justifyContent: "center",
+    marginTop: 11,
+    minHeight: 51,
+    paddingHorizontal: 16,
+  },
+  notificationPreferencesSaveText: {
+    color: "#082f3a",
+    fontSize: 13,
     fontWeight: "900",
   },
   settingsDivider: {

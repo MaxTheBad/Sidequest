@@ -57,6 +57,44 @@ Deno.serve(async (req) => {
     return Response.json({ ok: false, error: "Missing userId, title, or body." }, { status: 400 });
   }
 
+  const notificationKind = String(data.kind || "");
+  const meta = data.meta && typeof data.meta === "object" ? data.meta as Record<string, unknown> : {};
+  const discoveryKind = String(meta.kind || "");
+  const preferenceKey =
+    notificationKind === "message"
+      ? meta.private === true ? "messages" : "comments"
+      : notificationKind === "join_request"
+        ? "join_requests"
+        : notificationKind === "approval" || notificationKind === "declined"
+          ? "join_updates"
+          : discoveryKind === "friend_request"
+            ? "friend_requests"
+            : discoveryKind === "followed_post"
+              ? "followed_posts"
+              : discoveryKind === "liked_category"
+                ? "liked_categories"
+                : null;
+
+  if (preferenceKey) {
+    const { data: preferences, error: preferencesError } = await supabase
+      .from("notification_preferences")
+      .select("messages,comments,join_updates,join_requests,friend_requests,followed_posts,liked_categories")
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (preferencesError) {
+      console.error("Could not read notification preferences", preferencesError.message);
+    } else {
+      const defaultEnabled = preferenceKey !== "liked_categories" && preferenceKey !== "followed_posts";
+      const enabled = preferences
+        ? preferences[preferenceKey as keyof typeof preferences] !== false
+        : defaultEnabled;
+      if (!enabled) {
+        return Response.json({ ok: true, sent: 0, skipped: true, reason: "preference_disabled", preference: preferenceKey });
+      }
+    }
+  }
+
   const { count: unreadCountRaw, error: unreadCountError } = await supabase
     .from("notifications")
     .select("id", { count: "exact", head: true })
