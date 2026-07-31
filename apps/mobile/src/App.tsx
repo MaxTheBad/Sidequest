@@ -85,6 +85,8 @@ type QuestPreview = {
   profiles?: { id?: string | null; display_name: string | null; username: string | null; avatar_url?: string | null }[] | { id?: string | null; display_name: string | null; username: string | null; avatar_url?: string | null } | null;
 };
 
+type QuestMediaItem = { url: string; type: "image" | "video"; label?: string | null; thumbnailUrl?: string | null };
+
 type Hobby = { id: string; name: string; category: string | null };
 type Profile = {
   id: string;
@@ -432,6 +434,102 @@ function NativeVideoPlayer({ uri, fullscreen = false }: { uri: string; fullscree
         <View pointerEvents="none" style={styles.videoStatusOverlay}>
           <Ionicons name="alert-circle-outline" size={28} color="#ffffff" />
           <Text style={styles.videoErrorText}>{error?.message || "Video preview could not be loaded."}</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function FeedVideoItem({ media }: { media: QuestMediaItem }) {
+  const [started, setStarted] = useState(false);
+  const player = useVideoPlayer({ uri: media.url }, (nextPlayer) => {
+    nextPlayer.loop = false;
+  });
+  const { status, error } = useEvent(player, "statusChange", { status: player.status });
+
+  function playVideo() {
+    setStarted(true);
+    player.play();
+  }
+
+  return (
+    <View style={styles.feedVideoItem}>
+      <VideoView
+        player={player}
+        style={styles.feedMedia}
+        nativeControls={started}
+        contentFit="cover"
+        fullscreenOptions={{ enable: true }}
+      />
+      {!started ? (
+        <Pressable style={StyleSheet.absoluteFill} onPress={playVideo} accessibilityLabel="Play video">
+          {media.thumbnailUrl ? <Image source={{ uri: media.thumbnailUrl }} style={styles.feedMedia} /> : <View style={styles.feedVideoPosterFallback} />}
+          <View style={styles.feedVideoPlayButton}>
+            <Ionicons name="play" size={25} color="#082f3a" style={styles.feedVideoPlayIcon} />
+          </View>
+          <View style={styles.feedVideoLabel}><Ionicons name="videocam" size={13} color="#ffffff" /><Text style={styles.feedVideoLabelText}>Video</Text></View>
+        </Pressable>
+      ) : null}
+      {status === "loading" && started ? <View pointerEvents="none" style={styles.feedVideoStatus}><ActivityIndicator color="#ffffff" /></View> : null}
+      {status === "error" ? (
+        <View pointerEvents="none" style={styles.feedVideoStatus}>
+          <Ionicons name="alert-circle-outline" size={24} color="#ffffff" />
+          <Text style={styles.feedVideoErrorText}>{error?.message || "Video could not be loaded."}</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function FeedMediaCarousel({
+  mediaItems,
+  fallbackImageUrl,
+  onPreviewImage,
+}: {
+  mediaItems: QuestMediaItem[];
+  fallbackImageUrl: string;
+  onPreviewImage: (media: QuestMediaItem) => void;
+}) {
+  const [viewportWidth, setViewportWidth] = useState(1);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const items: QuestMediaItem[] = mediaItems.length ? mediaItems : [{ url: fallbackImageUrl, type: "image", label: null }];
+  const safeActiveIndex = Math.min(activeIndex, items.length - 1);
+
+  return (
+    <View style={styles.feedMediaCarousel} onLayout={(event) => setViewportWidth(Math.max(1, event.nativeEvent.layout.width))}>
+      <ScrollView
+        horizontal
+        pagingEnabled
+        nestedScrollEnabled
+        directionalLockEnabled
+        bounces={false}
+        showsHorizontalScrollIndicator={false}
+        onMomentumScrollEnd={(event) => setActiveIndex(Math.max(0, Math.min(items.length - 1, Math.round(event.nativeEvent.contentOffset.x / viewportWidth))))}
+        scrollEventThrottle={16}
+      >
+        {items.map((item, index) => (
+          <View key={`${item.url}-${index}`} style={[styles.feedMediaPage, { width: viewportWidth }]}>
+            {item.type === "video" ? (
+              index === safeActiveIndex ? <FeedVideoItem media={item} /> : (
+                <View style={styles.feedVideoItem}>
+                  {item.thumbnailUrl ? <Image source={{ uri: item.thumbnailUrl }} style={styles.feedMedia} /> : <View style={styles.feedVideoPosterFallback} />}
+                  <View style={styles.feedVideoPlayButton}><Ionicons name="play" size={25} color="#082f3a" style={styles.feedVideoPlayIcon} /></View>
+                </View>
+              )
+            ) : (
+              <Pressable style={styles.feedMediaPressable} onPress={() => onPreviewImage(item)} accessibilityLabel="View image">
+                <Image source={{ uri: item.url || fallbackImageUrl }} style={styles.feedMedia} />
+              </Pressable>
+            )}
+          </View>
+        ))}
+      </ScrollView>
+      {items.length > 1 ? (
+        <View pointerEvents="none" style={styles.feedMediaPagination}>
+          <View style={styles.feedMediaDots}>
+            {items.map((item, index) => <View key={`${item.url}-dot-${index}`} style={[styles.feedMediaDot, index === safeActiveIndex && styles.feedMediaDotActive]} />)}
+          </View>
+          <Text style={styles.feedMediaPageCount}>{safeActiveIndex + 1}/{items.length}</Text>
         </View>
       ) : null}
     </View>
@@ -4300,10 +4398,9 @@ function privateThreadIncludesUsers(
 
   function renderFeedCard(quest: QuestPreview) {
     const creator = getRelationOne(quest.profiles);
-    const media = quest.media_items?.[0];
+    const mediaItems = (quest.media_items || []).filter((item): item is QuestMediaItem => Boolean(item?.url));
     const fallbackVisual = getCategoryFallbackMedia(getCategory(quest));
     const fallbackImageUrl = `https://questhat.com${fallbackVisual.imagePath}`;
-    const mediaUrl = media?.thumbnailUrl || media?.url || fallbackImageUrl || null;
     const questCoords = questCoordsById[quest.id];
     const distanceLabel = deviceLocation && questCoords
       ? distanceLabelMiles(haversineMiles(deviceLocation.lat, deviceLocation.lon, questCoords.lat, questCoords.lon))
@@ -4360,13 +4457,11 @@ function privateThreadIncludesUsers(
         ]}
       >
         <View style={styles.feedMediaWrap}>
-          <Pressable style={styles.feedMediaPressable} onPress={() => void openQuestDetail(quest.id)}>
-            {mediaUrl ? (
-              <Image source={{ uri: mediaUrl }} style={styles.feedMedia} />
-            ) : (
-              <View style={styles.feedMediaFallback} />
-            )}
-          </Pressable>
+          <FeedMediaCarousel
+            mediaItems={mediaItems}
+            fallbackImageUrl={fallbackImageUrl}
+            onPreviewImage={(item) => setPreviewMedia(item)}
+          />
           <LinearGradient
             colors={["rgba(5,10,15,0.52)", "rgba(5,10,15,0.02)", "rgba(5,10,15,0.06)", "rgba(5,10,15,0.88)"]}
             locations={[0, 0.25, 0.52, 1]}
@@ -12058,9 +12153,114 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     position: "relative",
   },
+  feedMediaCarousel: {
+    height: "100%",
+    width: "100%",
+  },
+  feedMediaPage: {
+    height: "100%",
+  },
   feedMedia: {
     height: "100%",
     width: "100%",
+  },
+  feedVideoItem: {
+    backgroundColor: "#08121a",
+    height: "100%",
+    position: "relative",
+    width: "100%",
+  },
+  feedVideoPosterFallback: {
+    backgroundColor: "#173445",
+    height: "100%",
+    width: "100%",
+  },
+  feedVideoPlayButton: {
+    alignItems: "center",
+    backgroundColor: "rgba(223,247,251,0.92)",
+    borderColor: "rgba(255,255,255,0.72)",
+    borderRadius: 999,
+    borderWidth: 1,
+    height: 62,
+    justifyContent: "center",
+    left: "50%",
+    marginLeft: -31,
+    marginTop: -31,
+    position: "absolute",
+    top: "50%",
+    width: 62,
+  },
+  feedVideoPlayIcon: {
+    marginLeft: 3,
+  },
+  feedVideoLabel: {
+    alignItems: "center",
+    backgroundColor: "rgba(9,16,24,0.58)",
+    borderColor: "rgba(255,255,255,0.14)",
+    borderRadius: 999,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 5,
+    left: 14,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    position: "absolute",
+    top: 64,
+  },
+  feedVideoLabelText: {
+    color: "#ffffff",
+    fontSize: 10,
+    fontWeight: "900",
+    textTransform: "uppercase",
+  },
+  feedVideoStatus: {
+    alignItems: "center",
+    backgroundColor: "rgba(5,10,15,0.58)",
+    gap: 7,
+    justifyContent: "center",
+    ...StyleSheet.absoluteFillObject,
+  },
+  feedVideoErrorText: {
+    color: "#ffffff",
+    fontSize: 11,
+    fontWeight: "700",
+    maxWidth: 230,
+    textAlign: "center",
+  },
+  feedMediaPagination: {
+    alignItems: "center",
+    backgroundColor: "rgba(9,16,24,0.52)",
+    borderColor: "rgba(255,255,255,0.13)",
+    borderRadius: 999,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 8,
+    left: "50%",
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    position: "absolute",
+    top: 65,
+    transform: [{ translateX: -38 }],
+  },
+  feedMediaDots: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 4,
+  },
+  feedMediaDot: {
+    backgroundColor: "rgba(255,255,255,0.42)",
+    borderRadius: 999,
+    height: 5,
+    width: 5,
+  },
+  feedMediaDotActive: {
+    backgroundColor: "#ffffff",
+    width: 13,
+  },
+  feedMediaPageCount: {
+    color: "#ffffff",
+    fontSize: 9,
+    fontWeight: "900",
   },
   feedMediaFallback: {
     backgroundColor: "#173445",
