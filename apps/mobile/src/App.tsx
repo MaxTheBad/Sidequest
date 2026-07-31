@@ -513,6 +513,8 @@ export default function App() {
   const [otpCode, setOtpCode] = useState("");
   const [status, setStatus] = useState(supabase ? "" : "Missing EXPO_PUBLIC_SUPABASE_URL or EXPO_PUBLIC_SUPABASE_ANON_KEY.");
   const [feedViewMode, setFeedViewMode] = useState<"list" | "map">("list");
+  const [homeSearchQuery, setHomeSearchQuery] = useState("");
+  const [homeCategoryFilter, setHomeCategoryFilter] = useState("All");
   const [deviceLocation, setDeviceLocation] = useState<DeviceLocation | null>(null);
   const [locationStatus, setLocationStatus] = useState<"idle" | "loading" | "ready" | "denied" | "error">("idle");
   const [questCoordsById, setQuestCoordsById] = useState<Record<string, DeviceLocation>>({});
@@ -4032,6 +4034,97 @@ function privateThreadIncludesUsers(
     );
   }
 
+  function renderHomeDiscoveryHeader(categories: string[], resultCount: number) {
+    const firstName = (profile?.display_name || profile?.username || "").trim().split(/\s+/)[0];
+    const locationLabel = profile?.city || (deviceLocation ? "Near you" : "Choose your area");
+    return (
+      <View style={styles.homeDiscovery}>
+        <LinearGradient colors={["#d9f1f4", "#a9d8e1", "#6daec2"]} style={styles.homeHero}>
+          <View style={styles.homeHeroTop}>
+            <View style={styles.homeLocalPill}>
+              <Ionicons name="navigate" size={13} color="#0b5364" />
+              <Text style={styles.homeLocalPillText} numberOfLines={1}>{locationLabel}</Text>
+            </View>
+            <View style={styles.homeLivePill}>
+              <View style={styles.homeLiveDot} />
+              <Text style={styles.homeLiveText}>{quests.length} live</Text>
+            </View>
+          </View>
+          <Text style={styles.homeEyebrow}>{firstName ? `HEY ${firstName.toUpperCase()}` : "DISCOVER SOMETHING REAL"}</Text>
+          <Text style={styles.homeHeroTitle}>What are you up for?</Text>
+          <Text style={styles.homeHeroCopy}>Find a plan worth leaving the group chat for.</Text>
+          <Pressable style={styles.homeCreateButton} onPress={() => openAuthedTab("create")}>
+            <View style={styles.homeCreateIcon}><Ionicons name="add" size={20} color="#ffffff" /></View>
+            <Text style={styles.homeCreateText}>Start your own quest</Text>
+            <Ionicons name="arrow-forward" size={17} color="#082f3a" />
+          </Pressable>
+        </LinearGradient>
+
+        <View
+          style={[
+            styles.homeSearchShell,
+            {
+              backgroundColor: isLightTheme ? "#ffffff" : "#171923",
+              borderColor: isLightTheme ? "rgba(15,23,42,0.1)" : "rgba(255,255,255,0.08)",
+            },
+          ]}
+        >
+          <Ionicons name="search" size={19} color={isLightTheme ? "#64748b" : "#8e98a8"} />
+          <TextInput
+            value={homeSearchQuery}
+            onChangeText={setHomeSearchQuery}
+            placeholder="Search plans, places, or interests"
+            placeholderTextColor={isLightTheme ? "#94a3b8" : "#778194"}
+            style={[styles.homeSearchInput, { color: isLightTheme ? "#101827" : "#f8fafc" }]}
+            returnKeyType="search"
+            clearButtonMode="while-editing"
+          />
+          {homeSearchQuery && Platform.OS !== "ios" ? (
+            <Pressable hitSlop={10} onPress={() => setHomeSearchQuery("")}>
+              <Ionicons name="close-circle" size={19} color="#778194" />
+            </Pressable>
+          ) : null}
+        </View>
+
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.homeCategoryRail}>
+          {categories.map((category) => {
+            const active = homeCategoryFilter === category;
+            return (
+              <Pressable
+                key={category}
+                style={[
+                  styles.homeCategoryChip,
+                  {
+                    backgroundColor: active ? "#0f5f73" : isLightTheme ? "#ffffff" : "#171923",
+                    borderColor: active ? "#0f5f73" : isLightTheme ? "rgba(15,23,42,0.1)" : "rgba(255,255,255,0.08)",
+                  },
+                ]}
+                onPress={() => setHomeCategoryFilter(category)}
+              >
+                {category === "All" ? <Ionicons name="sparkles-outline" size={15} color={active ? "#ffffff" : "#6daec2"} /> : null}
+                <Text style={[styles.homeCategoryChipText, { color: active ? "#ffffff" : isLightTheme ? "#334155" : "#c7ced9" }]}>{category === "All" ? "For you" : category}</Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+
+        <View style={styles.homeSectionHeading}>
+          <View>
+            <Text style={[styles.homeSectionEyebrow, { color: isLightTheme ? "#0f5f73" : "#6daec2" }]}>
+              {homeCategoryFilter === "All" ? "FRESH PICKS" : homeCategoryFilter.toUpperCase()}
+            </Text>
+            <Text style={[styles.homeSectionTitle, { color: isLightTheme ? "#101827" : "#f8fafc" }]}>
+              {homeSearchQuery.trim() ? "Search results" : "Plans happening now"}
+            </Text>
+          </View>
+          <View style={[styles.homeResultPill, { backgroundColor: isLightTheme ? "#e8f3f5" : "rgba(109,174,194,0.1)" }]}>
+            <Text style={[styles.homeResultText, { color: isLightTheme ? "#0f5f73" : "#9bd8e4" }]}>{resultCount}</Text>
+          </View>
+        </View>
+      </View>
+    );
+  }
+
   function renderFeedCard(quest: QuestPreview) {
     const creator = getRelationOne(quest.profiles);
     const media = quest.media_items?.[0];
@@ -4046,14 +4139,47 @@ function privateThreadIncludesUsers(
     const membershipStatus = membershipStatusByQuest[quest.id] || null;
     const isJoined = joinedQuestIds.includes(quest.id);
     const isOwner = Boolean(userId && quest.creator_id === userId);
-    const joinIcon = membershipStatus === "pending" ? "time-outline" : membershipStatus === "declined" ? "refresh" : isJoined ? "close" : "add";
-    const joinLabel = membershipStatus === "pending" ? "Pending" : isJoined ? "Leave" : "Join";
-    const actionButtonStyle = isLightTheme ? styles.feedActionButtonLight : styles.feedActionButtonDark;
-    const actionIconColor = isLightTheme ? "#0f172a" : "#f3f4f6";
-    const actionCountStyle = isLightTheme ? styles.feedActionCountLight : styles.feedActionCountDark;
+    const joinIcon: keyof typeof Ionicons.glyphMap = isOwner
+      ? "sparkles"
+      : membershipStatus === "pending"
+        ? "close"
+        : membershipStatus === "declined"
+          ? "refresh"
+          : isJoined
+            ? "exit-outline"
+            : "add";
+    const joinLabel = isOwner
+      ? "Hosting"
+      : membershipStatus === "pending"
+        ? "Cancel request"
+        : isJoined
+          ? "Leave quest"
+          : membershipStatus === "declined"
+            ? "Request again"
+            : quest.join_mode === "open"
+              ? "Join now"
+              : "Request to join";
+    const category = getCategory(quest);
+    const hostName = creator?.display_name || creator?.username || "QuestHat host";
+    const totalJoined = joinCountByQuestId[quest.id] || 0;
+    const isJoinActionDisabled = isOwner;
+    const joinButtonTone = membershipStatus === "pending"
+      ? styles.feedJoinButtonPending
+      : isJoined || isOwner
+        ? styles.feedJoinButtonJoined
+        : styles.feedJoinButtonReady;
 
     return (
-      <View key={quest.id} style={styles.feedCard}>
+      <View
+        key={quest.id}
+        style={[
+          styles.feedCard,
+          {
+            backgroundColor: isLightTheme ? "#ffffff" : "#12141d",
+            borderColor: isLightTheme ? "rgba(15,23,42,0.09)" : "rgba(255,255,255,0.08)",
+          },
+        ]}
+      >
         <View style={styles.feedMediaWrap}>
           <Pressable style={styles.feedMediaPressable} onPress={() => void openQuestDetail(quest.id)}>
             {mediaUrl ? (
@@ -4062,134 +4188,105 @@ function privateThreadIncludesUsers(
               <View style={styles.feedMediaFallback} />
             )}
           </Pressable>
+          <LinearGradient
+            colors={["rgba(5,10,15,0.52)", "rgba(5,10,15,0.02)", "rgba(5,10,15,0.06)", "rgba(5,10,15,0.88)"]}
+            locations={[0, 0.25, 0.52, 1]}
+            style={StyleSheet.absoluteFill}
+            pointerEvents="none"
+          />
           <View style={styles.feedTopOverlay} pointerEvents="box-none">
-            <Pressable style={styles.feedCreatorRow} onPress={() => void openProfile(getRelationOne(creator)?.id)}>
+            <Pressable style={styles.feedCreatorPill} onPress={() => void openProfile(creator?.id)}>
               {creator?.avatar_url ? (
                 <Image source={{ uri: creator.avatar_url }} style={styles.feedAvatar} />
               ) : (
-                <View style={styles.feedAvatarFallback} />
-              )}
-              <Text style={styles.feedCreatorName} numberOfLines={1}>
-                {creator?.display_name || creator?.username || "QuestHat host"}
-              </Text>
-            </Pressable>
-            <View style={styles.feedLocationBlock}>
-              <View style={styles.feedLocationHeaderRow}>
-                <View style={styles.feedLocationRow}>
-                  <Ionicons name="location-outline" size={14} color="#ffffff" />
-                  <Text style={styles.feedLocation} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{quest.city || "City tbd"}</Text>
+                <View style={styles.feedAvatarFallback}>
+                  <Ionicons name="person" size={14} color="#dff7fb" />
                 </View>
-                <Pressable
-                  hitSlop={12}
-                  style={styles.feedMoreButton}
-                  onStartShouldSetResponder={() => true}
-                  onPressIn={(e) => e.stopPropagation()}
-                  onPress={() => openQuestActionsMenu(quest)}
-                >
-                  <Ionicons name="ellipsis-horizontal" size={18} color="#ffffff" />
-                </Pressable>
+              )}
+              <Text style={styles.feedCreatorName} numberOfLines={1}>{hostName}</Text>
+            </Pressable>
+            <View style={styles.feedTopActions}>
+              <View style={styles.feedDistancePill}>
+                <Ionicons name={quest.city === "Virtual" ? "videocam-outline" : "location-outline"} size={13} color="#ffffff" />
+                <Text style={styles.feedDistancePillText} numberOfLines={1}>{quest.city === "Virtual" ? "Virtual" : distanceLabel}</Text>
               </View>
-              <Text style={styles.feedDistance} numberOfLines={1}>{distanceLabel}</Text>
+              <Pressable hitSlop={10} style={styles.feedMoreButton} onPress={() => openQuestActionsMenu(quest)}>
+                <Ionicons name="ellipsis-horizontal" size={18} color="#ffffff" />
+              </Pressable>
             </View>
           </View>
           <View style={styles.feedBottomOverlay} pointerEvents="box-none">
-            <LinearGradient
-              colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.08)", "rgba(0,0,0,0.18)", "rgba(0,0,0,0.34)"]}
-              locations={[0, 0.52, 0.82, 1]}
-              style={StyleSheet.absoluteFill}
-              pointerEvents="none"
-            />
-            <Text style={styles.feedCategory}>{getCategory(quest)}</Text>
+            <View style={styles.feedCategoryPill}>
+              <Text style={styles.feedCategory}>{category}</Text>
+            </View>
             <Pressable hitSlop={10} onPress={() => void openQuestDetail(quest.id)}>
               <Text style={styles.feedTitle} numberOfLines={2}>{quest.title}</Text>
             </Pressable>
+            <View style={styles.feedMetaRow}>
+              <Ionicons name="calendar-outline" size={14} color="#d9e2e8" />
+              <Text style={styles.feedMetaText} numberOfLines={1}>{quest.availability || "Time decided together"}</Text>
+            </View>
           </View>
         </View>
-        <View
-          style={[
-            styles.feedActionsRow,
-            isLightTheme ? {
-              backgroundColor: "#ffffff",
-              borderBottomColor: "rgba(15,23,42,0.08)",
-              borderBottomWidth: 1,
-              borderTopColor: "rgba(15,23,42,0.08)",
-              borderTopWidth: 1,
-              shadowColor: "rgba(15,23,42,0.08)",
-              shadowOffset: { width: 0, height: 6 },
-              shadowOpacity: 0.12,
-              shadowRadius: 10,
-            } : null,
-          ]}
-        >
-          {!isOwner ? (
-            <Pressable
-              style={[styles.feedActionButton, actionButtonStyle]}
-              onStartShouldSetResponder={() => true}
-              onPressIn={(e) => e.stopPropagation()}
-              onPress={(e) => {
-                e.stopPropagation();
-                void toggleJoinQuestMobile(quest);
-              }}
-              accessibilityLabel={joinLabel}
-            >
-              <Ionicons name={joinIcon as keyof typeof Ionicons.glyphMap} size={22} color={actionIconColor} />
-              <Text style={actionCountStyle}>{joinCountByQuestId[quest.id] || 0}</Text>
-            </Pressable>
-          ) : null}
+        <View style={styles.feedContextRow}>
+          <View style={styles.feedPlaceBlock}>
+            <Text style={[styles.feedPlace, { color: isLightTheme ? "#172033" : "#f0f4f7" }]} numberOfLines={1}>{quest.city || "Location to be decided"}</Text>
+            <Text style={[styles.feedGoing, { color: isLightTheme ? "#64748b" : "#8893a4" }]}>
+              {totalJoined ? `${totalJoined} ${totalJoined === 1 ? "person" : "people"} going` : "Be the first to join"}
+            </Text>
+          </View>
           <Pressable
-            style={[styles.feedActionButton, actionButtonStyle]}
-            onStartShouldSetResponder={() => true}
-            onPressIn={(e) => e.stopPropagation()}
-            onPress={(e) => {
-              e.stopPropagation();
-              void openQuestConversation(quest, "public");
+            style={[styles.feedJoinButton, joinButtonTone]}
+            onPress={() => {
+              if (!isJoinActionDisabled) void toggleJoinQuestMobile(quest);
             }}
+            disabled={isJoinActionDisabled}
+            accessibilityLabel={joinLabel}
           >
-            <Ionicons name="chatbox-outline" size={21} color={actionIconColor} />
-            <Text style={actionCountStyle}>{commentCountByQuestId[quest.id] || 0}</Text>
+            <Ionicons name={joinIcon} size={17} color={membershipStatus === "pending" || isJoined || isOwner ? "#dff7fb" : "#082f3a"} />
+            <Text style={[styles.feedJoinButtonText, (membershipStatus === "pending" || isJoined || isOwner) && styles.feedJoinButtonTextMuted]} numberOfLines={1}>{joinLabel}</Text>
+          </Pressable>
+        </View>
+        <View style={[styles.feedActionsRow, { borderTopColor: isLightTheme ? "rgba(15,23,42,0.07)" : "rgba(255,255,255,0.06)" }]}>
+          <Pressable
+            style={styles.feedActionButton}
+            onPress={() => void openQuestConversation(quest, "public")}
+            accessibilityLabel="Open comments"
+          >
+            <Ionicons name="chatbox-outline" size={20} color={isLightTheme ? "#344054" : "#d5dbe5"} />
+            <Text style={[styles.feedActionText, { color: isLightTheme ? "#475569" : "#b7c0cd" }]}>{commentCountByQuestId[quest.id] || 0}</Text>
           </Pressable>
           <Pressable
-            style={[styles.feedActionButton, actionButtonStyle]}
-            onStartShouldSetResponder={() => true}
-            onPressIn={(e) => e.stopPropagation()}
-            onPress={(e) => {
-              e.stopPropagation();
-              void openQuestConversation(quest, "private", quest.creator_id || null);
-            }}
+            style={styles.feedActionButton}
+            onPress={() => void openQuestConversation(quest, "private", quest.creator_id || null)}
+            accessibilityLabel={`Message ${hostName}`}
           >
-            <Ionicons name="mail-outline" size={21} color={actionIconColor} />
+            <Ionicons name="mail-outline" size={20} color={isLightTheme ? "#344054" : "#d5dbe5"} />
+            <Text style={[styles.feedActionText, { color: isLightTheme ? "#475569" : "#b7c0cd" }]}>Message</Text>
           </Pressable>
           <Pressable
-            style={[styles.feedActionButton, actionButtonStyle]}
-            onStartShouldSetResponder={() => true}
-            onPressIn={(e) => e.stopPropagation()}
-            onPress={(e) => {
-              e.stopPropagation();
-              void shareQuest(quest);
-            }}
+            style={styles.feedActionButton}
+            onPress={() => void shareQuest(quest)}
+            accessibilityLabel="Share quest"
           >
-            <Ionicons name="share-outline" size={22} color={actionIconColor} />
-            <Text style={actionCountStyle}>{shareCountByQuestId[quest.id] || 0}</Text>
+            <Ionicons name="share-outline" size={21} color={isLightTheme ? "#344054" : "#d5dbe5"} />
+            {shareCountByQuestId[quest.id] ? <Text style={[styles.feedActionText, { color: isLightTheme ? "#475569" : "#b7c0cd" }]}>{shareCountByQuestId[quest.id]}</Text> : null}
           </Pressable>
           <View style={styles.feedActionsSpacer} />
           <Pressable
-            style={[styles.feedActionButton, actionButtonStyle]}
-            onStartShouldSetResponder={() => true}
-            onPressIn={(e) => e.stopPropagation()}
-            onPress={(e) => {
-              e.stopPropagation();
-              void toggleBookmark(quest);
-            }}
+            style={[styles.feedSaveButton, isSaved && styles.feedSaveButtonActive]}
+            onPress={() => void toggleBookmark(quest)}
+            accessibilityLabel={isSaved ? "Remove saved quest" : "Save quest"}
           >
-            <Ionicons name={isSaved ? "star" : "star-outline"} size={20} color={actionIconColor} />
+            <Ionicons name={isSaved ? "star" : "star-outline"} size={19} color={isSaved ? "#082f3a" : isLightTheme ? "#344054" : "#d5dbe5"} />
           </Pressable>
         </View>
       </View>
     );
   }
 
-  function renderMapView() {
-    const points: QuestMapPoint[] = quests
+  function renderMapView(rows: QuestPreview[] = quests) {
+    const points: QuestMapPoint[] = rows
       .map((quest) => {
         const coords = questCoordsById[quest.id];
         if (!coords) return null;
@@ -4305,12 +4402,66 @@ function privateThreadIncludesUsers(
     if (!signedIn && activeTab !== "home") return renderAuthCard();
 
     if (activeTab === "home") {
+      const categoryCounts = quests.reduce<Record<string, number>>((counts, quest) => {
+        const category = getCategory(quest);
+        counts[category] = (counts[category] || 0) + 1;
+        return counts;
+      }, {});
+      const homeCategories = [
+        "All",
+        ...Object.entries(categoryCounts)
+          .sort(([, countA], [, countB]) => countB - countA)
+          .map(([category]) => category)
+          .slice(0, 10),
+      ];
+      const normalizedHomeSearch = homeSearchQuery.trim().toLowerCase();
+      const filteredHomeQuests = quests.filter((quest) => {
+        const category = getCategory(quest);
+        if (homeCategoryFilter !== "All" && category !== homeCategoryFilter) return false;
+        if (!normalizedHomeSearch) return true;
+        const searchable = [
+          quest.title,
+          quest.description,
+          quest.city,
+          quest.availability,
+          category,
+          getRelationOne(quest.profiles)?.display_name,
+          getRelationOne(quest.profiles)?.username,
+        ].filter(Boolean).join(" ").toLowerCase();
+        return searchable.includes(normalizedHomeSearch);
+      });
       return (
         <>
           {!signedIn ? renderAuthCard() : null}
+          {renderHomeDiscoveryHeader(homeCategories, filteredHomeQuests.length)}
           {feedViewMode === "map" ? (
-            renderMapView()
-          ) : quests.length ? quests.map((quest) => renderFeedCard(quest)) : <EmptyState label="No quests loaded yet." />}
+            renderMapView(filteredHomeQuests)
+          ) : filteredHomeQuests.length ? (
+            <View style={styles.homeFeedStack}>
+              {filteredHomeQuests.map((quest) => renderFeedCard(quest))}
+            </View>
+          ) : (
+            <View style={[styles.homeEmptyCard, { backgroundColor: isLightTheme ? "#ffffff" : "#151722", borderColor: shellBorder }]}>
+              <View style={styles.homeEmptyIcon}><Ionicons name="compass-outline" size={25} color="#0f5f73" /></View>
+              <Text style={[styles.homeEmptyTitle, { color: shellText }]}>No quests match that yet</Text>
+              <Text style={[styles.homeEmptyCopy, { color: shellMuted }]}>Try another category or start the first one yourself.</Text>
+              <View style={styles.homeEmptyActions}>
+                <Pressable
+                  style={styles.homeClearButton}
+                  onPress={() => {
+                    setHomeSearchQuery("");
+                    setHomeCategoryFilter("All");
+                  }}
+                >
+                  <Text style={styles.homeClearButtonText}>Clear filters</Text>
+                </Pressable>
+                <Pressable style={styles.homeEmptyCreateButton} onPress={() => openAuthedTab("create")}>
+                  <Ionicons name="add" size={17} color="#082f3a" />
+                  <Text style={styles.homeEmptyCreateText}>Create one</Text>
+                </Pressable>
+              </View>
+            </View>
+          )}
         </>
       );
     }
@@ -6435,7 +6586,7 @@ function privateThreadIncludesUsers(
           >
             <View style={styles.topBarBrand}>
               <Text style={[styles.logo, { color: shellText }]}>{APP_NAME}</Text>
-              <Text style={[styles.tagline, { color: shellMuted }]}>Find local people to do real plans with.</Text>
+              {activeTab !== "home" ? <Text style={[styles.tagline, { color: shellMuted }]}>Find local people to do real plans with.</Text> : null}
             </View>
             <View style={styles.topBarActions}>
               {activeTab === "home" ? (
@@ -9873,6 +10024,235 @@ const styles = StyleSheet.create({
   headerFeedToggleText: {
     fontSize: 12,
   },
+  homeDiscovery: {
+    gap: 14,
+    paddingBottom: 12,
+    paddingHorizontal: 14,
+    paddingTop: 10,
+  },
+  homeHero: {
+    borderRadius: 28,
+    gap: 7,
+    overflow: "hidden",
+    padding: 18,
+  },
+  homeHeroTop: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 10,
+  },
+  homeLocalPill: {
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.48)",
+    borderColor: "rgba(255,255,255,0.38)",
+    borderRadius: 999,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 5,
+    maxWidth: "65%",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  homeLocalPillText: {
+    color: "#0b5364",
+    fontSize: 11,
+    fontWeight: "900",
+  },
+  homeLivePill: {
+    alignItems: "center",
+    backgroundColor: "rgba(8,47,58,0.1)",
+    borderRadius: 999,
+    flexDirection: "row",
+    gap: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+  },
+  homeLiveDot: {
+    backgroundColor: "#0f766e",
+    borderRadius: 999,
+    height: 6,
+    width: 6,
+  },
+  homeLiveText: {
+    color: "#164e63",
+    fontSize: 10,
+    fontWeight: "900",
+  },
+  homeEyebrow: {
+    color: "#0b5364",
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 1.5,
+  },
+  homeHeroTitle: {
+    color: "#082f3a",
+    fontSize: 29,
+    fontWeight: "900",
+    letterSpacing: -0.8,
+    lineHeight: 33,
+  },
+  homeHeroCopy: {
+    color: "#275463",
+    fontSize: 13,
+    lineHeight: 19,
+    maxWidth: 300,
+  },
+  homeCreateButton: {
+    alignItems: "center",
+    alignSelf: "flex-start",
+    backgroundColor: "rgba(255,255,255,0.66)",
+    borderColor: "rgba(255,255,255,0.55)",
+    borderRadius: 999,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 8,
+    paddingBottom: 5,
+    paddingLeft: 5,
+    paddingRight: 13,
+    paddingTop: 5,
+  },
+  homeCreateIcon: {
+    alignItems: "center",
+    backgroundColor: "#0f5f73",
+    borderRadius: 999,
+    height: 31,
+    justifyContent: "center",
+    width: 31,
+  },
+  homeCreateText: {
+    color: "#082f3a",
+    fontSize: 12,
+    fontWeight: "900",
+  },
+  homeSearchShell: {
+    alignItems: "center",
+    borderRadius: 18,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 9,
+    minHeight: 53,
+    paddingHorizontal: 14,
+  },
+  homeSearchInput: {
+    flex: 1,
+    fontSize: 14,
+    minHeight: 51,
+    paddingVertical: 12,
+  },
+  homeCategoryRail: {
+    gap: 8,
+    paddingRight: 12,
+  },
+  homeCategoryChip: {
+    alignItems: "center",
+    borderRadius: 999,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 6,
+    minHeight: 39,
+    paddingHorizontal: 14,
+  },
+  homeCategoryChipText: {
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  homeSectionHeading: {
+    alignItems: "flex-end",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 2,
+    paddingTop: 3,
+  },
+  homeSectionEyebrow: {
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 1.3,
+    marginBottom: 3,
+  },
+  homeSectionTitle: {
+    fontSize: 21,
+    fontWeight: "900",
+    letterSpacing: -0.4,
+  },
+  homeResultPill: {
+    alignItems: "center",
+    borderRadius: 999,
+    justifyContent: "center",
+    minWidth: 31,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+  },
+  homeResultText: {
+    fontSize: 11,
+    fontWeight: "900",
+  },
+  homeFeedStack: {
+    gap: 16,
+    paddingBottom: 12,
+  },
+  homeEmptyCard: {
+    alignItems: "center",
+    borderRadius: 26,
+    borderWidth: 1,
+    gap: 7,
+    marginHorizontal: 14,
+    padding: 24,
+  },
+  homeEmptyIcon: {
+    alignItems: "center",
+    backgroundColor: "#dff1f4",
+    borderRadius: 999,
+    height: 52,
+    justifyContent: "center",
+    marginBottom: 4,
+    width: 52,
+  },
+  homeEmptyTitle: {
+    fontSize: 17,
+    fontWeight: "900",
+  },
+  homeEmptyCopy: {
+    fontSize: 12,
+    lineHeight: 17,
+    maxWidth: 270,
+    textAlign: "center",
+  },
+  homeEmptyActions: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 10,
+  },
+  homeClearButton: {
+    alignItems: "center",
+    borderColor: "rgba(109,174,194,0.3)",
+    borderRadius: 14,
+    borderWidth: 1,
+    justifyContent: "center",
+    minHeight: 43,
+    paddingHorizontal: 14,
+  },
+  homeClearButtonText: {
+    color: "#6daec2",
+    fontSize: 12,
+    fontWeight: "900",
+  },
+  homeEmptyCreateButton: {
+    alignItems: "center",
+    backgroundColor: "#9bd8e4",
+    borderRadius: 14,
+    flexDirection: "row",
+    gap: 5,
+    justifyContent: "center",
+    minHeight: 43,
+    paddingHorizontal: 14,
+  },
+  homeEmptyCreateText: {
+    color: "#082f3a",
+    fontSize: 12,
+    fontWeight: "900",
+  },
   mapPlaceholderCard: {
     backgroundColor: "#151722",
     borderColor: "rgba(255,255,255,0.06)",
@@ -9920,20 +10300,16 @@ const styles = StyleSheet.create({
     padding: 14,
   },
   feedCard: {
-    backgroundColor: "#0f1017",
-    borderBottomColor: "rgba(255,255,255,0.06)",
-    borderBottomWidth: 0,
-    position: "relative",
-  },
-  feedOpenHitArea: {
-    ...StyleSheet.absoluteFill,
-    zIndex: 1,
-  },
-  feedMediaWrap: {
-    height: 510,
+    borderRadius: 27,
+    borderWidth: 1,
+    marginHorizontal: 14,
     overflow: "hidden",
     position: "relative",
-    zIndex: 2,
+  },
+  feedMediaWrap: {
+    height: 410,
+    overflow: "hidden",
+    position: "relative",
   },
   feedMedia: {
     height: "100%",
@@ -9955,64 +10331,68 @@ const styles = StyleSheet.create({
     right: 0,
     top: 0,
   },
-  feedCreatorRow: {
+  feedCreatorPill: {
     alignItems: "center",
-    flexDirection: "row",
-    gap: 8,
-    maxWidth: "54%",
-  },
-  feedAvatar: {
-    borderColor: "rgba(255,255,255,0.45)",
+    backgroundColor: "rgba(9,16,24,0.48)",
+    borderColor: "rgba(255,255,255,0.14)",
     borderRadius: 999,
     borderWidth: 1,
-    height: 34,
-    width: 34,
+    flexDirection: "row",
+    gap: 7,
+    maxWidth: "57%",
+    paddingBottom: 4,
+    paddingLeft: 4,
+    paddingRight: 10,
+    paddingTop: 4,
+  },
+  feedAvatar: {
+    borderColor: "rgba(255,255,255,0.3)",
+    borderRadius: 999,
+    borderWidth: 1,
+    height: 30,
+    width: 30,
   },
   feedAvatarFallback: {
-    backgroundColor: "rgba(255,255,255,0.22)",
+    alignItems: "center",
+    backgroundColor: "rgba(155,216,228,0.24)",
     borderRadius: 999,
-    height: 34,
-    width: 34,
+    height: 30,
+    justifyContent: "center",
+    width: 30,
   },
   feedCreatorName: {
     color: "#ffffff",
-    fontSize: 15,
-    fontWeight: "800",
-    textShadowColor: "rgba(0,0,0,0.35)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
-  },
-  feedLocationBlock: {
-    alignItems: "flex-end",
-    maxWidth: "52%",
-  },
-  feedLocationHeaderRow: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: 8,
-  },
-  feedLocationRow: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: 4,
-  },
-  feedLocation: {
-    color: "#ffffff",
     fontSize: 12,
-    fontWeight: "700",
-    textShadowColor: "rgba(0,0,0,0.35)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
+    fontWeight: "800",
   },
-  feedDistance: {
-    color: "rgba(255,255,255,0.76)",
+  feedTopActions: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 6,
+  },
+  feedDistancePill: {
+    alignItems: "center",
+    backgroundColor: "rgba(9,16,24,0.48)",
+    borderColor: "rgba(255,255,255,0.14)",
+    borderRadius: 999,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 5,
+    maxWidth: 105,
+    minHeight: 34,
+    paddingHorizontal: 10,
+  },
+  feedDistancePillText: {
+    color: "#ffffff",
     fontSize: 11,
-    marginTop: 2,
+    fontWeight: "800",
   },
   feedMoreButton: {
     alignItems: "center",
-    backgroundColor: "rgba(255,255,255,0.16)",
+    backgroundColor: "rgba(9,16,24,0.48)",
+    borderColor: "rgba(255,255,255,0.14)",
     borderRadius: 999,
+    borderWidth: 1,
     height: 32,
     justifyContent: "center",
     width: 32,
@@ -10020,76 +10400,130 @@ const styles = StyleSheet.create({
   feedBottomOverlay: {
     bottom: 0,
     left: 0,
-    paddingBottom: 12,
-    paddingHorizontal: 14,
+    gap: 7,
+    paddingBottom: 17,
+    paddingHorizontal: 16,
     paddingTop: 70,
     position: "absolute",
     right: 0,
-    zIndex: 12,
+  },
+  feedCategoryPill: {
+    alignSelf: "flex-start",
+    backgroundColor: "#9bd8e4",
+    borderRadius: 999,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
   },
   feedCategory: {
-    color: "rgba(255,255,255,0.96)",
-    fontSize: 12,
-    fontWeight: "700",
-    letterSpacing: 1.35,
-    marginBottom: 4,
-    textShadowColor: "rgba(0,0,0,0.18)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 1.5,
+    color: "#082f3a",
+    fontSize: 9,
+    fontWeight: "900",
+    letterSpacing: 1,
     textTransform: "uppercase",
   },
   feedTitle: {
     color: "#ffffff",
-    fontSize: 23,
+    fontSize: 25,
     fontWeight: "900",
-    lineHeight: 28,
-    textDecorationLine: "underline",
+    letterSpacing: -0.45,
+    lineHeight: 29,
     textShadowColor: "rgba(0,0,0,0.36)",
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 4,
   },
+  feedMetaRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 6,
+  },
+  feedMetaText: {
+    color: "#d9e2e8",
+    flex: 1,
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  feedContextRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 10,
+    paddingHorizontal: 13,
+    paddingTop: 13,
+  },
+  feedPlaceBlock: {
+    flex: 1,
+    gap: 2,
+    minWidth: 0,
+  },
+  feedPlace: {
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  feedGoing: {
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  feedJoinButton: {
+    alignItems: "center",
+    borderRadius: 999,
+    flexDirection: "row",
+    gap: 5,
+    justifyContent: "center",
+    maxWidth: "52%",
+    minHeight: 40,
+    paddingHorizontal: 13,
+  },
+  feedJoinButtonReady: {
+    backgroundColor: "#9bd8e4",
+  },
+  feedJoinButtonPending: {
+    backgroundColor: "rgba(245,158,11,0.14)",
+    borderColor: "rgba(245,158,11,0.28)",
+    borderWidth: 1,
+  },
+  feedJoinButtonJoined: {
+    backgroundColor: "rgba(109,174,194,0.13)",
+    borderColor: "rgba(155,216,228,0.22)",
+    borderWidth: 1,
+  },
+  feedJoinButtonText: {
+    color: "#082f3a",
+    fontSize: 11,
+    fontWeight: "900",
+  },
+  feedJoinButtonTextMuted: {
+    color: "#dff7fb",
+  },
   feedActionsRow: {
     alignItems: "center",
     backgroundColor: "transparent",
+    borderTopWidth: 1,
     flexDirection: "row",
-    gap: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    position: "relative",
-    zIndex: 20,
-    elevation: 20,
+    gap: 3,
+    marginTop: 11,
+    minHeight: 52,
+    paddingHorizontal: 10,
   },
   feedActionButton: {
     alignItems: "center",
     flexDirection: "row",
-    gap: 4,
-    height: 40,
+    gap: 5,
+    minHeight: 42,
     justifyContent: "center",
-    paddingHorizontal: 8,
+    paddingHorizontal: 7,
   },
-  feedActionButtonLight: {
-    backgroundColor: "transparent",
-    borderWidth: 0,
-    shadowColor: "transparent",
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0,
-    shadowRadius: 0,
-    elevation: 0,
-  },
-  feedActionButtonDark: {
-    backgroundColor: "transparent",
-  },
-  feedActionCountDark: {
-    color: "#d8dde7",
-    fontSize: 12,
-    fontWeight: "700",
-    lineHeight: 14,
-  },
-  feedActionCountLight: {
-    color: "#0f172a",
-    fontSize: 12,
+  feedActionText: {
+    fontSize: 11,
     fontWeight: "800",
-    lineHeight: 14,
+  },
+  feedSaveButton: {
+    alignItems: "center",
+    borderRadius: 999,
+    height: 36,
+    justifyContent: "center",
+    width: 36,
+  },
+  feedSaveButtonActive: {
+    backgroundColor: "#9bd8e4",
   },
   feedActionsSpacer: {
     flex: 1,
