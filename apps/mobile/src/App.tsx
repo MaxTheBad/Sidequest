@@ -3912,30 +3912,39 @@ function privateThreadIncludesUsers(
   function renderAuthCard() {
     const authBusy = Boolean(authActionLoading);
     return (
-      <View style={styles.panel}>
-        <View style={styles.segment}>
-          <Pressable style={[styles.segmentButton, authMode === "login" && styles.segmentActive]} onPress={() => setAuthMode("login")}>
-            <Text style={[styles.segmentText, authMode === "login" && styles.segmentTextActive]}>Log in</Text>
+      <View style={styles.authCard}>
+        <View style={styles.authSegment}>
+          <Pressable
+            style={[styles.authSegmentButton, authMode === "login" && styles.authSegmentButtonActive]}
+            onPress={() => { setAuthMode("login"); setAuthStep("email"); }}
+          >
+            <Text style={[styles.authSegmentText, authMode === "login" && styles.authSegmentTextActive]}>Log in</Text>
           </Pressable>
-          <Pressable style={[styles.segmentButton, authMode === "signup" && styles.segmentActive]} onPress={() => setAuthMode("signup")}>
-            <Text style={[styles.segmentText, authMode === "signup" && styles.segmentTextActive]}>Sign up</Text>
+          <Pressable
+            style={[styles.authSegmentButton, authMode === "signup" && styles.authSegmentButtonActive]}
+            onPress={() => { setAuthMode("signup"); setAuthStep("email"); }}
+          >
+            <Text style={[styles.authSegmentText, authMode === "signup" && styles.authSegmentTextActive]}>Sign up</Text>
           </Pressable>
         </View>
-        <TextInput
-          autoCapitalize="none"
-          autoComplete="username"
-          autoCorrect={false}
-          keyboardType="email-address"
-          onChangeText={(value) => {
-            setEmail(value);
-            if (authStep === "code") setAuthStep("email");
-          }}
-          placeholder="Email"
-          placeholderTextColor="#94a3b8"
-          style={styles.input}
-          textContentType="username"
-          value={email}
-        />
+        <View style={styles.authField}>
+          <Ionicons name="mail-outline" size={19} color="#83c5d4" />
+          <TextInput
+            autoCapitalize="none"
+            autoComplete="username"
+            autoCorrect={false}
+            keyboardType="email-address"
+            onChangeText={(value) => {
+              setEmail(value);
+              if (authStep === "code") setAuthStep("email");
+            }}
+            placeholder="Email address"
+            placeholderTextColor="#778196"
+            style={styles.authFieldInput}
+            textContentType="username"
+            value={email}
+          />
+        </View>
         {authBusy ? (
           <View style={styles.authLoadingRow}>
             <ActivityIndicator size="small" color="#6daec2" />
@@ -3944,21 +3953,32 @@ function privateThreadIncludesUsers(
         ) : null}
         {authStep === "email" && authMode === "login" ? (
           <>
-            <TextInput
-              onChangeText={setPassword}
-              placeholder="Password"
-              placeholderTextColor="#94a3b8"
-              autoComplete="current-password"
-              secureTextEntry
-              style={styles.input}
-              textContentType="password"
-              value={password}
-            />
-            <Pressable style={styles.primaryButton} onPress={passwordAuth} disabled={authBusy}>
-              <Text style={styles.primaryButtonText}>Log in</Text>
+            <View style={styles.authField}>
+              <Ionicons name="lock-closed-outline" size={19} color="#83c5d4" />
+              <TextInput
+                onChangeText={setPassword}
+                placeholder="Password"
+                placeholderTextColor="#778196"
+                autoComplete="current-password"
+                secureTextEntry={!showPassword}
+                style={styles.authFieldInput}
+                textContentType="password"
+                value={password}
+              />
+              <Pressable style={styles.authFieldAction} onPress={() => setShowPassword((current) => !current)} hitSlop={8}>
+                <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color="#8c96a9" />
+              </Pressable>
+            </View>
+            <Pressable style={styles.authForgotButton} onPress={() => void Linking.openURL(`${env.siteUrl.replace(/\/$/, "")}/reset-password`)} disabled={authBusy}>
+              <Text style={styles.authForgotText}>Forgot password?</Text>
             </Pressable>
-            <Pressable style={styles.secondaryButton} onPress={() => void sendEmailCode()} disabled={authBusy}>
-              <Text style={styles.secondaryButtonText}>Use email code</Text>
+            <Pressable style={[styles.authPrimaryButton, authBusy && styles.authButtonDisabled]} onPress={passwordAuth} disabled={authBusy}>
+              <Text style={styles.authPrimaryButtonText}>{authBusy ? "Signing in" : "Log in"}</Text>
+              {!authBusy ? <Ionicons name="arrow-forward" size={19} color="#062d36" /> : <ActivityIndicator size="small" color="#062d36" />}
+            </Pressable>
+            <Pressable style={styles.authCodeButton} onPress={() => void sendEmailCode()} disabled={authBusy}>
+              <Ionicons name="key-outline" size={18} color="#a9dbe5" />
+              <Text style={styles.authCodeButtonText}>Email me a sign-in code</Text>
             </Pressable>
           </>
         ) : authStep === "email" && authMode === "signup" ? (
@@ -4082,21 +4102,24 @@ function privateThreadIncludesUsers(
                 <Text style={styles.checkboxLabel}>Hide city on bio</Text>
               </Pressable>
             </View>
-            <Pressable style={styles.secondaryButton} onPress={() => setShowAuthModal(false)} disabled={authBusy}>
-              <Text style={styles.secondaryButtonText}>Close</Text>
+            <Pressable style={[styles.authPrimaryButton, authBusy && styles.authButtonDisabled]} onPress={passwordAuth} disabled={authBusy}>
+              <Text style={styles.authPrimaryButtonText}>{authBusy && authActionLoading === "Creating account..." ? "Creating..." : "Create account"}</Text>
+              {!authBusy ? <Ionicons name="arrow-forward" size={19} color="#062d36" /> : <ActivityIndicator size="small" color="#062d36" />}
             </Pressable>
-            <Pressable style={styles.tertiaryButton} onPress={() => setAuthMode("login")} disabled={authBusy}>
-              <Text style={styles.tertiaryButtonText}>Already have an account?</Text>
-            </Pressable>
-            <Pressable style={styles.primaryButton} onPress={passwordAuth} disabled={authBusy}>
-              <Text style={styles.primaryButtonText}>{authBusy && authActionLoading === "Creating account..." ? "Creating..." : "Create account"}</Text>
-            </Pressable>
-            <Pressable style={styles.secondaryButton} onPress={() => void sendEmailCode()} disabled={authBusy}>
-              <Text style={styles.secondaryButtonText}>Use email code</Text>
+            <Pressable style={styles.authCodeButton} onPress={() => void sendEmailCode()} disabled={authBusy}>
+              <Ionicons name="key-outline" size={18} color="#a9dbe5" />
+              <Text style={styles.authCodeButtonText}>Create with an email code</Text>
             </Pressable>
           </>
         ) : (
           <>
+            <View style={styles.authCodeIntro}>
+              <View style={styles.authCodeIcon}><Ionicons name="mail-unread-outline" size={23} color="#9bd8e4" /></View>
+              <View style={styles.authCodeCopy}>
+                <Text style={styles.authCodeTitle}>Check your inbox</Text>
+                <Text style={styles.authCodeSubtitle}>Enter the 8-digit code sent to {email.trim() || "your email"}.</Text>
+              </View>
+            </View>
             <TextInput
               autoCapitalize="none"
               autoComplete="one-time-code"
@@ -4104,35 +4127,48 @@ function privateThreadIncludesUsers(
               keyboardType="number-pad"
               maxLength={8}
               onChangeText={setOtpCode}
-              placeholder="8-digit code"
-              placeholderTextColor="#94a3b8"
-              style={styles.input}
+              placeholder="00000000"
+              placeholderTextColor="#5f687a"
+              style={styles.authOtpInput}
+              textContentType="oneTimeCode"
               value={otpCode}
             />
-            <Pressable style={styles.primaryButton} onPress={() => void verifyEmailCode()} disabled={authBusy}>
-              <Text style={styles.primaryButtonText}>{authBusy && authActionLoading === "Verifying code..." ? "Verifying..." : "Verify code"}</Text>
+            <Pressable style={[styles.authPrimaryButton, authBusy && styles.authButtonDisabled]} onPress={() => void verifyEmailCode()} disabled={authBusy}>
+              <Text style={styles.authPrimaryButtonText}>{authBusy && authActionLoading === "Verifying code..." ? "Verifying..." : "Verify code"}</Text>
+              {!authBusy ? <Ionicons name="arrow-forward" size={19} color="#062d36" /> : <ActivityIndicator size="small" color="#062d36" />}
             </Pressable>
-            <Pressable style={styles.secondaryButton} onPress={() => void sendEmailCode()} disabled={authBusy}>
-              <Text style={styles.secondaryButtonText}>Resend code</Text>
-            </Pressable>
-            <Pressable style={styles.tertiaryButton} onPress={() => setAuthStep("email")} disabled={authBusy}>
-              <Text style={styles.tertiaryButtonText}>Back to email</Text>
-            </Pressable>
+            <View style={styles.authCodeActions}>
+              <Pressable onPress={() => setAuthStep("email")} disabled={authBusy}><Text style={styles.authInlineLink}>Change email</Text></Pressable>
+              <Pressable onPress={() => void sendEmailCode()} disabled={authBusy}><Text style={styles.authInlineLink}>Resend code</Text></Pressable>
+            </View>
           </>
         )}
-        <View style={styles.oauthGrid}>
-          <Pressable style={styles.oauthButton} onPress={() => void socialLogin("apple")} disabled={authBusy}>
-            <Ionicons name="logo-apple" size={18} color="#0f172a" />
-            <Text style={styles.oauthText}>Apple</Text>
-          </Pressable>
-          <Pressable style={styles.oauthButton} onPress={() => void socialLogin("google")} disabled={authBusy}>
-            <Ionicons name="logo-google" size={18} color="#0f172a" />
-            <Text style={styles.oauthText}>Google</Text>
-          </Pressable>
-          <Pressable style={styles.oauthButton} onPress={() => void socialLogin("facebook")} disabled={authBusy}>
-            <Ionicons name="logo-facebook" size={18} color="#0f172a" />
-            <Text style={styles.oauthText}>Facebook</Text>
-          </Pressable>
+        {authStep === "email" ? (
+          <>
+            <View style={styles.authDivider}>
+              <View style={styles.authDividerLine} />
+              <Text style={styles.authDividerText}>OR CONTINUE WITH</Text>
+              <View style={styles.authDividerLine} />
+            </View>
+            <View style={styles.authOauthGrid}>
+              <Pressable style={styles.authOauthButton} onPress={() => void socialLogin("apple")} disabled={authBusy}>
+                <Ionicons name="logo-apple" size={20} color="#eef4f6" />
+                <Text style={styles.authOauthText}>Apple</Text>
+              </Pressable>
+              <Pressable style={styles.authOauthButton} onPress={() => void socialLogin("google")} disabled={authBusy}>
+                <Ionicons name="logo-google" size={19} color="#eef4f6" />
+                <Text style={styles.authOauthText}>Google</Text>
+              </Pressable>
+              <Pressable style={styles.authOauthButton} onPress={() => void socialLogin("facebook")} disabled={authBusy}>
+                <Ionicons name="logo-facebook" size={19} color="#eef4f6" />
+                <Text style={styles.authOauthText}>Facebook</Text>
+              </Pressable>
+            </View>
+          </>
+        ) : null}
+        <View style={styles.authSafetyNote}>
+          <Ionicons name="shield-checkmark-outline" size={16} color="#77b9c8" />
+          <Text style={styles.authSafetyText}>Your account and private meetup details stay protected.</Text>
         </View>
       </View>
     );
@@ -4142,16 +4178,21 @@ function privateThreadIncludesUsers(
     if (!showAuthModal || signedIn) return null;
     return (
       <Modal visible transparent animationType="fade" onRequestClose={() => setShowAuthModal(false)}>
-        <View style={styles.modalBackdrop}>
+        <KeyboardAvoidingView style={styles.modalBackdrop} behavior={Platform.OS === "ios" ? "padding" : undefined}>
           <Pressable style={styles.modalBackdropPressable} onPress={() => setShowAuthModal(false)} />
-          <View style={[styles.modalSheet, styles.modalSheetTall, { backgroundColor: shellSurface, borderColor: shellBorder }]}>
-            <View style={styles.modalHeader}>
-              <View>
-                <Text style={[styles.authModalTitle, { color: shellText }]}>Sign in required</Text>
-                <Text style={[styles.authModalSubtitle, { color: shellMuted }]}>Log in or create an account to continue.</Text>
+          <View style={[styles.modalSheet, styles.authModalSheet]}>
+            <LinearGradient colors={["#172632", "#10121b", "#10111a"]} locations={[0, 0.34, 1]} style={styles.authModalGradient}>
+            <View style={styles.authModalHeader}>
+              <View style={styles.authBrandMark}>
+                <Ionicons name="location" size={23} color="#b9edf5" />
               </View>
-              <Pressable onPress={() => setShowAuthModal(false)}>
-                <Ionicons name="close" size={24} color={shellMuted} />
+              <View style={styles.authModalHeading}>
+                <Text style={styles.authModalEyebrow}>{authMode === "login" ? "WELCOME BACK" : "JOIN QUESTHAT"}</Text>
+                <Text style={styles.authModalTitle}>{authMode === "login" ? "Plans are waiting." : "Make plans happen."}</Text>
+                <Text style={styles.authModalSubtitle}>{authMode === "login" ? "Log in to message, join, and create quests." : "Create an account and find people ready to show up."}</Text>
+              </View>
+              <Pressable style={styles.authCloseButton} onPress={() => setShowAuthModal(false)}>
+                <Ionicons name="close" size={21} color="#aab5c6" />
               </Pressable>
             </View>
             <ScrollView
@@ -4163,8 +4204,9 @@ function privateThreadIncludesUsers(
             >
               {renderAuthCard()}
             </ScrollView>
+            </LinearGradient>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     );
   }
@@ -8171,7 +8213,266 @@ const styles = StyleSheet.create({
     flexGrow: 0,
   },
   authModalScrollContent: {
-    paddingBottom: 4,
+    paddingBottom: 2,
+  },
+  authModalSheet: {
+    backgroundColor: "#10111a",
+    borderColor: "rgba(155,216,228,0.2)",
+    borderRadius: 30,
+    maxHeight: "90%",
+    overflow: "hidden",
+    padding: 0,
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 18 },
+    shadowOpacity: 0.34,
+    shadowRadius: 34,
+  },
+  authModalGradient: {
+    padding: 18,
+  },
+  authModalHeader: {
+    alignItems: "flex-start",
+    flexDirection: "row",
+    gap: 12,
+    marginBottom: 18,
+  },
+  authBrandMark: {
+    alignItems: "center",
+    backgroundColor: "rgba(109,174,194,0.16)",
+    borderColor: "rgba(155,216,228,0.22)",
+    borderRadius: 16,
+    borderWidth: 1,
+    height: 48,
+    justifyContent: "center",
+    width: 48,
+  },
+  authModalHeading: {
+    flex: 1,
+    paddingTop: 1,
+  },
+  authModalEyebrow: {
+    color: "#82c7d6",
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 1.8,
+    marginBottom: 3,
+  },
+  authCloseButton: {
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderColor: "rgba(255,255,255,0.08)",
+    borderRadius: 999,
+    borderWidth: 1,
+    height: 38,
+    justifyContent: "center",
+    width: 38,
+  },
+  authCard: {
+    gap: 12,
+  },
+  authSegment: {
+    backgroundColor: "rgba(3,8,15,0.52)",
+    borderColor: "rgba(255,255,255,0.07)",
+    borderRadius: 16,
+    borderWidth: 1,
+    flexDirection: "row",
+    padding: 4,
+  },
+  authSegmentButton: {
+    alignItems: "center",
+    borderRadius: 12,
+    flex: 1,
+    justifyContent: "center",
+    minHeight: 42,
+  },
+  authSegmentButtonActive: {
+    backgroundColor: "#9bd8e4",
+  },
+  authSegmentText: {
+    color: "#9aa5b8",
+    fontSize: 14,
+    fontWeight: "900",
+  },
+  authSegmentTextActive: {
+    color: "#062d36",
+  },
+  authField: {
+    alignItems: "center",
+    backgroundColor: "rgba(3,8,15,0.58)",
+    borderColor: "rgba(155,216,228,0.14)",
+    borderRadius: 17,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 11,
+    minHeight: 54,
+    paddingHorizontal: 15,
+  },
+  authFieldInput: {
+    color: "#f4f8fa",
+    flex: 1,
+    fontSize: 16,
+    minHeight: 52,
+    paddingVertical: 0,
+  },
+  authFieldAction: {
+    alignItems: "center",
+    height: 36,
+    justifyContent: "center",
+    width: 32,
+  },
+  authForgotButton: {
+    alignSelf: "flex-end",
+    marginTop: -4,
+    paddingHorizontal: 2,
+    paddingVertical: 2,
+  },
+  authForgotText: {
+    color: "#9bd8e4",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  authPrimaryButton: {
+    alignItems: "center",
+    backgroundColor: "#9bd8e4",
+    borderRadius: 17,
+    flexDirection: "row",
+    gap: 9,
+    justifyContent: "center",
+    minHeight: 54,
+    paddingHorizontal: 20,
+  },
+  authPrimaryButtonText: {
+    color: "#062d36",
+    fontSize: 16,
+    fontWeight: "900",
+  },
+  authButtonDisabled: {
+    opacity: 0.66,
+  },
+  authCodeButton: {
+    alignItems: "center",
+    backgroundColor: "rgba(155,216,228,0.07)",
+    borderColor: "rgba(155,216,228,0.17)",
+    borderRadius: 17,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 9,
+    justifyContent: "center",
+    minHeight: 50,
+    paddingHorizontal: 18,
+  },
+  authCodeButtonText: {
+    color: "#d9f2f6",
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  authDivider: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 10,
+    marginVertical: 2,
+  },
+  authDividerLine: {
+    backgroundColor: "rgba(255,255,255,0.09)",
+    flex: 1,
+    height: 1,
+  },
+  authDividerText: {
+    color: "#727d90",
+    fontSize: 9,
+    fontWeight: "900",
+    letterSpacing: 1.1,
+  },
+  authOauthGrid: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  authOauthButton: {
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.055)",
+    borderColor: "rgba(255,255,255,0.09)",
+    borderRadius: 15,
+    borderWidth: 1,
+    flex: 1,
+    gap: 5,
+    justifyContent: "center",
+    minHeight: 55,
+  },
+  authOauthText: {
+    color: "#dbe5e9",
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  authSafetyNote: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 7,
+    justifyContent: "center",
+    paddingHorizontal: 8,
+    paddingTop: 2,
+  },
+  authSafetyText: {
+    color: "#788599",
+    flexShrink: 1,
+    fontSize: 10,
+    fontWeight: "700",
+    lineHeight: 14,
+    textAlign: "center",
+  },
+  authCodeIntro: {
+    alignItems: "center",
+    backgroundColor: "rgba(155,216,228,0.07)",
+    borderColor: "rgba(155,216,228,0.14)",
+    borderRadius: 17,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 12,
+    padding: 13,
+  },
+  authCodeIcon: {
+    alignItems: "center",
+    backgroundColor: "rgba(109,174,194,0.14)",
+    borderRadius: 13,
+    height: 43,
+    justifyContent: "center",
+    width: 43,
+  },
+  authCodeCopy: {
+    flex: 1,
+  },
+  authCodeTitle: {
+    color: "#eef7f8",
+    fontSize: 14,
+    fontWeight: "900",
+  },
+  authCodeSubtitle: {
+    color: "#8f9bae",
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 2,
+  },
+  authOtpInput: {
+    backgroundColor: "rgba(3,8,15,0.58)",
+    borderColor: "rgba(155,216,228,0.18)",
+    borderRadius: 17,
+    borderWidth: 1,
+    color: "#f4f8fa",
+    fontSize: 25,
+    fontWeight: "800",
+    letterSpacing: 8,
+    minHeight: 58,
+    paddingHorizontal: 16,
+    textAlign: "center",
+  },
+  authCodeActions: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 4,
+  },
+  authInlineLink: {
+    color: "#9bd8e4",
+    fontSize: 12,
+    fontWeight: "800",
   },
   modalHeader: {
     alignItems: "flex-start",
@@ -9231,14 +9532,16 @@ const styles = StyleSheet.create({
     padding: 14,
   },
   authModalTitle: {
-    fontSize: 18,
-    fontWeight: "800",
-    letterSpacing: 0,
+    color: "#f5f8fa",
+    fontSize: 22,
+    fontWeight: "900",
+    letterSpacing: -0.4,
   },
   authModalSubtitle: {
-    fontSize: 13,
-    lineHeight: 18,
-    marginTop: 2,
+    color: "#9ba7ba",
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 3,
   },
   row: {
     alignItems: "center",
