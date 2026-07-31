@@ -652,6 +652,7 @@ export default function App() {
   const [onboardingStep, setOnboardingStep] = useState(0);
   const [onboardingInterestIds, setOnboardingInterestIds] = useState<string[]>([]);
   const [onboardingSaving, setOnboardingSaving] = useState(false);
+  const [savingInterests, setSavingInterests] = useState(false);
   const [selectedQuest, setSelectedQuest] = useState<QuestDetail | null>(null);
   const [selectedQuestLoading, setSelectedQuestLoading] = useState(false);
   const [selectedQuestSaved, setSelectedQuestSaved] = useState(false);
@@ -3079,6 +3080,36 @@ function privateThreadIncludesUsers(
     }
   }
 
+  async function persistUserInterests(interestIds: string[]) {
+    if (!supabase || !userId) throw new Error("Sign in to save your interests.");
+    const uniqueIds = [...new Set(interestIds)];
+    const { error: deleteError } = await supabase.from("user_hobbies").delete().eq("user_id", userId);
+    if (deleteError) throw deleteError;
+    if (!uniqueIds.length) return;
+    const { error: insertError } = await supabase.from("user_hobbies").insert(
+      uniqueIds.map((hobbyId, index) => ({
+        user_id: userId,
+        hobby_id: hobbyId,
+        is_primary: index === 0,
+      })),
+    );
+    if (insertError) throw insertError;
+  }
+
+  async function saveInterests() {
+    if (!supabase || !userId) return;
+    setSavingInterests(true);
+    try {
+      await persistUserInterests(onboardingInterestIds);
+      setStatus("Interests saved. Your recommendations will adjust as new quests appear.");
+      await loadAuthedData(userId);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not save interests.");
+    } finally {
+      setSavingInterests(false);
+    }
+  }
+
   async function saveOnboarding() {
     if (!supabase || !userId) return;
     setOnboardingSaving(true);
@@ -3098,19 +3129,7 @@ function privateThreadIncludesUsers(
       });
       if (profileError) throw profileError;
 
-      const { error: deleteError } = await supabase.from("user_hobbies").delete().eq("user_id", userId);
-      if (deleteError) throw deleteError;
-
-      if (onboardingInterestIds.length) {
-        const { error: insertError } = await supabase.from("user_hobbies").insert(
-          onboardingInterestIds.map((hobbyId, index) => ({
-            user_id: userId,
-            hobby_id: hobbyId,
-            is_primary: index === 0,
-          }))
-        );
-        if (insertError) throw insertError;
-      }
+      await persistUserInterests(onboardingInterestIds);
 
       await supabase.auth.updateUser({
         data: {
@@ -3282,7 +3301,7 @@ function privateThreadIncludesUsers(
     if (error) return setStatus(error.message);
     setShowOnboardingWizard(true);
     setOnboardingStep(0);
-    setStatus("Onboarding reset. Sign out and back in to restart.");
+    setStatus("Setup reopened. Your current choices are ready to edit.");
   }
 
   async function skipOnboarding() {
@@ -3595,7 +3614,6 @@ function privateThreadIncludesUsers(
         avatar_url: avatarUrl,
         avatar_source_url: avatarUrl,
         photo_onboarding_done: true,
-        onboarding_done: true,
       });
       if (profileError && !profileError.message.toLowerCase().includes("column")) {
         throw profileError;
@@ -3616,7 +3634,7 @@ function privateThreadIncludesUsers(
     if (!supabase || !userId) return;
     setUploadingAvatar(true);
     try {
-      const { error: profileError } = await supabase.from("profiles").upsert({ id: userId, avatar_url: null, avatar_source_url: null, onboarding_done: true });
+      const { error: profileError } = await supabase.from("profiles").upsert({ id: userId, avatar_url: null, avatar_source_url: null });
       if (profileError && !profileError.message.toLowerCase().includes("column")) {
         throw profileError;
       }
@@ -4323,6 +4341,12 @@ function privateThreadIncludesUsers(
       : isJoined || isOwner
         ? styles.feedJoinButtonJoined
         : styles.feedJoinButtonReady;
+    const joinButtonMuted = membershipStatus === "pending" || isJoined || isOwner;
+    const joinButtonContentColor = membershipStatus === "pending"
+      ? isLightTheme ? "#8a4b08" : "#fcd34d"
+      : joinButtonMuted
+        ? isLightTheme ? "#0f5f73" : "#dff7fb"
+        : "#082f3a";
 
     return (
       <View
@@ -4398,8 +4422,8 @@ function privateThreadIncludesUsers(
             disabled={isJoinActionDisabled}
             accessibilityLabel={joinLabel}
           >
-            <Ionicons name={joinIcon} size={17} color={membershipStatus === "pending" || isJoined || isOwner ? "#dff7fb" : "#082f3a"} />
-            <Text style={[styles.feedJoinButtonText, (membershipStatus === "pending" || isJoined || isOwner) && styles.feedJoinButtonTextMuted]} numberOfLines={1}>{joinLabel}</Text>
+            <Ionicons name={joinIcon} size={17} color={joinButtonContentColor} />
+            <Text style={[styles.feedJoinButtonText, { color: joinButtonContentColor }]} numberOfLines={1}>{joinLabel}</Text>
           </Pressable>
         </View>
         <View style={[styles.feedActionsRow, { borderTopColor: isLightTheme ? "rgba(15,23,42,0.07)" : "rgba(255,255,255,0.06)" }]}>
@@ -5728,6 +5752,40 @@ function privateThreadIncludesUsers(
 
               <View style={styles.settingsCard}>
                 <View style={styles.settingsCardHeading}>
+                  <View style={styles.settingsCardIcon}><Ionicons name="sparkles-outline" size={19} color="#9bd8e4" /></View>
+                  <View style={styles.settingsCardHeadingCopy}>
+                    <Text style={styles.settingsCardTitle}>Interests</Text>
+                    <Text style={styles.settingsCardSubtitle}>Tune your feed and future category alerts. Pick as many as you like.</Text>
+                  </View>
+                  <View style={styles.settingsInterestCount}><Text style={styles.settingsInterestCountText}>{onboardingInterestIds.length}</Text></View>
+                </View>
+                <View style={styles.settingsInterestGrid}>
+                  {hobbies.map((option) => {
+                    const active = onboardingInterestIds.includes(option.id);
+                    return (
+                      <Pressable
+                        key={option.id}
+                        style={[styles.settingsInterestChip, active && styles.settingsInterestChipActive]}
+                        onPress={() => setOnboardingInterestIds((current) => current.includes(option.id) ? current.filter((id) => id !== option.id) : [...current, option.id])}
+                        accessibilityRole="checkbox"
+                        accessibilityState={{ checked: active }}
+                      >
+                        <Ionicons name={getCategoryIcon(option.category || option.name)} size={15} color={active ? "#082f3a" : "#9bc8d2"} />
+                        <Text style={[styles.settingsInterestChipText, active && styles.settingsInterestChipTextActive]}>{option.name}</Text>
+                        {active ? <Ionicons name="checkmark-circle" size={15} color="#0b5364" /> : null}
+                      </Pressable>
+                    );
+                  })}
+                </View>
+                {!hobbies.length ? <Text style={styles.settingsFieldHint}>Interests are still loading. Pull to refresh and try again.</Text> : null}
+                <Pressable style={[styles.settingsSaveButton, savingInterests && styles.settingsSaveButtonDisabled]} onPress={() => void saveInterests()} disabled={savingInterests || !hobbies.length}>
+                  {savingInterests ? <ActivityIndicator size="small" color="#082f3a" /> : <Ionicons name="checkmark" size={19} color="#082f3a" />}
+                  <Text style={styles.settingsSaveButtonText}>{savingInterests ? "Saving" : "Save interests"}</Text>
+                </Pressable>
+              </View>
+
+              <View style={styles.settingsCard}>
+                <View style={styles.settingsCardHeading}>
                   <View style={styles.settingsCardIcon}><Ionicons name="notifications-outline" size={19} color="#9bd8e4" /></View>
                   <View style={styles.settingsCardHeadingCopy}><Text style={styles.settingsCardTitle}>Notifications</Text><Text style={styles.settingsCardSubtitle}>Stay in the loop when plans move.</Text></View>
                 </View>
@@ -6228,103 +6286,123 @@ function privateThreadIncludesUsers(
 
   function renderOnboardingWizard() {
     if (!showOnboardingWizard || !signedIn) return null;
-    const steps = ["Basics", "Bio", "Interests", "Photo"] as const;
-    const interestOptions = hobbies.slice(0, 12);
-    const doneCount = [settingsCity.trim(), settingsBio.trim(), onboardingInterestIds.length > 0, Boolean(settingsAvatarUri)].filter(Boolean).length;
+    const steps = [
+      { label: "Location", title: "Start with your area", detail: "City-level location helps us surface plans you can actually make.", icon: "navigate-outline" },
+      { label: "About", title: "What should people know?", detail: "A short introduction makes joining a new plan feel less awkward.", icon: "chatbubble-ellipses-outline" },
+      { label: "Interests", title: "Choose your kind of plans", detail: "These personalize your feed and can power category alerts later.", icon: "sparkles-outline" },
+      { label: "Photo", title: "Put a face to the name", detail: "A recognizable photo builds trust when people meet offline.", icon: "camera-outline" },
+    ] as const;
+    const stepComplete = [Boolean(settingsCity.trim()), Boolean(settingsBio.trim()), onboardingInterestIds.length > 0, Boolean(settingsAvatarUri)];
+    const currentStep = steps[onboardingStep];
+    const doneCount = stepComplete.filter(Boolean).length;
     return (
       <View style={styles.modalOverlay} pointerEvents="box-none">
         <Pressable style={styles.modalBackdropPressable} onPress={() => undefined} />
-        <View style={[styles.modalCard, styles.modalCardScrollable]}>
-          <ScrollView
-            style={styles.modalScroll}
-            contentContainerStyle={styles.modalContent}
-            nestedScrollEnabled
-            showsVerticalScrollIndicator
-            keyboardShouldPersistTaps="handled"
-            keyboardDismissMode="interactive"
-          >
-            <View style={styles.row}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.questCategory}>Welcome to {APP_NAME}</Text>
-                <Text style={styles.questTitle}>Set up your profile</Text>
-                <Text style={styles.detailMuted}>This takes about a minute and helps people find the right plans.</Text>
-                <Text style={styles.muted}>{doneCount}/4 complete</Text>
+        <View style={styles.onboardingCard}>
+          <View style={styles.onboardingHeader}>
+            <View style={styles.onboardingHeaderTop}>
+              <View style={styles.onboardingBrandMark}><Ionicons name="location" size={19} color="#082f3a" /></View>
+              <View style={styles.onboardingHeaderCopy}>
+                <Text style={styles.onboardingEyebrow}>MAKE QUESTHAT YOURS</Text>
+                <Text style={styles.onboardingProgressLabel}>Step {onboardingStep + 1} of {steps.length}</Text>
               </View>
-              <Pressable onPress={() => void skipOnboarding()}>
-                <Text style={styles.link}>Skip</Text>
+              <Pressable style={styles.onboardingSkipButton} onPress={() => void skipOnboarding()} disabled={onboardingSaving}>
+                <Text style={styles.onboardingSkipText}>Later</Text>
               </Pressable>
             </View>
-            <View style={styles.segment}>
-              {steps.map((label, index) => (
-                <Pressable key={label} style={[styles.segmentButton, onboardingStep === index && styles.segmentActive]} onPress={() => setOnboardingStep(index)}>
-                  <Text style={[styles.segmentText, onboardingStep === index && styles.segmentTextActive]}>{label}</Text>
+            <View style={styles.onboardingProgressTrack}>
+              <View style={[styles.onboardingProgressFill, { width: `${((onboardingStep + 1) / steps.length) * 100}%` }]} />
+            </View>
+            <View style={styles.onboardingStepRail}>
+              {steps.map((step, index) => (
+                <Pressable key={step.label} style={styles.onboardingStepItem} onPress={() => setOnboardingStep(index)}>
+                  <View style={[styles.onboardingStepDot, index === onboardingStep && styles.onboardingStepDotActive, stepComplete[index] && styles.onboardingStepDotComplete]}>
+                    {stepComplete[index] ? <Ionicons name="checkmark" size={11} color="#082f3a" /> : <Text style={[styles.onboardingStepNumber, index === onboardingStep && styles.onboardingStepNumberActive]}>{index + 1}</Text>}
+                  </View>
+                  <Text style={[styles.onboardingStepLabel, index === onboardingStep && styles.onboardingStepLabelActive]}>{step.label}</Text>
                 </Pressable>
               ))}
             </View>
+          </View>
+          <ScrollView
+            style={styles.onboardingScroll}
+            contentContainerStyle={styles.onboardingContent}
+            nestedScrollEnabled
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="interactive"
+          >
+            <View style={styles.onboardingTitleRow}>
+              <View style={styles.onboardingTitleIcon}><Ionicons name={currentStep.icon} size={24} color="#9bd8e4" /></View>
+              <View style={styles.onboardingTitleCopy}>
+                <Text style={styles.onboardingTitle}>{currentStep.title}</Text>
+                <Text style={styles.onboardingDetail}>{currentStep.detail}</Text>
+              </View>
+            </View>
 
             {onboardingStep === 0 ? (
-              <>
-                <Text style={styles.sectionLabel}>City</Text>
-                <TextInput placeholder="Where are you based?" placeholderTextColor="#94a3b8" style={styles.input} value={settingsCity} onChangeText={setSettingsCity} />
-              </>
+              <View style={styles.onboardingFormCard}>
+                <View style={styles.onboardingField}>
+                  <Text style={styles.onboardingFieldLabel}>City</Text>
+                  <View style={styles.onboardingInputWrap}><Ionicons name="business-outline" size={18} color="#6daec2" /><TextInput placeholder="Miami" placeholderTextColor="#64748b" style={styles.onboardingInput} value={settingsCity} onChangeText={setSettingsCity} /></View>
+                </View>
+                <View style={styles.onboardingSplitFields}>
+                  <View style={[styles.onboardingField, styles.onboardingSplitField]}><Text style={styles.onboardingFieldLabel}>State / region</Text><TextInput placeholder="Florida" placeholderTextColor="#64748b" style={styles.onboardingStandaloneInput} value={settingsRegion} onChangeText={setSettingsRegion} /></View>
+                  <View style={[styles.onboardingField, styles.onboardingCountryField]}><Text style={styles.onboardingFieldLabel}>Country</Text><TextInput placeholder="US" placeholderTextColor="#64748b" style={styles.onboardingStandaloneInput} value={settingsCountryCode} onChangeText={setSettingsCountryCode} autoCapitalize="characters" maxLength={2} /></View>
+                </View>
+                <View style={styles.onboardingPrivacyNote}><Ionicons name="shield-checkmark-outline" size={17} color="#9bc8d2" /><Text style={styles.onboardingPrivacyText}>We use your area for discovery. Your exact address is never added here.</Text></View>
+              </View>
             ) : null}
             {onboardingStep === 1 ? (
-              <>
-                <Text style={styles.sectionLabel}>Short bio</Text>
-                <TextInput multiline placeholder="Tell people what you like doing outside..." placeholderTextColor="#94a3b8" style={[styles.input, styles.textArea]} value={settingsBio} onChangeText={setSettingsBio} />
-              </>
+              <View style={styles.onboardingFormCard}>
+                <TextInput multiline placeholder="Example: New to the area, into live music, weekend hikes, and finding the best tacos." placeholderTextColor="#64748b" style={styles.onboardingBioInput} value={settingsBio} onChangeText={setSettingsBio} maxLength={280} textAlignVertical="top" />
+                <View style={styles.onboardingBioFooter}><Text style={styles.onboardingHint}>Keep it casual. You can change this anytime.</Text><Text style={styles.onboardingCharacterCount}>{settingsBio.length}/280</Text></View>
+              </View>
             ) : null}
             {onboardingStep === 2 ? (
-              <>
-                <Text style={styles.sectionLabel}>Pick a few interests</Text>
-                <Text style={styles.detailMuted}>We’ll use these to personalize your feed and suggestions.</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-                  {interestOptions.map((option) => {
+              <View style={styles.onboardingFormCard}>
+                <View style={styles.onboardingSelectionHeader}><Text style={styles.onboardingSelectionTitle}>Pick at least three</Text><Text style={styles.onboardingSelectionCount}>{onboardingInterestIds.length} selected</Text></View>
+                <View style={styles.onboardingInterestGrid}>
+                  {hobbies.map((option) => {
                     const active = onboardingInterestIds.includes(option.id);
                     return (
                       <Pressable
                         key={option.id}
-                        style={[styles.chip, active && styles.chipSelected]}
+                        style={[styles.onboardingInterestChip, active && styles.onboardingInterestChipActive]}
                         onPress={() => setOnboardingInterestIds((current) => current.includes(option.id) ? current.filter((id) => id !== option.id) : [...current, option.id])}
+                        accessibilityRole="checkbox"
+                        accessibilityState={{ checked: active }}
                       >
-                        <Text style={styles.chipText}>{option.name}</Text>
+                        <Ionicons name={getCategoryIcon(option.category || option.name)} size={16} color={active ? "#082f3a" : "#9bc8d2"} />
+                        <Text style={[styles.onboardingInterestText, active && styles.onboardingInterestTextActive]}>{option.name}</Text>
+                        {active ? <Ionicons name="checkmark" size={14} color="#082f3a" /> : null}
                       </Pressable>
                     );
                   })}
-                </ScrollView>
-              </>
+                </View>
+                {!hobbies.length ? <View style={styles.onboardingLoadingRow}><ActivityIndicator size="small" color="#9bd8e4" /><Text style={styles.onboardingHint}>Loading interests...</Text></View> : null}
+              </View>
             ) : null}
             {onboardingStep === 3 ? (
-              <>
-                <Text style={styles.sectionLabel}>Profile photo</Text>
-                <Text style={styles.detailMuted}>This helps people recognize you faster.</Text>
-                <Pressable style={styles.secondaryButton} onPress={() => void uploadProfilePhoto()} disabled={uploadingAvatar}>
-                  <Text style={styles.secondaryButtonText}>{uploadingAvatar ? "Uploading..." : settingsAvatarUri ? "Change profile photo" : "Add profile photo"}</Text>
+              <View style={styles.onboardingPhotoCard}>
+                <Pressable style={styles.onboardingAvatarButton} onPress={() => void uploadProfilePhoto()} disabled={uploadingAvatar}>
+                  {settingsAvatarUri ? <Image source={{ uri: settingsAvatarUri }} style={styles.onboardingAvatar} /> : <LinearGradient colors={["#1d3d49", "#0f212a"]} style={styles.onboardingAvatarFallback}><Ionicons name="person-outline" size={48} color="#9bd8e4" /></LinearGradient>}
+                  <View style={styles.onboardingCameraBadge}>{uploadingAvatar ? <ActivityIndicator size="small" color="#082f3a" /> : <Ionicons name="camera" size={18} color="#082f3a" />}</View>
                 </Pressable>
-                {settingsAvatarUri ? (
-                  <View style={styles.mediaPreview}>
-                    <Image source={{ uri: settingsAvatarUri }} style={styles.avatarPreview} />
-                  </View>
-                ) : null}
-              </>
+                <Text style={styles.onboardingPhotoTitle}>{settingsAvatarUri ? "Looking good" : "Add a clear profile photo"}</Text>
+                <Text style={styles.onboardingPhotoDetail}>Use a recent photo where your face is easy to recognize.</Text>
+                <Pressable style={styles.onboardingPhotoAction} onPress={() => void uploadProfilePhoto()} disabled={uploadingAvatar}><Text style={styles.onboardingPhotoActionText}>{uploadingAvatar ? "Uploading..." : settingsAvatarUri ? "Choose another photo" : "Choose a photo"}</Text></Pressable>
+                {settingsAvatarUri ? <Pressable onPress={() => void deleteProfilePhoto()} disabled={uploadingAvatar}><Text style={styles.onboardingRemovePhoto}>Remove photo</Text></Pressable> : null}
+              </View>
             ) : null}
-
-            <View style={styles.createActionsRow}>
-              <Pressable style={styles.secondaryButton} onPress={() => setOnboardingStep((current) => Math.max(0, current - 1))} disabled={onboardingStep === 0 || onboardingSaving}>
-                <Text style={styles.secondaryButtonText}>Back</Text>
-              </Pressable>
-              <View style={{ flex: 1 }} />
-              {onboardingStep < 3 ? (
-                <Pressable style={styles.primaryButton} onPress={() => setOnboardingStep((current) => Math.min(3, current + 1))} disabled={onboardingSaving}>
-                  <Text style={styles.primaryButtonText}>Next</Text>
-                </Pressable>
-              ) : (
-                <Pressable style={styles.primaryButton} onPress={() => void saveOnboarding()} disabled={onboardingSaving}>
-                  <Text style={styles.primaryButtonText}>{onboardingSaving ? "Saving..." : "Finish setup"}</Text>
-                </Pressable>
-              )}
-            </View>
           </ScrollView>
+          <View style={styles.onboardingFooter}>
+            <View style={styles.onboardingFooterCopy}><Text style={styles.onboardingFooterCount}>{doneCount}/4 complete</Text><Text style={styles.onboardingFooterHint}>Editable anytime in Settings</Text></View>
+            {onboardingStep > 0 ? <Pressable style={styles.onboardingBackButton} onPress={() => setOnboardingStep((current) => Math.max(0, current - 1))} disabled={onboardingSaving}><Ionicons name="arrow-back" size={20} color="#dff7fb" /></Pressable> : null}
+            <Pressable style={styles.onboardingNextButton} onPress={() => onboardingStep < 3 ? setOnboardingStep((current) => Math.min(3, current + 1)) : void saveOnboarding()} disabled={onboardingSaving}>
+              {onboardingSaving ? <ActivityIndicator size="small" color="#082f3a" /> : <><Text style={styles.onboardingNextText}>{onboardingStep < 3 ? "Continue" : "Finish"}</Text><Ionicons name={onboardingStep < 3 ? "arrow-forward" : "checkmark"} size={19} color="#082f3a" /></>}
+            </Pressable>
+          </View>
         </View>
       </View>
     );
@@ -8344,6 +8422,48 @@ const styles = StyleSheet.create({
     marginTop: -8,
     textAlign: "right",
   },
+  settingsInterestCount: {
+    alignItems: "center",
+    backgroundColor: "rgba(109,174,194,0.13)",
+    borderRadius: 999,
+    height: 30,
+    justifyContent: "center",
+    minWidth: 30,
+    paddingHorizontal: 8,
+  },
+  settingsInterestCountText: {
+    color: "#9bd8e4",
+    fontSize: 12,
+    fontWeight: "900",
+  },
+  settingsInterestGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  settingsInterestChip: {
+    alignItems: "center",
+    backgroundColor: "#0e1017",
+    borderColor: "rgba(255,255,255,0.09)",
+    borderRadius: 999,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 6,
+    minHeight: 38,
+    paddingHorizontal: 11,
+  },
+  settingsInterestChipActive: {
+    backgroundColor: "#9bd8e4",
+    borderColor: "#9bd8e4",
+  },
+  settingsInterestChipText: {
+    color: "#dbe7ec",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  settingsInterestChipTextActive: {
+    color: "#082f3a",
+  },
   settingsSaveTray: {
     flexDirection: "row",
     gap: 10,
@@ -10238,6 +10358,419 @@ const styles = StyleSheet.create({
   commentComposerActions: {
     flexDirection: "row",
     gap: 10,
+  },
+  onboardingCard: {
+    alignSelf: "center",
+    backgroundColor: "#0e1017",
+    borderColor: "rgba(155,216,228,0.16)",
+    borderRadius: 28,
+    borderWidth: 1,
+    maxHeight: "90%",
+    maxWidth: 520,
+    overflow: "hidden",
+    width: "100%",
+  },
+  onboardingHeader: {
+    backgroundColor: "#141824",
+    borderBottomColor: "rgba(255,255,255,0.06)",
+    borderBottomWidth: 1,
+    gap: 14,
+    paddingHorizontal: 18,
+    paddingTop: 17,
+  },
+  onboardingHeaderTop: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 10,
+  },
+  onboardingBrandMark: {
+    alignItems: "center",
+    backgroundColor: "#9bd8e4",
+    borderRadius: 13,
+    height: 40,
+    justifyContent: "center",
+    transform: [{ rotate: "-6deg" }],
+    width: 40,
+  },
+  onboardingHeaderCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  onboardingEyebrow: {
+    color: "#9bd8e4",
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 1.3,
+  },
+  onboardingProgressLabel: {
+    color: "#8c97a6",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  onboardingSkipButton: {
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderRadius: 999,
+    paddingHorizontal: 13,
+    paddingVertical: 8,
+  },
+  onboardingSkipText: {
+    color: "#dbe7ec",
+    fontSize: 12,
+    fontWeight: "900",
+  },
+  onboardingProgressTrack: {
+    backgroundColor: "rgba(255,255,255,0.07)",
+    borderRadius: 999,
+    height: 4,
+    overflow: "hidden",
+  },
+  onboardingProgressFill: {
+    backgroundColor: "#6daec2",
+    borderRadius: 999,
+    height: 4,
+  },
+  onboardingStepRail: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  onboardingStepItem: {
+    alignItems: "center",
+    flex: 1,
+    gap: 5,
+    paddingBottom: 12,
+  },
+  onboardingStepDot: {
+    alignItems: "center",
+    backgroundColor: "#242936",
+    borderColor: "rgba(255,255,255,0.08)",
+    borderRadius: 999,
+    borderWidth: 1,
+    height: 24,
+    justifyContent: "center",
+    width: 24,
+  },
+  onboardingStepDotActive: {
+    borderColor: "#9bd8e4",
+    borderWidth: 2,
+  },
+  onboardingStepDotComplete: {
+    backgroundColor: "#9bd8e4",
+    borderColor: "#9bd8e4",
+  },
+  onboardingStepNumber: {
+    color: "#778292",
+    fontSize: 10,
+    fontWeight: "900",
+  },
+  onboardingStepNumberActive: {
+    color: "#dff7fb",
+  },
+  onboardingStepLabel: {
+    color: "#6f7988",
+    fontSize: 9,
+    fontWeight: "800",
+  },
+  onboardingStepLabelActive: {
+    color: "#dff7fb",
+  },
+  onboardingScroll: {
+    flexGrow: 0,
+  },
+  onboardingContent: {
+    gap: 16,
+    padding: 18,
+  },
+  onboardingTitleRow: {
+    alignItems: "flex-start",
+    flexDirection: "row",
+    gap: 12,
+  },
+  onboardingTitleIcon: {
+    alignItems: "center",
+    backgroundColor: "rgba(109,174,194,0.12)",
+    borderRadius: 15,
+    height: 48,
+    justifyContent: "center",
+    width: 48,
+  },
+  onboardingTitleCopy: {
+    flex: 1,
+    gap: 4,
+  },
+  onboardingTitle: {
+    color: "#f8fafc",
+    fontSize: 23,
+    fontWeight: "900",
+    letterSpacing: -0.6,
+    lineHeight: 28,
+  },
+  onboardingDetail: {
+    color: "#929cab",
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  onboardingFormCard: {
+    backgroundColor: "#151923",
+    borderColor: "rgba(255,255,255,0.07)",
+    borderRadius: 20,
+    borderWidth: 1,
+    gap: 14,
+    padding: 14,
+  },
+  onboardingField: {
+    gap: 7,
+  },
+  onboardingFieldLabel: {
+    color: "#cbd5df",
+    fontSize: 11,
+    fontWeight: "900",
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+  },
+  onboardingInputWrap: {
+    alignItems: "center",
+    backgroundColor: "#0b0e14",
+    borderColor: "rgba(155,216,228,0.15)",
+    borderRadius: 14,
+    borderWidth: 1,
+    flexDirection: "row",
+    paddingHorizontal: 13,
+  },
+  onboardingInput: {
+    color: "#f8fafc",
+    flex: 1,
+    fontSize: 15,
+    minHeight: 50,
+    paddingHorizontal: 9,
+  },
+  onboardingStandaloneInput: {
+    backgroundColor: "#0b0e14",
+    borderColor: "rgba(255,255,255,0.09)",
+    borderRadius: 14,
+    borderWidth: 1,
+    color: "#f8fafc",
+    fontSize: 14,
+    minHeight: 48,
+    paddingHorizontal: 12,
+  },
+  onboardingSplitFields: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  onboardingSplitField: {
+    flex: 1,
+  },
+  onboardingCountryField: {
+    width: 98,
+  },
+  onboardingPrivacyNote: {
+    alignItems: "flex-start",
+    backgroundColor: "rgba(109,174,194,0.07)",
+    borderRadius: 13,
+    flexDirection: "row",
+    gap: 8,
+    padding: 11,
+  },
+  onboardingPrivacyText: {
+    color: "#96a5b3",
+    flex: 1,
+    fontSize: 11,
+    lineHeight: 16,
+  },
+  onboardingBioInput: {
+    backgroundColor: "#0b0e14",
+    borderColor: "rgba(255,255,255,0.09)",
+    borderRadius: 15,
+    borderWidth: 1,
+    color: "#f8fafc",
+    fontSize: 15,
+    lineHeight: 21,
+    minHeight: 150,
+    padding: 13,
+  },
+  onboardingBioFooter: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 10,
+  },
+  onboardingHint: {
+    color: "#7f8997",
+    flex: 1,
+    fontSize: 11,
+    lineHeight: 15,
+  },
+  onboardingCharacterCount: {
+    color: "#9bc8d2",
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  onboardingSelectionHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  onboardingSelectionTitle: {
+    color: "#dbe7ec",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  onboardingSelectionCount: {
+    color: "#9bd8e4",
+    fontSize: 11,
+    fontWeight: "900",
+  },
+  onboardingInterestGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  onboardingInterestChip: {
+    alignItems: "center",
+    backgroundColor: "#0b0e14",
+    borderColor: "rgba(255,255,255,0.09)",
+    borderRadius: 999,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 6,
+    minHeight: 39,
+    paddingHorizontal: 11,
+  },
+  onboardingInterestChipActive: {
+    backgroundColor: "#9bd8e4",
+    borderColor: "#9bd8e4",
+  },
+  onboardingInterestText: {
+    color: "#dbe7ec",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  onboardingInterestTextActive: {
+    color: "#082f3a",
+  },
+  onboardingLoadingRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 8,
+  },
+  onboardingPhotoCard: {
+    alignItems: "center",
+    backgroundColor: "#151923",
+    borderColor: "rgba(255,255,255,0.07)",
+    borderRadius: 20,
+    borderWidth: 1,
+    gap: 9,
+    padding: 18,
+  },
+  onboardingAvatarButton: {
+    marginBottom: 5,
+    position: "relative",
+  },
+  onboardingAvatar: {
+    borderColor: "rgba(155,216,228,0.45)",
+    borderRadius: 999,
+    borderWidth: 3,
+    height: 126,
+    width: 126,
+  },
+  onboardingAvatarFallback: {
+    alignItems: "center",
+    borderColor: "rgba(155,216,228,0.28)",
+    borderRadius: 999,
+    borderWidth: 2,
+    height: 126,
+    justifyContent: "center",
+    width: 126,
+  },
+  onboardingCameraBadge: {
+    alignItems: "center",
+    backgroundColor: "#9bd8e4",
+    borderColor: "#151923",
+    borderRadius: 999,
+    borderWidth: 4,
+    bottom: 0,
+    height: 40,
+    justifyContent: "center",
+    position: "absolute",
+    right: 0,
+    width: 40,
+  },
+  onboardingPhotoTitle: {
+    color: "#f8fafc",
+    fontSize: 18,
+    fontWeight: "900",
+  },
+  onboardingPhotoDetail: {
+    color: "#8f99a8",
+    fontSize: 12,
+    lineHeight: 17,
+    maxWidth: 290,
+    textAlign: "center",
+  },
+  onboardingPhotoAction: {
+    backgroundColor: "#f8fafc",
+    borderRadius: 999,
+    marginTop: 4,
+    paddingHorizontal: 18,
+    paddingVertical: 11,
+  },
+  onboardingPhotoActionText: {
+    color: "#101521",
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  onboardingRemovePhoto: {
+    color: "#8f99a8",
+    fontSize: 11,
+    fontWeight: "800",
+    padding: 5,
+  },
+  onboardingFooter: {
+    alignItems: "center",
+    backgroundColor: "#141824",
+    borderTopColor: "rgba(255,255,255,0.06)",
+    borderTopWidth: 1,
+    flexDirection: "row",
+    gap: 9,
+    padding: 13,
+  },
+  onboardingFooterCopy: {
+    flex: 1,
+    gap: 2,
+    paddingLeft: 3,
+  },
+  onboardingFooterCount: {
+    color: "#dbe7ec",
+    fontSize: 11,
+    fontWeight: "900",
+  },
+  onboardingFooterHint: {
+    color: "#737e8e",
+    fontSize: 9,
+    fontWeight: "700",
+  },
+  onboardingBackButton: {
+    alignItems: "center",
+    backgroundColor: "#242936",
+    borderRadius: 14,
+    height: 45,
+    justifyContent: "center",
+    width: 45,
+  },
+  onboardingNextButton: {
+    alignItems: "center",
+    backgroundColor: "#9bd8e4",
+    borderRadius: 14,
+    flexDirection: "row",
+    gap: 7,
+    justifyContent: "center",
+    minHeight: 45,
+    minWidth: 112,
+    paddingHorizontal: 16,
+  },
+  onboardingNextText: {
+    color: "#082f3a",
+    fontSize: 13,
+    fontWeight: "900",
   },
   modalOverlay: {
     alignItems: "center",
