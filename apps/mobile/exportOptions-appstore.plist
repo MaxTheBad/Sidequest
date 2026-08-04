@@ -12,9 +12,11 @@
 	<dict>
 		<key>com.questhat.app</key>
 		<string>QuestHat App Store</string>
+		<key>com.questhat.app.LiveActivity</key>
+		<string>QuestHat Live Activity App Store</string>
 	</dict>
 	<key>signingCertificate</key>
-	<string>iPhone Distribution</string>
+	<string>Apple Distribution</string>
 	<key>signingStyle</key>
 	<string>manual</string>
 	<key>teamID</key>

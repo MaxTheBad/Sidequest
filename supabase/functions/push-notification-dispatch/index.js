@@ -60,9 +60,10 @@ Deno.serve(async (req) => {
   const notificationKind = String(data.kind || "");
   const meta = data.meta && typeof data.meta === "object" ? data.meta : {};
   const discoveryKind = String(meta.kind || "");
+  const commentAudience = String(meta.comment_audience || "");
   const preferenceKey =
     notificationKind === "message"
-      ? meta.private === true ? "messages" : "comments"
+      ? meta.private === true ? "messages" : commentAudience === "joined" ? "joined_comments" : "comments"
       : notificationKind === "join_request"
         ? "join_requests"
         : notificationKind === "approval" || notificationKind === "declined"
@@ -71,21 +72,25 @@ Deno.serve(async (req) => {
             ? "friend_requests"
             : discoveryKind === "followed_post"
               ? "followed_posts"
+              : discoveryKind === "host_join_request_reminder"
+                ? "join_requests"
               : discoveryKind === "liked_category"
                 ? "liked_categories"
+                : discoveryKind === "host_location_reminder"
+                  ? "quest_reminders"
                 : null;
 
   if (preferenceKey) {
     const { data: preferences, error: preferencesError } = await supabase
       .from("notification_preferences")
-      .select("messages,comments,join_updates,join_requests,friend_requests,followed_posts,liked_categories")
+      .select("messages,comments,joined_comments,join_updates,join_requests,friend_requests,followed_posts,liked_categories,quest_reminders")
       .eq("user_id", userId)
       .maybeSingle();
 
     if (preferencesError) {
       console.error("Could not read notification preferences", preferencesError.message);
     } else {
-      const defaultEnabled = preferenceKey !== "liked_categories" && preferenceKey !== "followed_posts";
+      const defaultEnabled = preferenceKey !== "liked_categories" && preferenceKey !== "followed_posts" && preferenceKey !== "joined_comments";
       const enabled = preferences ? preferences[preferenceKey] !== false : defaultEnabled;
       if (!enabled) {
         return Response.json({ ok: true, sent: 0, skipped: true, reason: "preference_disabled", preference: preferenceKey });

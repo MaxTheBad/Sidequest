@@ -5,6 +5,7 @@ import {
   Alert,
   Animated,
   Image,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -20,7 +21,10 @@ import {
   Share,
   Switch,
   useColorScheme,
+  useWindowDimensions,
   Linking as RNLinking,
+  NativeEventEmitter,
+  NativeModules,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -41,7 +45,7 @@ import { APP_NAME, CANONICAL_CATEGORIES, haversineMiles, resolveCanonicalCategor
 import { env } from "./lib/env";
 import { supabase } from "./lib/supabase";
 import { getPushPermissionStatus, registerPushTokenForUser, requestPushPermissionAndRegisterForUser } from "./lib/push";
-import { COUNTRY_OPTIONS } from "./lib/countries";
+import { COUNTRY_OPTIONS, getCountryDisplayAbbreviation } from "./lib/countries";
 
 WebBrowser.maybeCompleteAuthSession();
 Notifications.setNotificationHandler({
@@ -54,6 +58,18 @@ Notifications.setNotificationHandler({
   }),
 });
 
+const QuestHatLiveActivity = NativeModules.QuestHatLiveActivity as undefined | {
+  sync: (questId: string, title: string, startsAt: number, location: string) => Promise<boolean>;
+  end: () => Promise<boolean>;
+  getPushToStartToken: () => Promise<LiveActivityPushToken>;
+};
+
+type LiveActivityPushToken = {
+  supported: boolean;
+  environment: "production" | "sandbox";
+  token?: string | null;
+};
+
 type AuthState = "loading" | "signed-out" | "signed-in";
 type AuthMode = "login" | "signup";
 type AuthStep = "email" | "code";
@@ -61,13 +77,83 @@ type TabKey = "home" | "create" | "saved" | "joined" | "inbox" | "notifications"
 type Provider = "apple" | "google" | "facebook";
 type DeviceLocation = { lat: number; lon: number; accuracy?: number };
 type QuestMapPoint = { quest: QuestPreview; coords: DeviceLocation; distanceLabel: string | undefined };
+type SafetyPromptContext = "host" | "guest";
+type PendingSafetyJoin = { quest: QuestPreview; source: "selected" | "feed" };
 const FAR_AWAY_WARNING_MILES = 15;
 const HOME_QUEST_LIMIT = 200;
 const STORED_LOCATION_KEY = "questhat_device_location";
 const STORED_PUSH_PROMPT_DISMISSED_AT = "questhat_push_prompt_dismissed_at";
+const STORED_CONTEXTUAL_PUSH_PROMPT_AT = "questhat_contextual_push_prompt_at";
+const STORED_DISMISSED_EVENT_ANNOUNCEMENTS = "questhat_dismissed_event_announcements";
+const STORED_SAFETY_PROMPT_HIDDEN = "questhat_safety_prompt_hidden";
 const CURRENT_EULA_VERSION = "2026-07-30";
 const VIDEO_MAX_DURATION_SECONDS = 15;
 const VIDEO_MAX_SIZE_BYTES = 60 * 1024 * 1024;
+const US_STATE_CODES: Record<string, string> = {
+  alabama: "AL", alaska: "AK", arizona: "AZ", arkansas: "AR", california: "CA", colorado: "CO",
+  connecticut: "CT", delaware: "DE", florida: "FL", georgia: "GA", hawaii: "HI", idaho: "ID",
+  illinois: "IL", indiana: "IN", iowa: "IA", kansas: "KS", kentucky: "KY", louisiana: "LA",
+  maine: "ME", maryland: "MD", massachusetts: "MA", michigan: "MI", minnesota: "MN",
+  mississippi: "MS", missouri: "MO", montana: "MT", nebraska: "NE", nevada: "NV",
+  "new hampshire": "NH", "new jersey": "NJ", "new mexico": "NM", "new york": "NY",
+  "north carolina": "NC", "north dakota": "ND", ohio: "OH", oklahoma: "OK", oregon: "OR",
+  pennsylvania: "PA", "rhode island": "RI", "south carolina": "SC", "south dakota": "SD",
+  tennessee: "TN", texas: "TX", utah: "UT", vermont: "VT", virginia: "VA", washington: "WA",
+  "west virginia": "WV", wisconsin: "WI", wyoming: "WY", "district of columbia": "DC",
+};
+const US_STATE_ABBREVIATIONS = new Set(Object.values(US_STATE_CODES));
+
+type GeocodedAddress = {
+  city?: string;
+  town?: string;
+  village?: string;
+  municipality?: string;
+  city_district?: string;
+  state?: string;
+  county?: string;
+  country?: string;
+  country_code?: string;
+};
+
+function formatStructuredPublicLocation(address: GeocodedAddress | undefined, countryCode?: string | null) {
+  if (!address) return "";
+  const city = address.city || address.town || address.village || address.municipality || address.city_district || "";
+  if (!city) return "";
+  const normalizedCountryCode = (address.country_code || countryCode || "").toUpperCase();
+  if (normalizedCountryCode === "US") {
+    const rawRegion = (address.state || "").trim();
+    const regionCode = US_STATE_CODES[rawRegion.toLowerCase()] || (US_STATE_ABBREVIATIONS.has(rawRegion.toUpperCase()) ? rawRegion.toUpperCase() : "");
+    return regionCode ? `${city}, ${regionCode}` : city;
+  }
+  const countryAbbreviation = getCountryDisplayAbbreviation(normalizedCountryCode);
+  return countryAbbreviation ? `${city}, ${countryAbbreviation}` : city;
+}
+
+function formatQuestCityState(rawLocation?: string | null) {
+  const parts = (rawLocation || "").split(",").map((part) => part.trim()).filter(Boolean);
+  if (!parts.length) return "Location pending";
+  if (/^virtual$/i.test(parts[0])) return "Online";
+  if (parts.length === 2 && (/^[A-Z]{2}$/.test(parts[1]) || /^[A-Z][a-z]{2}$/.test(parts[1]))) {
+    return `${parts[0]}, ${parts[1]}`;
+  }
+  const stateIndex = parts.findIndex((part) => {
+    const normalized = part.toLowerCase().replace(/\s+\d{5}(?:-\d{4})?$/, "").trim();
+    const abbreviation = part.match(/^([A-Z]{2})(?:\s+\d{5}(?:-\d{4})?)?$/)?.[1];
+    return Boolean(US_STATE_CODES[normalized] || (abbreviation && US_STATE_ABBREVIATIONS.has(abbreviation)));
+  });
+  const statePart = stateIndex >= 0 ? parts[stateIndex] : "";
+  const normalizedState = statePart.toLowerCase().replace(/\s+\d{5}(?:-\d{4})?$/, "").trim();
+  const stateAbbreviation = statePart.match(/^([A-Z]{2})/)?.[1] || "";
+  const stateCode = US_STATE_CODES[normalizedState] || (US_STATE_ABBREVIATIONS.has(stateAbbreviation) ? stateAbbreviation : "");
+  const cityCandidates = (stateIndex > 0 ? parts.slice(0, stateIndex) : parts).filter((part) => (
+    !/county|united states|usa/i.test(part)
+    && !/^\d{4,6}(?:-\d{4})?$/.test(part)
+    && !/\b(street|st\.?|road|rd\.?|avenue|ave\.?|boulevard|blvd\.?|drive|dr\.?|lane|ln\.?|highway|hwy\.?|court|ct\.?|way)\b/i.test(part)
+  ));
+  const city = cityCandidates[cityCandidates.length - 1] || (stateIndex < 0 ? parts[0] : "");
+  if (city && stateCode) return `${city}, ${stateCode}`;
+  return city || statePart || parts[0];
+}
 
 type QuestPreview = {
   id: string;
@@ -76,6 +162,8 @@ type QuestPreview = {
   description?: string | null;
   city: string | null;
   availability: string | null;
+  starts_at?: string | null;
+  time_flexible?: boolean | null;
   skill_level: string | null;
   join_mode?: string | null;
   exact_address?: string | null;
@@ -110,11 +198,14 @@ type Profile = {
 
 type DraftMedia = {
   uri: string;
+  sourceUri?: string;
   mimeType: string;
   fileName: string;
   type: "image" | "video";
   duration?: number;
+  sourceDuration?: number;
   fileSize?: number;
+  thumbnailUri?: string;
 };
 
 type CompressedVideoResult = {
@@ -123,10 +214,23 @@ type CompressedVideoResult = {
   fileName: string;
   mimeType: string;
   compressed: boolean;
+  duration?: number;
+};
+
+type GeneratedThumbnailResult = {
+  uri: string;
+  fileSize: number;
+  fileName: string;
+  mimeType: string;
 };
 
 const videoCompressor = Platform.OS === "ios"
-  ? requireOptionalNativeModule<{ compress(source: string): Promise<CompressedVideoResult> }>("QuestHatVideoCompressor")
+  ? requireOptionalNativeModule<{
+      compress(source: string): Promise<CompressedVideoResult>;
+      trim(source: string, startSeconds: number, endSeconds: number): Promise<CompressedVideoResult>;
+      deleteTemporary(source: string): Promise<boolean>;
+      thumbnail(source: string, atSeconds: number): Promise<GeneratedThumbnailResult>;
+    }>("QuestHatVideoCompressor")
   : null;
 
 async function uploadLocalFileToStorage(params: {
@@ -136,19 +240,33 @@ async function uploadLocalFileToStorage(params: {
   mimeType: string;
 }) {
   if (!supabase) throw new Error("Storage is unavailable.");
-  const endpoint = `${env.supabaseUrl}/storage/v1/object/${params.bucket}/${encodeURIComponent(params.path)}`;
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError) throw new Error(sessionError.message);
+  const accessToken = sessionData.session?.access_token;
+  if (!accessToken) throw new Error("Your session expired. Sign in again and retry the upload.");
+  if (params.path.split("/", 1)[0] !== sessionData.session?.user.id) {
+    throw new Error("Your account changed while preparing this upload. Sign in again and retry.");
+  }
+  const encodedPath = params.path.split("/").map(encodeURIComponent).join("/");
+  const endpoint = `${env.supabaseUrl}/storage/v1/object/${params.bucket}/${encodedPath}`;
   const result = await FileSystem.uploadAsync(endpoint, params.uri, {
     httpMethod: "POST",
     uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
     headers: {
-      Authorization: `Bearer ${env.supabaseAnonKey}`,
+      Authorization: `Bearer ${accessToken}`,
       apikey: env.supabaseAnonKey,
       "Content-Type": params.mimeType,
       Prefer: "return=minimal",
     },
   });
   if (result.status < 200 || result.status >= 300) {
-    throw new Error(result.body || `Upload failed (${result.status})`);
+    if (result.status === 401) {
+      throw new Error("Your session expired. Sign in again and retry the upload.");
+    }
+    if (result.status === 403) {
+      throw new Error("This media could not be uploaded. Please wait a moment and try again.");
+    }
+    throw new Error(`Media upload failed (${result.status}). Please try again.`);
   }
 }
 
@@ -191,21 +309,25 @@ type PushNavigationData = Record<string, unknown> & {
 type NotificationPreferences = {
   messages: boolean;
   comments: boolean;
+  joined_comments: boolean;
   join_updates: boolean;
   join_requests: boolean;
   friend_requests: boolean;
   followed_posts: boolean;
   liked_categories: boolean;
+  quest_reminders: boolean;
 };
 
 const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   messages: true,
   comments: true,
+  joined_comments: false,
   join_updates: true,
   join_requests: true,
   friend_requests: true,
   followed_posts: false,
   liked_categories: false,
+  quest_reminders: true,
 };
 
 type JoinRequestNotificationState = "pending" | "approved" | "declined" | "expired";
@@ -222,6 +344,8 @@ type QuestDetail = QuestPreview & {
   exact_address?: string | null;
   media_video_url?: string | null;
   media_source?: string | null;
+  host_coordination_reminders_disabled?: boolean | null;
+  host_coordination_reminders_snoozed_until?: string | null;
   profiles?: { id?: string | null; display_name: string | null; username: string | null; city: string | null; bio: string | null; avatar_url?: string | null }[] | { id?: string | null; display_name: string | null; username: string | null; city: string | null; bio: string | null; avatar_url?: string | null } | null;
 };
 
@@ -351,11 +475,6 @@ function slugify(input: string) {
     .slice(0, 64);
 }
 
-function pickTitleSuggestionByCategory(categoryName: string) {
-  const suggestions = getCategoryTitleSuggestions(categoryName);
-  return suggestions[Math.floor(Math.random() * suggestions.length)];
-}
-
 function getTitleSuggestionsByCategory(categoryName: string) {
   return getCategoryTitleSuggestions(categoryName);
 }
@@ -365,21 +484,50 @@ function formatDate(value?: string | null) {
   return new Date(value).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
+function formatEventCountdown(startsAt: string, now: number) {
+  const remainingSeconds = Math.max(0, Math.floor((new Date(startsAt).getTime() - now) / 1000));
+  const hours = Math.floor(remainingSeconds / 3600);
+  const minutes = Math.floor((remainingSeconds % 3600) / 60);
+  const seconds = remainingSeconds % 60;
+  return hours > 0
+    ? `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`
+    : `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
+function formatFeedCountdown(startsAt: string, now: number) {
+  const remainingMs = new Date(startsAt).getTime() - now;
+  if (!Number.isFinite(remainingMs) || remainingMs <= 0) return null;
+  const totalMinutes = Math.max(1, Math.ceil(remainingMs / 60000));
+  const days = Math.floor(totalMinutes / 1440);
+  const hours = Math.floor((totalMinutes % 1440) / 60);
+  const minutes = totalMinutes % 60;
+  if (days > 0) return `Starts in ${days}d ${hours}h`;
+  if (hours > 0) return `Starts in ${hours}h ${minutes}m`;
+  return `Starts in ${minutes}m`;
+}
+
 function ScreenHeader({
   title,
   subtitle,
   titleColor,
   subtitleColor,
+  action,
 }: {
   title: string;
   subtitle?: string;
   titleColor?: string;
   subtitleColor?: string;
+  action?: ReactNode;
 }) {
   return (
     <View style={styles.screenHeader}>
-      <Text style={[styles.screenTitle, titleColor ? { color: titleColor } : null]}>{title}</Text>
-      {subtitle ? <Text style={[styles.screenSubtitle, subtitleColor ? { color: subtitleColor } : null]}>{subtitle}</Text> : null}
+      <View style={styles.screenHeaderRow}>
+        <View style={styles.screenHeaderCopy}>
+          <Text style={[styles.screenTitle, titleColor ? { color: titleColor } : null]}>{title}</Text>
+          {subtitle ? <Text style={[styles.screenSubtitle, subtitleColor ? { color: subtitleColor } : null]}>{subtitle}</Text> : null}
+        </View>
+        {action}
+      </View>
     </View>
   );
 }
@@ -390,12 +538,14 @@ function EmptyState({ label }: { label: string }) {
 
 function QuestVideoPreview({
   media,
+  compact = false,
 }: {
   media: DraftMedia;
+  compact?: boolean;
 }) {
   return (
     <View style={styles.videoEditor}>
-      <NativeVideoPlayer uri={media.uri} />
+      <NativeVideoPlayer uri={media.uri} compact={compact} />
       <View style={styles.videoSelectionMeta}>
         <View style={styles.videoLimitBadge}>
           <Ionicons name="cut-outline" size={14} color="#082f3a" />
@@ -409,14 +559,39 @@ function QuestVideoPreview({
   );
 }
 
-function NativeVideoPlayer({ uri, fullscreen = false }: { uri: string; fullscreen?: boolean }) {
+function NativeVideoPlayer({
+  uri,
+  fullscreen = false,
+  compact = false,
+  trimStart,
+  trimEnd,
+}: {
+  uri: string;
+  fullscreen?: boolean;
+  compact?: boolean;
+  trimStart?: number;
+  trimEnd?: number;
+}) {
   const player = useVideoPlayer({ uri }, (nextPlayer) => {
     nextPlayer.loop = false;
   });
   const { status, error } = useEvent(player, "statusChange", { status: player.status });
 
+  useEffect(() => {
+    if (typeof trimStart !== "number") return;
+    player.currentTime = trimStart;
+    if (typeof trimEnd !== "number") return;
+    const timer = setInterval(() => {
+      if (player.currentTime >= trimEnd) {
+        player.pause();
+        player.currentTime = trimStart;
+      }
+    }, 100);
+    return () => clearInterval(timer);
+  }, [player, trimEnd, trimStart]);
+
   return (
-    <View style={[styles.nativeVideoShell, fullscreen && styles.nativeVideoShellFullscreen]}>
+    <View style={[styles.nativeVideoShell, compact && styles.nativeVideoShellCompact, fullscreen && styles.nativeVideoShellFullscreen]}>
       <VideoView
         player={player}
         style={[styles.nativeVideo, fullscreen && styles.nativeVideoFullscreen]}
@@ -440,12 +615,101 @@ function NativeVideoPlayer({ uri, fullscreen = false }: { uri: string; fullscree
   );
 }
 
+function VideoRangeTrimmer({
+  duration,
+  start,
+  end,
+  onChange,
+}: {
+  duration: number;
+  start: number;
+  end: number;
+  onChange: (start: number, end: number) => void;
+}) {
+  const trackWidth = useRef(1);
+  const startValue = useRef(start);
+  const endValue = useRef(end);
+  const durationValue = useRef(duration);
+  const onChangeValue = useRef(onChange);
+  const dragOrigin = useRef(0);
+  startValue.current = start;
+  endValue.current = end;
+  durationValue.current = duration;
+  onChangeValue.current = onChange;
+
+  const startHandle = useRef(PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponder: () => true,
+    onPanResponderGrant: () => { dragOrigin.current = startValue.current; },
+    onPanResponderMove: (_, gesture) => {
+      const total = durationValue.current;
+      const next = dragOrigin.current + (gesture.dx / trackWidth.current) * total;
+      const minimumStart = Math.max(0, endValue.current - VIDEO_MAX_DURATION_SECONDS);
+      const maximumStart = Math.max(minimumStart, endValue.current - 0.5);
+      onChangeValue.current(Math.min(maximumStart, Math.max(minimumStart, next)), endValue.current);
+    },
+  })).current;
+  const endHandle = useRef(PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponder: () => true,
+    onPanResponderGrant: () => { dragOrigin.current = endValue.current; },
+    onPanResponderMove: (_, gesture) => {
+      const total = durationValue.current;
+      const next = dragOrigin.current + (gesture.dx / trackWidth.current) * total;
+      const minimumEnd = Math.min(total, startValue.current + 0.5);
+      const maximumEnd = Math.min(total, startValue.current + VIDEO_MAX_DURATION_SECONDS);
+      onChangeValue.current(startValue.current, Math.max(minimumEnd, Math.min(maximumEnd, next)));
+    },
+  })).current;
+  const startPercent = duration > 0 ? (start / duration) * 100 : 0;
+  const endPercent = duration > 0 ? (end / duration) * 100 : 100;
+
+  return (
+    <View style={styles.videoRangeSection}>
+      <View style={styles.videoRangeHeader}>
+        <Text style={styles.videoTrimLabel}>Selected clip</Text>
+        <Text style={styles.videoTrimValue}>Drag either end</Text>
+      </View>
+      <View
+        style={styles.videoRangeTrack}
+        onLayout={(event) => { trackWidth.current = Math.max(1, event.nativeEvent.layout.width); }}
+      >
+        <View style={styles.videoRangeFrames} pointerEvents="none">
+          {Array.from({ length: 12 }, (_, index) => <View key={index} style={styles.videoRangeFrame} />)}
+        </View>
+        <View style={[styles.videoRangeShade, { width: `${startPercent}%` }]} pointerEvents="none" />
+        <View style={[styles.videoRangeShade, styles.videoRangeShadeRight, { width: `${100 - endPercent}%` }]} pointerEvents="none" />
+        <View
+          style={[styles.videoRangeSelection, { left: `${startPercent}%`, width: `${Math.max(0, endPercent - startPercent)}%` }]}
+          pointerEvents="none"
+        />
+        <View style={[styles.videoRangeHandle, { left: `${startPercent}%` }]} {...startHandle.panHandlers}>
+          <View style={styles.videoRangeGrip} />
+        </View>
+        <View style={[styles.videoRangeHandle, styles.videoRangeHandleEnd, { left: `${endPercent}%` }]} {...endHandle.panHandlers}>
+          <View style={styles.videoRangeGrip} />
+        </View>
+      </View>
+      <View style={styles.videoRangeTimes}>
+        <Text style={styles.videoRangeTime}>{start.toFixed(1)}s</Text>
+        <Text style={styles.videoRangeTime}>{end.toFixed(1)}s</Text>
+      </View>
+    </View>
+  );
+}
+
 function FeedVideoItem({ media }: { media: QuestMediaItem }) {
   const [started, setStarted] = useState(false);
   const player = useVideoPlayer({ uri: media.url }, (nextPlayer) => {
     nextPlayer.loop = false;
   });
   const { status, error } = useEvent(player, "statusChange", { status: player.status });
+
+  useEffect(() => {
+    if (!started && !media.thumbnailUrl && status === "readyToPlay") {
+      player.currentTime = 0.1;
+    }
+  }, [media.thumbnailUrl, player, started, status]);
 
   function playVideo() {
     setStarted(true);
@@ -463,14 +727,14 @@ function FeedVideoItem({ media }: { media: QuestMediaItem }) {
       />
       {!started ? (
         <Pressable style={StyleSheet.absoluteFill} onPress={playVideo} accessibilityLabel="Play video">
-          {media.thumbnailUrl ? <Image source={{ uri: media.thumbnailUrl }} style={styles.feedMedia} /> : <View style={styles.feedVideoPosterFallback} />}
+          {media.thumbnailUrl ? <Image source={{ uri: media.thumbnailUrl }} style={styles.feedMedia} /> : null}
           <View style={styles.feedVideoPlayButton}>
             <Ionicons name="play" size={25} color="#082f3a" style={styles.feedVideoPlayIcon} />
           </View>
           <View style={styles.feedVideoLabel}><Ionicons name="videocam" size={13} color="#ffffff" /><Text style={styles.feedVideoLabelText}>Video</Text></View>
         </Pressable>
       ) : null}
-      {status === "loading" && started ? <View pointerEvents="none" style={styles.feedVideoStatus}><ActivityIndicator color="#ffffff" /></View> : null}
+      {status === "loading" ? <View pointerEvents="none" style={styles.feedVideoLoading}><ActivityIndicator color="#ffffff" /></View> : null}
       {status === "error" ? (
         <View pointerEvents="none" style={styles.feedVideoStatus}>
           <Ionicons name="alert-circle-outline" size={24} color="#ffffff" />
@@ -627,6 +891,7 @@ class AppErrorBoundary extends Component<{ children: ReactNode }, { hasError: bo
 
 export default function App() {
   const systemColorScheme = useColorScheme();
+  const { height: windowHeight } = useWindowDimensions();
   const [authState, setAuthState] = useState<AuthState>(supabase ? "loading" : "signed-out");
   const [activeTab, setActiveTab] = useState<TabKey>("home");
   const [email, setEmail] = useState("");
@@ -661,7 +926,7 @@ export default function App() {
   const [savedQuests, setSavedQuests] = useState<QuestPreview[]>([]);
   const [joinedQuests, setJoinedQuests] = useState<QuestPreview[]>([]);
   const [messages, setMessages] = useState<MessageRow[]>([]);
-  const [comments, setComments] = useState<MessageRow[]>([]);
+  const [inboxProfilesById, setInboxProfilesById] = useState<Record<string, { id: string; display_name: string | null; username: string | null; avatar_url: string | null }>>({});
   const [notifications, setNotifications] = useState<NotificationRow[]>([]);
   const [lastInboxSeenAt, setLastInboxSeenAt] = useState<string | null>(null);
   const [lastNotificationsSeenAt, setLastNotificationsSeenAt] = useState<string | null>(null);
@@ -675,34 +940,36 @@ export default function App() {
   const [hobbies, setHobbies] = useState<Hobby[]>([]);
   const [categoryInput, setCategoryInput] = useState("");
   const [categoryIsCustom, setCategoryIsCustom] = useState(false);
-  const [availabilityMode, setAvailabilityMode] = useState<"specific_time" | "find_best_time">("find_best_time");
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const [startAt, setStartAt] = useState("");
+  const [timeFlexible, setTimeFlexible] = useState(false);
   const [showStartAtPicker, setShowStartAtPicker] = useState(false);
   const [locationMode, setLocationMode] = useState<"in_person" | "remote">("in_person");
-  const [isRecurring, setIsRecurring] = useState(false);
-  const [recurringFrequency, setRecurringFrequency] = useState<"daily" | "weekly" | "monthly">("weekly");
-  const [recurringStartDate, setRecurringStartDate] = useState("");
-  const [showRecurringStartDatePicker, setShowRecurringStartDatePicker] = useState(false);
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   const [skillLevel, setSkillLevel] = useState("any");
   const [groupSizeChoice, setGroupSizeChoice] = useState("any");
   const [groupSizeCustom, setGroupSizeCustom] = useState("");
   const [draftTitle, setDraftTitle] = useState("");
   const [draftDescription, setDraftDescription] = useState("");
-  const [draftAvailability, setDraftAvailability] = useState("");
   const [draftHobbyId, setDraftHobbyId] = useState("");
   const [draftCountryQuery, setDraftCountryQuery] = useState("");
   const [countrySuggestions, setCountrySuggestions] = useState<Array<{ label: string; code: string | null }>>([]);
   const [selectedCountrySuggestion, setSelectedCountrySuggestion] = useState<string | null>(null);
   const [selectedCountryCode, setSelectedCountryCode] = useState<string | null>(null);
   const [draftExactAddress, setDraftExactAddress] = useState("");
-  const [locationSuggestions, setLocationSuggestions] = useState<string[]>([]);
+  const [locationSuggestions, setLocationSuggestions] = useState<Array<{ label: string; publicLabel: string }>>([]);
   const [selectedLocationSuggestion, setSelectedLocationSuggestion] = useState<string | null>(null);
+  const [selectedPublicLocation, setSelectedPublicLocation] = useState<string | null>(null);
+  const [locationSearchLoading, setLocationSearchLoading] = useState(false);
   const [draftJoinMode, setDraftJoinMode] = useState<"approval_required" | "open">("approval_required");
   const [draftLocationVisibility, setDraftLocationVisibility] = useState<"private" | "approved_members" | "public">("private");
   const [draftGroupSize, setDraftGroupSize] = useState("4");
-  const [draftMedia, setDraftMedia] = useState<DraftMedia | null>(null);
+  const [draftMediaItems, setDraftMediaItems] = useState<DraftMedia[]>([]);
+  const [videoTrimDraft, setVideoTrimDraft] = useState<DraftMedia | null>(null);
+  const [videoTrimIndex, setVideoTrimIndex] = useState<number | null>(null);
+  const [videoTrimStart, setVideoTrimStart] = useState(0);
+  const [videoTrimEnd, setVideoTrimEnd] = useState(VIDEO_MAX_DURATION_SECONDS);
+  const [showVideoTrimmer, setShowVideoTrimmer] = useState(false);
   const [uploadingMedia, setUploadingMedia] = useState(false);
   const [optimizingMedia, setOptimizingMedia] = useState(false);
   const [creatingQuest, setCreatingQuest] = useState(false);
@@ -758,6 +1025,8 @@ export default function App() {
   const [selectedQuestMembershipStatus, setSelectedQuestMembershipStatus] = useState<"pending" | "approved" | "declined" | null>(null);
   const [selectedQuestMembers, setSelectedQuestMembers] = useState<QuestMemberProfileRow[]>([]);
   const [selectedQuestPendingMembers, setSelectedQuestPendingMembers] = useState<QuestMemberProfileRow[]>([]);
+  const [membershipActionKey, setMembershipActionKey] = useState<string | null>(null);
+  const [coordinationReminderAction, setCoordinationReminderAction] = useState<"snooze" | "disable" | "enable" | null>(null);
   const [selectedQuestExactAccessUserIds, setSelectedQuestExactAccessUserIds] = useState<string[]>([]);
   const [selectedQuestManager, setSelectedQuestManager] = useState(false);
   const [selectedQuestComments, setSelectedQuestComments] = useState<MessageRow[]>([]);
@@ -772,17 +1041,31 @@ export default function App() {
   }>(null);
   const [selectedProfileFriends, setSelectedProfileFriends] = useState<Array<{ id: string; display_name: string | null; username: string | null; avatar_url: string | null }>>([]);
   const [selectedProfileFriendsExpanded, setSelectedProfileFriendsExpanded] = useState(false);
+  const [friendActionUserId, setFriendActionUserId] = useState<string | null>(null);
   const pushTokenRegisteredForUserRef = useRef<string | null>(null);
   const handledPushResponseIdRef = useRef<string | null>(null);
   const [showPushPromptModal, setShowPushPromptModal] = useState(false);
   const [pushPromptLoading, setPushPromptLoading] = useState(false);
   const [pushPromptDismissedAt, setPushPromptDismissedAt] = useState<number | null>(null);
+  const [pushPromptContext, setPushPromptContext] = useState<"generic" | "message" | "comment" | "join_request" | "joined" | "published">("generic");
   const [pushPermissionStatus, setPushPermissionStatus] = useState<"granted" | "denied" | "undetermined" | "unavailable" | "error" | null>(null);
+  const [upcomingQuestAnnouncement, setUpcomingQuestAnnouncement] = useState<QuestPreview | null>(null);
+  const [dismissedUpcomingQuestIds, setDismissedUpcomingQuestIds] = useState<string[]>([]);
+  const [dismissedUpcomingQuestsLoaded, setDismissedUpcomingQuestsLoaded] = useState(false);
+  const [pendingDeepLinkQuestId, setPendingDeepLinkQuestId] = useState<string | null>(null);
+  const [countdownNow, setCountdownNow] = useState(Date.now());
+  const [liveActivityPushToStartSupported, setLiveActivityPushToStartSupported] = useState<boolean | null>(null);
+  const liveActivityPushTokenRef = useRef<{ token: string; environment: string } | null>(null);
+  const shownUpcomingQuestIdRef = useRef<string | null>(null);
   const [showNotificationPreferences, setShowNotificationPreferences] = useState(false);
+  const [safetyPromptContext, setSafetyPromptContext] = useState<SafetyPromptContext | null>(null);
+  const [safetyPromptDontShowAgain, setSafetyPromptDontShowAgain] = useState(false);
+  const [pendingSafetyJoin, setPendingSafetyJoin] = useState<PendingSafetyJoin | null>(null);
   const [notificationPreferences, setNotificationPreferences] = useState<NotificationPreferences>(DEFAULT_NOTIFICATION_PREFERENCES);
   const [notificationPreferencesLoading, setNotificationPreferencesLoading] = useState(false);
   const [notificationPreferencesSaving, setNotificationPreferencesSaving] = useState(false);
   const [showReportProfileModal, setShowReportProfileModal] = useState(false);
+  const [reportProfileTarget, setReportProfileTarget] = useState<Pick<ProfileDetail, "id" | "display_name" | "username"> | null>(null);
   const [reportProfileReason, setReportProfileReason] = useState("inappropriate_profile");
   const [reportProfileDetails, setReportProfileDetails] = useState("");
   const [submittingProfileReport, setSubmittingProfileReport] = useState(false);
@@ -797,11 +1080,15 @@ export default function App() {
   const [questionTarget, setQuestionTarget] = useState<QuestPreview | null>(null);
   const [questionMode, setQuestionMode] = useState<"public" | "private">("public");
   const [questionPartnerId, setQuestionPartnerId] = useState<string | null>(null);
+  const [questionPrivatePartnerId, setQuestionPrivatePartnerId] = useState<string | null>(null);
   const [questionText, setQuestionText] = useState("");
   const [questionDrafts, setQuestionDrafts] = useState<Record<string, string>>({});
   const [questionComments, setQuestionComments] = useState<MessageRow[]>([]);
+  const [conversationSearchQuery, setConversationSearchQuery] = useState("");
   const [showQuestionModal, setShowQuestionModal] = useState(false);
   const [sendingQuestion, setSendingQuestion] = useState(false);
+  const [inboxSearchQuery, setInboxSearchQuery] = useState("");
+  const [joinedSearchQuery, setJoinedSearchQuery] = useState("");
   const [authActionLoading, setAuthActionLoading] = useState<null | "Creating account..." | "Signing in..." | "Sending code..." | "Verifying code..." | "Opening OAuth..." >(null);
   const [accountDeactivatedAt, setAccountDeactivatedAt] = useState<string | null>(null);
   const [accountActionLoading, setAccountActionLoading] = useState<null | "deactivate" | "restore" | "delete">(null);
@@ -811,6 +1098,26 @@ export default function App() {
   const [eulaConsentChecked, setEulaConsentChecked] = useState(false);
   const [eulaSaving, setEulaSaving] = useState(false);
   const homeMapRef = useRef<MapView | null>(null);
+  const questionScrollRef = useRef<ScrollView | null>(null);
+  const questDetailScrollRef = useRef<ScrollView | null>(null);
+  const joinRequestsOffsetRef = useRef(0);
+  const addressInputRef = useRef<TextInput | null>(null);
+  const homeFeedOffsetRef = useRef<number | null>(null);
+  const homeVisibleQuestCountRef = useRef(0);
+  const fourthQuestOffsetRef = useRef<number | null>(null);
+  const signedOutAuthPromptShownRef = useRef(false);
+  const locationRefreshAttemptedRef = useRef(false);
+
+  useEffect(() => {
+    const appStateSub = AppState.addEventListener("change", (nextState) => {
+      if (activeTab !== "create") return;
+      if (nextState === "inactive" || nextState === "background" || nextState === "active") {
+        addressInputRef.current?.blur();
+        Keyboard.dismiss();
+      }
+    });
+    return () => appStateSub.remove();
+  }, [activeTab]);
 
   useEffect(() => {
     void AsyncStorage.getItem(STORED_LOCATION_KEY).then((raw) => {
@@ -827,6 +1134,34 @@ export default function App() {
       }
     });
   }, []);
+
+  useEffect(() => {
+    if (activeTab !== "home" || locationRefreshAttemptedRef.current) return;
+    locationRefreshAttemptedRef.current = true;
+    let cancelled = false;
+    void Location.getForegroundPermissionsAsync().then(async (permission) => {
+      if (cancelled || permission.status !== Location.PermissionStatus.GRANTED) return;
+      setLocationStatus("loading");
+      try {
+        const current = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+        if (cancelled) return;
+        const next = { lat: current.coords.latitude, lon: current.coords.longitude, accuracy: current.coords.accuracy ?? undefined };
+        setDeviceLocation(next);
+        setLocationStatus("ready");
+        void AsyncStorage.setItem(STORED_LOCATION_KEY, JSON.stringify({ ...next, savedAt: Date.now() }));
+      } catch {
+        if (!cancelled) setLocationStatus("error");
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (!showQuestionModal) return;
+    requestAnimationFrame(() => questionScrollRef.current?.scrollToEnd({ animated: true }));
+  }, [questionComments, showQuestionModal]);
 
   useEffect(() => {
     let cancelled = false;
@@ -898,6 +1233,7 @@ export default function App() {
       setSelectedCountrySuggestion(null);
       setSelectedCountryCode(null);
       setSelectedLocationSuggestion(null);
+      setSelectedPublicLocation(null);
       return;
     }
     const query = draftCountryQuery.trim();
@@ -927,24 +1263,31 @@ export default function App() {
     if (locationMode !== "in_person") {
       setLocationSuggestions([]);
       setSelectedLocationSuggestion(null);
+      setSelectedPublicLocation(null);
+      setLocationSearchLoading(false);
       return;
     }
     if (!selectedCountrySuggestion || !selectedCountryCode) {
       setLocationSuggestions([]);
       setSelectedLocationSuggestion(null);
+      setSelectedPublicLocation(null);
+      setLocationSearchLoading(false);
       return;
     }
     const query = draftExactAddress.trim();
     if (selectedLocationSuggestion && normalizeQuestLocationQuery(selectedLocationSuggestion) === normalizeQuestLocationQuery(query)) {
       setLocationSuggestions([]);
+      setLocationSearchLoading(false);
       return;
     }
     if (query.length < 3) {
       setLocationSuggestions([]);
+      setLocationSearchLoading(false);
       return;
     }
 
     const abortController = new AbortController();
+    setLocationSearchLoading(true);
     const timer = setTimeout(async () => {
       try {
         const normalizedQuery = query.toLowerCase();
@@ -959,15 +1302,16 @@ export default function App() {
           signal: abortController.signal,
         });
         if (!response.ok) throw new Error(`Location search failed (${response.status})`);
-        const payload = (await response.json()) as Array<{ display_name?: string; name?: string; address?: { city?: string; town?: string; village?: string; state?: string; county?: string; country?: string } }>;
+        const payload = (await response.json()) as Array<{ display_name?: string; name?: string; address?: GeocodedAddress }>;
         const unique = Array.from(
           new Map(
             (payload || [])
               .map((result) => {
                 const label = (result.display_name || result.name || [result.address?.city, result.address?.state, result.address?.country].filter(Boolean).join(", ") || "").trim();
-                return label ? [label.toLowerCase(), label] as const : null;
+                const publicLabel = formatStructuredPublicLocation(result.address, selectedCountryCode);
+                return label ? [label.toLowerCase(), { label, publicLabel }] as const : null;
               })
-              .filter((entry): entry is readonly [string, string] => Boolean(entry))
+              .filter((entry): entry is readonly [string, { label: string; publicLabel: string }] => Boolean(entry))
           ).values()
         );
         if (abortController.signal.aborted) return;
@@ -975,6 +1319,8 @@ export default function App() {
       } catch (error) {
         if (abortController.signal.aborted) return;
         setLocationSuggestions([]);
+      } finally {
+        if (!abortController.signal.aborted) setLocationSearchLoading(false);
       }
     }, 350);
 
@@ -1027,6 +1373,10 @@ export default function App() {
     setTopBarHidden(false);
     scrollPositionRef.current = 0;
   }, [activeTab]);
+
+  useEffect(() => {
+    if (signedIn) signedOutAuthPromptShownRef.current = false;
+  }, [signedIn]);
   const usernameCooldownActive = Boolean(
     settingsInitialSnapshot?.usernameChangedAt &&
       settingsUsername.trim().toLowerCase() !== (settingsInitialSnapshot.username || "").trim().toLowerCase() &&
@@ -1136,11 +1486,19 @@ export default function App() {
       if (session?.access_token) void sendWelcomeEmail(session.access_token);
     });
 
-    const linkSub = Linking.addEventListener("url", ({ url }) => {
+    const handleIncomingUrl = (url: string) => {
+      const questId = url.match(/^questhat:\/\/listing\/([0-9a-f-]+)/i)?.[1]
+        || url.match(/^https?:\/\/[^/]+\/listing\/([0-9a-f-]+)/i)?.[1]
+        || null;
+      if (questId) {
+        setPendingDeepLinkQuestId(questId);
+        return;
+      }
       void handleAuthUrl(url);
-    });
+    };
+    const linkSub = Linking.addEventListener("url", ({ url }) => handleIncomingUrl(url));
     void Linking.getInitialURL().then((url) => {
-      if (url) void handleAuthUrl(url);
+      if (url) handleIncomingUrl(url);
     });
 
     return () => {
@@ -1148,6 +1506,14 @@ export default function App() {
       linkSub.remove();
     };
   }, []);
+
+  useEffect(() => {
+    if (!pendingDeepLinkQuestId || !signedIn || !userId) return;
+    const questId = pendingDeepLinkQuestId;
+    setPendingDeepLinkQuestId(null);
+    setActiveTab("home");
+    void openQuestDetail(questId);
+  }, [pendingDeepLinkQuestId, signedIn, userId]);
 
   useEffect(() => {
     if (signedIn) {
@@ -1229,6 +1595,7 @@ export default function App() {
       const dismissedAt = raw ? Number(raw) : 0;
       const promptIsFresh = Number.isFinite(dismissedAt) && Date.now() - dismissedAt < 7 * 24 * 60 * 60 * 1000;
       setPushPromptDismissedAt(promptIsFresh ? dismissedAt : null);
+      setPushPromptContext("generic");
       setShowPushPromptModal(!promptIsFresh);
     })().catch((error) => {
       console.warn("push prompt eligibility check failed", error instanceof Error ? error.message : String(error));
@@ -1271,6 +1638,127 @@ export default function App() {
     if (!signedIn || !userId) return;
     void loadNotificationPreferences(userId);
   }, [signedIn, userId]);
+
+  useEffect(() => {
+    if (Platform.OS !== "ios" || !QuestHatLiveActivity || !signedIn || !userId || !supabase || accountDeactivatedAt) {
+      setLiveActivityPushToStartSupported(null);
+      return;
+    }
+
+    let cancelled = false;
+    const registerToken = async (result: LiveActivityPushToken) => {
+      if (cancelled) return;
+      setLiveActivityPushToStartSupported(result.supported);
+      const token = typeof result.token === "string" ? result.token.trim().toLowerCase() : "";
+      if (!token) return;
+      if (liveActivityPushTokenRef.current?.token === token && liveActivityPushTokenRef.current.environment === result.environment) return;
+      const { error } = await supabase.rpc("register_live_activity_push_token", {
+        p_token: token,
+        p_environment: result.environment,
+      });
+      if (error) throw new Error(error.message);
+      if (!cancelled) liveActivityPushTokenRef.current = { token, environment: result.environment };
+    };
+
+    const emitter = new NativeEventEmitter(QuestHatLiveActivity);
+    const tokenSubscription = emitter.addListener("QuestHatPushToStartToken", (result: LiveActivityPushToken) => {
+      void registerToken(result).catch((error) => {
+        console.warn("live activity token registration failed", error instanceof Error ? error.message : String(error));
+      });
+    });
+    void QuestHatLiveActivity.getPushToStartToken()
+      .then(registerToken)
+      .catch((error) => {
+        console.warn("live activity token unavailable", error instanceof Error ? error.message : String(error));
+      });
+
+    return () => {
+      cancelled = true;
+      tokenSubscription.remove();
+    };
+  }, [accountDeactivatedAt, signedIn, userId]);
+
+  useEffect(() => {
+    setUpcomingQuestAnnouncement(null);
+    shownUpcomingQuestIdRef.current = null;
+    if (!signedIn || !userId) {
+      setDismissedUpcomingQuestIds([]);
+      setDismissedUpcomingQuestsLoaded(true);
+      return;
+    }
+    let cancelled = false;
+    setDismissedUpcomingQuestsLoaded(false);
+    const storageKey = `${STORED_DISMISSED_EVENT_ANNOUNCEMENTS}:${userId}`;
+    void AsyncStorage.getItem(storageKey).then((raw) => {
+      if (cancelled) return;
+      try {
+        const parsed = raw ? JSON.parse(raw) : [];
+        setDismissedUpcomingQuestIds(Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === "string") : []);
+      } catch {
+        setDismissedUpcomingQuestIds([]);
+      } finally {
+        setDismissedUpcomingQuestsLoaded(true);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [signedIn, userId]);
+
+  useEffect(() => {
+    if (!signedIn) {
+      setUpcomingQuestAnnouncement(null);
+      shownUpcomingQuestIdRef.current = null;
+      if (Platform.OS === "ios") void QuestHatLiveActivity?.end().catch(() => {});
+      return;
+    }
+    if (!dismissedUpcomingQuestsLoaded) return;
+    const now = Date.now();
+    const nextQuest = joinedQuests
+      .filter((quest) => {
+        if (!quest.starts_at) return false;
+        const startsAt = new Date(quest.starts_at).getTime();
+        return Number.isFinite(startsAt) && startsAt >= now - 15 * 60 * 1000 && startsAt <= now + 2 * 60 * 60 * 1000;
+      })
+      .sort((a, b) => +new Date(a.starts_at || 0) - +new Date(b.starts_at || 0))[0];
+    if (!nextQuest) {
+      if (shownUpcomingQuestIdRef.current && Platform.OS === "ios") void QuestHatLiveActivity?.end().catch(() => {});
+      shownUpcomingQuestIdRef.current = null;
+      return;
+    }
+    if (Platform.OS === "ios" && nextQuest.starts_at) {
+      void QuestHatLiveActivity?.sync(
+        nextQuest.id,
+        nextQuest.title,
+        new Date(nextQuest.starts_at).getTime(),
+        formatQuestCityState(nextQuest.city),
+      ).catch((error) => console.warn("live activity sync failed", error instanceof Error ? error.message : String(error)));
+    }
+    if (dismissedUpcomingQuestIds.includes(nextQuest.id)) {
+      shownUpcomingQuestIdRef.current = nextQuest.id;
+      setUpcomingQuestAnnouncement(null);
+      return;
+    }
+    if (shownUpcomingQuestIdRef.current === nextQuest.id) return;
+    shownUpcomingQuestIdRef.current = nextQuest.id;
+    setCountdownNow(now);
+    setUpcomingQuestAnnouncement(nextQuest);
+  }, [dismissedUpcomingQuestIds, dismissedUpcomingQuestsLoaded, joinedQuests, signedIn]);
+
+  useEffect(() => {
+    const hasFeedCountdown = quests.some((quest) => {
+      if (!quest.starts_at) return false;
+      const startsAt = new Date(quest.starts_at).getTime();
+      return Number.isFinite(startsAt) && startsAt > Date.now();
+    });
+    if (!upcomingQuestAnnouncement?.starts_at && !hasFeedCountdown) return;
+    setCountdownNow(Date.now());
+    const timer = setInterval(
+      () => setCountdownNow(Date.now()),
+      upcomingQuestAnnouncement?.starts_at ? 1000 : 30000,
+    );
+    return () => clearInterval(timer);
+  }, [quests, upcomingQuestAnnouncement?.starts_at]);
 
   useEffect(() => {
     if (!signedIn || !userId || !supabase || accountDeactivatedAt) return;
@@ -1430,7 +1918,7 @@ export default function App() {
     }
     const { data, error } = await supabase
       .from("quests")
-      .select("id,creator_id,title,description,city,availability,skill_level,join_mode,created_at,media_items,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,username,avatar_url)")
+      .select("id,creator_id,title,description,city,availability,starts_at,skill_level,join_mode,created_at,media_items,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,username,avatar_url)")
       .order("created_at", { ascending: false })
       .limit(HOME_QUEST_LIMIT);
     if (error) throw error;
@@ -1453,16 +1941,15 @@ export default function App() {
     const { data: authUser } = await supabase.auth.getUser();
     const authData = authUser.user?.user_metadata || {};
     const metaName = (typeof authData.full_name === "string" && authData.full_name.trim()) || (typeof authData.name === "string" && authData.name.trim()) || "";
-    const [{ data: profileData }, { data: bookmarkRows }, { data: memberRows }, { data: notificationRows }, { data: acceptedRows }, { data: pendingRows }, { data: blockRows }, { data: commentRows }, { data: myQuestRows }, { data: hobbyRows }, { data: myListingIds }] = await Promise.all([
+    const [{ data: profileData }, { data: bookmarkRows }, { data: memberRows }, { data: notificationRows }, { data: acceptedRows }, { data: pendingRows }, { data: blockRows }, { data: myQuestRows }, { data: hobbyRows }, { data: myListingIds }] = await Promise.all([
       supabase.from("profiles").select("id,display_name,username,username_changed_at,city,region,country_code,bio,avatar_url,show_location,radius_km,friends_visibility,onboarding_done,photo_onboarding_done,eula_version,eula_accepted_at").eq("id", uid).maybeSingle(),
       supabase.from("quest_bookmarks").select("quest_id").eq("user_id", uid),
-      supabase.from("quest_members").select("quest_id,status,quests(id,creator_id,title,description,city,availability,skill_level,join_mode,created_at,media_items,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,username,avatar_url))").eq("user_id", uid).order("joined_at", { ascending: false }),
+      supabase.from("quest_members").select("quest_id,status,quests(id,creator_id,title,description,city,availability,starts_at,skill_level,join_mode,created_at,media_items,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,username,avatar_url))").eq("user_id", uid).order("joined_at", { ascending: false }),
       supabase.from("notifications").select("id,kind,title,body,href,quest_id,source_user_id,membership_user_id,meta,created_at,read_at,source_profile:profiles!notifications_source_user_id_fkey(id,display_name,username,avatar_url)").eq("user_id", uid).order("created_at", { ascending: false }).limit(100),
       supabase.from("friends").select("requester_id,addressee_id,status").eq("status", "accepted").or(`requester_id.eq.${uid},addressee_id.eq.${uid}`),
       supabase.from("friends").select("requester_id,addressee_id,status").eq("status", "pending").or(`requester_id.eq.${uid},addressee_id.eq.${uid}`),
       supabase.from("friends").select("requester_id,addressee_id,status").eq("status", "blocked").or(`requester_id.eq.${uid},addressee_id.eq.${uid}`),
-      supabase.from("messages").select("id,quest_id,sender_id,body,created_at,quests(title),profiles:profiles!messages_sender_id_fkey(display_name,avatar_url)").ilike("body", "[PUBLIC] %").order("created_at", { ascending: false }).limit(30),
-      supabase.from("quests").select("id,creator_id,title,description,city,availability,skill_level,join_mode,created_at,media_items,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,username,avatar_url)").eq("creator_id", uid).order("created_at", { ascending: false }).limit(12),
+      supabase.from("quests").select("id,creator_id,title,description,city,availability,starts_at,skill_level,join_mode,created_at,media_items,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,username,avatar_url)").eq("creator_id", uid).order("created_at", { ascending: false }).limit(100),
       supabase.from("user_hobbies").select("hobby_id,is_primary").eq("user_id", uid),
       supabase.from("quests").select("id").eq("creator_id", uid),
     ]);
@@ -1573,8 +2060,16 @@ export default function App() {
     const dedupedPrivate = Array.from(new Map(privateMessages.map((row) => [row.id, row])).values())
       .sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at));
 
+    const inboxPartnerIds = Array.from(new Set(dedupedPrivate.flatMap((row) => {
+      const recipientId = getPrivateRecipientId(row.body);
+      return [row.sender_id, recipientId].filter((id): id is string => Boolean(id && id !== uid));
+    })));
+    const { data: inboxProfileRows } = inboxPartnerIds.length
+      ? await supabase.from("profiles").select("id,display_name,username,avatar_url").in("id", inboxPartnerIds)
+      : { data: [] };
+    setInboxProfilesById(Object.fromEntries(((inboxProfileRows || []) as Array<{ id: string; display_name: string | null; username: string | null; avatar_url: string | null }>).map((row) => [row.id, row])));
+
     setMessages(dedupedPrivate);
-    setComments(((commentRows || []) as MessageRow[]).filter((row) => !row.sender_id || !privateMessageBlockedIds.includes(row.sender_id)));
     const nextNotifications = ((notificationRows || []) as NotificationRow[]).filter((row) => !row.source_user_id || !privateMessageBlockedIds.includes(row.source_user_id));
     setNotifications(nextNotifications);
     if (Platform.OS === "ios") {
@@ -1632,7 +2127,7 @@ export default function App() {
     if (savedIds.length) {
       const { data } = await supabase
         .from("quests")
-        .select("id,creator_id,title,description,city,availability,skill_level,join_mode,created_at,media_items,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,username,avatar_url)")
+        .select("id,creator_id,title,description,city,availability,starts_at,skill_level,join_mode,created_at,media_items,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,username,avatar_url)")
         .in("id", savedIds);
       setSavedQuests((data || []) as QuestPreview[]);
     } else {
@@ -1641,21 +2136,18 @@ export default function App() {
 
     const members = (memberRows || []) as QuestMemberRow[];
     setMembershipStatusByQuest(Object.fromEntries(members.map((row) => [row.quest_id, row.status || null])));
-    const joinedIds = members.filter((row) => row.status === "approved").map((row) => row.quest_id);
+    const hosted = (myQuestRows || []) as QuestPreview[];
+    const joinedIds = Array.from(new Set([
+      ...members.filter((row) => row.status === "approved").map((row) => row.quest_id),
+      ...hosted.map((quest) => quest.id),
+    ]));
     setJoinedQuestIds(joinedIds);
-    const joined = members
+    const approvedMemberQuests = members
       .filter((row) => row.status === "approved")
       .map((row) => getRelationOne((row as { quests?: QuestPreview[] | QuestPreview | null }).quests))
       .filter((quest): quest is QuestPreview => Boolean(quest));
-    setJoinedQuests(joined);
+    setJoinedQuests(Array.from(new Map([...hosted, ...approvedMemberQuests].map((quest) => [quest.id, quest])).values()));
 
-    const publicCommentCounts = ((commentRows || []) as Array<{ quest_id?: string | null; body?: string | null }>)
-      .reduce<Record<string, number>>((acc, row) => {
-        if (!row.quest_id) return acc;
-        acc[row.quest_id] = (acc[row.quest_id] || 0) + 1;
-        return acc;
-      }, {});
-    setCommentCountByQuestId(publicCommentCounts);
   }
 
   async function loadQuestCardCounts(questIds: string[]) {
@@ -1700,7 +2192,7 @@ export default function App() {
     if (!supabase) return null;
     const { data, error } = await supabase
       .from("quests")
-      .select("id,creator_id,title,description,city,availability,skill_level,created_at,join_mode,exact_location_visibility,exact_address,media_video_url,media_source,media_items,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,username,city,bio,avatar_url)")
+      .select("id,creator_id,title,description,city,availability,starts_at,skill_level,created_at,join_mode,exact_location_visibility,exact_address,media_video_url,media_source,media_items,host_coordination_reminders_disabled,host_coordination_reminders_snoozed_until,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,username,city,bio,avatar_url)")
       .eq("id", questId)
       .maybeSingle();
     if (error) throw error;
@@ -1782,8 +2274,10 @@ function privateThreadIncludesUsers(
     if (clearTarget) {
       setQuestionTarget(null);
       setQuestionPartnerId(null);
+      setQuestionPrivatePartnerId(null);
     }
     setQuestionComments([]);
+    setConversationSearchQuery("");
   }
 
   async function openQuestConversation(quest: QuestPreview, mode: "public" | "private" = "public", partnerId?: string | null) {
@@ -1801,11 +2295,16 @@ function privateThreadIncludesUsers(
     setQuestionTarget(quest);
     setQuestionMode(mode);
     setQuestionPartnerId(resolvedPartnerId);
+    if (mode === "private") {
+      setQuestionPrivatePartnerId(resolvedPartnerId);
+    } else if (questionTarget?.id !== quest.id) {
+      setQuestionPrivatePartnerId(quest.creator_id && quest.creator_id !== userId ? quest.creator_id : null);
+    }
     setQuestionText(questionDrafts[getQuestionDraftKey(quest.id, mode)] || "");
     setShowQuestionModal(true);
     const { data } = await supabase
       .from("messages")
-      .select("id,quest_id,sender_id,body,created_at,profiles:profiles!messages_sender_id_fkey(id,display_name,avatar_url)")
+      .select("id,quest_id,sender_id,body,created_at,profiles:profiles!messages_sender_id_fkey(id,display_name,username,avatar_url)")
       .eq("quest_id", quest.id)
       .order("created_at", { ascending: false })
       .limit(100);
@@ -1813,7 +2312,7 @@ function privateThreadIncludesUsers(
       if (mode === "public") return isPublicMessageBody(row.body);
       return resolvedPartnerId ? privateThreadIncludesUsers(row, userId, resolvedPartnerId) : false;
     });
-    setQuestionComments(rows);
+    setQuestionComments(rows.sort((a, b) => +new Date(a.created_at) - +new Date(b.created_at)));
   }
 
   async function openPushNotification(data: PushNavigationData) {
@@ -1950,7 +2449,7 @@ function privateThreadIncludesUsers(
     await refreshAll();
   }
 
-  async function toggleJoinSelectedQuest() {
+  async function toggleJoinSelectedQuest(skipSafetyPrompt = false) {
     if (!supabase || !userId || !selectedQuest) {
       promptAuth("login");
       return;
@@ -1976,6 +2475,7 @@ function privateThreadIncludesUsers(
       await Promise.all([refreshAll(), openQuestDetail(selectedQuest.id)]);
       return;
     }
+    if (!skipSafetyPrompt && await showSafetyPromptIfNeeded("guest", { quest: selectedQuest, source: "selected" })) return;
     const canJoin = await confirmQuestDistance(selectedQuest, "join");
     if (!canJoin) return;
     const nextStatus = (selectedQuest.join_mode || "open") === "approval_required" ? "pending" : "approved";
@@ -1995,6 +2495,7 @@ function privateThreadIncludesUsers(
     setSelectedQuestMembershipStatus(nextStatus);
     setStatus(nextStatus === "pending" ? "Request to join sent ✅" : "Joined quest ✅");
     await Promise.all([refreshAll(), openQuestDetail(selectedQuest.id)]);
+    void maybeShowContextualPushPrompt(nextStatus === "pending" ? "join_request" : "joined");
   }
 
   async function toggleBookmark(quest: QuestPreview) {
@@ -2014,7 +2515,7 @@ function privateThreadIncludesUsers(
     await refreshAll();
   }
 
-  async function toggleJoinQuestMobile(quest: QuestPreview) {
+  async function toggleJoinQuestMobile(quest: QuestPreview, skipSafetyPrompt = false) {
     if (!supabase || !userId) {
       promptAuth("login");
       return;
@@ -2039,6 +2540,7 @@ function privateThreadIncludesUsers(
       await refreshAll();
       return;
     }
+    if (!skipSafetyPrompt && await showSafetyPromptIfNeeded("guest", { quest, source: "feed" })) return;
     const canJoin = await confirmQuestDistance(quest, "join");
     if (!canJoin) return;
     const nextStatus = (quest.join_mode || "open") === "approval_required" ? "pending" : "approved";
@@ -2058,6 +2560,7 @@ function privateThreadIncludesUsers(
     if (nextStatus === "approved") setJoinedQuestIds((current) => [...new Set([...current, quest.id])]);
     setStatus(nextStatus === "pending" ? "Request to join sent ✅" : "Joined quest ✅");
     await refreshAll();
+    void maybeShowContextualPushPrompt(nextStatus === "pending" ? "join_request" : "joined");
   }
 
   async function resolveJoinRequestNotifications(
@@ -2151,24 +2654,52 @@ function privateThreadIncludesUsers(
     }
   }
 
+  async function maybeShowContextualPushPrompt(context: "message" | "comment" | "join_request" | "joined" | "published") {
+    if (!signedIn || !userId || showPushPromptModal) return;
+    const currentStatus = await getPushPermissionStatus();
+    setPushPermissionStatus(currentStatus);
+    if (currentStatus === "granted" || currentStatus === "unavailable" || currentStatus === "error") return;
+
+    const storageKey = `${STORED_CONTEXTUAL_PUSH_PROMPT_AT}:${userId}`;
+    const raw = await AsyncStorage.getItem(storageKey);
+    const lastShownAt = raw ? Number(raw) : 0;
+    const cooldownMs = currentStatus === "denied" ? 3 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
+    if (Number.isFinite(lastShownAt) && Date.now() - lastShownAt < cooldownMs) return;
+
+    const shownAt = Date.now();
+    await AsyncStorage.setItem(storageKey, String(shownAt));
+    setPushPromptContext(context);
+    setShowPushPromptModal(true);
+  }
+
+  function dismissPushPrompt() {
+    const stamp = Date.now();
+    const key = userId ? `${STORED_PUSH_PROMPT_DISMISSED_AT}:${userId}` : STORED_PUSH_PROMPT_DISMISSED_AT;
+    void AsyncStorage.setItem(key, String(stamp));
+    setPushPromptDismissedAt(stamp);
+    setShowPushPromptModal(false);
+  }
+
   async function loadNotificationPreferences(uid: string) {
     if (!supabase) return;
     setNotificationPreferencesLoading(true);
     try {
       const { data, error } = await supabase
         .from("notification_preferences")
-        .select("messages,comments,join_updates,join_requests,friend_requests,followed_posts,liked_categories")
+        .select("messages,comments,joined_comments,join_updates,join_requests,friend_requests,followed_posts,liked_categories,quest_reminders")
         .eq("user_id", uid)
         .maybeSingle();
       if (error) throw error;
       setNotificationPreferences(data ? {
         messages: data.messages !== false,
         comments: data.comments !== false,
+        joined_comments: data.joined_comments === true,
         join_updates: data.join_updates !== false,
         join_requests: data.join_requests !== false,
         friend_requests: data.friend_requests !== false,
         followed_posts: data.followed_posts === true,
         liked_categories: data.liked_categories === true,
+        quest_reminders: data.quest_reminders !== false,
       } : DEFAULT_NOTIFICATION_PREFERENCES);
     } catch (error) {
       console.warn("notification preferences load failed", error instanceof Error ? error.message : String(error));
@@ -2202,9 +2733,13 @@ function privateThreadIncludesUsers(
     questId: string,
     targetUserId: string,
     nextStatus: "approved" | "declined" | "pending",
-    options?: { shareExactAddress?: boolean },
+    options?: { shareExactAddress?: boolean; removingApprovedMember?: boolean },
   ) {
     if (!supabase || !userId) return;
+    const actionKey = `${questId}:${targetUserId}`;
+    if (membershipActionKey === actionKey) return;
+    setMembershipActionKey(actionKey);
+    try {
     const { data: questRow, error: questError } = await supabase
       .from("quests")
       .select("id,title,creator_id")
@@ -2214,20 +2749,20 @@ function privateThreadIncludesUsers(
       setStatus(questError?.message || "Quest not found.");
       return;
     }
-    const { error } = await supabase
-      .from("quest_members")
-      .update({ status: nextStatus })
-      .eq("quest_id", questId)
-      .eq("user_id", targetUserId)
-      .neq("role", "creator");
+    const { data: changed, error } = await supabase.rpc("manage_quest_membership", {
+      p_quest_id: questId,
+      p_target_user_id: targetUserId,
+      p_status: nextStatus,
+      p_share_exact_address: options?.shareExactAddress === true,
+    });
     if (error) {
       setStatus(error.message);
       return;
     }
-    if (nextStatus !== "approved") {
-      await supabase.from("quest_exact_location_access").delete().eq("quest_id", questId).eq("user_id", targetUserId);
-    } else if (options?.shareExactAddress) {
-      await supabase.from("quest_exact_location_access").upsert({ quest_id: questId, user_id: targetUserId, granted_by: userId });
+    if (changed !== true) {
+      setStatus("This join request is no longer pending. Refreshing…");
+      await openQuestDetail(questId);
+      return;
     }
     if (nextStatus === "approved" || nextStatus === "declined") {
       await resolveJoinRequestNotifications(questId, targetUserId, nextStatus);
@@ -2236,37 +2771,160 @@ function privateThreadIncludesUsers(
       nextStatus === "approved"
         ? (options?.shareExactAddress ? "Member approved and address shared." : "Member approved ✅")
         : nextStatus === "declined"
-          ? "Request declined."
+          ? (options?.removingApprovedMember ? "Guest removed from this quest." : "Request declined.")
           : "Moved back to pending.",
     );
     await Promise.all([
       loadAuthedData(userId),
       refreshAll(),
+      openQuestDetail(questId),
     ]);
+    } finally {
+      setMembershipActionKey((current) => current === actionKey ? null : current);
+    }
   }
 
   async function setQuestExactAddressAccess(questId: string, targetUserId: string, allow: boolean) {
     if (!supabase || !userId) return;
-    if (allow) {
-      const { error } = await supabase.from("quest_exact_location_access").upsert({ quest_id: questId, user_id: targetUserId, granted_by: userId });
-      if (error) {
-        setStatus(error.message);
-        return;
+    const actionKey = `${questId}:${targetUserId}`;
+    if (membershipActionKey === actionKey) return;
+    const previousAccessUserIds = selectedQuestExactAccessUserIds;
+    setMembershipActionKey(actionKey);
+    setSelectedQuestExactAccessUserIds((current) => allow
+      ? Array.from(new Set([...current, targetUserId]))
+      : current.filter((id) => id !== targetUserId));
+    try {
+      if (allow) {
+        const { error } = await supabase.from("quest_exact_location_access").upsert({ quest_id: questId, user_id: targetUserId, granted_by: userId });
+        if (error) throw error;
+        setStatus("Exact address shared.");
+      } else {
+        const { error } = await supabase.from("quest_exact_location_access").delete().eq("quest_id", questId).eq("user_id", targetUserId);
+        if (error) throw error;
+        setStatus("Exact address hidden.");
       }
-      setStatus("Exact address shared.");
-    } else {
-      const { error } = await supabase.from("quest_exact_location_access").delete().eq("quest_id", questId).eq("user_id", targetUserId);
-      if (error) {
-        setStatus(error.message);
-        return;
-      }
-      setStatus("Exact address hidden.");
+      await Promise.all([
+        openQuestDetail(questId),
+        loadAuthedData(userId),
+        refreshAll(),
+      ]);
+    } catch (error) {
+      setSelectedQuestExactAccessUserIds(previousAccessUserIds);
+      setStatus(error instanceof Error ? error.message : "Could not update location access.");
+    } finally {
+      setMembershipActionKey((current) => current === actionKey ? null : current);
     }
-    await Promise.all([
-      openQuestDetail(questId),
-      loadAuthedData(userId),
-      refreshAll(),
-    ]);
+  }
+
+  async function shareQuestAddressWithAllGuests(quest: QuestDetail) {
+    if (!supabase || !userId) return;
+    const missingGuestIds = selectedQuestMembers
+      .filter((member) => member.id !== quest.creator_id && member.role !== "creator" && !selectedQuestExactAccessUserIds.includes(member.id))
+      .map((member) => member.id);
+    if (!missingGuestIds.length) {
+      setStatus("The location is already shared with every guest.");
+      return;
+    }
+    const actionKey = `${quest.id}:all-location`;
+    if (membershipActionKey) return;
+    const previousAccessUserIds = selectedQuestExactAccessUserIds;
+    setMembershipActionKey(actionKey);
+    setSelectedQuestExactAccessUserIds((current) => Array.from(new Set([...current, ...missingGuestIds])));
+    try {
+      const { error } = await supabase.from("quest_exact_location_access").upsert(
+        missingGuestIds.map((guestId) => ({ quest_id: quest.id, user_id: guestId, granted_by: userId })),
+      );
+      if (error) throw error;
+      setStatus(`Location shared with ${missingGuestIds.length} ${missingGuestIds.length === 1 ? "guest" : "guests"}.`);
+      await Promise.all([openQuestDetail(quest.id), loadAuthedData(userId)]);
+    } catch (error) {
+      setSelectedQuestExactAccessUserIds(previousAccessUserIds);
+      setStatus(error instanceof Error ? error.message : "Could not share the location.");
+    } finally {
+      setMembershipActionKey((current) => current === actionKey ? null : current);
+    }
+  }
+
+  async function updateHostCoordinationReminders(quest: QuestDetail, action: "snooze" | "disable" | "enable") {
+    if (!supabase || !userId || coordinationReminderAction) return;
+    setCoordinationReminderAction(action);
+    const snoozedUntil = action === "snooze" ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() : null;
+    try {
+      const { data: changed, error } = await supabase.rpc("set_host_coordination_reminders", {
+        p_quest_id: quest.id,
+        p_enabled: action !== "disable",
+        p_snoozed_until: snoozedUntil,
+      });
+      if (error) throw error;
+      if (changed !== true) throw new Error("Only the quest host can change these reminders.");
+      setSelectedQuest((current) => current?.id === quest.id ? {
+        ...current,
+        host_coordination_reminders_disabled: action === "disable",
+        host_coordination_reminders_snoozed_until: snoozedUntil,
+      } : current);
+      setStatus(action === "disable" ? "Host reminders turned off for this quest." : action === "snooze" ? "Host reminders paused until tomorrow." : "Host reminders turned on.");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not update host reminders.");
+    } finally {
+      setCoordinationReminderAction(null);
+    }
+  }
+
+  function confirmRemoveQuestGuest(quest: QuestPreview, member: QuestMemberProfileRow) {
+    const memberName = member.display_name || member.username || "this guest";
+    Alert.alert(
+      "Remove guest?",
+      `${memberName} will lose access to this quest and any exact address you shared.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Remove",
+          style: "destructive",
+          onPress: () => void updateQuestMembershipStatus(quest.id, member.id, "declined", { removingApprovedMember: true }),
+        },
+      ],
+    );
+  }
+
+  function openProfileReport(target: Pick<ProfileDetail, "id" | "display_name" | "username">) {
+    setReportProfileTarget(target);
+    setReportProfileReason("inappropriate_profile");
+    setReportProfileDetails("");
+    setShowReportProfileModal(true);
+  }
+
+  function confirmBlockQuestGuest(quest: QuestPreview, member: QuestMemberProfileRow) {
+    const memberName = member.display_name || member.username || "this guest";
+    Alert.alert(
+      `Block ${memberName}?`,
+      "They will be removed from your hosted quests and your feed. Blocking also alerts QuestHat moderation.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Block",
+          style: "destructive",
+          onPress: () => void (async () => {
+            await blockProfile(member.id);
+            await openQuestDetail(quest.id);
+          })(),
+        },
+      ],
+    );
+  }
+
+  function openQuestGuestActions(quest: QuestPreview, member: QuestMemberProfileRow, isManager: boolean) {
+    const actions: NonNullable<Parameters<typeof Alert.alert>[2]> = [
+      { text: "View profile", onPress: () => void openProfileFromQuest(member.id) },
+    ];
+    if (isManager) {
+      actions.push({ text: "Remove from quest", style: "destructive", onPress: () => confirmRemoveQuestGuest(quest, member) });
+    }
+    actions.push(
+      { text: "Block user", style: "destructive", onPress: () => confirmBlockQuestGuest(quest, member) },
+      { text: "Report user", style: "destructive", onPress: () => openProfileReport(member) },
+      { text: "Cancel", style: "cancel" },
+    );
+    Alert.alert(member.display_name || member.username || "Guest options", "Choose an action for this guest.", actions);
   }
 
   async function sendQuestionFromModal() {
@@ -2280,6 +2938,24 @@ function privateThreadIncludesUsers(
       setStatus("Question is too long (max 500 chars).");
       return;
     }
+    const normalizedDraft = trimmed.replace(/\s+/g, " ").toLowerCase();
+    const recentOwnMessages = questionComments.filter((comment) => comment.sender_id === userId);
+    const newestOwnMessage = recentOwnMessages.at(-1);
+    const secondsSinceLastMessage = newestOwnMessage
+      ? Math.floor((Date.now() - new Date(newestOwnMessage.created_at).getTime()) / 1000)
+      : Number.POSITIVE_INFINITY;
+    const minimumDelay = questionMode === "public" ? 4 : 1;
+    if (secondsSinceLastMessage < minimumDelay) {
+      setStatus(`Please wait ${minimumDelay - secondsSinceLastMessage} more second${minimumDelay - secondsSinceLastMessage === 1 ? "" : "s"} before sending again.`);
+      return;
+    }
+    if (questionMode === "public" && recentOwnMessages.some((comment) => (
+      Date.now() - new Date(comment.created_at).getTime() < 10 * 60 * 1000
+      && normalizeMessageBody(comment.body).trim().replace(/\s+/g, " ").toLowerCase() === normalizedDraft
+    ))) {
+      setStatus("You already posted that comment recently.");
+      return;
+    }
     setSendingQuestion(true);
     const privateRecipientId = questionMode === "private"
       ? (questionPartnerId || questionTarget.creator_id || null)
@@ -2290,11 +2966,13 @@ function privateThreadIncludesUsers(
       return;
     }
     const prefix = questionMode === "private" ? `[PRIVATE to=${privateRecipientId}] ` : "[PUBLIC] ";
-    const { error } = await supabase.from("messages").insert({
-      quest_id: questionTarget.id,
+    const targetQuestId = questionTarget.id;
+    const activeMode = questionMode;
+    const { data: insertedMessage, error } = await supabase.from("messages").insert({
+      quest_id: targetQuestId,
       sender_id: userId,
       body: `${prefix}${trimmed}`,
-    });
+    }).select("id,quest_id,sender_id,body,created_at,profiles:profiles!messages_sender_id_fkey(id,display_name,username,avatar_url)").single();
     setSendingQuestion(false);
     if (error) {
       setStatus(error.message);
@@ -2302,16 +2980,17 @@ function privateThreadIncludesUsers(
     }
     setQuestionDrafts((current) => {
       const next = { ...current };
-      delete next[getQuestionDraftKey(questionTarget.id, questionMode)];
+      delete next[getQuestionDraftKey(targetQuestId, activeMode)];
       return next;
     });
-    setShowQuestionModal(false);
-    setQuestionTarget(null);
-    setQuestionPartnerId(null);
     setQuestionText("");
-    setQuestionComments([]);
-    setStatus(`${questionMode === "private" ? "Private" : "Public"} question sent ✅ Check Inbox for replies.`);
+    if (insertedMessage) {
+      setQuestionComments((current) => [...current, insertedMessage as MessageRow].sort((a, b) => +new Date(a.created_at) - +new Date(b.created_at)));
+    }
+    setStatus(`${activeMode === "private" ? "Message" : "Comment"} sent.`);
+    requestAnimationFrame(() => questionScrollRef.current?.scrollToEnd({ animated: true }));
     await refreshAll();
+    void maybeShowContextualPushPrompt(activeMode === "private" ? "message" : "comment");
   }
 
   async function shareQuest(quest: QuestPreview) {
@@ -2321,6 +3000,36 @@ function privateThreadIncludesUsers(
     } catch {
       setStatus("Could not open share sheet.");
     }
+  }
+
+  async function openQuestLocation(quest: QuestPreview | QuestDetail) {
+    const destination = quest.exact_address?.trim() || quest.city?.trim();
+    if (!destination) {
+      setStatus("This quest does not have a location yet.");
+      return;
+    }
+    if (/^https?:\/\//i.test(destination)) {
+      try {
+        await RNLinking.openURL(destination);
+      } catch {
+        setStatus("Could not open this quest link.");
+      }
+      return;
+    }
+    const encodedDestination = encodeURIComponent(destination);
+    const openMapUrl = async (url: string) => {
+      try {
+        await RNLinking.openURL(url);
+      } catch {
+        setStatus("Could not open that map service on this device.");
+      }
+    };
+    Alert.alert("Open directions", destination, [
+      { text: "Apple Maps", onPress: () => void openMapUrl(`http://maps.apple.com/?daddr=${encodedDestination}&dirflg=d`) },
+      { text: "Google Maps", onPress: () => void openMapUrl(`https://www.google.com/maps/dir/?api=1&destination=${encodedDestination}&travelmode=driving`) },
+      { text: "Waze", onPress: () => void openMapUrl(`https://waze.com/ul?q=${encodedDestination}&navigate=yes`) },
+      { text: "Cancel", style: "cancel" },
+    ]);
   }
 
   async function openProfile(profileId?: string | null) {
@@ -2334,7 +3043,7 @@ function privateThreadIncludesUsers(
     try {
       const [{ data: profileData }, { data: questData }] = await Promise.all([
         supabase.from("profiles").select("id,display_name,username,city,region,country_code,bio,avatar_url,show_location,radius_km,friends_visibility").eq("id", profileId).maybeSingle(),
-        supabase.from("quests").select("id,creator_id,title,description,city,availability,skill_level,join_mode,exact_address,created_at,media_items,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,username,avatar_url)").eq("creator_id", profileId).order("created_at", { ascending: false }).limit(12),
+        supabase.from("quests").select("id,creator_id,title,description,city,availability,starts_at,skill_level,join_mode,exact_address,created_at,media_items,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,username,avatar_url)").eq("creator_id", profileId).order("created_at", { ascending: false }).limit(12),
       ]);
       if (!profileData && profileId === userId && profile) {
         setSelectedProfile({ ...(profile as ProfileDetail), quests: (questData || []) as QuestPreview[] });
@@ -2582,6 +3291,14 @@ function privateThreadIncludesUsers(
 
   async function signOut() {
     if (!supabase) return;
+    const liveActivityToken = liveActivityPushTokenRef.current;
+    if (liveActivityToken) {
+      await supabase.rpc("deactivate_live_activity_push_token", {
+        p_token: liveActivityToken.token,
+      }).then(({ error }) => {
+        if (error) console.warn("live activity token deactivation failed", error.message);
+      });
+    }
     await supabase.auth.signOut();
     setActiveTab("home");
     setSavedQuests([]);
@@ -2589,6 +3306,7 @@ function privateThreadIncludesUsers(
     setJoinedQuestIds([]);
     setMembershipStatusByQuest({});
     setMessages([]);
+    setInboxProfilesById({});
     setNotifications([]);
     setProfile(null);
     setSelectedQuestJoined(false);
@@ -2602,6 +3320,8 @@ function privateThreadIncludesUsers(
     setEulaRequired(false);
     setEulaConsentChecked(false);
     pushTokenRegisteredForUserRef.current = null;
+    liveActivityPushTokenRef.current = null;
+    setLiveActivityPushToStartSupported(null);
   }
 
   async function openSupportEmail() {
@@ -2733,7 +3453,7 @@ function privateThreadIncludesUsers(
         return null;
       }
       const current = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
+        accuracy: Location.Accuracy.High,
       });
       const next = {
         lat: current.coords.latitude,
@@ -2809,12 +3529,13 @@ function privateThreadIncludesUsers(
       setStatus("Please choose a location suggestion from the list.");
       return;
     }
-    if (availabilityMode === "specific_time" && !startAt.trim()) {
-      setStatus("Pick a specific start time.");
+    if (!startAt.trim()) {
+      setStatus("Choose a date and start time.");
       return;
     }
-    if (isRecurring && !recurringStartDate.trim()) {
-      setStatus("Pick a recurring start date.");
+    const selectedStartTime = new Date(startAt);
+    if (!Number.isFinite(selectedStartTime.getTime()) || selectedStartTime.getTime() <= Date.now()) {
+      setStatus("Choose a start time in the future.");
       return;
     }
     if (!Number.isFinite(selectedGroupSize) || selectedGroupSize <= 0) {
@@ -2850,10 +3571,12 @@ function privateThreadIncludesUsers(
       return;
     }
 
-    const derivedCity = locationMode === "remote" ? "Virtual" : deriveCityFromLocation(draftExactAddress) || draftExactAddress.split(",")[0]?.trim() || "";
+    const derivedCity = locationMode === "remote"
+      ? "Virtual"
+      : selectedPublicLocation || deriveCityFromLocation(draftExactAddress) || draftExactAddress.split(",")[0]?.trim() || "";
     const availabilityParts = [
-      availabilityMode === "specific_time" ? `Start at: ${new Date(startAt).toLocaleString()}` : "Let's find the best time",
-      isRecurring ? `Recurring ${recurringFrequency} from ${recurringStartDate}` : null,
+      `Start at: ${selectedStartTime.toLocaleString()}`,
+      timeFlexible ? "Time flexible" : null,
     ].filter(Boolean);
     const availabilityText = availabilityParts.join(" · ");
 
@@ -2866,6 +3589,8 @@ function privateThreadIncludesUsers(
           title: draftTitle.trim(),
           city: derivedCity || draftExactAddress.trim(),
           availability: availabilityText,
+          starts_at: selectedStartTime.toISOString(),
+          time_flexible: timeFlexible,
           skill_level: skillLevel,
           exact_address: draftExactAddress.trim(),
         }, "create");
@@ -2875,24 +3600,26 @@ function privateThreadIncludesUsers(
           return;
         }
       }
-      let mediaItems: Array<{ url: string; type: "image" | "video"; label?: string | null; thumbnailUrl?: string | null }> = [];
-      if (draftMedia) {
+      const mediaItems: Array<{ url: string; type: "image" | "video"; label?: string | null; thumbnailUrl?: string | null }> = [];
+      if (draftMediaItems.length) {
         setUploadingMedia(true);
         try {
-          if (draftMedia.type === "image") {
-            const uploadedUrl = await uploadQuestImage(draftMedia);
-            mediaItems = [{ url: uploadedUrl, type: "image", label: "Cover image", thumbnailUrl: null }];
-          } else {
-            const uploadedUrl = await uploadQuestVideo(draftMedia);
-            mediaItems = [{
+          for (const [index, media] of draftMediaItems.entries()) {
+            const uploadedUrl = media.type === "image"
+              ? await uploadQuestImage(media)
+              : await uploadQuestVideo(media);
+            const thumbnailUrl = media.type === "video" && media.thumbnailUri
+              ? await uploadQuestImage({ uri: media.thumbnailUri, mimeType: "image/jpeg", fileName: "video-thumbnail.jpg" })
+              : null;
+            mediaItems.push({
               url: uploadedUrl,
-              type: "video",
-              label: "Cover video",
-              thumbnailUrl: null,
-            }];
+              type: media.type,
+              label: index === 0 ? (media.type === "image" ? "Cover image" : "Cover video") : null,
+              thumbnailUrl,
+            });
           }
         } catch (error) {
-          setStatus(error instanceof Error ? error.message : "Could not upload quest image.");
+          setStatus(error instanceof Error ? error.message : "Could not upload quest media.");
           return;
         } finally {
           setUploadingMedia(false);
@@ -2907,6 +3634,8 @@ function privateThreadIncludesUsers(
           description: draftDescription.trim() || null,
           city: derivedCity || null,
           availability: availabilityText,
+          starts_at: selectedStartTime.toISOString(),
+          time_flexible: timeFlexible,
           ...(skillLevel && skillLevel !== "any" ? { skill_level: skillLevel } : {}),
           group_size: selectedGroupSize,
           hobby_id: finalHobbyId,
@@ -2930,6 +3659,7 @@ function privateThreadIncludesUsers(
       setStatus("Quest created.");
       await refreshAll();
       setActiveTab("home");
+      void maybeShowContextualPushPrompt("published");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Could not create quest.");
     } finally {
@@ -2938,32 +3668,33 @@ function privateThreadIncludesUsers(
   }
 
   function resetQuestDrafts() {
+    draftMediaItems.forEach((media) => { void deleteGeneratedMediaFile(media); });
     setDraftTitle("");
     setDraftDescription("");
-    setDraftAvailability("");
     setDraftExactAddress("");
     setLocationSuggestions([]);
     setCategoryInput("");
     setCategoryIsCustom(false);
     setDraftHobbyId("");
-    setAvailabilityMode("find_best_time");
     setStartAt("");
-    setIsRecurring(false);
-    setRecurringFrequency("weekly");
-    setRecurringStartDate("");
-    setShowRecurringStartDatePicker(false);
+    setTimeFlexible(false);
     setDraftCountryQuery("");
     setCountrySuggestions([]);
     setSelectedCountrySuggestion(null);
     setSelectedCountryCode(null);
     setSelectedLocationSuggestion(null);
+    setSelectedPublicLocation(null);
+    setLocationSearchLoading(false);
     setSkillLevel("any");
     setGroupSizeChoice("any");
     setGroupSizeCustom("");
     setDraftJoinMode("approval_required");
     setDraftLocationVisibility("private");
     setDraftGroupSize("4");
-    setDraftMedia(null);
+    setDraftMediaItems([]);
+    setVideoTrimDraft(null);
+    setVideoTrimIndex(null);
+    setShowVideoTrimmer(false);
     setShowAdvancedSettings(false);
   }
 
@@ -3005,21 +3736,11 @@ function privateThreadIncludesUsers(
     return data.publicUrl;
   }
 
-  async function pickQuestMedia() {
-    if (uploadingMedia || optimizingMedia) return;
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      setStatus("Photo library permission is required.");
+  async function prepareQuestMedia(asset: ImagePicker.ImagePickerAsset) {
+    if (draftMediaItems.length >= 3) {
+      setStatus("A quest can include up to 3 media items.");
       return;
     }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.All,
-      allowsEditing: true,
-      videoMaxDuration: VIDEO_MAX_DURATION_SECONDS,
-      quality: 0.9,
-    });
-    if (result.canceled || !result.assets?.length) return;
-    const asset = result.assets[0];
     const pickedType = asset.type === "video" || (asset.mimeType || "").startsWith("video/") ? "video" : "image";
     const nextVideoDuration = pickedType === "video" && typeof asset.duration === "number"
       ? asset.duration / 1000
@@ -3028,28 +3749,116 @@ function privateThreadIncludesUsers(
       setStatus("Could not verify this video's length. Please choose it again.");
       return;
     }
-    if (pickedType === "video" && nextVideoDuration > VIDEO_MAX_DURATION_SECONDS + 0.2) {
-      setStatus(`Video must be trimmed to ${VIDEO_MAX_DURATION_SECONDS} seconds or less.`);
-      Alert.alert(
-        "Video is too long",
-        `Choose the video again and use the yellow trim handles to select a clip up to ${VIDEO_MAX_DURATION_SECONDS} seconds.`,
-      );
-      return;
-    }
-    let selectedMedia: DraftMedia = {
+    const selectedMedia: DraftMedia = {
       uri: asset.uri,
+      sourceUri: pickedType === "video" ? asset.uri : undefined,
       mimeType: asset.mimeType || (pickedType === "video" ? "video/mp4" : "image/jpeg"),
       fileName: asset.fileName || (pickedType === "video" ? "quest-video.mp4" : "quest-image.jpg"),
       type: pickedType,
       duration: nextVideoDuration || undefined,
+      sourceDuration: nextVideoDuration || undefined,
       fileSize: asset.fileSize || undefined,
     };
 
-    if (pickedType === "video" && videoCompressor) {
-      setOptimizingMedia(true);
-      setStatus("Optimizing video without visible quality loss...");
-      try {
-        const optimized = await videoCompressor.compress(asset.uri);
+    if (pickedType === "video") {
+      openVideoTrimmer(selectedMedia);
+      return;
+    }
+
+    setDraftMediaItems((current) => [...current, selectedMedia].slice(0, 3));
+    setStatus("Photo added. You can add up to 3 media items.");
+  }
+
+  function openVideoTrimmer(media: DraftMedia, index: number | null = null) {
+    const duration = Math.max(0, media.sourceDuration || media.duration || 0);
+    if (!duration) {
+      setStatus("Could not verify this video's length. Please choose it again.");
+      return;
+    }
+    setVideoTrimDraft({
+      ...media,
+      uri: media.sourceUri || media.uri,
+      duration,
+    });
+    setVideoTrimIndex(index);
+    setVideoTrimStart(0);
+    setVideoTrimEnd(Math.min(duration, VIDEO_MAX_DURATION_SECONDS));
+    setShowVideoTrimmer(true);
+  }
+
+  function closeVideoTrimmer() {
+    if (optimizingMedia) return;
+    setShowVideoTrimmer(false);
+    setVideoTrimDraft(null);
+    setVideoTrimIndex(null);
+  }
+
+  async function deleteGeneratedMediaFile(media: DraftMedia) {
+    if (!videoCompressor) return;
+    try {
+      if (media.uri !== media.sourceUri) await videoCompressor.deleteTemporary(media.uri);
+      if (media.thumbnailUri) await videoCompressor.deleteTemporary(media.thumbnailUri);
+    } catch {
+      // Removing an item from the draft must not be blocked by temporary-file cleanup.
+    }
+  }
+
+  function removeDraftMedia(index: number) {
+    const media = draftMediaItems[index];
+    if (!media) return;
+    setDraftMediaItems((current) => current.filter((_, itemIndex) => itemIndex !== index));
+    void deleteGeneratedMediaFile(media);
+    setStatus("Media removed from this quest.");
+  }
+
+  function confirmRemoveDraftMedia(index: number, closeTrimmerAfter = false) {
+    Alert.alert("Remove this media?", "It will be deleted from this quest draft.", [
+      { text: "Keep", style: "cancel" },
+      {
+        text: "Remove",
+        style: "destructive",
+        onPress: () => {
+          removeDraftMedia(index);
+          if (closeTrimmerAfter) closeVideoTrimmer();
+        },
+      },
+    ]);
+  }
+
+  async function finishVideoTrim() {
+    if (!videoTrimDraft || optimizingMedia) return;
+    const sourceDuration = videoTrimDraft.duration || 0;
+    const clipDuration = videoTrimEnd - videoTrimStart;
+    if (clipDuration <= 0.1 || clipDuration > VIDEO_MAX_DURATION_SECONDS + 0.2) {
+      setStatus(`Choose a clip up to ${VIDEO_MAX_DURATION_SECONDS} seconds.`);
+      return;
+    }
+    if (!videoCompressor && (videoTrimStart > 0.05 || videoTrimEnd < sourceDuration - 0.05)) {
+      setStatus("Video trimming is unavailable on this device.");
+      return;
+    }
+
+    setOptimizingMedia(true);
+    setStatus("Trimming and optimizing video...");
+    try {
+      let selectedMedia = videoTrimDraft;
+      const needsTrim = videoTrimStart > 0.05 || videoTrimEnd < sourceDuration - 0.05;
+      if (needsTrim && videoCompressor) {
+        const trimmed = await videoCompressor.trim(videoTrimDraft.uri, videoTrimStart, videoTrimEnd);
+        selectedMedia = {
+          ...selectedMedia,
+          uri: trimmed.uri,
+          mimeType: trimmed.mimeType,
+          fileName: trimmed.fileName,
+          fileSize: trimmed.fileSize,
+          duration: trimmed.duration || clipDuration,
+        };
+      } else {
+        selectedMedia = { ...selectedMedia, duration: clipDuration };
+      }
+
+      if (videoCompressor) {
+        const optimized = await videoCompressor.compress(selectedMedia.uri);
         selectedMedia = {
           ...selectedMedia,
           uri: optimized.uri,
@@ -3057,24 +3866,92 @@ function privateThreadIncludesUsers(
           fileName: optimized.fileName,
           fileSize: optimized.fileSize,
         };
-        setStatus(optimized.compressed ? "Video optimized and ready to preview." : "Video is already optimized and ready to preview.");
-      } catch (error) {
-        console.warn("video optimization failed", error instanceof Error ? error.message : String(error));
-        setStatus("Video is ready to preview. The original file will be used.");
-      } finally {
-        setOptimizingMedia(false);
+        try {
+          const thumbnail = await videoCompressor.thumbnail(selectedMedia.uri, Math.min(0.2, clipDuration / 2));
+          selectedMedia = { ...selectedMedia, thumbnailUri: thumbnail.uri };
+        } catch {
+          // The feed can still decode the first video frame if poster generation fails.
+        }
       }
-    } else {
-      setStatus(pickedType === "video" ? "Video trimmed and ready to preview." : "Image ready to preview.");
-    }
 
-    if (pickedType === "video" && typeof selectedMedia.fileSize === "number" && selectedMedia.fileSize > VIDEO_MAX_SIZE_BYTES) {
-      setStatus("This video is still over 60MB after optimization. Choose a different clip.");
-      Alert.alert("Video is too large", "The optimized video is still over the 60MB upload limit.");
+      if (typeof selectedMedia.fileSize === "number" && selectedMedia.fileSize > VIDEO_MAX_SIZE_BYTES) {
+        throw new Error("This clip is still over 60MB. Choose a shorter clip.");
+      }
+
+      setDraftMediaItems((current) => {
+        if (videoTrimIndex !== null && current[videoTrimIndex]) {
+          void deleteGeneratedMediaFile(current[videoTrimIndex]);
+          return current.map((item, index) => index === videoTrimIndex ? selectedMedia : item);
+        }
+        return [...current, selectedMedia].slice(0, 3);
+      });
+      setShowVideoTrimmer(false);
+      setVideoTrimDraft(null);
+      setVideoTrimIndex(null);
+      setStatus("Video trimmed and added.");
+    } catch (error) {
+      const rawMessage = error instanceof Error ? error.message : "";
+      const message = rawMessage.includes("VideoCompressionError") || rawMessage.includes("UnexpectedException")
+        ? "This iPhone video could not be trimmed. Try selecting it again or record a new clip."
+        : rawMessage || "Could not trim this video.";
+      setStatus(message);
+      Alert.alert("Could not trim video", message);
+    } finally {
+      setOptimizingMedia(false);
+    }
+  }
+
+  async function pickQuestMedia() {
+    if (uploadingMedia || optimizingMedia) return;
+    if (draftMediaItems.length >= 3) return setStatus("A quest can include up to 3 media items.");
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      const message = "Allow photo access in iPhone Settings, then try again.";
+      setStatus(message);
+      Alert.alert("Photo access needed", message);
       return;
     }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.All,
+      allowsEditing: false,
+      quality: 0.9,
+    });
+    if (result.canceled || !result.assets?.length) return;
+    await prepareQuestMedia(result.assets[0]);
+  }
 
-    setDraftMedia(selectedMedia);
+  async function recordQuestVideo() {
+    if (uploadingMedia || optimizingMedia) return;
+    if (draftMediaItems.length >= 3) return setStatus("A quest can include up to 3 media items.");
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) {
+      const message = "Allow camera and microphone access in iPhone Settings, then try again.";
+      setStatus(message);
+      Alert.alert("Camera access needed", message, [
+        { text: "Not now", style: "cancel" },
+        { text: "Open Settings", onPress: () => void RNLinking.openSettings() },
+      ]);
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+      allowsEditing: false,
+      videoMaxDuration: VIDEO_MAX_DURATION_SECONDS,
+      quality: 0.9,
+    });
+    if (result.canceled || !result.assets?.length) return;
+    await prepareQuestMedia(result.assets[0]);
+  }
+
+  function showQuestMediaOptions(index?: number) {
+    const selectedMedia = typeof index === "number" ? draftMediaItems[index] : null;
+    Alert.alert(selectedMedia ? "Edit media" : "Add quest media", selectedMedia ? "Trim the video again or remove this item." : "Record a short video or choose from your library.", [
+      ...(selectedMedia?.type === "video" ? [{ text: "Trim video", onPress: () => openVideoTrimmer(selectedMedia, index ?? null) }] : []),
+      { text: `Record ${VIDEO_MAX_DURATION_SECONDS}s video`, onPress: () => void recordQuestVideo() },
+      { text: "Choose from library", onPress: () => void pickQuestMedia() },
+      ...(selectedMedia ? [{ text: "Remove media", style: "destructive" as const, onPress: () => confirmRemoveDraftMedia(index as number) }] : []),
+      { text: "Cancel", style: "cancel" },
+    ]);
   }
 
   async function saveProfile() {
@@ -3433,41 +4310,69 @@ function privateThreadIncludesUsers(
 
   async function acceptFriendRequest(requesterId: string) {
     if (!supabase || !userId) return;
-    const { error } = await supabase.from("friends").update({ status: "accepted" }).eq("requester_id", requesterId).eq("addressee_id", userId);
-    if (error) return setStatus(error.message);
-    setStatus("Friend request accepted ✅");
-    await refreshAll();
+    setFriendActionUserId(requesterId);
+    try {
+      const { error } = await supabase.from("friends").update({ status: "accepted" }).eq("requester_id", requesterId).eq("addressee_id", userId);
+      if (error) return setStatus(error.message);
+      if (selectedProfile?.id === requesterId) {
+        setSelectedProfileRelationship({ requester_id: requesterId, addressee_id: userId, status: "accepted" });
+      }
+      await refreshAll();
+      setStatus("Friend request accepted ✅");
+    } finally {
+      setFriendActionUserId((current) => current === requesterId ? null : current);
+    }
   }
 
   async function declineFriendRequest(requesterId: string) {
     if (!supabase || !userId) return;
-    const { error } = await supabase.from("friends").delete().eq("requester_id", requesterId).eq("addressee_id", userId);
-    if (error) return setStatus(error.message);
-    setStatus("Request declined.");
-    await refreshAll();
+    setFriendActionUserId(requesterId);
+    try {
+      const { error } = await supabase.from("friends").delete().eq("requester_id", requesterId).eq("addressee_id", userId);
+      if (error) return setStatus(error.message);
+      if (selectedProfile?.id === requesterId) setSelectedProfileRelationship(null);
+      await refreshAll();
+      setStatus("Request declined.");
+    } finally {
+      setFriendActionUserId((current) => current === requesterId ? null : current);
+    }
   }
 
   async function cancelOutgoingFriendRequest(targetId: string) {
     if (!supabase || !userId) return;
-    const { error } = await supabase.from("friends").delete().eq("requester_id", userId).eq("addressee_id", targetId).eq("status", "pending");
-    if (error) return setStatus(error.message);
-    setStatus("Friend request canceled.");
-    await refreshAll();
+    setFriendActionUserId(targetId);
+    try {
+      const { error } = await supabase.from("friends").delete().eq("requester_id", userId).eq("addressee_id", targetId).eq("status", "pending");
+      if (error) return setStatus(error.message);
+      if (selectedProfile?.id === targetId) setSelectedProfileRelationship(null);
+      await refreshAll();
+      setStatus("Friend request canceled.");
+    } finally {
+      setFriendActionUserId((current) => current === targetId ? null : current);
+    }
   }
 
   async function addFriend(targetId: string) {
     if (!supabase || !userId || userId === targetId) return;
-    const { data: reverse } = await supabase.from("friends").select("requester_id,addressee_id,status").eq("requester_id", targetId).eq("addressee_id", userId).maybeSingle();
-    if ((reverse as { status?: string } | null)?.status === "pending") {
-      const { error } = await supabase.from("friends").update({ status: "accepted" }).eq("requester_id", targetId).eq("addressee_id", userId);
-      if (error) return setStatus(error.message);
-      setStatus("Friend request accepted ✅");
-    } else {
-      const { error } = await supabase.from("friends").insert({ requester_id: userId, addressee_id: targetId, status: "pending" });
-      if (error && !error.message.toLowerCase().includes("duplicate") && !error.message.toLowerCase().includes("unique")) return setStatus(error.message);
-      setStatus("Friend request sent ✅");
+    setFriendActionUserId(targetId);
+    try {
+      let successMessage = "Friend request sent ✅";
+      const { data: reverse } = await supabase.from("friends").select("requester_id,addressee_id,status").eq("requester_id", targetId).eq("addressee_id", userId).maybeSingle();
+      if ((reverse as { status?: string } | null)?.status === "pending") {
+        const { error } = await supabase.from("friends").update({ status: "accepted" }).eq("requester_id", targetId).eq("addressee_id", userId);
+        if (error) return setStatus(error.message);
+        if (selectedProfile?.id === targetId) setSelectedProfileRelationship({ requester_id: targetId, addressee_id: userId, status: "accepted" });
+        successMessage = "Friend request accepted ✅";
+      } else {
+        const { error } = await supabase.from("friends").insert({ requester_id: userId, addressee_id: targetId, status: "pending" });
+        if (error && !error.message.toLowerCase().includes("duplicate") && !error.message.toLowerCase().includes("unique")) return setStatus(error.message);
+        if (selectedProfile?.id === targetId) setSelectedProfileRelationship({ requester_id: userId, addressee_id: targetId, status: "pending" });
+      }
+      await refreshAll();
+      setStatus(successMessage);
+    } finally {
+      setFriendActionUserId((current) => current === targetId ? null : current);
     }
-    await refreshAll();
   }
 
   async function blockProfile(targetId: string) {
@@ -3486,7 +4391,6 @@ function privateThreadIncludesUsers(
     setSavedQuests((current) => current.filter((quest) => quest.creator_id !== targetId));
     setJoinedQuests((current) => current.filter((quest) => quest.creator_id !== targetId));
     setMessages((current) => current.filter((message) => message.sender_id !== targetId));
-    setComments((current) => current.filter((comment) => comment.sender_id !== targetId));
     setNotifications((current) => current.filter((notification) => notification.source_user_id !== targetId));
     if (selectedQuest?.creator_id === targetId) setSelectedQuest(null);
     if (selectedProfile?.id === targetId) setSelectedProfile(null);
@@ -3506,25 +4410,26 @@ function privateThreadIncludesUsers(
   }
 
   async function submitProfileReport() {
-    if (!supabase || !userId || !selectedProfile || selectedProfile.id === userId) return;
+    const target = reportProfileTarget || selectedProfile;
+    if (!supabase || !userId || !target || target.id === userId) return;
     setSubmittingProfileReport(true);
     try {
       const reportId = crypto.randomUUID();
       const { error } = await supabase.from("reports").insert({
         id: reportId,
         reporter_id: userId,
-        reported_user_id: selectedProfile.id,
+        reported_user_id: target.id,
         context_type: "profile_account",
         reason_code: reportProfileReason,
         details: reportProfileDetails.trim() || null,
         severity: "normal",
         auto_flags: {
           report_target_type: "user",
-          report_target_id: selectedProfile.id,
-          report_target_key: `profile:${selectedProfile.id}`,
-          report_target_label: selectedProfile.username ? `${selectedProfile.display_name || "User"} (@${selectedProfile.username})` : selectedProfile.display_name || selectedProfile.id,
-          reported_user_name: selectedProfile.display_name || selectedProfile.id,
-          reported_user_username: selectedProfile.username || null,
+          report_target_id: target.id,
+          report_target_key: `profile:${target.id}`,
+          report_target_label: target.username ? `${target.display_name || "User"} (@${target.username})` : target.display_name || target.id,
+          reported_user_name: target.display_name || target.id,
+          reported_user_username: target.username || null,
         },
       });
       if (error) {
@@ -3542,6 +4447,7 @@ function privateThreadIncludesUsers(
         return;
       }
       setShowReportProfileModal(false);
+      setReportProfileTarget(null);
       setReportProfileDetails("");
       setStatus("Profile report submitted.");
     } catch (error) {
@@ -3683,13 +4589,20 @@ function privateThreadIncludesUsers(
 
   async function removeFriend(friendId: string) {
     if (!supabase || !userId) return;
-    const { error } = await supabase
-      .from("friends")
-      .delete()
-      .or(`and(requester_id.eq.${userId},addressee_id.eq.${friendId}),and(requester_id.eq.${friendId},addressee_id.eq.${userId})`);
-    if (error) return setStatus(error.message);
-    setStatus("Friend removed.");
-    setSettingsBlockedRefreshTick((tick) => tick + 1);
+    setFriendActionUserId(friendId);
+    try {
+      const { error } = await supabase
+        .from("friends")
+        .delete()
+        .or(`and(requester_id.eq.${userId},addressee_id.eq.${friendId}),and(requester_id.eq.${friendId},addressee_id.eq.${userId})`);
+      if (error) return setStatus(error.message);
+      if (selectedProfile?.id === friendId) setSelectedProfileRelationship(null);
+      setSettingsBlockedRefreshTick((tick) => tick + 1);
+      await refreshAll();
+      setStatus("Friend removed.");
+    } finally {
+      setFriendActionUserId((current) => current === friendId ? null : current);
+    }
   }
 
   async function uploadProfilePhoto() {
@@ -3721,22 +4634,32 @@ function privateThreadIncludesUsers(
       });
       const { data } = supabase.storage.from("profile-photos").getPublicUrl(path);
       const avatarUrl = data.publicUrl;
-      const { error: profileError } = await supabase.from("profiles").upsert({
+      const { error: profileUpdateError } = await supabase.from("profiles").upsert({
         id: userId,
         avatar_url: avatarUrl,
         avatar_source_url: avatarUrl,
         photo_onboarding_done: true,
       });
-      if (profileError && !profileError.message.toLowerCase().includes("column")) {
-        throw profileError;
+      let profileError = profileUpdateError;
+      if (profileError?.message.toLowerCase().includes("avatar_source_url")) {
+        const retry = await supabase.from("profiles").upsert({
+          id: userId,
+          avatar_url: avatarUrl,
+          photo_onboarding_done: true,
+        });
+        profileError = retry.error;
       }
+      if (profileError) throw profileError;
       const { error: metaError } = await supabase.auth.updateUser({ data: { avatar_url: avatarUrl } });
       if (metaError) throw new Error(metaError.message);
       setSettingsAvatarUri(avatarUrl);
+      setProfile((current) => current ? { ...current, avatar_url: avatarUrl } : current);
       setStatus("Profile photo updated.");
       await loadAuthedData(userId);
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not upload profile photo.");
+      const message = error instanceof Error ? error.message : "Could not upload profile photo.";
+      setStatus(message);
+      Alert.alert("Couldn’t update photo", message);
     } finally {
       setUploadingAvatar(false);
     }
@@ -3746,13 +4669,17 @@ function privateThreadIncludesUsers(
     if (!supabase || !userId) return;
     setUploadingAvatar(true);
     try {
-      const { error: profileError } = await supabase.from("profiles").upsert({ id: userId, avatar_url: null, avatar_source_url: null });
-      if (profileError && !profileError.message.toLowerCase().includes("column")) {
-        throw profileError;
+      const { error: profileUpdateError } = await supabase.from("profiles").upsert({ id: userId, avatar_url: null, avatar_source_url: null });
+      let profileError = profileUpdateError;
+      if (profileError?.message.toLowerCase().includes("avatar_source_url")) {
+        const retry = await supabase.from("profiles").upsert({ id: userId, avatar_url: null });
+        profileError = retry.error;
       }
+      if (profileError) throw profileError;
       const { error: metaError } = await supabase.auth.updateUser({ data: { avatar_url: null } });
       if (metaError) throw new Error(metaError.message);
       setSettingsAvatarUri("");
+      setProfile((current) => current ? { ...current, avatar_url: null } : current);
       setStatus("Profile photo removed.");
       await loadAuthedData(userId);
     } catch (error) {
@@ -3763,6 +4690,7 @@ function privateThreadIncludesUsers(
   }
 
   function promptAuth(mode: AuthMode = "login") {
+    signedOutAuthPromptShownRef.current = true;
     setAuthMode(mode);
     setAuthStep("email");
     setOtpCode("");
@@ -3833,31 +4761,37 @@ function privateThreadIncludesUsers(
       if (!recipientId) return;
       const partnerId = message.sender_id === userId ? recipientId : message.sender_id;
       if (!partnerId) return;
+      const partnerProfile = inboxProfilesById[partnerId];
       const threadKey = `${questId}:${partnerId || "unknown"}`;
+      const existing = threadMap.get(threadKey);
+      const isIncoming = message.sender_id !== userId;
       const next = {
         threadKey,
         quest,
         questId,
         partnerId,
-        partnerName: message.sender_id === userId
-          ? "You"
-          : (senderProfile?.display_name || senderProfile?.username || "Someone"),
-        partnerAvatarUrl: senderProfile?.avatar_url || null,
+        partnerName: partnerProfile?.display_name || partnerProfile?.username || (isIncoming ? senderProfile?.display_name || senderProfile?.username : existing?.partnerName) || "QuestHat member",
+        partnerAvatarUrl: partnerProfile?.avatar_url || (isIncoming ? senderProfile?.avatar_url : existing?.partnerAvatarUrl) || null,
         lastMessage: message,
         messageCount: 1,
       };
-      const existing = threadMap.get(threadKey);
       if (!existing || +new Date(message.created_at) > +new Date(existing.lastMessage.created_at)) {
         threadMap.set(threadKey, {
           ...next,
+          partnerName: isIncoming ? next.partnerName : existing?.partnerName || next.partnerName,
+          partnerAvatarUrl: isIncoming ? next.partnerAvatarUrl : existing?.partnerAvatarUrl || next.partnerAvatarUrl,
           messageCount: existing ? existing.messageCount + 1 : 1,
         });
       } else {
         existing.messageCount += 1;
+        if (isIncoming) {
+          existing.partnerName = next.partnerName;
+          existing.partnerAvatarUrl = next.partnerAvatarUrl;
+        }
       }
     });
     return Array.from(threadMap.values()).sort((a, b) => +new Date(b.lastMessage.created_at) - +new Date(a.lastMessage.created_at));
-  }, [messages, userId]);
+  }, [inboxProfilesById, messages, userId]);
 
   async function markInboxSeen() {
     const stamp = new Date().toISOString();
@@ -3885,6 +4819,49 @@ function privateThreadIncludesUsers(
     await AsyncStorage.setItem("sidequest_last_notifications_seen_at", stamp);
   }
 
+  function safetyPromptStorageKey(context: SafetyPromptContext) {
+    return `${STORED_SAFETY_PROMPT_HIDDEN}:${userId || "anonymous"}:${context}`;
+  }
+
+  async function showSafetyPromptIfNeeded(context: SafetyPromptContext, pendingJoin: PendingSafetyJoin | null = null) {
+    if (!userId) return false;
+    const hidden = await AsyncStorage.getItem(safetyPromptStorageKey(context));
+    if (hidden === "true") return false;
+    setSafetyPromptDontShowAgain(false);
+    setPendingSafetyJoin(pendingJoin);
+    setSafetyPromptContext(context);
+    return true;
+  }
+
+  async function closeSafetyPrompt() {
+    if (safetyPromptContext && safetyPromptDontShowAgain) {
+      await AsyncStorage.setItem(safetyPromptStorageKey(safetyPromptContext), "true");
+    }
+    setSafetyPromptContext(null);
+    setPendingSafetyJoin(null);
+    setSafetyPromptDontShowAgain(false);
+  }
+
+  async function continueFromSafetyPrompt() {
+    const pendingJoin = pendingSafetyJoin;
+    await closeSafetyPrompt();
+    if (!pendingJoin) return;
+    if (pendingJoin.source === "selected") {
+      await toggleJoinSelectedQuest(true);
+    } else {
+      await toggleJoinQuestMobile(pendingJoin.quest, true);
+    }
+  }
+
+  async function resetSafetyPrompts() {
+    if (!userId) return;
+    await AsyncStorage.multiRemove([
+      safetyPromptStorageKey("host"),
+      safetyPromptStorageKey("guest"),
+    ]);
+    setStatus("Safety tips will appear again when you create or join an in-person quest.");
+  }
+
   function openAuthedTab(tab: TabKey) {
     const config = tabs.find((item) => item.key === tab);
     if (config?.auth && !signedIn) {
@@ -3892,6 +4869,9 @@ function privateThreadIncludesUsers(
       return;
     }
     setActiveTab(tab);
+    if (tab === "create" && locationMode === "in_person") {
+      void showSafetyPromptIfNeeded("host");
+    }
     if (tab === "inbox") {
       void markInboxSeen();
       if (signedIn && userId) void loadAuthedData(userId);
@@ -4152,15 +5132,21 @@ function privateThreadIncludesUsers(
             </View>
             <View style={styles.authOauthGrid}>
               <Pressable style={styles.authOauthButton} onPress={() => void socialLogin("apple")} disabled={authBusy}>
-                <Ionicons name="logo-apple" size={20} color="#eef4f6" />
+                <View style={[styles.authOauthLogo, styles.authOauthLogoApple]}>
+                  <Ionicons name="logo-apple" size={20} color="#111111" />
+                </View>
                 <Text style={styles.authOauthText}>Apple</Text>
               </Pressable>
               <Pressable style={styles.authOauthButton} onPress={() => void socialLogin("google")} disabled={authBusy}>
-                <Ionicons name="logo-google" size={19} color="#eef4f6" />
+                <View style={[styles.authOauthLogo, styles.authOauthLogoGoogle]}>
+                  <Ionicons name="logo-google" size={19} color="#4285f4" />
+                </View>
                 <Text style={styles.authOauthText}>Google</Text>
               </Pressable>
               <Pressable style={styles.authOauthButton} onPress={() => void socialLogin("facebook")} disabled={authBusy}>
-                <Ionicons name="logo-facebook" size={19} color="#eef4f6" />
+                <View style={[styles.authOauthLogo, styles.authOauthLogoFacebook]}>
+                  <Ionicons name="logo-facebook" size={19} color="#ffffff" />
+                </View>
                 <Text style={styles.authOauthText}>Facebook</Text>
               </Pressable>
             </View>
@@ -4213,40 +5199,73 @@ function privateThreadIncludesUsers(
 
   function renderPushPromptModal() {
     if (!showPushPromptModal || !signedIn) return null;
+    const promptContent = {
+      generic: {
+        title: "Turn on notifications?",
+        subtitle: "Get alerts for requests, messages, and quest updates.",
+        copy: "You can choose which alerts reach you anytime in Settings.",
+        icon: "notifications" as const,
+      },
+      message: {
+        title: "See when they reply",
+        subtitle: "You sent your message. Get an alert when the conversation moves.",
+        copy: "No need to keep checking your inbox.",
+        icon: "chatbubble-ellipses" as const,
+      },
+      comment: {
+        title: "Keep up with the conversation",
+        subtitle: "Get an alert when there is new activity on this quest.",
+        copy: "Stay in the loop without keeping the app open.",
+        icon: "chatbox" as const,
+      },
+      join_request: {
+        title: "See when they decide",
+        subtitle: "Your request was sent. Get an alert when the host accepts or declines it.",
+        copy: "We will let you know as soon as the host responds.",
+        icon: "time" as const,
+      },
+      joined: {
+        title: "Don't miss quest updates",
+        subtitle: "You're in. Get alerts when the plan or conversation changes.",
+        copy: "Stay updated without checking the quest repeatedly.",
+        icon: "checkmark-circle" as const,
+      },
+      published: {
+        title: "Know when people respond",
+        subtitle: "Your quest is live. Get alerts for join requests, comments, and messages.",
+        copy: "Respond quickly when people want to join your plan.",
+        icon: "megaphone" as const,
+      },
+    }[pushPromptContext];
+    const permissionWasDenied = pushPermissionStatus === "denied";
     return (
-      <Modal visible transparent animationType="fade" onRequestClose={() => setShowPushPromptModal(false)}>
+      <Modal visible transparent animationType="fade" onRequestClose={dismissPushPrompt}>
         <View style={styles.modalBackdrop}>
-          <Pressable style={styles.modalBackdropPressable} onPress={() => setShowPushPromptModal(false)} />
+          <Pressable style={styles.modalBackdropPressable} onPress={dismissPushPrompt} />
           <View style={[styles.modalSheet, styles.pushPromptSheet, { backgroundColor: shellSurface, borderColor: shellBorder }]}>
             <View style={[styles.modalHeader, styles.pushPromptHeader]}>
               <View style={{ flex: 1, paddingRight: 12 }}>
-                <Text style={[styles.authModalTitle, { color: shellText }]}>Turn on notifications?</Text>
+                <Text style={[styles.authModalTitle, { color: shellText }]}>{promptContent.title}</Text>
                 <Text style={[styles.authModalSubtitle, { color: shellMuted }]}>
-                  Get alerts for requests, messages, and quest updates.
+                  {promptContent.subtitle}
                 </Text>
               </View>
-              <Pressable onPress={() => setShowPushPromptModal(false)}>
+              <Pressable onPress={dismissPushPrompt}>
                 <Ionicons name="close" size={24} color={shellMuted} />
               </Pressable>
             </View>
             <View style={styles.pushPromptBody}>
               <View style={styles.pushPromptIconWrap}>
-                <Ionicons name="notifications" size={28} color={shellPrimary} />
+                <Ionicons name={promptContent.icon} size={28} color={shellPrimary} />
               </View>
               <Text style={[styles.pushPromptCopy, { color: shellMuted }]}>
-                You can change this anytime in Settings.
+                {permissionWasDenied ? `${promptContent.copy} Notifications are currently blocked in iPhone Settings.` : promptContent.copy}
               </Text>
             </View>
             <View style={styles.pushPromptActions}>
               <Pressable
                 style={[styles.secondaryButton, styles.pushPromptButton]}
-                onPress={() => {
-                  const stamp = Date.now();
-                  const key = userId ? `${STORED_PUSH_PROMPT_DISMISSED_AT}:${userId}` : STORED_PUSH_PROMPT_DISMISSED_AT;
-                  void AsyncStorage.setItem(key, String(stamp));
-                  setPushPromptDismissedAt(stamp);
-                  setShowPushPromptModal(false);
-                }}
+                onPress={dismissPushPrompt}
                 disabled={pushPromptLoading}
               >
                 <Text style={styles.secondaryButtonText}>Not now</Text>
@@ -4256,10 +5275,7 @@ function privateThreadIncludesUsers(
                 onPress={() => {
                   if (!userId) return;
                   setPushPromptLoading(true);
-                  void requestPushPermissionAndRegisterForUser(userId)
-                    .then((token) => {
-                      if (token) pushTokenRegisteredForUserRef.current = userId;
-                    })
+                  void enableNotificationsFromApp()
                     .catch((error) => {
                       console.warn("push permission request failed", error instanceof Error ? error.message : String(error));
                     })
@@ -4270,10 +5286,128 @@ function privateThreadIncludesUsers(
                 }}
                 disabled={pushPromptLoading}
               >
-                <Text style={styles.primaryButtonText}>{pushPromptLoading ? "Waiting..." : "Continue"}</Text>
+                <Text style={styles.primaryButtonText}>{pushPromptLoading ? "Waiting..." : permissionWasDenied ? "Open Settings" : "Turn on alerts"}</Text>
               </Pressable>
             </View>
           </View>
+        </View>
+      </Modal>
+    );
+  }
+
+  function renderMeetupSafetyModal() {
+    if (!safetyPromptContext) return null;
+    const isHostPrompt = safetyPromptContext === "host";
+    const tips: Array<{ icon: keyof typeof Ionicons.glyphMap; title: string; copy: string }> = isHostPrompt
+      ? [
+          { icon: "business-outline", title: "Choose a public place", copy: "For a first meetup, use a busy, well-lit venue instead of a private home or isolated area." },
+          { icon: "people-outline", title: "Share your plan", copy: "Tell someone you trust the exact location, who you’re meeting, and when you expect to return. Arrange periodic check-ins and decide what they should do if you miss one." },
+          { icon: "location-outline", title: "Protect private details", copy: "Keep your exact address hidden until you approve the right guests. You can revoke access at any time." },
+          { icon: "shield-checkmark-outline", title: "Stay in control", copy: "Keep your phone charged, arrange your own transportation, and leave, block, or report if anything feels wrong." },
+        ]
+      : [
+          { icon: "chatbubbles-outline", title: "Verify the plan", copy: "Review the host’s profile and quest details. Keep early conversations in QuestHat so you can report concerns." },
+          { icon: "business-outline", title: "Meet in public", copy: "For a first meetup, choose a busy, well-lit place and avoid changing to an isolated location." },
+          { icon: "people-outline", title: "Share your plan", copy: "Tell someone you trust the exact location, who you’re meeting, and when you expect to return. Arrange periodic check-ins and decide what they should do if you miss one." },
+          { icon: "navigate-outline", title: "Keep an exit plan", copy: "Use your own transportation, keep your phone charged, and leave, block, or report if anything feels wrong." },
+        ];
+    return (
+      <View style={[styles.modalOverlay, styles.modalOverlayRaised]} pointerEvents="box-none">
+        <Pressable style={styles.modalBackdropPressable} onPress={() => void closeSafetyPrompt()} />
+        <View style={[styles.modalCard, styles.meetupSafetyCard, styles.modalCardElevated]}>
+          <View style={styles.meetupSafetyHeader}>
+            <View style={styles.meetupSafetyIcon}><Ionicons name="shield-checkmark" size={25} color="#082f3a" /></View>
+            <View style={styles.meetupSafetyHeadingCopy}>
+              <Text style={styles.meetupSafetyEyebrow}>SAFER MEETUPS</Text>
+              <Text style={styles.meetupSafetyTitle}>{isHostPrompt ? "Host with a plan" : "Before you join"}</Text>
+              <Text style={styles.meetupSafetySubtitle}>{isHostPrompt ? "A few habits can make an in-person quest safer for everyone." : "Take a moment to protect yourself before meeting someone new."}</Text>
+            </View>
+            <Pressable style={styles.meetupSafetyClose} onPress={() => void closeSafetyPrompt()} accessibilityLabel="Dismiss safety tips">
+              <Ionicons name="close" size={19} color="#dce7eb" />
+            </Pressable>
+          </View>
+
+          <View style={styles.meetupSafetyTips}>
+            {tips.map((tip) => (
+              <View key={tip.title} style={styles.meetupSafetyTipRow}>
+                <View style={styles.meetupSafetyTipIcon}><Ionicons name={tip.icon} size={18} color="#9bd8e4" /></View>
+                <View style={styles.meetupSafetyTipCopy}>
+                  <Text style={styles.meetupSafetyTipTitle}>{tip.title}</Text>
+                  <Text style={styles.meetupSafetyTipText}>{tip.copy}</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+
+          <Pressable style={styles.meetupSafetyRememberRow} onPress={() => setSafetyPromptDontShowAgain((current) => !current)}>
+            <View style={[styles.checkbox, safetyPromptDontShowAgain && styles.checkboxChecked]}>
+              {safetyPromptDontShowAgain ? <Ionicons name="checkmark" size={14} color="#ffffff" /> : null}
+            </View>
+            <Text style={styles.meetupSafetyRememberText}>Don’t show these {isHostPrompt ? "hosting" : "joining"} tips again</Text>
+          </Pressable>
+
+          <Pressable style={styles.meetupSafetyContinue} onPress={() => void continueFromSafetyPrompt()}>
+            <Text style={styles.meetupSafetyContinueText}>{isHostPrompt ? "Got it, create safely" : "Continue to join"}</Text>
+            <Ionicons name="arrow-forward" size={18} color="#082f3a" />
+          </Pressable>
+          <Pressable style={styles.meetupSafetyDismiss} onPress={() => void closeSafetyPrompt()}>
+            <Text style={styles.meetupSafetyDismissText}>{isHostPrompt ? "Dismiss" : "Not now"}</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
+
+  function renderUpcomingQuestAnnouncement() {
+    if (!upcomingQuestAnnouncement?.starts_at) return null;
+    const startsAt = new Date(upcomingQuestAnnouncement.starts_at);
+    const hasStarted = startsAt.getTime() <= countdownNow;
+    const dismissForEvent = () => {
+      const questId = upcomingQuestAnnouncement.id;
+      shownUpcomingQuestIdRef.current = questId;
+      setUpcomingQuestAnnouncement(null);
+      setDismissedUpcomingQuestIds((current) => {
+        const next = current.includes(questId) ? current : [...current, questId];
+        if (userId) {
+          void AsyncStorage.setItem(`${STORED_DISMISSED_EVENT_ANNOUNCEMENTS}:${userId}`, JSON.stringify(next));
+        }
+        return next;
+      });
+    };
+    return (
+      <Modal visible transparent animationType="fade" onRequestClose={() => setUpcomingQuestAnnouncement(null)}>
+        <View style={styles.modalBackdrop}>
+          <Pressable style={styles.modalBackdropPressable} onPress={() => setUpcomingQuestAnnouncement(null)} />
+          <LinearGradient colors={["#183f4c", "#111923", "#10121a"]} style={styles.upcomingQuestCard}>
+            <View style={styles.upcomingQuestTopRow}>
+              <View style={styles.upcomingQuestIcon}><Ionicons name="alarm" size={23} color="#082f3a" /></View>
+              <View style={styles.upcomingQuestHeading}>
+                <Text style={styles.upcomingQuestEyebrow}>{hasStarted ? "STARTING NOW" : "STARTING SOON"}</Text>
+                <Text style={styles.upcomingQuestTitle} numberOfLines={2}>{upcomingQuestAnnouncement.title}</Text>
+              </View>
+              <Pressable style={styles.upcomingQuestClose} onPress={() => setUpcomingQuestAnnouncement(null)}><Ionicons name="close" size={20} color="#cbd5e1" /></Pressable>
+            </View>
+            <View style={styles.upcomingQuestCountdownPanel}>
+              <Text style={styles.upcomingQuestCountdownLabel}>{hasStarted ? "THE QUEST HAS STARTED" : "STARTS IN"}</Text>
+              <Text style={styles.upcomingQuestCountdown}>{hasStarted ? "NOW" : formatEventCountdown(upcomingQuestAnnouncement.starts_at, countdownNow)}</Text>
+              <Text style={styles.upcomingQuestDate}>{startsAt.toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</Text>
+            </View>
+            <Pressable
+              style={styles.upcomingQuestAction}
+              onPress={() => {
+                const questId = upcomingQuestAnnouncement.id;
+                setUpcomingQuestAnnouncement(null);
+                void openQuestDetail(questId);
+              }}
+            >
+              <Text style={styles.upcomingQuestActionText}>View quest</Text>
+              <Ionicons name="arrow-forward" size={19} color="#082f3a" />
+            </Pressable>
+            <Pressable style={styles.upcomingQuestDismissEvent} onPress={dismissForEvent}>
+              <Ionicons name="eye-off-outline" size={16} color="#afc2c9" />
+              <Text style={styles.upcomingQuestDismissEventText}>Don't show this again for this event</Text>
+            </Pressable>
+          </LinearGradient>
         </View>
       </Modal>
     );
@@ -4458,9 +5592,14 @@ function privateThreadIncludesUsers(
     const fallbackVisual = getCategoryFallbackMedia(getCategory(quest));
     const fallbackImageUrl = `https://questhat.com${fallbackVisual.imagePath}`;
     const questCoords = questCoordsById[quest.id];
-    const distanceLabel = deviceLocation && questCoords
+    const distanceLabel = locationStatus === "loading"
+      ? "Locating..."
+      : deviceLocation && questCoords
       ? distanceLabelMiles(haversineMiles(deviceLocation.lat, deviceLocation.lon, questCoords.lat, questCoords.lon))
-      : "Nearby";
+      : !deviceLocation
+        ? "Use my location"
+        : "Distance unavailable";
+    const cityStateLabel = formatQuestCityState(quest.city);
     const isSaved = bookmarkedQuestIds.includes(quest.id);
     const membershipStatus = membershipStatusByQuest[quest.id] || null;
     const isJoined = joinedQuestIds.includes(quest.id);
@@ -4500,6 +5639,7 @@ function privateThreadIncludesUsers(
       : joinButtonMuted
         ? isLightTheme ? "#0f5f73" : "#dff7fb"
         : "#082f3a";
+    const feedCountdown = quest.starts_at ? formatFeedCountdown(quest.starts_at, countdownNow) : null;
 
     return (
       <View
@@ -4512,7 +5652,7 @@ function privateThreadIncludesUsers(
           },
         ]}
       >
-        <View style={styles.feedMediaWrap}>
+        <View style={[styles.feedMediaWrap, { height: Math.max(500, windowHeight - 240) }]}>
           <FeedMediaCarousel
             mediaItems={mediaItems}
             fallbackImageUrl={fallbackImageUrl}
@@ -4536,10 +5676,21 @@ function privateThreadIncludesUsers(
               <Text style={styles.feedCreatorName} numberOfLines={1}>{hostName}</Text>
             </Pressable>
             <View style={styles.feedTopActions}>
-              <View style={styles.feedDistancePill}>
-                <Ionicons name={quest.city === "Virtual" ? "videocam-outline" : "location-outline"} size={13} color="#ffffff" />
-                <Text style={styles.feedDistancePillText} numberOfLines={1}>{quest.city === "Virtual" ? "Virtual" : distanceLabel}</Text>
-              </View>
+              <Pressable
+                style={styles.feedLocationPill}
+                onPress={() => {
+                  if (!deviceLocation && locationStatus !== "loading") void requestDeviceLocation("Turn on location to calculate real quest distances.");
+                }}
+                disabled={quest.city === "Virtual" || Boolean(deviceLocation) || locationStatus === "loading"}
+              >
+                <View style={styles.feedLocationIcon}>
+                  <Ionicons name={quest.city === "Virtual" ? "videocam-outline" : "location"} size={14} color="#dff7fb" />
+                </View>
+                <View style={styles.feedLocationCopy}>
+                  <Text style={styles.feedDistancePillText} numberOfLines={1}>{quest.city === "Virtual" ? "Virtual quest" : distanceLabel}</Text>
+                  <Text style={styles.feedCityStateText} numberOfLines={1}>{quest.city === "Virtual" ? "Meet online" : cityStateLabel}</Text>
+                </View>
+              </Pressable>
               <Pressable hitSlop={10} style={styles.feedMoreButton} onPress={() => openQuestActionsMenu(quest)}>
                 <Ionicons name="ellipsis-horizontal" size={18} color="#ffffff" />
               </Pressable>
@@ -4549,33 +5700,34 @@ function privateThreadIncludesUsers(
             <View style={styles.feedCategoryPill}>
               <Text style={styles.feedCategory}>{category}</Text>
             </View>
-            <Pressable hitSlop={10} onPress={() => void openQuestDetail(quest.id)}>
-              <Text style={styles.feedTitle} numberOfLines={2}>{quest.title}</Text>
-            </Pressable>
-            <View style={styles.feedMetaRow}>
-              <Ionicons name="calendar-outline" size={14} color="#d9e2e8" />
-              <Text style={styles.feedMetaText} numberOfLines={1}>{quest.availability || "Time decided together"}</Text>
+            <View style={styles.feedTitleMembershipRow}>
+              <View style={styles.feedTitleCopy}>
+                <Pressable hitSlop={10} onPress={() => void openQuestDetail(quest.id)}>
+                  <Text style={styles.feedTitle} numberOfLines={2}>{quest.title}</Text>
+                </Pressable>
+                <View style={styles.feedMetaRow}>
+                  <Ionicons name="calendar-outline" size={14} color="#d9e2e8" />
+                  <Text style={styles.feedMetaText} numberOfLines={1}>{quest.availability || "Time decided together"}</Text>
+                </View>
+              </View>
+              <View style={styles.feedMembershipInline} pointerEvents="box-none">
+                <Pressable
+                  style={[styles.feedJoinButton, styles.feedJoinButtonOnMedia, joinButtonTone]}
+                  onPress={() => {
+                    if (!isJoinActionDisabled) void toggleJoinQuestMobile(quest);
+                  }}
+                  disabled={isJoinActionDisabled}
+                  accessibilityLabel={joinLabel}
+                >
+                  <Ionicons name={joinIcon} size={17} color={joinButtonContentColor} />
+                  <Text style={[styles.feedJoinButtonText, { color: joinButtonContentColor }]} numberOfLines={1}>{joinLabel}</Text>
+                </Pressable>
+                <Text style={styles.feedGoingOnMedia} numberOfLines={1}>
+                  {totalJoined ? `${totalJoined} ${totalJoined === 1 ? "person" : "people"} going` : "Be the first to join"}
+                </Text>
+              </View>
             </View>
           </View>
-        </View>
-        <View style={styles.feedContextRow}>
-          <View style={styles.feedPlaceBlock}>
-            <Text style={[styles.feedPlace, { color: isLightTheme ? "#172033" : "#f0f4f7" }]} numberOfLines={1}>{quest.city || "Location to be decided"}</Text>
-            <Text style={[styles.feedGoing, { color: isLightTheme ? "#64748b" : "#8893a4" }]}>
-              {totalJoined ? `${totalJoined} ${totalJoined === 1 ? "person" : "people"} going` : "Be the first to join"}
-            </Text>
-          </View>
-          <Pressable
-            style={[styles.feedJoinButton, joinButtonTone]}
-            onPress={() => {
-              if (!isJoinActionDisabled) void toggleJoinQuestMobile(quest);
-            }}
-            disabled={isJoinActionDisabled}
-            accessibilityLabel={joinLabel}
-          >
-            <Ionicons name={joinIcon} size={17} color={joinButtonContentColor} />
-            <Text style={[styles.feedJoinButtonText, { color: joinButtonContentColor }]} numberOfLines={1}>{joinLabel}</Text>
-          </Pressable>
         </View>
         <View style={[styles.feedActionsRow, { borderTopColor: isLightTheme ? "rgba(15,23,42,0.07)" : "rgba(255,255,255,0.06)" }]}>
           <Pressable
@@ -4602,6 +5754,12 @@ function privateThreadIncludesUsers(
             <Ionicons name="share-outline" size={21} color={isLightTheme ? "#344054" : "#d5dbe5"} />
             {shareCountByQuestId[quest.id] ? <Text style={[styles.feedActionText, { color: isLightTheme ? "#475569" : "#b7c0cd" }]}>{shareCountByQuestId[quest.id]}</Text> : null}
           </Pressable>
+          {feedCountdown ? (
+            <View style={[styles.feedCountdownPill, { backgroundColor: isLightTheme ? "#e8f3f5" : "rgba(155,216,228,0.11)" }]}>
+              <Ionicons name="timer-outline" size={14} color={isLightTheme ? "#0f5f73" : "#9bd8e4"} />
+              <Text style={[styles.feedCountdownText, { color: isLightTheme ? "#0f5f73" : "#dff7fb" }]} numberOfLines={1}>{feedCountdown}</Text>
+            </View>
+          ) : null}
           <View style={styles.feedActionsSpacer} />
           <Pressable
             style={[styles.feedSaveButton, isSaved && styles.feedSaveButtonActive]}
@@ -4962,15 +6120,29 @@ function privateThreadIncludesUsers(
         ].filter(Boolean).join(" ").toLowerCase();
         return searchable.includes(normalizedHomeSearch);
       });
+      homeVisibleQuestCountRef.current = filteredHomeQuests.length;
       return (
         <>
-          {!signedIn ? renderAuthCard() : null}
           {renderHomeDiscoveryHeader(homeCategories, filteredHomeQuests.length)}
           {feedViewMode === "map" ? (
             renderMapView(filteredHomeQuests)
           ) : filteredHomeQuests.length ? (
-            <View style={styles.homeFeedStack}>
-              {filteredHomeQuests.map((quest) => renderFeedCard(quest))}
+            <View
+              style={styles.homeFeedStack}
+              onLayout={(event) => {
+                homeFeedOffsetRef.current = event.nativeEvent.layout.y;
+              }}
+            >
+              {filteredHomeQuests.map((quest, index) => (
+                <View
+                  key={quest.id}
+                  onLayout={index === 3 ? (event) => {
+                    fourthQuestOffsetRef.current = event.nativeEvent.layout.y;
+                  } : undefined}
+                >
+                  {renderFeedCard(quest)}
+                </View>
+              ))}
             </View>
           ) : (
             <View style={[styles.homeEmptyCard, { backgroundColor: isLightTheme ? "#ffffff" : "#151722", borderColor: shellBorder }]}>
@@ -4999,7 +6171,7 @@ function privateThreadIncludesUsers(
     }
 
     if (activeTab === "create") {
-      const titleSuggestions = getTitleSuggestionsByCategory(categoryInput || draftTitle || "");
+      const titleSuggestions = getTitleSuggestionsByCategory(categoryInput);
       const normalizedDraftLocation = normalizeQuestLocationQuery(draftExactAddress);
       const locationReady = locationMode === "remote"
         ? Boolean(draftExactAddress.trim())
@@ -5008,13 +6180,12 @@ function privateThreadIncludesUsers(
           && selectedLocationSuggestion
           && normalizeQuestLocationQuery(selectedLocationSuggestion) === normalizedDraftLocation
         );
-      const scheduleReady = availabilityMode === "find_best_time" || Boolean(startAt.trim());
-      const recurrenceReady = !isRecurring || Boolean(recurringStartDate.trim());
+      const scheduleReady = Boolean(startAt.trim() && new Date(startAt).getTime() > Date.now());
       const parsedCreateGroupSize = Number.parseInt(groupSizeChoice === "custom" ? groupSizeCustom : draftGroupSize, 10);
       const groupSizeReady = Number.isFinite(parsedCreateGroupSize) && parsedCreateGroupSize > 0;
       const ideaReady = Boolean(categoryInput.trim() && draftTitle.trim());
-      const canPublishQuest = ideaReady && locationReady && scheduleReady && recurrenceReady && groupSizeReady && !optimizingMedia && !uploadingMedia && !creatingQuest;
-      const requiredStepsComplete = [ideaReady, scheduleReady && recurrenceReady, locationReady].filter(Boolean).length;
+      const canPublishQuest = ideaReady && locationReady && scheduleReady && groupSizeReady && !optimizingMedia && !uploadingMedia && !creatingQuest;
+      const requiredStepsComplete = [ideaReady, scheduleReady, locationReady].filter(Boolean).length;
       const visibilityCopy = locationMode === "remote"
         ? {
             private: "Only you can reveal the meeting link.",
@@ -5032,38 +6203,43 @@ function privateThreadIncludesUsers(
         subtitle: string,
         icon: keyof typeof Ionicons.glyphMap,
         complete = false,
+        compact = false,
       ) => (
-        <View style={styles.createSectionHeader}>
-          <View style={[styles.createSectionIcon, complete && styles.createSectionIconComplete]}>
-            <Ionicons name={complete ? "checkmark" : icon} size={18} color={complete ? "#052e2b" : "#9bd8e4"} />
+        <View style={[styles.createSectionHeader, compact && styles.createSectionHeaderCompact]}>
+          <View style={[styles.createSectionIcon, compact && styles.createSectionIconCompact, complete && styles.createSectionIconComplete]}>
+            <Ionicons name={complete ? "checkmark" : icon} size={compact ? 16 : 18} color={complete ? "#052e2b" : "#9bd8e4"} />
           </View>
           <View style={styles.createSectionHeadingCopy}>
-            <Text style={styles.createSectionStep}>{step}</Text>
-            <Text style={styles.createSectionTitle}>{title}</Text>
-            <Text style={styles.createSectionSubtitle}>{subtitle}</Text>
+            <View style={styles.createSectionTitleRow}>
+              <Text style={styles.createSectionStep}>{step}</Text>
+              <Text style={[styles.createSectionTitle, compact && styles.createSectionTitleCompact]}>{title}</Text>
+            </View>
+            <Text style={[styles.createSectionSubtitle, compact && styles.createSectionSubtitleCompact]}>{subtitle}</Text>
           </View>
         </View>
       );
       return (
         <>
           <View style={styles.createShell}>
-            <LinearGradient colors={["#174655", "#102c37", "#11141d"]} style={styles.createHero}>
-              <View style={styles.createHeroTop}>
-                <View style={styles.createHeroMark}><Ionicons name="sparkles" size={20} color="#082f3a" /></View>
-                <View style={styles.createProgressPill}>
-                  <Text style={styles.createProgressText}>{requiredStepsComplete}/3 ready</Text>
-                </View>
+            <LinearGradient colors={["#174655", "#102c37"]} style={styles.createQuickHeader}>
+              <View style={styles.createHeroMark}><Ionicons name="sparkles" size={18} color="#082f3a" /></View>
+              <View style={styles.createQuickHeaderCopy}>
+                <Text style={styles.createHeroEyebrow}>NEW QUEST</Text>
+                <Text style={styles.createQuickHeaderTitle}>Make a plan</Text>
+                <Text style={styles.createQuickHeaderSubtitle}>Three details. Publish in under a minute.</Text>
               </View>
-              <Text style={styles.createHeroEyebrow}>NEW QUEST</Text>
-              <Text style={styles.createHeroTitle}>Turn an idea into a real plan.</Text>
-              <Text style={styles.createHeroCopy}>Give people enough detail to confidently say yes.</Text>
-              <View style={styles.createProgressTrack}>
-                <View style={[styles.createProgressFill, { width: `${(requiredStepsComplete / 3) * 100}%` }]} />
+              <View style={styles.createQuickProgress}>
+                <Text style={styles.createQuickProgressValue}>{requiredStepsComplete}/3</Text>
+                <Text style={styles.createQuickProgressLabel}>READY</Text>
               </View>
+              <Pressable accessibilityLabel="Close create quest" style={styles.createQuickClose} onPress={() => setActiveTab("home")}>
+                <Ionicons name="close" size={18} color="#dff7fb" />
+              </Pressable>
             </LinearGradient>
 
-            <View style={styles.createSectionCard}>
-              {renderCreateSectionHeader("01", "What are you doing?", "A clear title gets the right people interested.", "bulb-outline", ideaReady)}
+            <View style={styles.createQuickCard}>
+            <View style={styles.createQuickSection}>
+              {renderCreateSectionHeader("01", "What are you doing?", "Choose a category and give it a clear title.", "bulb-outline", ideaReady, true)}
               <View style={styles.createFieldGroup}>
                 <Text style={styles.createFieldLabel}>Category</Text>
                 <Pressable style={styles.createSelectField} onPress={() => setShowCategoryPicker(true)}>
@@ -5083,21 +6259,23 @@ function privateThreadIncludesUsers(
                   <Text style={styles.createOptionalLabel}>{draftTitle.trim().length}/80</Text>
                 </View>
                 <TextInput
-                  placeholder={pickTitleSuggestionByCategory(categoryInput || draftTitle || "")}
+                  placeholder={titleSuggestions[0] || "What are you planning?"}
                   placeholderTextColor="#94a3b8"
                   style={styles.createInput}
                   value={draftTitle}
                   onChangeText={(value) => setDraftTitle(value.slice(0, 80))}
                 />
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.createSuggestionRail}>
-                  {titleSuggestions.map((suggestion) => (
-                    <Pressable key={suggestion} style={[styles.createSuggestionChip, draftTitle === suggestion && styles.createSuggestionChipActive]} onPress={() => setDraftTitle(suggestion)}>
-                      <Text style={[styles.createSuggestionText, draftTitle === suggestion && styles.createSuggestionTextActive]}>{suggestion}</Text>
-                    </Pressable>
-                  ))}
-                </ScrollView>
+                {titleSuggestions.length ? (
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.createSuggestionRail}>
+                    {titleSuggestions.map((suggestion) => (
+                      <Pressable key={suggestion} style={[styles.createSuggestionChip, draftTitle === suggestion && styles.createSuggestionChipActive]} onPress={() => setDraftTitle(suggestion)}>
+                        <Text style={[styles.createSuggestionText, draftTitle === suggestion && styles.createSuggestionTextActive]}>{suggestion}</Text>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                ) : null}
               </View>
-              <View style={styles.createFieldGroup}>
+              {showAdvancedSettings ? <View style={styles.createFieldGroup}>
                 <View style={styles.createFieldLabelRow}>
                   <Text style={styles.createFieldLabel}>Description</Text>
                   <Text style={styles.createOptionalLabel}>Optional</Text>
@@ -5110,64 +6288,34 @@ function privateThreadIncludesUsers(
                   value={draftDescription}
                   onChangeText={setDraftDescription}
                 />
-              </View>
+              </View> : null}
             </View>
 
-            <View style={styles.createSectionCard}>
-              {renderCreateSectionHeader("02", "When is it happening?", "Pick a time now or decide together after people join.", "calendar-outline", scheduleReady && recurrenceReady)}
-              <View style={styles.createChoiceRow}>
-                <Pressable style={[styles.createChoiceCard, availabilityMode === "find_best_time" && styles.createChoiceCardActive]} onPress={() => setAvailabilityMode("find_best_time")}>
-                  <Ionicons name="people-outline" size={21} color={availabilityMode === "find_best_time" ? "#082f3a" : "#9bd8e4"} />
-                  <Text style={[styles.createChoiceTitle, availabilityMode === "find_best_time" && styles.createChoiceTitleActive]}>Decide together</Text>
-                  <Text style={[styles.createChoiceCopy, availabilityMode === "find_best_time" && styles.createChoiceCopyActive]}>Find the best time later</Text>
-                </Pressable>
-                <Pressable style={[styles.createChoiceCard, availabilityMode === "specific_time" && styles.createChoiceCardActive]} onPress={() => setAvailabilityMode("specific_time")}>
-                  <Ionicons name="time-outline" size={21} color={availabilityMode === "specific_time" ? "#082f3a" : "#9bd8e4"} />
-                  <Text style={[styles.createChoiceTitle, availabilityMode === "specific_time" && styles.createChoiceTitleActive]}>Set a time</Text>
-                  <Text style={[styles.createChoiceCopy, availabilityMode === "specific_time" && styles.createChoiceCopyActive]}>Choose date and time</Text>
-                </Pressable>
-              </View>
-              {availabilityMode === "specific_time" ? (
-                <Pressable style={styles.createSelectField} onPress={() => setShowStartAtPicker(true)}>
-                  <View style={styles.createFieldLeading}><Ionicons name="calendar-clear-outline" size={17} color="#0f5f73" /></View>
-                  <Text style={[styles.createSelectValue, !startAt && styles.dropdownPlaceholder]} numberOfLines={1}>
-                    {startAt ? new Date(startAt).toLocaleString() : "Choose date and time"}
-                  </Text>
-                  <Ionicons name="chevron-forward" size={17} color="#64748b" />
-                </Pressable>
-              ) : null}
+            <View style={styles.createQuickDivider} />
+            <View style={styles.createQuickSection}>
+              {renderCreateSectionHeader("02", "When?", "Every quest needs a date and start time.", "calendar-outline", scheduleReady, true)}
+              <Pressable style={styles.createSelectField} onPress={() => setShowStartAtPicker(true)}>
+                <View style={styles.createFieldLeading}><Ionicons name="calendar-clear-outline" size={17} color="#0f5f73" /></View>
+                <Text style={[styles.createSelectValue, !startAt && styles.dropdownPlaceholder]} numberOfLines={1}>
+                  {startAt ? new Date(startAt).toLocaleString() : "Choose date and time"}
+                </Text>
+                <Ionicons name="chevron-forward" size={17} color="#64748b" />
+              </Pressable>
               <View style={styles.createSwitchRow}>
-                <View style={styles.createSwitchIcon}><Ionicons name="repeat-outline" size={19} color="#9bd8e4" /></View>
+                <View style={styles.createSwitchIcon}><Ionicons name="swap-horizontal-outline" size={19} color="#9bd8e4" /></View>
                 <View style={styles.createSwitchCopy}>
-                  <Text style={styles.createSwitchTitle}>Repeat this quest</Text>
-                  <Text style={styles.createSwitchSubtitle}>Useful for weekly clubs and recurring sessions.</Text>
+                  <Text style={styles.createSwitchTitle}>Time flexible</Text>
+                  <Text style={styles.createSwitchSubtitle}>The listed time is real, but you’re open to adjusting it.</Text>
                 </View>
-                <Switch value={isRecurring} onValueChange={setIsRecurring} trackColor={{ false: "#343846", true: "#6daec2" }} thumbColor="#ffffff" />
+                <Switch value={timeFlexible} onValueChange={setTimeFlexible} trackColor={{ false: "#343846", true: "#6daec2" }} thumbColor="#ffffff" />
               </View>
-              {isRecurring ? (
-                <View style={styles.createNestedCard}>
-                  <View style={styles.createPillRow}>
-                    {(["daily", "weekly", "monthly"] as const).map((frequency) => (
-                      <Pressable key={frequency} style={[styles.createPill, recurringFrequency === frequency && styles.createPillActive]} onPress={() => setRecurringFrequency(frequency)}>
-                        <Text style={[styles.createPillText, recurringFrequency === frequency && styles.createPillTextActive]}>{frequency[0].toUpperCase() + frequency.slice(1)}</Text>
-                      </Pressable>
-                    ))}
-                  </View>
-                  <Pressable style={styles.createSelectField} onPress={() => setShowRecurringStartDatePicker(true)}>
-                    <View style={styles.createFieldLeading}><Ionicons name="flag-outline" size={17} color="#0f5f73" /></View>
-                    <Text style={[styles.createSelectValue, !recurringStartDate && styles.dropdownPlaceholder]}>
-                      {recurringStartDate ? `Starts ${new Date(`${recurringStartDate}T12:00:00`).toLocaleDateString()}` : "Choose first date"}
-                    </Text>
-                    <Ionicons name="chevron-forward" size={17} color="#64748b" />
-                  </Pressable>
-                </View>
-              ) : null}
             </View>
 
-            <View style={styles.createSectionCard}>
-              {renderCreateSectionHeader("03", "Where will you meet?", "Choose a verified place or add a virtual meeting link.", "location-outline", locationReady)}
+            <View style={styles.createQuickDivider} />
+            <View style={styles.createQuickSection}>
+              {renderCreateSectionHeader("03", "Where?", "Choose a place or add a virtual meeting link.", "location-outline", locationReady, true)}
               <View style={styles.createChoiceRow}>
-                <Pressable style={[styles.createChoiceCard, locationMode === "in_person" && styles.createChoiceCardActive]} onPress={() => setLocationMode("in_person")}>
+                <Pressable style={[styles.createChoiceCard, locationMode === "in_person" && styles.createChoiceCardActive]} onPress={() => { setLocationMode("in_person"); void showSafetyPromptIfNeeded("host"); }}>
                   <Ionicons name="location-outline" size={21} color={locationMode === "in_person" ? "#082f3a" : "#9bd8e4"} />
                   <Text style={[styles.createChoiceTitle, locationMode === "in_person" && styles.createChoiceTitleActive]}>In person</Text>
                   <Text style={[styles.createChoiceCopy, locationMode === "in_person" && styles.createChoiceCopyActive]}>A real-world place</Text>
@@ -5194,6 +6342,7 @@ function privateThreadIncludesUsers(
                         setSelectedCountryCode(null);
                         setDraftExactAddress("");
                         setSelectedLocationSuggestion(null);
+                        setSelectedPublicLocation(null);
                       }}
                       autoCapitalize="words"
                       autoCorrect={false}
@@ -5213,6 +6362,7 @@ function privateThreadIncludesUsers(
                             setCountrySuggestions([]);
                             setDraftExactAddress("");
                             setSelectedLocationSuggestion(null);
+                            setSelectedPublicLocation(null);
                           }}
                         >
                           <Text style={styles.locationSuggestionText}>{suggestion.label}</Text>
@@ -5227,34 +6377,42 @@ function privateThreadIncludesUsers(
                 <View style={[styles.createInputShell, locationMode === "in_person" && !selectedCountrySuggestion && styles.createInputShellDisabled]}>
                   <Ionicons name={locationMode === "remote" ? "link-outline" : "search-outline"} size={18} color="#0f5f73" />
                   <TextInput
-                    placeholder={locationMode === "remote" ? "Paste a Meet, Zoom, or Teams link" : selectedCountrySuggestion ? "Search nearby places" : "Choose a country first"}
+                    ref={addressInputRef}
+                    placeholder={locationMode === "remote" ? "Paste a Meet, Zoom, or Teams link" : selectedCountrySuggestion ? "Exact address or Barnes & Noble Miami" : "Choose a country first"}
                     placeholderTextColor="#94a3b8"
                     style={styles.createInputInline}
                     value={draftExactAddress}
                     onChangeText={(text) => {
                       setDraftExactAddress(text);
                       setSelectedLocationSuggestion(null);
+                      setSelectedPublicLocation(null);
                     }}
                     autoCapitalize="none"
                     editable={locationMode === "remote" || Boolean(selectedCountrySuggestion)}
                     keyboardType={locationMode === "remote" ? "url" : "default"}
                   />
-                  {locationReady ? <Ionicons name="checkmark-circle" size={19} color="#10b981" /> : null}
+                  {locationSearchLoading ? (
+                    <ActivityIndicator size="small" color="#0f5f73" />
+                  ) : locationReady ? (
+                    <Ionicons name="checkmark-circle" size={19} color="#10b981" />
+                  ) : null}
                 </View>
                 {locationMode === "in_person" && locationSuggestions.length > 0 ? (
                   <View style={styles.locationSuggestionsMenu}>
                     {locationSuggestions.map((suggestion) => (
                       <Pressable
-                        key={suggestion}
+                        key={suggestion.label}
                         style={styles.locationSuggestionItem}
                         onPress={() => {
-                          setDraftExactAddress(suggestion);
-                          setSelectedLocationSuggestion(suggestion);
+                          setDraftExactAddress(suggestion.label);
+                          setSelectedLocationSuggestion(suggestion.label);
+                          setSelectedPublicLocation(suggestion.publicLabel || deriveCityFromLocation(suggestion.label));
+                          setLocationSearchLoading(false);
                           setLocationSuggestions([]);
                         }}
                       >
                         <Ionicons name="location-outline" size={16} color="#0f5f73" />
-                        <Text style={styles.locationSuggestionText} numberOfLines={3}>{suggestion}</Text>
+                        <Text style={styles.locationSuggestionText} numberOfLines={3}>{suggestion.label}</Text>
                       </Pressable>
                     ))}
                   </View>
@@ -5267,7 +6425,7 @@ function privateThreadIncludesUsers(
                       : "Select a result from the list so QuestHat can publish it."}
                 </Text>
               </View>
-              <View style={styles.createFieldGroup}>
+              {showAdvancedSettings ? <View style={styles.createFieldGroup}>
                 <Text style={styles.createFieldLabel}>{locationMode === "remote" ? "Who sees the link?" : "Who sees the exact address?"}</Text>
                 <View style={styles.createVisibilityStack}>
                   {([
@@ -5290,11 +6448,96 @@ function privateThreadIncludesUsers(
                     );
                   })}
                 </View>
-              </View>
+              </View> : null}
+            </View>
             </View>
 
             <View style={styles.createSectionCard}>
-              {renderCreateSectionHeader("04", "Who can join?", "Control approvals and fine-tune the group.", "people-outline", groupSizeReady)}
+              {renderCreateSectionHeader("04", "Add media", "Add up to 3 photos or 15-second videos.", "image-outline", draftMediaItems.length > 0, true)}
+              {draftMediaItems.length ? (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.createMediaTray}>
+                  {draftMediaItems.map((media, index) => (
+                    <View key={`${media.uri}-${index}`} style={styles.createMediaPreview}>
+                      <View style={styles.createMediaNumberBadge}>
+                        <Text style={styles.createMediaNumberText}>{index + 1} of 3</Text>
+                      </View>
+                      {media.type === "image" ? (
+                        <Image source={{ uri: media.uri }} style={styles.createMediaImage} />
+                      ) : (
+                        <QuestVideoPreview key={media.uri} media={media} compact />
+                      )}
+                      <View style={styles.createMediaFooter}>
+                        <View style={styles.createMediaFileCopy}>
+                          <Text style={styles.createMediaReady}>{index === 0 ? "Cover media" : "Ready to publish"}</Text>
+                          <Text style={styles.createMediaFilename} numberOfLines={1}>
+                            {media.type === "video"
+                              ? `${typeof media.duration === "number" ? `${media.duration.toFixed(1)}-second` : "Short"} video`
+                              : "Photo"}
+                          </Text>
+                        </View>
+                        <View style={styles.createMediaItemActions}>
+                          <Pressable
+                            style={styles.createMediaDeleteButton}
+                            onPress={() => confirmRemoveDraftMedia(index)}
+                            disabled={optimizingMedia}
+                            accessibilityLabel={`Remove media ${index + 1}`}
+                          >
+                            <Ionicons name="trash-outline" size={18} color="#fb7185" />
+                          </Pressable>
+                          <Pressable
+                            style={styles.createMediaChangeButton}
+                            onPress={() => media.type === "video" ? openVideoTrimmer(media, index) : showQuestMediaOptions(index)}
+                            disabled={optimizingMedia}
+                          >
+                            <Ionicons name={media.type === "video" ? "cut-outline" : "ellipsis-horizontal"} size={17} color="#dff7fb" />
+                            <Text style={styles.createMediaChangeText}>{media.type === "video" ? "Trim" : "Edit"}</Text>
+                          </Pressable>
+                        </View>
+                      </View>
+                    </View>
+                  ))}
+                </ScrollView>
+              ) : null}
+              {draftMediaItems.length < 3 ? (
+                <View style={styles.createMediaActions}>
+                  <Pressable style={[styles.createMediaAction, styles.createMediaRecordAction]} onPress={() => void recordQuestVideo()} disabled={optimizingMedia}>
+                    <View style={[styles.createMediaActionIcon, styles.createMediaRecordIcon]}>
+                      <Ionicons name="videocam" size={21} color="#ffffff" />
+                    </View>
+                    <View style={styles.createMediaActionCopy}>
+                      <Text style={styles.createMediaActionTitle}>Record video</Text>
+                      <Text style={styles.createMediaActionSubtitle}>Stops at {VIDEO_MAX_DURATION_SECONDS} seconds</Text>
+                    </View>
+                  </Pressable>
+                  <Pressable style={styles.createMediaAction} onPress={() => void pickQuestMedia()} disabled={optimizingMedia}>
+                    <View style={styles.createMediaActionIcon}>
+                      {optimizingMedia ? <ActivityIndicator size="small" color="#082f3a" /> : <Ionicons name="images-outline" size={21} color="#082f3a" />}
+                    </View>
+                    <View style={styles.createMediaActionCopy}>
+                      <Text style={styles.createMediaActionTitle}>{optimizingMedia ? "Optimizing..." : "Choose media"}</Text>
+                      <Text style={styles.createMediaActionSubtitle}>Photo or trimmed video</Text>
+                    </View>
+                  </Pressable>
+                </View>
+              ) : (
+                <View style={styles.createMediaLimitReached}>
+                  <Ionicons name="checkmark-circle" size={18} color="#86efac" />
+                  <Text style={styles.createMediaLimitText}>3 media items added</Text>
+                </View>
+              )}
+            </View>
+
+            <Pressable style={styles.createAdvancedToggle} onPress={() => setShowAdvancedSettings((current) => !current)}>
+              <View style={styles.createAdvancedIcon}><Ionicons name="options-outline" size={18} color="#9bd8e4" /></View>
+              <View style={styles.createSwitchCopy}>
+                <Text style={styles.createSwitchTitle}>Advanced options</Text>
+                <Text style={styles.createSwitchSubtitle}>Description, privacy, joining, and group size.</Text>
+              </View>
+              <Ionicons name={showAdvancedSettings ? "chevron-up" : "chevron-down"} size={18} color="#94a3b8" />
+            </Pressable>
+
+            {showAdvancedSettings ? <View style={styles.createSectionCard}>
+              {renderCreateSectionHeader("05", "Who can join?", "Control approvals and fine-tune the group.", "people-outline", groupSizeReady)}
               <View style={styles.createChoiceRow}>
                 <Pressable style={[styles.createChoiceCard, draftJoinMode === "approval_required" && styles.createChoiceCardActive]} onPress={() => setDraftJoinMode("approval_required")}>
                   <Ionicons name="shield-checkmark-outline" size={21} color={draftJoinMode === "approval_required" ? "#082f3a" : "#9bd8e4"} />
@@ -5307,16 +6550,7 @@ function privateThreadIncludesUsers(
                   <Text style={[styles.createChoiceCopy, draftJoinMode === "open" && styles.createChoiceCopyActive]}>Anyone can join</Text>
                 </Pressable>
               </View>
-              <Pressable style={styles.createAdvancedToggle} onPress={() => setShowAdvancedSettings((current) => !current)}>
-                <View style={styles.createAdvancedIcon}><Ionicons name="options-outline" size={18} color="#9bd8e4" /></View>
-                <View style={styles.createSwitchCopy}>
-                  <Text style={styles.createSwitchTitle}>Group preferences</Text>
-                  <Text style={styles.createSwitchSubtitle}>Skill level and maximum group size.</Text>
-                </View>
-                <Ionicons name={showAdvancedSettings ? "chevron-up" : "chevron-down"} size={18} color="#94a3b8" />
-              </Pressable>
-              {showAdvancedSettings ? (
-                <View style={styles.createNestedCard}>
+              <View style={styles.createNestedCard}>
                   <Text style={styles.createFieldLabel}>Skill level</Text>
                   <View style={styles.createPillRow}>
                     {(["any", "beginner", "intermediate", "advanced"] as const).map((level) => (
@@ -5344,40 +6578,8 @@ function privateThreadIncludesUsers(
                   {groupSizeChoice === "custom" ? (
                     <TextInput placeholder="Maximum people" placeholderTextColor="#94a3b8" keyboardType="number-pad" style={styles.createInput} value={groupSizeCustom} onChangeText={setGroupSizeCustom} />
                   ) : null}
-                </View>
-              ) : null}
-            </View>
-
-            <View style={styles.createSectionCard}>
-              {renderCreateSectionHeader("05", "Add a cover", "Optional, but a relevant photo or short video helps.", "image-outline", Boolean(draftMedia))}
-              {draftMedia ? (
-                <View style={styles.createMediaPreview}>
-                  {draftMedia.type === "image" ? (
-                    <Image source={{ uri: draftMedia.uri }} style={styles.createMediaImage} />
-                  ) : (
-                    <View style={styles.videoEditor}><QuestVideoPreview key={draftMedia.uri} media={draftMedia} /></View>
-                  )}
-                  <View style={styles.createMediaFooter}>
-                    <View style={styles.createMediaFileCopy}>
-                      <Text style={styles.createMediaReady}>Ready to publish</Text>
-                      <Text style={styles.createMediaFilename} numberOfLines={1}>{draftMedia.fileName}</Text>
-                    </View>
-                    <Pressable style={styles.createMediaChangeButton} onPress={() => void pickQuestMedia()} disabled={optimizingMedia}>
-                      <Ionicons name="refresh-outline" size={17} color="#dff7fb" />
-                      <Text style={styles.createMediaChangeText}>Change</Text>
-                    </Pressable>
-                  </View>
-                </View>
-              ) : (
-                <Pressable style={styles.createMediaDropzone} onPress={() => void pickQuestMedia()} disabled={optimizingMedia}>
-                  <View style={styles.createMediaDropIcon}>
-                    {optimizingMedia ? <ActivityIndicator color="#082f3a" /> : <Ionicons name="add" size={26} color="#082f3a" />}
-                  </View>
-                  <Text style={styles.createMediaDropTitle}>{optimizingMedia ? "Optimizing video..." : "Choose photo or video"}</Text>
-                  <Text style={styles.createMediaDropCopy}>Videos open in Apple’s trimmer and can be up to {VIDEO_MAX_DURATION_SECONDS} seconds.</Text>
-                </Pressable>
-              )}
-            </View>
+              </View>
+            </View> : null}
 
             <View style={styles.createPublishCard}>
               <View style={styles.createPublishSummary}>
@@ -5388,7 +6590,7 @@ function privateThreadIncludesUsers(
                   <Text style={styles.createPublishTitle}>{canPublishQuest ? "Ready to publish" : "Finish the required details"}</Text>
                   <Text style={styles.createPublishSubtitle}>
                     {canPublishQuest
-                      ? `${locationMode === "remote" ? "Virtual" : deriveCityFromLocation(draftExactAddress) || "In person"} · ${draftJoinMode === "open" ? "Open join" : "Approval required"}`
+                      ? `${locationMode === "remote" ? "Virtual" : selectedPublicLocation || deriveCityFromLocation(draftExactAddress) || "In person"} · ${draftJoinMode === "open" ? "Open join" : "Approval required"}`
                       : `${requiredStepsComplete} of 3 required sections complete`}
                   </Text>
                 </View>
@@ -5413,18 +6615,75 @@ function privateThreadIncludesUsers(
             </View>
           </View>
 
-          {showStartAtPicker ? (
+          <Modal visible={showVideoTrimmer} transparent animationType="slide" onRequestClose={closeVideoTrimmer}>
             <View style={styles.pickerModalOverlay}>
-              <View style={styles.pickerModalCard}>
+              <Pressable style={styles.modalBackdropPressable} onPress={closeVideoTrimmer} />
+              <View style={styles.videoTrimmerCard}>
+                <View style={styles.createPickerHeader}>
+                  <View>
+                    <Text style={styles.questCategory}>Trim video</Text>
+                    <Text style={styles.createPickerSubtitle}>Choose the best {VIDEO_MAX_DURATION_SECONDS} seconds or less.</Text>
+                  </View>
+                  <Pressable style={styles.createPickerClose} onPress={closeVideoTrimmer} disabled={optimizingMedia}>
+                    <Ionicons name="close" size={20} color="#f8fafc" />
+                  </Pressable>
+                </View>
+                {videoTrimDraft ? (
+                  <>
+                    <NativeVideoPlayer
+                      key={videoTrimDraft.uri}
+                      uri={videoTrimDraft.uri}
+                      compact
+                      trimStart={videoTrimStart}
+                      trimEnd={videoTrimEnd}
+                    />
+                    <View style={styles.videoTrimSummary}>
+                      <Text style={styles.videoTrimDuration}>{(videoTrimEnd - videoTrimStart).toFixed(1)}s clip</Text>
+                      <Text style={styles.videoTrimRange}>{videoTrimStart.toFixed(1)}s – {videoTrimEnd.toFixed(1)}s</Text>
+                    </View>
+                    <VideoRangeTrimmer
+                      duration={videoTrimDraft.duration || VIDEO_MAX_DURATION_SECONDS}
+                      start={videoTrimStart}
+                      end={videoTrimEnd}
+                      onChange={(nextStart, nextEnd) => {
+                        setVideoTrimStart(nextStart);
+                        setVideoTrimEnd(nextEnd);
+                      }}
+                    />
+                    <Pressable style={styles.videoTrimDoneButton} onPress={() => void finishVideoTrim()} disabled={optimizingMedia}>
+                      {optimizingMedia ? <ActivityIndicator size="small" color="#082f3a" /> : <Ionicons name="cut-outline" size={19} color="#082f3a" />}
+                      <Text style={styles.videoTrimDoneText}>{optimizingMedia ? "Preparing clip..." : videoTrimIndex === null ? "Use this clip" : "Save new trim"}</Text>
+                    </Pressable>
+                    {videoTrimIndex !== null ? (
+                      <Pressable style={styles.videoTrimDeleteButton} onPress={() => confirmRemoveDraftMedia(videoTrimIndex, true)} disabled={optimizingMedia}>
+                        <Ionicons name="trash-outline" size={18} color="#fb7185" />
+                        <Text style={styles.videoTrimDeleteText}>Remove clip from quest</Text>
+                      </Pressable>
+                    ) : null}
+                  </>
+                ) : null}
+              </View>
+            </View>
+          </Modal>
+
+          <Modal visible={showStartAtPicker} transparent animationType="fade" onRequestClose={() => setShowStartAtPicker(false)}>
+            <View style={styles.pickerModalOverlay}>
+              <Pressable style={styles.modalBackdropPressable} onPress={() => setShowStartAtPicker(false)} />
+              <View style={[styles.pickerModalCard, styles.createPickerModalCard]}>
                 <View style={styles.row}>
                   <Text style={styles.questCategory}>Choose start time</Text>
                   <Pressable onPress={() => setShowStartAtPicker(false)}><Text style={styles.link}>Close</Text></Pressable>
                 </View>
                 <View style={styles.pickerModalBody}>
                   <DateTimePicker
-                    value={startAt ? new Date(startAt) : new Date()}
+                    value={startAt ? new Date(startAt) : new Date(Date.now() + 60 * 60 * 1000)}
+                    minimumDate={new Date()}
                     mode="datetime"
                     display={Platform.OS === "ios" ? "spinner" : "default"}
+                    themeVariant="dark"
+                    textColor="#f8fafc"
+                    accentColor="#9bd8e4"
+                    style={styles.createDatePicker}
                     onChange={(_, selectedDate) => {
                       if (selectedDate) setStartAt(selectedDate.toISOString());
                       if (Platform.OS !== "ios") setShowStartAtPicker(false);
@@ -5434,43 +6693,28 @@ function privateThreadIncludesUsers(
                 <Pressable style={styles.primaryButton} onPress={() => setShowStartAtPicker(false)}><Text style={styles.primaryButtonText}>Done</Text></Pressable>
               </View>
             </View>
-          ) : null}
-          {showRecurringStartDatePicker ? (
+          </Modal>
+          <Modal visible={showCategoryPicker} transparent animationType="fade" onRequestClose={() => setShowCategoryPicker(false)}>
             <View style={styles.pickerModalOverlay}>
-              <View style={styles.pickerModalCard}>
-                <View style={styles.row}>
-                  <Text style={styles.questCategory}>Choose first date</Text>
-                  <Pressable onPress={() => setShowRecurringStartDatePicker(false)}><Text style={styles.link}>Close</Text></Pressable>
-                </View>
-                <View style={styles.pickerModalBody}>
-                  <DateTimePicker
-                    value={recurringStartDate ? new Date(`${recurringStartDate}T12:00:00`) : new Date()}
-                    mode="date"
-                    display={Platform.OS === "ios" ? "spinner" : "default"}
-                    onChange={(_, selectedDate) => {
-                      if (selectedDate) setRecurringStartDate(formatDateValue(selectedDate));
-                      if (Platform.OS !== "ios") setShowRecurringStartDatePicker(false);
-                    }}
-                  />
-                </View>
-                <Pressable style={styles.primaryButton} onPress={() => setShowRecurringStartDatePicker(false)}><Text style={styles.primaryButtonText}>Done</Text></Pressable>
-              </View>
-            </View>
-          ) : null}
-          {showCategoryPicker ? (
-            <View style={styles.pickerModalOverlay}>
-              <View style={styles.pickerModalCard}>
-                <ScrollView style={styles.pickerModalScroll} contentContainerStyle={styles.pickerModalContent} nestedScrollEnabled showsVerticalScrollIndicator>
-                  <View style={styles.row}>
+              <Pressable style={styles.modalBackdropPressable} onPress={() => setShowCategoryPicker(false)} />
+              <View style={[styles.pickerModalCard, styles.createCategoryModalCard]}>
+                <View style={styles.createPickerHeader}>
+                  <View>
                     <Text style={styles.questCategory}>Category</Text>
-                    <Pressable onPress={() => setShowCategoryPicker(false)}>
-                      <Text style={styles.link}>Close</Text>
-                    </Pressable>
+                    <Text style={styles.createPickerSubtitle}>Choose what best fits your quest.</Text>
                   </View>
-                  {CANONICAL_CATEGORIES.map((category) => (
+                  <Pressable style={styles.createPickerClose} onPress={() => setShowCategoryPicker(false)}>
+                    <Ionicons name="close" size={19} color="#dce3ec" />
+                  </Pressable>
+                </View>
+                <ScrollView style={styles.pickerModalScroll} contentContainerStyle={styles.pickerModalContent} nestedScrollEnabled showsVerticalScrollIndicator={false}>
+                  <View style={styles.createCategoryGrid}>
+                  {CANONICAL_CATEGORIES.map((category) => {
+                    const active = categoryInput.trim().toLowerCase() === category.toLowerCase() && !categoryIsCustom;
+                    return (
                     <Pressable
                       key={category}
-                      style={styles.pickerOption}
+                      style={[styles.createCategoryOption, active && styles.createCategoryOptionActive]}
                       onPress={() => {
                         setCategoryInput(category);
                         setCategoryIsCustom(false);
@@ -5479,11 +6723,12 @@ function privateThreadIncludesUsers(
                         setShowCategoryPicker(false);
                       }}
                     >
-                      <Text style={styles.detailValue}>{category}</Text>
+                      <Ionicons name={getCategoryIcon(category)} size={17} color={active ? "#082f3a" : "#9bd8e4"} />
+                      <Text style={[styles.createCategoryOptionText, active && styles.createCategoryOptionTextActive]} numberOfLines={2}>{category}</Text>
                     </Pressable>
-                  ))}
+                  );})}
                   <Pressable
-                    style={styles.pickerOption}
+                    style={[styles.createCategoryOption, categoryIsCustom && styles.createCategoryOptionActive]}
                     onPress={() => {
                       setCategoryInput("");
                       setCategoryIsCustom(true);
@@ -5491,50 +6736,102 @@ function privateThreadIncludesUsers(
                       setShowCategoryPicker(false);
                     }}
                   >
-                    <Text style={styles.detailValue}>Custom category...</Text>
+                    <Ionicons name="create-outline" size={17} color={categoryIsCustom ? "#082f3a" : "#9bd8e4"} />
+                    <Text style={[styles.createCategoryOptionText, categoryIsCustom && styles.createCategoryOptionTextActive]}>Custom</Text>
                   </Pressable>
+                  </View>
                 </ScrollView>
               </View>
             </View>
-          ) : null}
+          </Modal>
         </>
       );
     }
 
     if (activeTab === "saved") return <><ScreenHeader title="Saved" subtitle="Quests you bookmarked." />{renderQuestList(savedQuests, "No saved quests yet.")}</>;
-    if (activeTab === "joined") return <><ScreenHeader title="Joined" subtitle="Quests where you are a member or organizer." />{renderQuestList(joinedQuests, "No joined quests yet.")}</>;
-
-    if (activeTab === "inbox") {
+    if (activeTab === "joined") {
+      const normalizedJoinedSearch = joinedSearchQuery.trim().toLowerCase();
+      const filteredJoinedQuests = joinedQuests.filter((quest) => !normalizedJoinedSearch || [quest.title, quest.city, getCategory(quest)]
+        .some((value) => (value || "").toLowerCase().includes(normalizedJoinedSearch)));
       return (
         <>
-          <ScreenHeader title="Inbox" subtitle="Your direct messages." />
-          <View style={styles.panel}>
-            <Text style={styles.sectionLabel}>Threads</Text>
-            <Text style={styles.helperText}>Tap a subject to open the conversation.</Text>
-            {!inboxThreads.length ? <EmptyState label="No messages yet." /> : inboxThreads.map((thread) => {
+          <ScreenHeader title="Your quests" subtitle="Everything you’re hosting or joining." titleColor={shellText} subtitleColor={shellMuted} />
+          <View style={styles.collectionScreenShell}>
+            <View style={[styles.collectionSummaryCard, { backgroundColor: isLightTheme ? "#dff3f6" : "#142a34", borderColor: shellBorder }]}>
+              <View style={styles.collectionSummaryIcon}><Ionicons name="people" size={21} color="#082f3a" /></View>
+              <View style={styles.collectionSummaryCopy}>
+                <Text style={[styles.collectionSummaryValue, { color: shellText }]}>{joinedQuests.length}</Text>
+                <Text style={[styles.collectionSummaryLabel, { color: shellMuted }]}>active {joinedQuests.length === 1 ? "quest" : "quests"}</Text>
+              </View>
+              <Pressable style={styles.collectionCreateButton} onPress={() => setActiveTab("create")}>
+                <Ionicons name="add" size={17} color="#082f3a" />
+                <Text style={styles.collectionCreateButtonText}>New quest</Text>
+              </Pressable>
+            </View>
+            <View style={[styles.collectionSearch, { backgroundColor: isLightTheme ? "#ffffff" : "#171923", borderColor: shellBorder }]}>
+              <Ionicons name="search" size={18} color={shellMuted} />
+              <TextInput value={joinedSearchQuery} onChangeText={setJoinedSearchQuery} placeholder="Search your quests" placeholderTextColor={shellMuted} style={[styles.collectionSearchInput, { color: shellText }]} clearButtonMode="while-editing" />
+            </View>
+            {!filteredJoinedQuests.length ? <EmptyState label={joinedSearchQuery ? "No joined quests match that search." : "No joined quests yet."} /> : (
+              <View style={styles.joinedQuestGrid}>
+                {filteredJoinedQuests.map((quest) => {
+                  const media = (quest.media_items || []).find((item) => item?.type === "image" && item.url);
+                  const fallback = `https://questhat.com${getCategoryFallbackMedia(getCategory(quest)).imagePath}`;
+                  const isHost = quest.creator_id === userId;
+                  return (
+                    <Pressable key={quest.id} style={[styles.joinedQuestCard, { backgroundColor: isLightTheme ? "#ffffff" : "#151722", borderColor: shellBorder }]} onPress={() => void openQuestDetail(quest.id)}>
+                      <Image source={{ uri: media?.url || fallback }} style={styles.joinedQuestImage} />
+                      <LinearGradient colors={["transparent", "rgba(5,10,15,0.84)"]} style={StyleSheet.absoluteFill} pointerEvents="none" />
+                      <View style={styles.joinedQuestRolePill}><Ionicons name={isHost ? "sparkles" : "checkmark-circle"} size={12} color="#082f3a" /><Text style={styles.joinedQuestRoleText}>{isHost ? "Hosting" : "Joined"}</Text></View>
+                      <View style={styles.joinedQuestCopy}>
+                        <Text style={styles.joinedQuestCategory}>{getCategory(quest)}</Text>
+                        <Text style={styles.joinedQuestTitle} numberOfLines={2}>{quest.title}</Text>
+                        <View style={styles.joinedQuestMeta}><Ionicons name="location-outline" size={13} color="#dff7fb" /><Text style={styles.joinedQuestMetaText} numberOfLines={1}>{formatQuestCityState(quest.city)}</Text></View>
+                      </View>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            )}
+          </View>
+        </>
+      );
+    }
+
+    if (activeTab === "inbox") {
+      const normalizedInboxSearch = inboxSearchQuery.trim().toLowerCase();
+      const filteredThreads = inboxThreads.filter((thread) => !normalizedInboxSearch || [thread.partnerName, thread.quest?.title, normalizeMessageBody(thread.lastMessage.body)]
+        .some((value) => (value || "").toLowerCase().includes(normalizedInboxSearch)));
+      return (
+        <>
+          <ScreenHeader title="Inbox" subtitle="Private conversations about your plans." titleColor={shellText} subtitleColor={shellMuted} />
+          <View style={styles.inboxScreenShell}>
+            <View style={[styles.inboxSearchShell, { backgroundColor: isLightTheme ? "#ffffff" : "#171923", borderColor: shellBorder }]}>
+              <Ionicons name="search" size={18} color={shellMuted} />
+              <TextInput value={inboxSearchQuery} onChangeText={setInboxSearchQuery} placeholder="Search people, quests, or messages" placeholderTextColor={shellMuted} style={[styles.inboxSearchInput, { color: shellText }]} clearButtonMode="while-editing" />
+            </View>
+            {!filteredThreads.length ? <EmptyState label={inboxSearchQuery ? "No messages match that search." : "No private messages yet."} /> : <View style={styles.inboxThreadList}>{filteredThreads.map((thread) => {
               const quest = thread.quest;
               const avatarUrl = thread.partnerAvatarUrl;
               return (
-                <Pressable key={thread.threadKey} style={styles.questCard} onPress={() => quest && void openQuestConversation(quest, "private", thread.partnerId || null)}>
-                  <View style={styles.inboxThreadHeader}>
+                <Pressable key={thread.threadKey} style={[styles.inboxThreadCard, { backgroundColor: isLightTheme ? "#ffffff" : "#151722", borderColor: shellBorder }]} onPress={() => quest && void openQuestConversation(quest, "private", thread.partnerId || null)}>
+                  <Pressable style={styles.inboxAvatarWrap} onPress={(event) => { event.stopPropagation(); if (thread.partnerId) void openProfile(thread.partnerId); }} accessibilityLabel={`Open ${thread.partnerName}'s profile`}>
                     {avatarUrl ? (
                       <Image source={{ uri: avatarUrl }} style={styles.inboxAvatar} />
                     ) : (
-                      <View style={styles.inboxAvatarFallback} />
+                      <View style={styles.inboxAvatarFallback}><Ionicons name="person" size={19} color="#9bd8e4" /></View>
                     )}
-                    <View style={styles.inboxThreadHeaderText}>
-                      <Text style={styles.questCategory}>{quest?.title || "Direct message"}</Text>
-                      <Text style={styles.questTitle}>{thread.partnerName}</Text>
-                    </View>
+                    <View style={styles.inboxPresenceDot} />
+                  </Pressable>
+                  <View style={styles.inboxThreadBody}>
+                    <View style={styles.inboxThreadTitleRow}><Pressable style={styles.inboxThreadNameButton} onPress={(event) => { event.stopPropagation(); if (thread.partnerId) void openProfile(thread.partnerId); }}><Text style={[styles.inboxThreadName, { color: shellText }]} numberOfLines={1}>{thread.partnerName}</Text></Pressable><Text style={[styles.inboxThreadTime, { color: shellMuted }]}>{formatDate(thread.lastMessage.created_at)}</Text></View>
+                    <Text style={styles.inboxQuestLabel} numberOfLines={1}>{quest?.title || "Direct message"}</Text>
+                    <Text style={[styles.inboxThreadPreview, { color: shellMuted }]} numberOfLines={2}>{normalizeMessageBody(thread.lastMessage.body)}</Text>
                   </View>
-                  <Text style={styles.questDescription}>{normalizeMessageBody(thread.lastMessage.body)}</Text>
-                  <View style={styles.row}>
-                    <Text style={styles.date}>{formatDate(thread.lastMessage.created_at)}</Text>
-                    <Text style={styles.date}>{thread.messageCount > 1 ? `${thread.messageCount} messages` : "1 message"}</Text>
-                  </View>
+                  <Ionicons name="chevron-forward" size={18} color={shellMuted} />
                 </Pressable>
               );
-            })}
+            })}</View>}
           </View>
         </>
       );
@@ -5543,7 +6840,26 @@ function privateThreadIncludesUsers(
     if (activeTab === "notifications") {
       return (
         <>
-          <ScreenHeader title="Notifications" subtitle="Messages, requests, approvals, and system updates." titleColor={shellText} subtitleColor={shellMuted} />
+          <ScreenHeader
+            title="Notifications"
+            subtitle="Messages, requests, approvals, and system updates."
+            titleColor={shellText}
+            subtitleColor={shellMuted}
+            action={(
+              <Pressable
+                style={[styles.notificationSettingsLink, { backgroundColor: isLightTheme ? "#e8f3f6" : "rgba(109,174,194,0.14)" }]}
+                onPress={() => {
+                  setShowNotificationPreferences(true);
+                  if (userId) void loadNotificationPreferences(userId);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Open notification settings"
+              >
+                <Ionicons name="options-outline" size={17} color={isLightTheme ? "#0b6172" : "#9bd8e4"} />
+                <Text style={[styles.notificationSettingsLinkText, { color: isLightTheme ? "#0b6172" : "#9bd8e4" }]}>Settings</Text>
+              </Pressable>
+            )}
+          />
           {pushPermissionStatus && pushPermissionStatus !== "granted" ? (
             <View style={styles.panel}>
               <Text style={styles.detailLabel}>Notifications off</Text>
@@ -5585,7 +6901,7 @@ function privateThreadIncludesUsers(
                       )}
                       <View style={styles.notificationAuthorTextWrap}>
                         <Text style={styles.notificationAuthorName} numberOfLines={1}>{sourceLabel}</Text>
-                        <Text style={styles.notificationKind} numberOfLines={1}>{item.kind === "join_request" ? "Join request" : item.kind === "approval" ? "Approved" : item.kind === "declined" ? "Declined" : item.kind === "message" ? "Message" : "Update"}</Text>
+                        <Text style={styles.notificationKind} numberOfLines={1}>{item.kind === "join_request" ? "Join request" : item.kind === "approval" ? "Approved" : item.kind === "declined" ? "Declined" : item.kind === "message" ? item.meta?.private === false ? "Comment" : "Message" : item.meta?.kind === "quest_start_reminder" ? "Quest reminder" : item.meta?.kind === "host_join_request_reminder" || item.meta?.kind === "host_location_reminder" ? "Host reminder" : "Update"}</Text>
                       </View>
                     </Pressable>
                   );
@@ -5634,18 +6950,21 @@ function privateThreadIncludesUsers(
                             <Pressable
                               style={styles.primaryButton}
                               onPress={() => void updateQuestMembershipStatus(item.quest_id!, item.membership_user_id!, "approved")}
+                              disabled={membershipActionKey === `${item.quest_id}:${item.membership_user_id}`}
                             >
-                              <Text style={styles.primaryButtonText}>Approve</Text>
+                              {membershipActionKey === `${item.quest_id}:${item.membership_user_id}` ? <ActivityIndicator size="small" color="#082f3a" /> : <Text style={styles.primaryButtonText}>Approve</Text>}
                             </Pressable>
                             <Pressable
                               style={styles.secondaryButton}
                               onPress={() => void updateQuestMembershipStatus(item.quest_id!, item.membership_user_id!, "approved", { shareExactAddress: true })}
+                              disabled={membershipActionKey === `${item.quest_id}:${item.membership_user_id}`}
                             >
                               <Text style={styles.secondaryButtonText}>Approve + share address</Text>
                             </Pressable>
                             <Pressable
                               style={[styles.secondaryButton, styles.reportButton]}
                               onPress={() => void updateQuestMembershipStatus(item.quest_id!, item.membership_user_id!, "declined")}
+                              disabled={membershipActionKey === `${item.quest_id}:${item.membership_user_id}`}
                             >
                               <Text style={[styles.secondaryButtonText, styles.reportButtonText]}>Decline</Text>
                             </Pressable>
@@ -5726,7 +7045,13 @@ function privateThreadIncludesUsers(
         <View style={styles.settingsShell}>
           <LinearGradient colors={["#173743", "#10202b", "#12141d"]} style={styles.settingsIdentityCard}>
             <View style={styles.settingsIdentityTop}>
-              <View style={styles.settingsAvatarWrap}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={settingsAvatarUri ? "Change profile photo" : "Add profile photo"}
+                style={styles.settingsAvatarWrap}
+                onPress={() => void uploadProfilePhoto()}
+                disabled={uploadingAvatar}
+              >
                 {settingsAvatarUri ? (
                   <Image source={{ uri: settingsAvatarUri }} style={styles.settingsAvatar} />
                 ) : (
@@ -5734,10 +7059,10 @@ function privateThreadIncludesUsers(
                     <Text style={styles.settingsAvatarInitial}>{(settingsUsername || "Q").trim().charAt(0).toUpperCase()}</Text>
                   </View>
                 )}
-                <Pressable style={styles.settingsAvatarEdit} onPress={() => void uploadProfilePhoto()} disabled={uploadingAvatar}>
+                <View style={styles.settingsAvatarEdit}>
                   <Ionicons name={uploadingAvatar ? "hourglass-outline" : "camera"} size={15} color="#082f3a" />
-                </Pressable>
-              </View>
+                </View>
+              </Pressable>
               <View style={styles.settingsIdentityCopy}>
                 <Text style={styles.settingsIdentityName} numberOfLines={1}>{settingsUsername ? `@${settingsUsername}` : "Choose your name"}</Text>
                 <View style={styles.settingsIdentityMeta}>
@@ -6037,6 +7362,17 @@ function privateThreadIncludesUsers(
                 ))}
               </View>
 
+              <View style={styles.settingsCard}>
+                <View style={styles.settingsCardHeading}>
+                  <View style={styles.settingsCardIcon}><Ionicons name="shield-checkmark-outline" size={19} color="#9bd8e4" /></View>
+                  <View style={styles.settingsCardHeadingCopy}><Text style={styles.settingsCardTitle}>Meetup safety tips</Text><Text style={styles.settingsCardSubtitle}>Restore the hosting and joining reminders if you previously hid them.</Text></View>
+                </View>
+                <Pressable style={styles.secondaryButton} onPress={() => void resetSafetyPrompts()}>
+                  <Ionicons name="refresh-outline" size={17} color="#9bc8d2" />
+                  <Text style={styles.secondaryButtonText}>Show safety tips again</Text>
+                </Pressable>
+              </View>
+
               <View style={[styles.settingsCard, styles.settingsSafetyCard]}>
                 <View style={styles.settingsCardHeading}>
                   <View style={[styles.settingsCardIcon, styles.settingsSafetyIcon]}><Ionicons name="shield-outline" size={19} color="#fbbf24" /></View>
@@ -6173,11 +7509,23 @@ function privateThreadIncludesUsers(
     const fallbackVisual = getCategoryFallbackMedia(category);
     const fallbackImageUrl = `https://questhat.com${fallbackVisual.imagePath}`;
     const mediaItems = selectedQuest.media_items || [];
+    const startsAtTime = selectedQuest.starts_at ? new Date(selectedQuest.starts_at).getTime() : 0;
+    const startsWithinDay = startsAtTime > Date.now() && startsAtTime <= Date.now() + 24 * 60 * 60 * 1000;
+    const guestsMissingLocation = selectedQuest.exact_address && selectedQuest.exact_location_visibility !== "public" && startsWithinDay
+      ? visibleGuests.filter((member) => !selectedQuestExactAccessUserIds.includes(member.id))
+      : [];
+    const hostReminderDisabled = selectedQuest.host_coordination_reminders_disabled === true;
+    const hostReminderSnoozed = Boolean(
+      selectedQuest.host_coordination_reminders_snoozed_until
+      && new Date(selectedQuest.host_coordination_reminders_snoozed_until).getTime() > Date.now()
+    );
+    const showHostChecklist = isOwner && (selectedQuestPendingMembers.length > 0 || guestsMissingLocation.length > 0);
     return (
       <View style={styles.modalOverlay} pointerEvents="box-none">
         <Pressable style={styles.modalBackdropPressable} onPress={() => setSelectedQuest(null)} />
         <View style={[styles.modalCard, styles.modalCardScrollable, styles.modalCardElevated]}>
           <ScrollView
+            ref={questDetailScrollRef}
             style={styles.modalScroll}
             contentContainerStyle={styles.modalContent}
             nestedScrollEnabled
@@ -6216,13 +7564,20 @@ function privateThreadIncludesUsers(
             </View>
 
             <View style={styles.questDetailFactsCard}>
-              <View style={styles.questDetailFactRow}>
+              <Pressable
+                style={styles.questDetailFactRow}
+                onPress={canViewExactAddress && selectedQuest.exact_address ? () => void openQuestLocation(selectedQuest) : undefined}
+                disabled={!canViewExactAddress || !selectedQuest.exact_address}
+                accessibilityLabel={canViewExactAddress && selectedQuest.exact_address ? "Choose a map for directions to this quest" : undefined}
+              >
                 <View style={styles.questDetailFactIcon}><Ionicons name="location-outline" size={19} color="#9bd8e4" /></View>
                 <View style={styles.questDetailFactCopy}>
                   <Text style={styles.questDetailFactLabel}>LOCATION</Text>
                   <Text style={styles.questDetailFactValue}>{`${selectedQuest.city || "City to be decided"}${canViewExactAddress && selectedQuest.exact_address ? ` · ${selectedQuest.exact_address}` : ""}`}</Text>
+                  {canViewExactAddress && selectedQuest.exact_address ? <Text style={styles.questDetailDirectionsHint}>Tap to choose a map</Text> : null}
                 </View>
-              </View>
+                {canViewExactAddress && selectedQuest.exact_address ? <Ionicons name="navigate-circle" size={24} color="#9bd8e4" /> : null}
+              </Pressable>
               {!canViewExactAddress && selectedQuest.exact_address ? (
                 <View style={styles.questDetailPrivacyNote}>
                   <Ionicons name="lock-closed-outline" size={15} color="#d6ad63" />
@@ -6246,6 +7601,63 @@ function privateThreadIncludesUsers(
                 </View>
               </View>
             </View>
+            {showHostChecklist ? (
+              <View style={styles.hostChecklistCard}>
+                <View style={styles.hostChecklistHeader}>
+                  <View style={styles.hostChecklistHeaderIcon}><Ionicons name="checkmark-done-outline" size={19} color="#082f3a" /></View>
+                  <View style={styles.hostChecklistHeaderCopy}>
+                    <Text style={styles.hostChecklistEyebrow}>HOST CHECKLIST</Text>
+                    <Text style={styles.hostChecklistTitle}>{selectedQuestPendingMembers.length + guestsMissingLocation.length > 1 ? "A couple things need you" : "One thing needs you"}</Text>
+                  </View>
+                  {hostReminderDisabled || hostReminderSnoozed ? (
+                    <View style={styles.hostChecklistMutedBadge}><Text style={styles.hostChecklistMutedText}>{hostReminderDisabled ? "OFF" : "SNOOZED"}</Text></View>
+                  ) : null}
+                </View>
+                {selectedQuestPendingMembers.length ? (
+                  <View style={styles.hostChecklistItem}>
+                    <View style={styles.hostChecklistItemIcon}><Ionicons name="person-add-outline" size={18} color="#d6ad63" /></View>
+                    <View style={styles.hostChecklistItemCopy}>
+                      <Text style={styles.hostChecklistItemTitle}>{selectedQuestPendingMembers.length} {selectedQuestPendingMembers.length === 1 ? "request is" : "requests are"} waiting</Text>
+                      <Text style={styles.hostChecklistItemText}>Approve or decline so people can plan.</Text>
+                    </View>
+                    <Pressable style={styles.hostChecklistReviewButton} onPress={() => questDetailScrollRef.current?.scrollTo({ y: Math.max(0, joinRequestsOffsetRef.current - 18), animated: true })}>
+                      <Text style={styles.hostChecklistReviewText}>Review</Text>
+                    </Pressable>
+                  </View>
+                ) : null}
+                {guestsMissingLocation.length ? (
+                  <View style={styles.hostChecklistItem}>
+                    <View style={styles.hostChecklistItemIcon}><Ionicons name="location-outline" size={18} color="#fb7185" /></View>
+                    <View style={styles.hostChecklistItemCopy}>
+                      <Text style={styles.hostChecklistItemTitle}>{guestsMissingLocation.length} {guestsMissingLocation.length === 1 ? "guest needs" : "guests need"} the location</Text>
+                      <Text style={styles.hostChecklistItemText}>This quest starts within 24 hours.</Text>
+                    </View>
+                    <Pressable style={styles.hostChecklistShareButton} onPress={() => void shareQuestAddressWithAllGuests(selectedQuest)} disabled={membershipActionKey === `${selectedQuest.id}:all-location`}>
+                      {membershipActionKey === `${selectedQuest.id}:all-location` ? <ActivityIndicator size="small" color="#ffffff" /> : <Text style={styles.hostChecklistShareText}>Share all</Text>}
+                    </Pressable>
+                  </View>
+                ) : null}
+                <View style={styles.hostChecklistFooter}>
+                  {hostReminderDisabled ? (
+                    <Pressable style={styles.hostChecklistFooterButton} onPress={() => void updateHostCoordinationReminders(selectedQuest, "enable")} disabled={Boolean(coordinationReminderAction)}>
+                      <Ionicons name="notifications-outline" size={14} color="#9bd8e4" />
+                      <Text style={styles.hostChecklistFooterText}>Turn reminders on</Text>
+                    </Pressable>
+                  ) : (
+                    <>
+                      <Pressable style={styles.hostChecklistFooterButton} onPress={() => void updateHostCoordinationReminders(selectedQuest, "snooze")} disabled={Boolean(coordinationReminderAction)}>
+                        <Ionicons name="time-outline" size={14} color="#9bd8e4" />
+                        <Text style={styles.hostChecklistFooterText}>Remind tomorrow</Text>
+                      </Pressable>
+                      <Pressable style={styles.hostChecklistFooterButton} onPress={() => void updateHostCoordinationReminders(selectedQuest, "disable")} disabled={Boolean(coordinationReminderAction)}>
+                        <Ionicons name="notifications-off-outline" size={14} color="#9aa4b1" />
+                        <Text style={styles.hostChecklistFooterMutedText}>Turn off for this quest</Text>
+                      </Pressable>
+                    </>
+                  )}
+                </View>
+              </View>
+            ) : null}
             <View style={styles.peopleSection}>
               <Text style={styles.detailLabel}>Hosted by</Text>
               <Pressable
@@ -6310,9 +7722,10 @@ function privateThreadIncludesUsers(
                 </View>
                 {visibleGuests.length ? visibleGuests.map((member) => {
                   const hasExactAccess = selectedQuestExactAccessUserIds.includes(member.id);
+                  const memberActionPending = membershipActionKey === `${selectedQuest.id}:${member.id}`;
                   return (
                     <View key={member.id} style={styles.personRow}>
-                      <Pressable style={styles.personRowProfile} onPress={() => void openProfile(member.id)}>
+                      <Pressable style={styles.personRowProfile} onPress={() => void openProfileFromQuest(member.id)}>
                         {member.avatar_url ? (
                           <Image source={{ uri: member.avatar_url }} style={styles.commentAvatar} />
                         ) : (
@@ -6325,15 +7738,39 @@ function privateThreadIncludesUsers(
                           <Text style={styles.detailMuted}>{member.role === "cohost" ? "Co-host" : "Guest"}</Text>
                         </View>
                       </Pressable>
-                      {isManager && member.id !== selectedQuest.creator_id ? (
+                      <View style={styles.guestRowActions}>
+                        {isManager && member.id !== selectedQuest.creator_id ? (
+                          <View style={styles.guestLocationControl}>
+                            <Text style={styles.guestLocationLabel}>LOCATION</Text>
+                            <Pressable
+                              style={[styles.guestLocationButton, hasExactAccess ? styles.guestLocationButtonShared : styles.guestLocationButtonUnshared]}
+                              onPress={() => void setQuestExactAddressAccess(selectedQuest.id, member.id, !hasExactAccess)}
+                              disabled={memberActionPending}
+                              accessibilityLabel={hasExactAccess ? "Stop sharing the exact address" : "Share the exact address"}
+                            >
+                              {memberActionPending ? <ActivityIndicator size="small" color={hasExactAccess ? "#08121a" : "#fecdd3"} /> : <Ionicons name={hasExactAccess ? "location" : "location-outline"} size={15} color={hasExactAccess ? "#08121a" : "#fecdd3"} />}
+                              <Text style={[styles.guestLocationButtonText, !hasExactAccess && styles.guestLocationButtonTextUnshared]}>
+                                {hasExactAccess ? "Shared" : "Share"}
+                              </Text>
+                            </Pressable>
+                          </View>
+                        ) : null}
                         <Pressable
-                          style={[styles.addressAccessButton, hasExactAccess && styles.addressAccessButtonActive]}
-                          onPress={() => void setQuestExactAddressAccess(selectedQuest.id, member.id, !hasExactAccess)}
+                          style={styles.guestIconButton}
+                          onPress={() => void openQuestConversation(selectedQuest, "private", member.id)}
+                          accessibilityLabel={`Message ${member.display_name || member.username || "guest"} about this quest`}
                         >
-                          <Ionicons name={hasExactAccess ? "location" : "location-outline"} size={16} color={hasExactAccess ? "#08121a" : "#9bc8d2"} />
-                          <Text style={[styles.addressAccessText, hasExactAccess && styles.addressAccessTextActive]}>{hasExactAccess ? "Shared" : "Share"}</Text>
+                          <Ionicons name="chatbubble-outline" size={17} color="#9bc8d2" />
                         </Pressable>
-                      ) : null}
+                        <Pressable
+                          style={styles.guestIconButton}
+                          onPress={() => openQuestGuestActions(selectedQuest, member, isManager)}
+                          disabled={memberActionPending}
+                          accessibilityLabel={`More actions for ${member.display_name || member.username || "guest"}`}
+                        >
+                          {memberActionPending ? <ActivityIndicator size="small" color="#9bc8d2" /> : <Ionicons name="ellipsis-horizontal" size={19} color="#9bc8d2" />}
+                        </Pressable>
+                      </View>
                     </View>
                   );
                 }) : (
@@ -6345,7 +7782,7 @@ function privateThreadIncludesUsers(
               </View>
             ) : null}
             {isManager && selectedQuestPendingMembers.length ? (
-              <View style={styles.peopleSection}>
+              <View style={styles.peopleSection} onLayout={(event) => { joinRequestsOffsetRef.current = event.nativeEvent.layout.y; }}>
                 <View style={styles.peopleSectionHeader}>
                   <Text style={styles.detailLabel}>Join requests</Text>
                   <View style={styles.requestCountBadge}>
@@ -6354,7 +7791,7 @@ function privateThreadIncludesUsers(
                 </View>
                 {selectedQuestPendingMembers.map((member) => (
                   <View key={`pending-${member.id}`} style={styles.requestCard}>
-                    <Pressable style={styles.personRowProfile} onPress={() => void openProfile(member.id)}>
+                    <Pressable style={styles.personRowProfile} onPress={() => void openProfileFromQuest(member.id)}>
                       {member.avatar_url ? (
                         <Image source={{ uri: member.avatar_url }} style={styles.commentAvatar} />
                       ) : (
@@ -6369,16 +7806,16 @@ function privateThreadIncludesUsers(
                       <Ionicons name="chevron-forward" size={18} color="#788295" />
                     </Pressable>
                     <View style={styles.requestActions}>
-                      <Pressable style={styles.requestApproveButton} onPress={() => void updateQuestMembershipStatus(selectedQuest.id, member.id, "approved")}>
-                        <Ionicons name="checkmark" size={18} color="#08121a" />
-                        <Text style={styles.requestApproveText}>Approve</Text>
+                      <Pressable style={styles.requestApproveButton} onPress={() => void updateQuestMembershipStatus(selectedQuest.id, member.id, "approved")} disabled={membershipActionKey === `${selectedQuest.id}:${member.id}`}>
+                        {membershipActionKey === `${selectedQuest.id}:${member.id}` ? <ActivityIndicator size="small" color="#08121a" /> : <Ionicons name="checkmark" size={18} color="#08121a" />}
+                        <Text style={styles.requestApproveText}>{membershipActionKey === `${selectedQuest.id}:${member.id}` ? "Approving…" : "Approve"}</Text>
                       </Pressable>
-                      <Pressable style={styles.requestDeclineButton} onPress={() => void updateQuestMembershipStatus(selectedQuest.id, member.id, "declined")}>
+                      <Pressable style={styles.requestDeclineButton} onPress={() => void updateQuestMembershipStatus(selectedQuest.id, member.id, "declined")} disabled={membershipActionKey === `${selectedQuest.id}:${member.id}`}>
                         <Ionicons name="close" size={18} color="#f87171" />
                         <Text style={styles.requestDeclineText}>Decline</Text>
                       </Pressable>
                     </View>
-                    <Pressable style={styles.approveWithAddressButton} onPress={() => void updateQuestMembershipStatus(selectedQuest.id, member.id, "approved", { shareExactAddress: true })}>
+                    <Pressable style={styles.approveWithAddressButton} onPress={() => void updateQuestMembershipStatus(selectedQuest.id, member.id, "approved", { shareExactAddress: true })} disabled={membershipActionKey === `${selectedQuest.id}:${member.id}`}>
                       <Ionicons name="location-outline" size={16} color="#9bc8d2" />
                       <Text style={styles.approveWithAddressText}>Approve and share exact address</Text>
                     </Pressable>
@@ -6397,7 +7834,7 @@ function privateThreadIncludesUsers(
               {selectedQuestComments.length ? selectedQuestComments.map((comment) => {
                 const commentProfile = getRelationOne(comment.profiles);
                 return (
-                  <Pressable key={comment.id} style={styles.commentThreadItem} onPress={commentProfile?.id ? () => void openProfile(commentProfile.id) : undefined}>
+                <Pressable key={comment.id} style={styles.commentThreadItem} onPress={commentProfile?.id ? () => void openProfileFromQuest(commentProfile.id) : undefined}>
                     {commentProfile?.avatar_url ? (
                       <Image source={{ uri: commentProfile.avatar_url }} style={styles.commentThreadAvatar} />
                     ) : (
@@ -6611,6 +8048,23 @@ function privateThreadIncludesUsers(
   function renderQuestionModal() {
     if (!showQuestionModal || !questionTarget) return null;
     const creator = getRelationOne(questionTarget.profiles);
+    const conversationPartner = (questionPartnerId ? inboxProfilesById[questionPartnerId] : null)
+      || (questionPartnerId && creator?.id === questionPartnerId ? creator : null)
+      || (questionPartnerId ? selectedQuestMembers.find((member) => member.id === questionPartnerId) : null)
+      || (questionMode === "public" ? creator : null);
+    const conversationPartnerName = conversationPartner?.display_name || conversationPartner?.username || "QuestHat member";
+    const openConversationProfile = (profileId?: string | null) => {
+      if (!profileId) return;
+      closeQuestionModal();
+      void openProfileFromQuest(profileId);
+    };
+    const normalizedConversationSearch = conversationSearchQuery.trim().toLowerCase();
+    const visibleConversationItems = questionComments.filter((comment) => {
+      if (!normalizedConversationSearch) return true;
+      const author = getRelationOne(comment.profiles);
+      return [normalizeMessageBody(comment.body), author?.display_name, author?.username]
+        .some((value) => (value || "").toLowerCase().includes(normalizedConversationSearch));
+    });
     return (
       <View style={styles.modalOverlay} pointerEvents="box-none">
         <Pressable style={styles.modalBackdropPressable} onPress={() => closeQuestionModal()} />
@@ -6619,61 +8073,103 @@ function privateThreadIncludesUsers(
           style={{ width: "100%" }}
           keyboardVerticalOffset={72}
         >
-          <View style={[styles.modalCard, styles.modalCardKeyboard, styles.modalCardKeyboardRaised]}>
-            <ScrollView
-              contentContainerStyle={[styles.modalContent, styles.modalContentKeyboard]}
-              keyboardShouldPersistTaps="handled"
-              keyboardDismissMode="interactive"
-              nestedScrollEnabled
-              showsVerticalScrollIndicator={false}
-            >
-              <View style={styles.row}>
-                <Text style={styles.questCategory}>{questionMode === "public" ? "Comment" : "Message"}</Text>
-                <Pressable onPress={() => closeQuestionModal()}>
-                  <Text style={styles.link}>Close</Text>
-                </Pressable>
-              </View>
-              <Text style={styles.questTitle}>{questionTarget.title}</Text>
-              <Text style={styles.questMeta}>{creator?.display_name || creator?.username || "QuestHat host"}</Text>
-              <View style={styles.commentThreadCard}>
-                <View style={styles.commentThreadHeader}>
-                  <Pressable style={styles.commentSortPill} onPress={() => {}}>
-                    <Text style={styles.commentSortText}>Most relevant</Text>
-                    <Ionicons name="chevron-down" size={14} color={shellMuted} />
+          <View style={[styles.modalCard, styles.modalCardKeyboard, styles.modalCardKeyboardRaised, styles.conversationModalCard, { height: Math.min(Math.max(windowHeight - 80, 520), 760) }]}>
+            <View style={[styles.modalContent, styles.modalContentKeyboard, styles.conversationLayout]}>
+              <View style={styles.conversationHeader}>
+                <View style={styles.conversationHeaderTop}>
+                  <Pressable
+                    style={styles.conversationHeaderIcon}
+                    onPress={questionMode === "private" && questionPartnerId ? () => openConversationProfile(questionPartnerId) : undefined}
+                    disabled={questionMode !== "private" || !questionPartnerId}
+                    accessibilityLabel={questionMode === "private" ? `Open ${conversationPartnerName}'s profile` : undefined}
+                  >
+                    {questionMode === "private" && conversationPartner?.avatar_url
+                      ? <Image source={{ uri: conversationPartner.avatar_url }} style={styles.conversationHeaderAvatar} />
+                      : <Ionicons name={questionMode === "public" ? "chatbox" : "person"} size={20} color="#082f3a" />}
                   </Pressable>
-                  <Text style={styles.detailMuted}>{questionComments.length} {questionMode === "public" ? "comments" : "messages"}</Text>
+                  <View style={styles.conversationHeaderCopy}>
+                    <Text style={styles.conversationEyebrow}>{questionMode === "public" ? "QUEST COMMENTS" : "DIRECT MESSAGE"}</Text>
+                    <Pressable onPress={questionMode === "private" && questionPartnerId ? () => openConversationProfile(questionPartnerId) : undefined} disabled={questionMode !== "private" || !questionPartnerId}>
+                      <Text style={styles.conversationTitle} numberOfLines={2}>{questionMode === "private" ? conversationPartnerName : questionTarget.title}</Text>
+                    </Pressable>
+                    <Text style={styles.conversationSubtitle} numberOfLines={1}>{questionMode === "public" ? `${questionComments.length} comments` : `About ${questionTarget.title}`}</Text>
+                  </View>
+                  <Pressable style={styles.conversationClose} onPress={() => closeQuestionModal()}><Ionicons name="close" size={20} color="#cbd5e1" /></Pressable>
                 </View>
-                {questionComments.length ? questionComments.map((comment) => {
-                  const commentProfile = getRelationOne(comment.profiles);
-                  return (
-                    <View key={comment.id} style={styles.commentThreadItem}>
-                      {commentProfile?.avatar_url ? (
-                        <Image source={{ uri: commentProfile.avatar_url }} style={styles.commentThreadAvatar} />
-                      ) : (
-                        <View style={styles.commentThreadAvatarFallback}>
-                          <Ionicons name="person" size={14} color="#9bc8d2" />
-                        </View>
-                      )}
-                      <View style={styles.commentThreadBody}>
-                        <View style={styles.commentThreadMetaRow}>
-                          <Text style={styles.commentThreadName} numberOfLines={1}>{commentProfile?.display_name || commentProfile?.username || "Someone"}</Text>
-                          <Text style={styles.commentThreadTime}>{formatDate(comment.created_at)}</Text>
-                        </View>
-                        <Text style={styles.commentThreadText}>{normalizeMessageBody(comment.body)}</Text>
-                      </View>
-                    </View>
-                  );
-                }) : <Text style={styles.detailMuted}>No comments yet.</Text>}
+                <View style={styles.conversationModeSwitch}>
+                  {([['public', 'Comments', 'chatbox-outline'], ['private', 'Messages', 'mail-outline']] as const).map(([mode, label, icon]) => (
+                    <Pressable
+                      key={mode}
+                      style={[styles.conversationModeButton, questionMode === mode && styles.conversationModeButtonActive]}
+                      onPress={() => {
+                        if (questionMode === mode) return;
+                        saveQuestionDraft(questionTarget.id, questionMode);
+                        setQuestionMode(mode);
+                        setConversationSearchQuery("");
+                        setQuestionText(questionDrafts[getQuestionDraftKey(questionTarget.id, mode)] || "");
+                        void openQuestConversation(questionTarget, mode, mode === "private" ? (questionPrivatePartnerId || questionTarget.creator_id || null) : null);
+                      }}
+                    >
+                      <Ionicons name={icon} size={15} color={questionMode === mode ? "#082f3a" : "#9aa5b5"} />
+                      <Text style={[styles.conversationModeText, questionMode === mode && styles.conversationModeTextActive]}>{label}</Text>
+                    </Pressable>
+                  ))}
+                </View>
               </View>
+
+              <View style={styles.conversationSearchShell}>
+                <Ionicons name="search" size={17} color="#7f8998" />
+                <TextInput value={conversationSearchQuery} onChangeText={setConversationSearchQuery} placeholder={`Search ${questionMode === "public" ? "comments" : "messages"}`} placeholderTextColor="#7f8998" style={styles.conversationSearchInput} clearButtonMode="while-editing" />
+              </View>
+              <ScrollView
+                ref={questionScrollRef}
+                style={styles.conversationListScroll}
+                contentContainerStyle={styles.conversationListContent}
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="interactive"
+                nestedScrollEnabled
+                showsVerticalScrollIndicator={false}
+                onContentSizeChange={() => {
+                  if (!conversationSearchQuery) questionScrollRef.current?.scrollToEnd({ animated: false });
+                }}
+              >
+                <View style={styles.commentThreadCard}>
+                  {visibleConversationItems.length ? visibleConversationItems.map((comment) => {
+                    const isOwnMessage = comment.sender_id === userId;
+                    const commentProfile = questionMode === "private" && !isOwnMessage && comment.sender_id === questionPartnerId
+                      ? conversationPartner
+                      : getRelationOne(comment.profiles);
+                    return (
+                      <View key={comment.id} style={[styles.commentThreadItem, isOwnMessage && styles.commentThreadItemOwn]}>
+                        {!isOwnMessage && commentProfile?.avatar_url ? (
+                          <Pressable onPress={() => openConversationProfile(comment.sender_id)} accessibilityLabel={`Open ${commentProfile.display_name || commentProfile.username || "sender"}'s profile`}>
+                            <Image source={{ uri: commentProfile.avatar_url }} style={styles.commentThreadAvatar} />
+                          </Pressable>
+                        ) : !isOwnMessage ? (
+                          <Pressable style={styles.commentThreadAvatarFallback} onPress={() => openConversationProfile(comment.sender_id)} accessibilityLabel="Open sender profile">
+                            <Ionicons name="person" size={14} color="#9bc8d2" />
+                          </Pressable>
+                        ) : null}
+                        <View style={[styles.commentThreadBody, styles.conversationBubble, isOwnMessage && styles.conversationBubbleOwn]}>
+                          <View style={styles.commentThreadMetaRow}>
+                            {isOwnMessage ? (
+                              <Text style={[styles.commentThreadName, styles.conversationBubbleNameOwn]} numberOfLines={1}>You</Text>
+                            ) : (
+                              <Pressable style={styles.commentThreadNameButton} onPress={() => openConversationProfile(comment.sender_id)}>
+                                <Text style={styles.commentThreadName} numberOfLines={1}>{commentProfile?.display_name || commentProfile?.username || "Someone"}</Text>
+                              </Pressable>
+                            )}
+                            <Text style={[styles.commentThreadTime, isOwnMessage && styles.conversationBubbleTimeOwn]}>{formatDate(comment.created_at)}</Text>
+                          </View>
+                          <Text style={[styles.commentThreadText, isOwnMessage && styles.conversationBubbleTextOwn]}>{normalizeMessageBody(comment.body)}</Text>
+                        </View>
+                      </View>
+                    );
+                  }) : <View style={styles.conversationEmpty}><Ionicons name="chatbubbles-outline" size={25} color="#6daec2" /><Text style={styles.detailMuted}>{conversationSearchQuery ? "No results found." : `No ${questionMode === "public" ? "comments" : "messages"} yet.`}</Text></View>}
+                </View>
+              </ScrollView>
               <View style={styles.commentComposerCard}>
                 <View style={styles.commentComposerRow}>
-                  {creator?.avatar_url ? (
-                    <Image source={{ uri: creator.avatar_url }} style={styles.commentComposerAvatar} />
-                  ) : (
-                    <View style={styles.commentComposerAvatarFallback}>
-                      <Ionicons name="person" size={14} color="#9bc8d2" />
-                    </View>
-                  )}
                   <TextInput
                     multiline
                     placeholder={questionMode === "public" ? "Write a comment..." : "Write a direct message..."}
@@ -6681,29 +8177,19 @@ function privateThreadIncludesUsers(
                     style={[styles.input, styles.textArea, styles.questionInput, styles.commentComposerInput]}
                     value={questionText}
                     onChangeText={setQuestionText}
+                    maxLength={500}
                   />
                   <Pressable style={styles.commentSendButton} onPress={() => void sendQuestionFromModal()} disabled={sendingQuestion}>
-                    <Ionicons name="send" size={18} color="#ffffff" />
+                    {sendingQuestion ? <ActivityIndicator size="small" color="#ffffff" /> : <Ionicons name="send" size={18} color="#ffffff" />}
                   </Pressable>
                 </View>
                 <View style={styles.commentComposerActions}>
-                  <Pressable
-                    style={styles.secondaryButton}
-                    onPress={() => {
-                      saveQuestionDraft(questionTarget.id, questionMode);
-                      const nextMode = questionMode === "public" ? "private" : "public";
-                      setQuestionMode(nextMode);
-                      setQuestionText(questionDrafts[getQuestionDraftKey(questionTarget.id, nextMode)] || "");
-                    }}
-                  >
-                    <Text style={styles.secondaryButtonText}>{questionMode === "public" ? "Switch to message" : "Switch to comment"}</Text>
-                  </Pressable>
-                  <Pressable style={styles.primaryButton} onPress={() => void sendQuestionFromModal()} disabled={sendingQuestion}>
-                    <Text style={styles.primaryButtonText}>{sendingQuestion ? "Sending..." : "Send"}</Text>
-                  </Pressable>
+                  <Ionicons name={questionMode === "public" ? "earth-outline" : "lock-closed-outline"} size={14} color="#7f8998" />
+                  <Text style={styles.commentComposerHint}>{questionMode === "public" ? "Visible to everyone on this quest" : questionPartnerId ? `Only you and ${conversationPartnerName} can see this.` : "Only conversation participants can see this."}</Text>
+                  <Text style={styles.commentComposerCount}>{questionText.length}/500</Text>
                 </View>
               </View>
-            </ScrollView>
+            </View>
           </View>
         </KeyboardAvoidingView>
       </View>
@@ -6718,84 +8204,93 @@ function privateThreadIncludesUsers(
     const outgoingPending = Boolean(relationship && relationship.status === "pending" && relationship.requester_id === userId);
     const incomingPending = Boolean(relationship && relationship.status === "pending" && relationship.addressee_id === userId);
     const isFriends = Boolean(relationship && relationship.status === "accepted");
-    const locationParts = [selectedProfile.city, selectedProfile.region, selectedProfile.country_code ? selectedProfile.country_code.toUpperCase() : ""].filter(Boolean);
-    const displayLocation = locationParts.length ? locationParts.join(", ") : "Profile details not set";
+    const friendActionLoading = friendActionUserId === selectedProfile.id;
+    const locationParts = [selectedProfile.city, selectedProfile.region].filter(Boolean);
+    const formattedProfileLocation = locationParts.length ? formatQuestCityState(locationParts.join(", ")) : "";
+    const displayLocation = formattedProfileLocation && !/^(us|usa|united states)$/i.test(formattedProfileLocation) ? formattedProfileLocation : "Location not shared";
+    const profileHandle = selectedProfile.username || selectedProfile.display_name || "questhat-user";
+    const connectionLabel = viewerBlockedThem
+      ? "Blocked"
+      : isFriends
+        ? "Friends"
+        : incomingPending
+          ? "Request received"
+          : outgoingPending
+            ? "Request pending"
+            : "New connection";
     return (
       <View style={styles.modalOverlay} pointerEvents="box-none">
         <Pressable style={styles.modalBackdropPressable} onPress={() => setSelectedProfile(null)} />
-        <View style={[styles.modalCard, styles.modalCardScrollable, styles.modalCardElevated]}>
+        <View style={[styles.modalCard, styles.modalCardScrollable, styles.modalCardElevated, styles.publicProfileModal]}>
           <ScrollView
             style={styles.modalScroll}
-            contentContainerStyle={styles.modalContent}
+            contentContainerStyle={styles.publicProfileContent}
             nestedScrollEnabled
-            showsVerticalScrollIndicator
+            showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="interactive"
           >
-            <View style={styles.row}>
-              <Text style={styles.questCategory}>Profile</Text>
-              <Pressable onPress={() => setSelectedProfile(null)}>
-                <Text style={styles.link}>Close</Text>
-              </Pressable>
-            </View>
             {selectedProfileLoading ? <ActivityIndicator /> : null}
-            <View style={styles.profileHero}>
-              {selectedProfile.avatar_url ? (
-                <Image source={{ uri: selectedProfile.avatar_url }} style={styles.profileAvatarLarge} />
-              ) : (
-                <View style={styles.profileAvatarLargeFallback} />
-              )}
-              <Text style={styles.profileName}>{selectedProfile.display_name || selectedProfile.username || "QuestHat user"}</Text>
-              <Text style={styles.questMeta}>{selectedProfile.username ? `@${selectedProfile.username}` : "Username not set"}</Text>
-              <Text style={styles.questMeta}>{displayLocation}</Text>
-              <Text style={styles.detailMuted}>{selectedProfile.quests?.length || 0} recent listings</Text>
-            </View>
-            {selectedProfile.bio ? (
-              <View style={styles.detailBox}>
-                <Text style={styles.detailLabel}>Bio</Text>
-                <Text style={styles.detailValue}>{selectedProfile.bio}</Text>
+            <LinearGradient colors={["#173844", "#101722", "#11131c"]} locations={[0, 0.58, 1]} style={styles.publicProfileHero}>
+              <View style={styles.publicProfileTopRow}>
+                <View style={styles.publicProfileLabel}><Ionicons name="person" size={13} color="#9bd8e4" /><Text style={styles.publicProfileLabelText}>PROFILE</Text></View>
+                <Pressable style={styles.publicProfileClose} onPress={() => setSelectedProfile(null)}><Ionicons name="close" size={20} color="#eef8fa" /></Pressable>
               </View>
-            ) : null}
-            <View style={styles.detailBox}>
-              <View style={styles.row}>
-                <Text style={styles.detailLabel}>Friends</Text>
-                <Text style={styles.detailMuted}>{selectedProfileFriends.length} total</Text>
+              <View style={styles.publicProfileIdentity}>
+                <View style={styles.publicProfileAvatarRing}>
+                  {selectedProfile.avatar_url ? (
+                    <Image source={{ uri: selectedProfile.avatar_url }} style={styles.publicProfileAvatar} />
+                  ) : (
+                    <LinearGradient colors={["#9bd8e4", "#5b9daf"]} style={styles.publicProfileAvatarFallback}>
+                      <Text style={styles.publicProfileInitial}>{profileHandle.charAt(0).toUpperCase()}</Text>
+                    </LinearGradient>
+                  )}
+                  <View style={styles.publicProfilePresenceDot} />
+                </View>
+                <Text style={styles.publicProfileName}>@{profileHandle}</Text>
+                <View style={styles.publicProfileLocationPill}><Ionicons name="location" size={13} color="#9bd8e4" /><Text style={styles.publicProfileLocationText}>{displayLocation}</Text></View>
+                {selectedProfile.bio ? <Text style={styles.publicProfileBio}>{selectedProfile.bio}</Text> : null}
               </View>
-              <Text style={styles.detailMuted}>
-                {viewerBlockedThem
-                  ? "This profile is blocked."
-                  : isFriends
-                    ? "You and this user are friends."
-                    : incomingPending
-                      ? "This user requested to be your friend."
-                      : outgoingPending
-                        ? "Your friend request is pending."
-                        : "Not connected yet."}
-              </Text>
+              <View style={styles.publicProfileStats}>
+                <View style={styles.publicProfileStat}><Text style={styles.publicProfileStatNumber}>{selectedProfile.quests?.length || 0}</Text><Text style={styles.publicProfileStatLabel}>QUESTS</Text></View>
+                <View style={styles.publicProfileStatDivider} />
+                <View style={styles.publicProfileStat}><Text style={styles.publicProfileStatNumber}>{selectedProfileFriends.length}</Text><Text style={styles.publicProfileStatLabel}>FRIENDS</Text></View>
+                <View style={styles.publicProfileStatDivider} />
+                <View style={styles.publicProfileStat}><Ionicons name={isFriends ? "checkmark-circle" : outgoingPending || incomingPending ? "time" : "sparkles"} size={20} color="#9bd8e4" /><Text style={styles.publicProfileStatLabel}>{connectionLabel.toUpperCase()}</Text></View>
+              </View>
+            </LinearGradient>
+            {selectedProfileFriends.length || selectedProfile.friends_visibility === "private" ? <View style={styles.publicProfileSection}>
+              <View style={styles.publicProfileSectionHeader}>
+                <View><Text style={styles.publicProfileSectionEyebrow}>CIRCLE</Text><Text style={styles.publicProfileSectionTitle}>Friends</Text></View>
+                <Text style={styles.publicProfileSectionCount}>{selectedProfileFriends.length}</Text>
+              </View>
               {selectedProfile.friends_visibility === "private" && !isOwnProfile && !(relationship && relationship.status === "accepted") ? (
-                <Text style={styles.detailMuted}>Friends are private.</Text>
+                <View style={styles.publicProfilePrivateRow}><Ionicons name="lock-closed" size={16} color="#81909d" /><Text style={styles.publicProfilePrivateText}>This friend list is private.</Text></View>
               ) : selectedProfileFriends.length ? (
                 <>
-                  {selectedProfileFriends.slice(0, selectedProfileFriendsExpanded ? selectedProfileFriends.length : 5).map((friend) => (
-                    <Pressable key={friend.id} style={styles.profileQuestRow} onPress={() => void openProfile(friend.id)}>
-                      <Text style={styles.detailValue} numberOfLines={1}>{friend.display_name || friend.username || "Friend"}</Text>
-                      <Text style={styles.detailMuted} numberOfLines={1}>Tap to view profile</Text>
+                  <View style={styles.publicProfileFriendGrid}>{selectedProfileFriends.slice(0, selectedProfileFriendsExpanded ? selectedProfileFriends.length : 5).map((friend) => (
+                    <Pressable key={friend.id} style={styles.publicProfileFriend} onPress={() => void openProfile(friend.id)}>
+                      {friend.avatar_url ? <Image source={{ uri: friend.avatar_url }} style={styles.publicProfileFriendAvatar} /> : <View style={styles.publicProfileFriendFallback}><Text style={styles.publicProfileFriendInitial}>{(friend.username || friend.display_name || "F").charAt(0).toUpperCase()}</Text></View>}
+                      <Text style={styles.publicProfileFriendName} numberOfLines={1}>@{friend.username || friend.display_name || "friend"}</Text>
                     </Pressable>
-                  ))}
+                  ))}</View>
                   {selectedProfileFriends.length > 5 ? (
-                    <Pressable style={styles.secondaryButton} onPress={() => setSelectedProfileFriendsExpanded((current) => !current)}>
-                      <Text style={styles.secondaryButtonText}>{selectedProfileFriendsExpanded ? "Show fewer" : "Show all friends"}</Text>
+                    <Pressable style={styles.publicProfileShowMore} onPress={() => setSelectedProfileFriendsExpanded((current) => !current)}>
+                      <Text style={styles.publicProfileShowMoreText}>{selectedProfileFriendsExpanded ? "Show fewer" : `Show all ${selectedProfileFriends.length}`}</Text><Ionicons name={selectedProfileFriendsExpanded ? "chevron-up" : "chevron-down"} size={15} color="#9bd8e4" />
                     </Pressable>
                   ) : null}
                 </>
+              ) : null}
+            </View> : null}
+            <View style={styles.publicProfileActions}>
+              {isOwnProfile ? (
+                <Pressable style={styles.publicProfilePrimaryAction} onPress={() => { setSelectedProfile(null); setActiveTab("settings"); }}>
+                  <Ionicons name="create-outline" size={18} color="#082f3a" /><Text style={styles.publicProfilePrimaryActionText}>Edit profile</Text>
+                </Pressable>
               ) : (
-                <Text style={styles.detailMuted}>No friends yet.</Text>
-              )}
-            </View>
-            {!isOwnProfile ? (
-              <View style={styles.detailActions}>
                 <Pressable
-                  style={styles.primaryButton}
+                  style={[styles.publicProfilePrimaryAction, friendActionLoading && styles.actionButtonDisabled]}
+                  disabled={friendActionLoading}
                   onPress={() => {
                     if (viewerBlockedThem) {
                       void unblockProfile(selectedProfile.id);
@@ -6816,12 +8311,13 @@ function privateThreadIncludesUsers(
                     void addFriend(selectedProfile.id);
                   }}
                 >
-                  <Text style={styles.primaryButtonText}>
-                    {viewerBlockedThem ? "Unblock" : isFriends ? "Unfriend" : incomingPending ? "Accept request" : outgoingPending ? "Cancel request" : "Add friend"}
-                  </Text>
+                  {friendActionLoading ? <ActivityIndicator size="small" color="#082f3a" /> : <Ionicons name={viewerBlockedThem ? "ban-outline" : isFriends ? "person-remove-outline" : incomingPending ? "person-add" : outgoingPending ? "time-outline" : "person-add-outline"} size={18} color="#082f3a" />}
+                  <Text style={styles.publicProfilePrimaryActionText}>{friendActionLoading ? "Updating…" : viewerBlockedThem ? "Unblock" : isFriends ? "Unfriend" : incomingPending ? "Accept request" : outgoingPending ? "Cancel request" : "Add friend"}</Text>
                 </Pressable>
+              )}
+              {!isOwnProfile ? (
                 <Pressable
-                  style={styles.secondaryButton}
+                  style={styles.publicProfileMoreAction}
                   onPress={() => {
                     Alert.alert(
                       "More actions",
@@ -6830,32 +8326,45 @@ function privateThreadIncludesUsers(
                         viewerBlockedThem
                           ? { text: "Unblock", onPress: () => void unblockProfile(selectedProfile.id) }
                           : { text: "Block", style: "destructive", onPress: () => void blockProfile(selectedProfile.id) },
-                        { text: "Report", style: "destructive", onPress: () => setShowReportProfileModal(true) },
+                        { text: "Report", style: "destructive", onPress: () => openProfileReport(selectedProfile) },
                         { text: "Close", style: "cancel" },
                       ]
                     );
                   }}
                 >
-                  <Text style={styles.secondaryButtonText}>More actions</Text>
+                  <Ionicons name="ellipsis-horizontal" size={21} color="#dce7eb" />
                 </Pressable>
+              ) : null}
+            </View>
+            <View style={styles.publicProfileSection}>
+              <View style={styles.publicProfileSectionHeader}>
+                <View><Text style={styles.publicProfileSectionEyebrow}>RECENT</Text><Text style={styles.publicProfileSectionTitle}>Hosted quests</Text></View>
+                <Text style={styles.publicProfileSectionCount}>{selectedProfile.quests?.length || 0}</Text>
               </View>
-            ) : null}
-            <View style={styles.detailBox}>
-              <Text style={styles.detailLabel}>Recent quests</Text>
-              <Text style={styles.detailMuted}>Tap a quest to open the full detail page.</Text>
-              {selectedProfile.quests?.length ? selectedProfile.quests.map((quest) => (
-                <Pressable
-                  key={quest.id}
-                  style={styles.profileQuestRow}
-                  onPress={() => {
-                    setSelectedProfile(null);
-                    void openQuestDetail(quest.id);
-                  }}
-                >
-                  <Text style={styles.detailValue} numberOfLines={1}>{quest.title}</Text>
-                  <Text style={styles.detailMuted} numberOfLines={1}>{quest.city || "City tbd"}</Text>
-                </Pressable>
-              )) : <Text style={styles.detailMuted}>No recent quests yet.</Text>}
+              {selectedProfile.quests?.length ? selectedProfile.quests.map((quest) => {
+                const questImage = quest.media_items?.find((item) => item.type === "image")?.url
+                  || quest.media_items?.find((item) => item.thumbnailUrl)?.thumbnailUrl
+                  || `https://questhat.com${getCategoryFallbackMedia(getCategory(quest)).imagePath}`;
+                return (
+                  <Pressable
+                    key={quest.id}
+                    style={styles.publicProfileQuestCard}
+                    onPress={() => {
+                      setSelectedProfile(null);
+                      void openQuestDetail(quest.id);
+                    }}
+                  >
+                    <Image source={{ uri: questImage }} style={styles.publicProfileQuestImage} />
+                    <LinearGradient colors={["rgba(8,15,22,0.05)", "rgba(8,15,22,0.92)"]} style={StyleSheet.absoluteFill} />
+                    <View style={styles.publicProfileQuestCopy}>
+                      <Text style={styles.publicProfileQuestCategory}>{getCategory(quest)}</Text>
+                      <Text style={styles.publicProfileQuestTitle} numberOfLines={2}>{quest.title}</Text>
+                      <View style={styles.publicProfileQuestMeta}><Ionicons name="location-outline" size={12} color="#cdebf1" /><Text style={styles.publicProfileQuestLocation} numberOfLines={1}>{formatQuestCityState(quest.city)}</Text></View>
+                    </View>
+                    <View style={styles.publicProfileQuestArrow}><Ionicons name="arrow-forward" size={16} color="#082f3a" /></View>
+                  </Pressable>
+                );
+              }) : <View style={styles.publicProfileEmpty}><Ionicons name="compass-outline" size={22} color="#6daec2" /><Text style={styles.publicProfilePrivateText}>No hosted quests yet.</Text></View>}
             </View>
           </ScrollView>
         </View>
@@ -6864,11 +8373,12 @@ function privateThreadIncludesUsers(
   }
 
   function renderReportProfileModal() {
-    if (!showReportProfileModal || !selectedProfile) return null;
+    const target = reportProfileTarget || selectedProfile;
+    if (!showReportProfileModal || !target) return null;
     const currentReasons = REPORT_REASON_OPTIONS.profile_account;
     return (
       <View style={styles.modalOverlay} pointerEvents="box-none">
-        <Pressable style={styles.modalBackdropPressable} onPress={() => setShowReportProfileModal(false)} />
+        <Pressable style={styles.modalBackdropPressable} onPress={() => { setShowReportProfileModal(false); setReportProfileTarget(null); }} />
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           style={{ width: "100%" }}
@@ -6884,11 +8394,11 @@ function privateThreadIncludesUsers(
             >
               <View style={styles.row}>
                 <Text style={styles.questCategory}>Report profile</Text>
-                <Pressable onPress={() => setShowReportProfileModal(false)}>
+                <Pressable onPress={() => { setShowReportProfileModal(false); setReportProfileTarget(null); }}>
                   <Text style={styles.link}>Close</Text>
                 </Pressable>
               </View>
-              <Text style={styles.questTitle}>{selectedProfile.display_name || selectedProfile.username || "User"}</Text>
+              <Text style={styles.questTitle}>{target.display_name || target.username || "User"}</Text>
               <Text style={styles.detailMuted}>Report this profile for a policy or safety issue.</Text>
               <Text style={styles.fieldLabel}>Reason</Text>
               <View style={[styles.segment, styles.reportStack]}>
@@ -6914,7 +8424,7 @@ function privateThreadIncludesUsers(
                 <Pressable style={styles.primaryButton} onPress={() => void submitProfileReport()} disabled={submittingProfileReport}>
                   <Text style={styles.primaryButtonText}>{submittingProfileReport ? "Submitting..." : "Submit report"}</Text>
                 </Pressable>
-                <Pressable style={styles.secondaryButton} onPress={() => setShowReportProfileModal(false)}>
+                <Pressable style={styles.secondaryButton} onPress={() => { setShowReportProfileModal(false); setReportProfileTarget(null); }}>
                   <Text style={styles.secondaryButtonText}>Cancel</Text>
                 </Pressable>
               </View>
@@ -7076,11 +8586,13 @@ function privateThreadIncludesUsers(
     }> = [
       { key: "messages", title: "Private messages", description: "New direct messages from other members.", icon: "mail-outline" },
       { key: "comments", title: "Comments", description: "New comments on quests you host.", icon: "chatbox-outline" },
+      { key: "joined_comments", title: "Comments on joined quests", description: "New public comments on quests you joined.", icon: "chatbubbles-outline" },
       { key: "join_updates", title: "Join decisions", description: "When your request is accepted or declined.", icon: "checkmark-circle-outline" },
       { key: "join_requests", title: "Join requests", description: "When someone asks to join your quest.", icon: "person-add-outline" },
       { key: "friend_requests", title: "Friend requests", description: "New requests from people who want to connect.", icon: "people-outline" },
       { key: "followed_posts", title: "Posts from people you follow", description: "New quests from your accepted connections.", icon: "radio-outline" },
       { key: "liked_categories", title: "Liked category alerts", description: "New quests matching interests chosen during setup.", icon: "heart-outline" },
+      { key: "quest_reminders", title: "Quest reminders", description: "A reminder shortly before a scheduled quest starts.", icon: "alarm-outline" },
     ];
     const closeManager = () => {
       setShowNotificationPreferences(false);
@@ -7347,20 +8859,28 @@ function privateThreadIncludesUsers(
                   </Pressable>
                 </View>
               ) : null}
-              <Pressable
-                style={[styles.refreshButton, { backgroundColor: isLightTheme ? "rgba(237,243,248,0.82)" : "rgba(255,255,255,0.06)", borderColor: shellBorder }]}
-                onPress={() => {
-                  openAuthedTab("notifications");
-                  void refreshAll();
-                }}
-              >
-                <Ionicons name="notifications-outline" size={20} color={shellText} />
-                {unreadNotificationCount > 0 ? (
-                  <View style={styles.badgePill}>
-                    <Text style={styles.badgeText}>{unreadNotificationCount > 99 ? "99+" : String(unreadNotificationCount)}</Text>
-                  </View>
-                ) : null}
-              </Pressable>
+              {signedIn ? (
+                <Pressable
+                  style={[styles.refreshButton, { backgroundColor: isLightTheme ? "rgba(237,243,248,0.82)" : "rgba(255,255,255,0.06)", borderColor: shellBorder }]}
+                  onPress={() => {
+                    openAuthedTab("notifications");
+                    void refreshAll();
+                  }}
+                  accessibilityLabel="Open notifications"
+                >
+                  <Ionicons name="notifications-outline" size={20} color={shellText} />
+                  {unreadNotificationCount > 0 ? (
+                    <View style={styles.badgePill}>
+                      <Text style={styles.badgeText}>{unreadNotificationCount > 99 ? "99+" : String(unreadNotificationCount)}</Text>
+                    </View>
+                  ) : null}
+                </Pressable>
+              ) : (
+                <Pressable style={styles.headerAuthButton} onPress={() => promptAuth("login")} accessibilityLabel="Log in or sign up">
+                  <Ionicons name="person-outline" size={16} color="#ffffff" />
+                  <Text style={styles.headerAuthButtonText}>Sign in</Text>
+                </Pressable>
+              )}
             </View>
           </Animated.View>
           {busyLabel ? (
@@ -7375,6 +8895,22 @@ function privateThreadIncludesUsers(
             onScroll={(event) => {
               const nextY = event.nativeEvent.contentOffset.y;
               const delta = nextY - scrollPositionRef.current;
+              const measuredFourthQuestTop = homeFeedOffsetRef.current !== null && fourthQuestOffsetRef.current !== null
+                ? homeFeedOffsetRef.current + fourthQuestOffsetRef.current
+                : null;
+              const authPromptThreshold = measuredFourthQuestTop === null
+                ? 1900
+                : Math.max(1500, measuredFourthQuestTop - windowHeight * 0.72);
+              if (
+                !signedIn
+                && activeTab === "home"
+                && feedViewMode === "list"
+                && homeVisibleQuestCountRef.current >= 4
+                && !signedOutAuthPromptShownRef.current
+                && nextY >= authPromptThreshold
+              ) {
+                promptAuth("login");
+              }
               if (delta > 3) setScrollDirection("down");
               if (delta < -3) setScrollDirection("up");
               if (nextY < 14) {
@@ -7417,14 +8953,16 @@ function privateThreadIncludesUsers(
           />
           <FullscreenMediaViewer media={fullscreenMedia} onClose={() => setFullscreenMedia(null)} />
           {renderQuestionModal()}
+          {renderMeetupSafetyModal()}
           {renderOnboardingWizard()}
+          {renderUpcomingQuestAnnouncement()}
           {renderPushPromptModal()}
           {renderNotificationPreferencesModal()}
           {renderAuthModal()}
           {renderEulaModal()}
           {renderAccountLifecycleModal()}
 
-          <View
+          {activeTab !== "create" ? <View
             style={[
               styles.tabBar,
               {
@@ -7463,7 +9001,7 @@ function privateThreadIncludesUsers(
                 </Pressable>
               );
             })}
-          </View>
+          </View> : null}
         </KeyboardAvoidingView>
       </SafeAreaView>
     </AppErrorBoundary>
@@ -7513,6 +9051,27 @@ const styles = StyleSheet.create({
     position: "relative",
     width: 44,
   },
+  headerAuthButton: {
+    alignItems: "center",
+    backgroundColor: "#0f5f73",
+    borderColor: "rgba(255,255,255,0.2)",
+    borderRadius: 22,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 6,
+    height: 44,
+    justifyContent: "center",
+    paddingHorizontal: 14,
+    shadowColor: "#0f5f73",
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+  },
+  headerAuthButtonText: {
+    color: "#ffffff",
+    fontSize: 13,
+    fontWeight: "900",
+  },
   screen: {
     gap: 0,
     paddingBottom: 132,
@@ -7545,6 +9104,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 8,
   },
+  screenHeaderRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 12,
+    justifyContent: "space-between",
+  },
+  screenHeaderCopy: {
+    flex: 1,
+  },
+  notificationSettingsLink: {
+    alignItems: "center",
+    borderRadius: 999,
+    flexDirection: "row",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+  },
+  notificationSettingsLinkText: {
+    fontSize: 12,
+    fontWeight: "900",
+  },
   screenTitle: {
     color: "#f8fafc",
     fontSize: 26,
@@ -7557,32 +9137,107 @@ const styles = StyleSheet.create({
     lineHeight: 19,
   },
   createShell: {
-    gap: 14,
-    paddingBottom: 18,
-    paddingHorizontal: 14,
-    paddingTop: 10,
+    gap: 10,
+    paddingBottom: 104,
+    paddingHorizontal: 10,
+    paddingTop: 6,
+  },
+  createQuickHeader: {
+    alignItems: "center",
+    borderColor: "rgba(155,216,228,0.2)",
+    borderRadius: 18,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 11,
+    paddingHorizontal: 13,
+    paddingVertical: 11,
+  },
+  createQuickHeaderCopy: {
+    flex: 1,
+    gap: 1,
+  },
+  createQuickHeaderTitle: {
+    color: "#ffffff",
+    fontSize: 19,
+    fontWeight: "900",
+    letterSpacing: -0.35,
+    lineHeight: 22,
+  },
+  createQuickHeaderSubtitle: {
+    color: "#b9cdd4",
+    fontSize: 11,
+    lineHeight: 14,
+  },
+  createQuickProgress: {
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.1)",
+    borderColor: "rgba(255,255,255,0.12)",
+    borderRadius: 14,
+    borderWidth: 1,
+    minWidth: 55,
+    paddingHorizontal: 9,
+    paddingVertical: 7,
+  },
+  createQuickProgressValue: {
+    color: "#ffffff",
+    fontSize: 15,
+    fontWeight: "900",
+    lineHeight: 17,
+  },
+  createQuickProgressLabel: {
+    color: "#9bd8e4",
+    fontSize: 8,
+    fontWeight: "900",
+    letterSpacing: 1,
+  },
+  createQuickClose: {
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderColor: "rgba(255,255,255,0.12)",
+    borderRadius: 999,
+    borderWidth: 1,
+    height: 32,
+    justifyContent: "center",
+    width: 32,
+  },
+  createQuickCard: {
+    backgroundColor: "#151722",
+    borderColor: "rgba(255,255,255,0.07)",
+    borderRadius: 20,
+    borderWidth: 1,
+    overflow: "hidden",
+  },
+  createQuickSection: {
+    gap: 10,
+    paddingHorizontal: 13,
+    paddingVertical: 12,
+  },
+  createQuickDivider: {
+    backgroundColor: "rgba(255,255,255,0.07)",
+    height: 1,
+    marginHorizontal: 13,
   },
   createHero: {
     borderColor: "rgba(155,216,228,0.2)",
-    borderRadius: 28,
+    borderRadius: 21,
     borderWidth: 1,
-    gap: 7,
+    gap: 5,
     overflow: "hidden",
-    padding: 20,
+    padding: 14,
   },
   createHeroTop: {
     alignItems: "center",
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 8,
+    marginBottom: 2,
   },
   createHeroMark: {
     alignItems: "center",
     backgroundColor: "#9bd8e4",
     borderRadius: 999,
-    height: 38,
+    height: 32,
     justifyContent: "center",
-    width: 38,
+    width: 32,
   },
   createProgressPill: {
     backgroundColor: "rgba(255,255,255,0.1)",
@@ -7605,23 +9260,23 @@ const styles = StyleSheet.create({
   },
   createHeroTitle: {
     color: "#ffffff",
-    fontSize: 28,
+    fontSize: 23,
     fontWeight: "900",
     letterSpacing: -0.5,
-    lineHeight: 32,
+    lineHeight: 27,
     maxWidth: 320,
   },
   createHeroCopy: {
     color: "#bed1d8",
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 12,
+    lineHeight: 17,
     maxWidth: 330,
   },
   createProgressTrack: {
     backgroundColor: "rgba(255,255,255,0.1)",
     borderRadius: 999,
     height: 5,
-    marginTop: 10,
+    marginTop: 5,
     overflow: "hidden",
   },
   createProgressFill: {
@@ -7632,33 +9287,47 @@ const styles = StyleSheet.create({
   createSectionCard: {
     backgroundColor: "#151722",
     borderColor: "rgba(255,255,255,0.07)",
-    borderRadius: 26,
+    borderRadius: 20,
     borderWidth: 1,
-    gap: 16,
-    padding: 16,
+    gap: 12,
+    padding: 13,
   },
   createSectionHeader: {
     alignItems: "flex-start",
     flexDirection: "row",
     gap: 12,
   },
+  createSectionHeaderCompact: {
+    alignItems: "center",
+    gap: 9,
+  },
   createSectionIcon: {
     alignItems: "center",
     backgroundColor: "rgba(109,174,194,0.12)",
     borderColor: "rgba(155,216,228,0.18)",
-    borderRadius: 14,
+    borderRadius: 12,
     borderWidth: 1,
-    height: 42,
+    height: 36,
     justifyContent: "center",
-    width: 42,
+    width: 36,
   },
   createSectionIconComplete: {
     backgroundColor: "#9bd8e4",
     borderColor: "#9bd8e4",
   },
+  createSectionIconCompact: {
+    borderRadius: 10,
+    height: 32,
+    width: 32,
+  },
   createSectionHeadingCopy: {
     flex: 1,
     gap: 2,
+  },
+  createSectionTitleRow: {
+    alignItems: "baseline",
+    flexDirection: "row",
+    gap: 7,
   },
   createSectionStep: {
     color: "#6daec2",
@@ -7668,18 +9337,27 @@ const styles = StyleSheet.create({
   },
   createSectionTitle: {
     color: "#f8fafc",
-    fontSize: 19,
+    fontSize: 17,
     fontWeight: "900",
     letterSpacing: -0.2,
+  },
+  createSectionTitleCompact: {
+    fontSize: 15,
+    lineHeight: 18,
   },
   createSectionSubtitle: {
     color: "#929bad",
     fontSize: 12,
-    lineHeight: 17,
-    marginTop: 2,
+    lineHeight: 15,
+    marginTop: 1,
+  },
+  createSectionSubtitleCompact: {
+    fontSize: 11,
+    lineHeight: 13,
+    marginTop: 0,
   },
   createFieldGroup: {
-    gap: 8,
+    gap: 6,
   },
   createFieldLabelRow: {
     alignItems: "center",
@@ -7701,20 +9379,20 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "#f8fafc",
     borderColor: "#e2e8f0",
-    borderRadius: 17,
+    borderRadius: 14,
     borderWidth: 1,
     flexDirection: "row",
     gap: 10,
-    minHeight: 54,
-    paddingHorizontal: 13,
+    minHeight: 48,
+    paddingHorizontal: 11,
   },
   createFieldLeading: {
     alignItems: "center",
     backgroundColor: "#e4f3f6",
     borderRadius: 10,
-    height: 32,
+    height: 30,
     justifyContent: "center",
-    width: 32,
+    width: 30,
   },
   createSelectValue: {
     color: "#101827",
@@ -7725,13 +9403,13 @@ const styles = StyleSheet.create({
   createInput: {
     backgroundColor: "#f8fafc",
     borderColor: "#e2e8f0",
-    borderRadius: 17,
+    borderRadius: 14,
     borderWidth: 1,
     color: "#101827",
     fontSize: 15,
-    minHeight: 54,
-    paddingHorizontal: 15,
-    paddingVertical: 14,
+    minHeight: 48,
+    paddingHorizontal: 13,
+    paddingVertical: 11,
   },
   createTextArea: {
     minHeight: 100,
@@ -7769,12 +9447,13 @@ const styles = StyleSheet.create({
   createChoiceCard: {
     backgroundColor: "#1b1e2a",
     borderColor: "rgba(255,255,255,0.07)",
-    borderRadius: 17,
+    borderRadius: 14,
     borderWidth: 1,
     flex: 1,
-    gap: 5,
-    minHeight: 108,
-    padding: 13,
+    gap: 3,
+    minHeight: 68,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
   },
   createChoiceCardActive: {
     backgroundColor: "#9bd8e4",
@@ -7784,7 +9463,7 @@ const styles = StyleSheet.create({
     color: "#f8fafc",
     fontSize: 14,
     fontWeight: "900",
-    marginTop: 3,
+    marginTop: 1,
   },
   createChoiceTitleActive: {
     color: "#082f3a",
@@ -7866,12 +9545,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "#f8fafc",
     borderColor: "#e2e8f0",
-    borderRadius: 17,
+    borderRadius: 14,
     borderWidth: 1,
     flexDirection: "row",
     gap: 10,
-    minHeight: 54,
-    paddingHorizontal: 15,
+    minHeight: 48,
+    paddingHorizontal: 13,
   },
   createInputShellDisabled: {
     opacity: 0.58,
@@ -7880,8 +9559,8 @@ const styles = StyleSheet.create({
     color: "#101827",
     flex: 1,
     fontSize: 15,
-    minHeight: 52,
-    paddingVertical: 12,
+    minHeight: 46,
+    paddingVertical: 10,
   },
   createHelperText: {
     color: "#8993a6",
@@ -7960,19 +9639,20 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "#1b1e2a",
     borderColor: "rgba(255,255,255,0.06)",
-    borderRadius: 17,
+    borderRadius: 16,
     borderWidth: 1,
     flexDirection: "row",
     gap: 10,
-    padding: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
   },
   createAdvancedIcon: {
     alignItems: "center",
     backgroundColor: "rgba(109,174,194,0.12)",
     borderRadius: 12,
-    height: 38,
+    height: 34,
     justifyContent: "center",
-    width: 38,
+    width: 34,
   },
   createMediaPreview: {
     backgroundColor: "#0e1017",
@@ -7980,6 +9660,75 @@ const styles = StyleSheet.create({
     borderRadius: 19,
     borderWidth: 1,
     overflow: "hidden",
+    position: "relative",
+    width: 286,
+  },
+  createMediaTray: {
+    gap: 10,
+    paddingRight: 4,
+  },
+  createMediaNumberBadge: {
+    backgroundColor: "rgba(8,15,23,0.82)",
+    borderColor: "rgba(255,255,255,0.14)",
+    borderRadius: 999,
+    borderWidth: 1,
+    left: 10,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    position: "absolute",
+    top: 10,
+    zIndex: 4,
+  },
+  createMediaNumberText: {
+    color: "#ffffff",
+    fontSize: 10,
+    fontWeight: "900",
+  },
+  createMediaActions: {
+    flexDirection: "row",
+    gap: 9,
+  },
+  createMediaAction: {
+    alignItems: "center",
+    backgroundColor: "rgba(109,174,194,0.08)",
+    borderColor: "rgba(155,216,228,0.2)",
+    borderRadius: 16,
+    borderWidth: 1,
+    flex: 1,
+    flexDirection: "row",
+    gap: 9,
+    minHeight: 64,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+  },
+  createMediaRecordAction: {
+    backgroundColor: "rgba(15,95,115,0.3)",
+    borderColor: "rgba(155,216,228,0.34)",
+  },
+  createMediaActionIcon: {
+    alignItems: "center",
+    backgroundColor: "#9bd8e4",
+    borderRadius: 12,
+    height: 40,
+    justifyContent: "center",
+    width: 40,
+  },
+  createMediaRecordIcon: {
+    backgroundColor: "#0f5f73",
+  },
+  createMediaActionCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  createMediaActionTitle: {
+    color: "#f8fafc",
+    fontSize: 12,
+    fontWeight: "900",
+  },
+  createMediaActionSubtitle: {
+    color: "#8f99a8",
+    fontSize: 9,
+    lineHeight: 12,
   },
   createMediaImage: {
     aspectRatio: 16 / 10,
@@ -7994,6 +9743,19 @@ const styles = StyleSheet.create({
   createMediaFileCopy: {
     flex: 1,
     gap: 2,
+  },
+  createMediaItemActions: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 6,
+  },
+  createMediaDeleteButton: {
+    alignItems: "center",
+    backgroundColor: "rgba(251,113,133,0.1)",
+    borderRadius: 999,
+    height: 36,
+    justifyContent: "center",
+    width: 36,
   },
   createMediaReady: {
     color: "#86efac",
@@ -8015,6 +9777,22 @@ const styles = StyleSheet.create({
   },
   createMediaChangeText: {
     color: "#dff7fb",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  createMediaLimitReached: {
+    alignItems: "center",
+    backgroundColor: "rgba(134,239,172,0.08)",
+    borderColor: "rgba(134,239,172,0.2)",
+    borderRadius: 14,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 7,
+    justifyContent: "center",
+    minHeight: 46,
+  },
+  createMediaLimitText: {
+    color: "#d9fbe5",
     fontSize: 12,
     fontWeight: "800",
   },
@@ -8209,6 +9987,113 @@ const styles = StyleSheet.create({
   pushPromptButton: {
     flex: 1,
   },
+  upcomingQuestCard: {
+    alignSelf: "center",
+    borderColor: "rgba(155,216,228,0.24)",
+    borderRadius: 26,
+    borderWidth: 1,
+    gap: 16,
+    maxWidth: 440,
+    padding: 18,
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 18 },
+    shadowOpacity: 0.38,
+    shadowRadius: 30,
+    width: "100%",
+  },
+  upcomingQuestTopRow: {
+    alignItems: "flex-start",
+    flexDirection: "row",
+    gap: 11,
+  },
+  upcomingQuestIcon: {
+    alignItems: "center",
+    backgroundColor: "#9bd8e4",
+    borderRadius: 15,
+    height: 46,
+    justifyContent: "center",
+    width: 46,
+  },
+  upcomingQuestHeading: {
+    flex: 1,
+    gap: 3,
+    minWidth: 0,
+  },
+  upcomingQuestEyebrow: {
+    color: "#9bd8e4",
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 1.5,
+  },
+  upcomingQuestTitle: {
+    color: "#ffffff",
+    fontSize: 20,
+    fontWeight: "900",
+    lineHeight: 24,
+  },
+  upcomingQuestClose: {
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.07)",
+    borderRadius: 999,
+    height: 34,
+    justifyContent: "center",
+    width: 34,
+  },
+  upcomingQuestCountdownPanel: {
+    alignItems: "center",
+    backgroundColor: "rgba(5,12,18,0.5)",
+    borderColor: "rgba(155,216,228,0.15)",
+    borderRadius: 20,
+    borderWidth: 1,
+    gap: 4,
+    paddingHorizontal: 16,
+    paddingVertical: 18,
+  },
+  upcomingQuestCountdownLabel: {
+    color: "#8299a3",
+    fontSize: 9,
+    fontWeight: "900",
+    letterSpacing: 1.4,
+  },
+  upcomingQuestCountdown: {
+    color: "#ffffff",
+    fontSize: 40,
+    fontVariant: ["tabular-nums"],
+    fontWeight: "900",
+    letterSpacing: -1.2,
+  },
+  upcomingQuestDate: {
+    color: "#afc2c9",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  upcomingQuestAction: {
+    alignItems: "center",
+    backgroundColor: "#9bd8e4",
+    borderRadius: 16,
+    flexDirection: "row",
+    gap: 8,
+    justifyContent: "center",
+    minHeight: 52,
+  },
+  upcomingQuestActionText: {
+    color: "#082f3a",
+    fontSize: 15,
+    fontWeight: "900",
+  },
+  upcomingQuestDismissEvent: {
+    alignItems: "center",
+    alignSelf: "center",
+    flexDirection: "row",
+    gap: 7,
+    minHeight: 32,
+    paddingHorizontal: 8,
+  },
+  upcomingQuestDismissEventText: {
+    color: "#afc2c9",
+    fontSize: 12,
+    fontWeight: "700",
+  },
   authModalScroll: {
     flexGrow: 0,
   },
@@ -8397,6 +10282,24 @@ const styles = StyleSheet.create({
     gap: 5,
     justifyContent: "center",
     minHeight: 55,
+  },
+  authOauthLogo: {
+    alignItems: "center",
+    borderRadius: 999,
+    height: 29,
+    justifyContent: "center",
+    width: 29,
+  },
+  authOauthLogoApple: {
+    backgroundColor: "#ffffff",
+  },
+  authOauthLogoGoogle: {
+    backgroundColor: "#ffffff",
+    borderColor: "rgba(255,255,255,0.18)",
+    borderWidth: 1,
+  },
+  authOauthLogoFacebook: {
+    backgroundColor: "#1877f2",
   },
   authOauthText: {
     color: "#dbe5e9",
@@ -9709,6 +11612,10 @@ const styles = StyleSheet.create({
     position: "relative",
     width: "100%",
   },
+  nativeVideoShellCompact: {
+    borderRadius: 14,
+    height: 190,
+  },
   nativeVideoShellFullscreen: {
     borderRadius: 0,
     flex: 1,
@@ -10244,6 +12151,11 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     lineHeight: 18,
   },
+  questDetailDirectionsHint: {
+    color: "#9bd8e4",
+    fontSize: 10,
+    fontWeight: "800",
+  },
   questDetailFactDivider: {
     backgroundColor: "rgba(255,255,255,0.06)",
     height: 1,
@@ -10266,6 +12178,140 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 10,
     lineHeight: 15,
+  },
+  hostChecklistCard: {
+    backgroundColor: "#121c24",
+    borderColor: "rgba(155,216,228,0.22)",
+    borderRadius: 18,
+    borderWidth: 1,
+    gap: 2,
+    overflow: "hidden",
+    padding: 12,
+  },
+  hostChecklistHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 10,
+    paddingBottom: 9,
+  },
+  hostChecklistHeaderIcon: {
+    alignItems: "center",
+    backgroundColor: "#9bd8e4",
+    borderRadius: 11,
+    height: 36,
+    justifyContent: "center",
+    width: 36,
+  },
+  hostChecklistHeaderCopy: {
+    flex: 1,
+    gap: 1,
+  },
+  hostChecklistEyebrow: {
+    color: "#6daec2",
+    fontSize: 8,
+    fontWeight: "900",
+    letterSpacing: 1.1,
+  },
+  hostChecklistTitle: {
+    color: "#f4f8fa",
+    fontSize: 15,
+    fontWeight: "900",
+  },
+  hostChecklistMutedBadge: {
+    backgroundColor: "rgba(148,163,184,0.12)",
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+  },
+  hostChecklistMutedText: {
+    color: "#9aa4b1",
+    fontSize: 8,
+    fontWeight: "900",
+    letterSpacing: 0.7,
+  },
+  hostChecklistItem: {
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.035)",
+    borderRadius: 13,
+    flexDirection: "row",
+    gap: 9,
+    marginTop: 7,
+    minHeight: 58,
+    padding: 9,
+  },
+  hostChecklistItemIcon: {
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.055)",
+    borderRadius: 10,
+    height: 34,
+    justifyContent: "center",
+    width: 34,
+  },
+  hostChecklistItemCopy: {
+    flex: 1,
+    gap: 2,
+    minWidth: 0,
+  },
+  hostChecklistItemTitle: {
+    color: "#edf3f5",
+    fontSize: 12,
+    fontWeight: "900",
+  },
+  hostChecklistItemText: {
+    color: "#8f99a8",
+    fontSize: 10,
+    lineHeight: 14,
+  },
+  hostChecklistReviewButton: {
+    backgroundColor: "rgba(214,173,99,0.14)",
+    borderColor: "rgba(214,173,99,0.34)",
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  hostChecklistReviewText: {
+    color: "#e8c98f",
+    fontSize: 10,
+    fontWeight: "900",
+  },
+  hostChecklistShareButton: {
+    alignItems: "center",
+    backgroundColor: "#be185d",
+    borderRadius: 999,
+    justifyContent: "center",
+    minHeight: 34,
+    minWidth: 66,
+    paddingHorizontal: 10,
+  },
+  hostChecklistShareText: {
+    color: "#ffffff",
+    fontSize: 10,
+    fontWeight: "900",
+  },
+  hostChecklistFooter: {
+    alignItems: "center",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+    paddingHorizontal: 3,
+    paddingTop: 10,
+  },
+  hostChecklistFooterButton: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 5,
+    minHeight: 28,
+  },
+  hostChecklistFooterText: {
+    color: "#9bd8e4",
+    fontSize: 9,
+    fontWeight: "800",
+  },
+  hostChecklistFooterMutedText: {
+    color: "#8f99a8",
+    fontSize: 9,
+    fontWeight: "800",
   },
   notificationHeader: {
     gap: 10,
@@ -10331,10 +12377,273 @@ const styles = StyleSheet.create({
     width: 38,
   },
   inboxAvatarFallback: {
+    alignItems: "center",
     backgroundColor: "rgba(255,255,255,0.18)",
     borderRadius: 999,
     height: 38,
+    justifyContent: "center",
     width: 38,
+  },
+  inboxScreenShell: {
+    gap: 12,
+    paddingBottom: 110,
+    paddingHorizontal: 14,
+  },
+  inboxSearchShell: {
+    alignItems: "center",
+    borderRadius: 16,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 9,
+    minHeight: 50,
+    paddingHorizontal: 13,
+  },
+  inboxSearchInput: {
+    flex: 1,
+    fontSize: 14,
+    minHeight: 48,
+  },
+  inboxSegment: {
+    borderRadius: 16,
+    flexDirection: "row",
+    gap: 4,
+    padding: 4,
+  },
+  inboxSegmentButton: {
+    alignItems: "center",
+    borderRadius: 13,
+    flex: 1,
+    flexDirection: "row",
+    gap: 6,
+    justifyContent: "center",
+    minHeight: 42,
+  },
+  inboxSegmentButtonActive: {
+    backgroundColor: "#9bd8e4",
+  },
+  inboxSegmentText: {
+    fontSize: 12,
+    fontWeight: "900",
+  },
+  inboxSegmentCount: {
+    alignItems: "center",
+    backgroundColor: "rgba(148,163,184,0.14)",
+    borderRadius: 999,
+    minWidth: 20,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+  },
+  inboxSegmentCountActive: {
+    backgroundColor: "rgba(8,47,58,0.12)",
+  },
+  inboxSegmentCountText: {
+    color: "#94a3b8",
+    fontSize: 9,
+    fontWeight: "900",
+  },
+  inboxSegmentCountTextActive: {
+    color: "#082f3a",
+  },
+  inboxThreadList: {
+    gap: 9,
+  },
+  inboxThreadCard: {
+    alignItems: "center",
+    borderRadius: 18,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 11,
+    minHeight: 92,
+    padding: 12,
+  },
+  inboxAvatarWrap: {
+    position: "relative",
+  },
+  inboxPresenceDot: {
+    backgroundColor: "#34d399",
+    borderColor: "#151722",
+    borderRadius: 999,
+    borderWidth: 2,
+    bottom: -1,
+    height: 11,
+    position: "absolute",
+    right: -1,
+    width: 11,
+  },
+  inboxThreadBody: {
+    flex: 1,
+    gap: 3,
+    minWidth: 0,
+  },
+  inboxThreadTitleRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 8,
+  },
+  inboxThreadNameButton: {
+    flex: 1,
+    minWidth: 0,
+  },
+  inboxThreadName: {
+    fontSize: 15,
+    fontWeight: "900",
+  },
+  inboxThreadTime: {
+    fontSize: 9,
+    fontWeight: "700",
+  },
+  inboxQuestLabel: {
+    color: "#6daec2",
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 0.35,
+    textTransform: "uppercase",
+  },
+  inboxThreadPreview: {
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  inboxCommentIcon: {
+    backgroundColor: "#9bd8e4",
+  },
+  inboxCommentCount: {
+    alignItems: "center",
+    backgroundColor: "rgba(109,174,194,0.14)",
+    borderRadius: 999,
+    height: 27,
+    justifyContent: "center",
+    minWidth: 27,
+    paddingHorizontal: 7,
+  },
+  inboxCommentCountText: {
+    color: "#9bd8e4",
+    fontSize: 10,
+    fontWeight: "900",
+  },
+  collectionScreenShell: {
+    gap: 12,
+    paddingBottom: 110,
+    paddingHorizontal: 14,
+  },
+  collectionSummaryCard: {
+    alignItems: "center",
+    borderRadius: 19,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 10,
+    padding: 12,
+  },
+  collectionSummaryIcon: {
+    alignItems: "center",
+    backgroundColor: "#9bd8e4",
+    borderRadius: 14,
+    height: 43,
+    justifyContent: "center",
+    width: 43,
+  },
+  collectionSummaryCopy: {
+    flex: 1,
+  },
+  collectionSummaryValue: {
+    fontSize: 19,
+    fontWeight: "900",
+    lineHeight: 21,
+  },
+  collectionSummaryLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  collectionCreateButton: {
+    alignItems: "center",
+    backgroundColor: "#9bd8e4",
+    borderRadius: 999,
+    flexDirection: "row",
+    gap: 5,
+    minHeight: 38,
+    paddingHorizontal: 12,
+  },
+  collectionCreateButtonText: {
+    color: "#082f3a",
+    fontSize: 11,
+    fontWeight: "900",
+  },
+  collectionSearch: {
+    alignItems: "center",
+    borderRadius: 16,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 9,
+    minHeight: 50,
+    paddingHorizontal: 13,
+  },
+  collectionSearchInput: {
+    flex: 1,
+    fontSize: 14,
+    minHeight: 48,
+  },
+  joinedQuestGrid: {
+    gap: 11,
+  },
+  joinedQuestCard: {
+    borderRadius: 21,
+    borderWidth: 1,
+    height: 210,
+    overflow: "hidden",
+    position: "relative",
+  },
+  joinedQuestImage: {
+    height: "100%",
+    width: "100%",
+  },
+  joinedQuestRolePill: {
+    alignItems: "center",
+    backgroundColor: "#9bd8e4",
+    borderRadius: 999,
+    flexDirection: "row",
+    gap: 4,
+    left: 12,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    position: "absolute",
+    top: 12,
+  },
+  joinedQuestRoleText: {
+    color: "#082f3a",
+    fontSize: 9,
+    fontWeight: "900",
+    textTransform: "uppercase",
+  },
+  joinedQuestCopy: {
+    bottom: 0,
+    gap: 5,
+    left: 0,
+    padding: 14,
+    position: "absolute",
+    right: 0,
+  },
+  joinedQuestCategory: {
+    color: "#9bd8e4",
+    fontSize: 9,
+    fontWeight: "900",
+    letterSpacing: 1,
+    textTransform: "uppercase",
+  },
+  joinedQuestTitle: {
+    color: "#ffffff",
+    fontSize: 21,
+    fontWeight: "900",
+    lineHeight: 24,
+  },
+  joinedQuestMeta: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 5,
+  },
+  joinedQuestMetaText: {
+    color: "#dff7fb",
+    flex: 1,
+    fontSize: 11,
+    fontWeight: "700",
   },
   questMeta: {
     color: "#aeb6c6",
@@ -10375,6 +12684,341 @@ const styles = StyleSheet.create({
     gap: 4,
     marginTop: 8,
     padding: 10,
+  },
+  publicProfileModal: {
+    maxHeight: "92%",
+    padding: 0,
+  },
+  publicProfileContent: {
+    gap: 12,
+    paddingBottom: 16,
+  },
+  publicProfileHero: {
+    borderBottomColor: "rgba(155,216,228,0.14)",
+    borderBottomWidth: 1,
+    gap: 18,
+    paddingBottom: 17,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+  },
+  publicProfileTopRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  publicProfileLabel: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 6,
+  },
+  publicProfileLabelText: {
+    color: "#9bd8e4",
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 1.25,
+  },
+  publicProfileClose: {
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderColor: "rgba(255,255,255,0.1)",
+    borderRadius: 999,
+    borderWidth: 1,
+    height: 36,
+    justifyContent: "center",
+    width: 36,
+  },
+  publicProfileIdentity: {
+    alignItems: "center",
+    gap: 8,
+  },
+  publicProfileAvatarRing: {
+    borderColor: "rgba(155,216,228,0.44)",
+    borderRadius: 999,
+    borderWidth: 2,
+    height: 98,
+    padding: 4,
+    width: 98,
+  },
+  publicProfileAvatar: {
+    borderRadius: 999,
+    height: "100%",
+    width: "100%",
+  },
+  publicProfileAvatarFallback: {
+    alignItems: "center",
+    borderRadius: 999,
+    flex: 1,
+    justifyContent: "center",
+  },
+  publicProfileInitial: {
+    color: "#082f3a",
+    fontSize: 38,
+    fontWeight: "900",
+  },
+  publicProfilePresenceDot: {
+    backgroundColor: "#4ade80",
+    borderColor: "#12232d",
+    borderRadius: 999,
+    borderWidth: 3,
+    bottom: 2,
+    height: 17,
+    position: "absolute",
+    right: 4,
+    width: 17,
+  },
+  publicProfileName: {
+    color: "#ffffff",
+    fontSize: 25,
+    fontWeight: "900",
+    letterSpacing: -0.5,
+  },
+  publicProfileLocationPill: {
+    alignItems: "center",
+    backgroundColor: "rgba(7,14,20,0.34)",
+    borderColor: "rgba(155,216,228,0.16)",
+    borderRadius: 999,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 5,
+    maxWidth: "90%",
+    paddingHorizontal: 11,
+    paddingVertical: 6,
+  },
+  publicProfileLocationText: {
+    color: "#cdebf1",
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  publicProfileBio: {
+    color: "#b9c7cf",
+    fontSize: 12,
+    lineHeight: 17,
+    maxWidth: 390,
+    paddingHorizontal: 12,
+    textAlign: "center",
+  },
+  publicProfileStats: {
+    alignItems: "stretch",
+    backgroundColor: "rgba(5,11,17,0.38)",
+    borderColor: "rgba(255,255,255,0.07)",
+    borderRadius: 17,
+    borderWidth: 1,
+    flexDirection: "row",
+    minHeight: 62,
+  },
+  publicProfileStat: {
+    alignItems: "center",
+    flex: 1,
+    gap: 3,
+    justifyContent: "center",
+    minWidth: 0,
+    paddingHorizontal: 4,
+  },
+  publicProfileStatDivider: {
+    alignSelf: "center",
+    backgroundColor: "rgba(255,255,255,0.09)",
+    height: 28,
+    width: 1,
+  },
+  publicProfileStatNumber: {
+    color: "#ffffff",
+    fontSize: 19,
+    fontWeight: "900",
+  },
+  publicProfileStatLabel: {
+    color: "#8295a0",
+    fontSize: 8,
+    fontWeight: "900",
+    letterSpacing: 0.55,
+    textAlign: "center",
+  },
+  publicProfileSection: {
+    backgroundColor: "#171925",
+    borderColor: "rgba(255,255,255,0.08)",
+    borderRadius: 20,
+    borderWidth: 1,
+    gap: 11,
+    marginHorizontal: 14,
+    padding: 13,
+  },
+  publicProfileSectionHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  publicProfileSectionEyebrow: {
+    color: "#6daec2",
+    fontSize: 9,
+    fontWeight: "900",
+    letterSpacing: 1.1,
+  },
+  publicProfileSectionTitle: {
+    color: "#f8fafc",
+    fontSize: 17,
+    fontWeight: "900",
+  },
+  publicProfileSectionCount: {
+    backgroundColor: "rgba(109,174,194,0.13)",
+    borderRadius: 999,
+    color: "#9bd8e4",
+    fontSize: 11,
+    fontWeight: "900",
+    minWidth: 30,
+    overflow: "hidden",
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    textAlign: "center",
+  },
+  publicProfilePrivateRow: {
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.035)",
+    borderRadius: 13,
+    flexDirection: "row",
+    gap: 8,
+    padding: 12,
+  },
+  publicProfilePrivateText: {
+    color: "#9ba6b3",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  publicProfileFriendGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 9,
+  },
+  publicProfileFriend: {
+    alignItems: "center",
+    gap: 5,
+    width: 58,
+  },
+  publicProfileFriendAvatar: {
+    borderColor: "rgba(155,216,228,0.22)",
+    borderRadius: 999,
+    borderWidth: 1,
+    height: 44,
+    width: 44,
+  },
+  publicProfileFriendFallback: {
+    alignItems: "center",
+    backgroundColor: "#27313e",
+    borderRadius: 999,
+    height: 44,
+    justifyContent: "center",
+    width: 44,
+  },
+  publicProfileFriendInitial: {
+    color: "#9bd8e4",
+    fontSize: 15,
+    fontWeight: "900",
+  },
+  publicProfileFriendName: {
+    color: "#cbd5df",
+    fontSize: 9,
+    fontWeight: "800",
+    textAlign: "center",
+    width: "100%",
+  },
+  publicProfileShowMore: {
+    alignItems: "center",
+    alignSelf: "center",
+    flexDirection: "row",
+    gap: 5,
+    padding: 5,
+  },
+  publicProfileShowMoreText: {
+    color: "#9bd8e4",
+    fontSize: 11,
+    fontWeight: "900",
+  },
+  publicProfileActions: {
+    flexDirection: "row",
+    gap: 9,
+    marginHorizontal: 14,
+  },
+  publicProfilePrimaryAction: {
+    alignItems: "center",
+    backgroundColor: "#9bd8e4",
+    borderRadius: 15,
+    flex: 1,
+    flexDirection: "row",
+    gap: 7,
+    justifyContent: "center",
+    minHeight: 50,
+    paddingHorizontal: 14,
+  },
+  actionButtonDisabled: {
+    opacity: 0.7,
+  },
+  publicProfilePrimaryActionText: {
+    color: "#082f3a",
+    fontSize: 14,
+    fontWeight: "900",
+  },
+  publicProfileMoreAction: {
+    alignItems: "center",
+    backgroundColor: "#20232f",
+    borderColor: "rgba(255,255,255,0.09)",
+    borderRadius: 15,
+    borderWidth: 1,
+    justifyContent: "center",
+    width: 52,
+  },
+  publicProfileQuestCard: {
+    borderRadius: 16,
+    height: 142,
+    justifyContent: "flex-end",
+    overflow: "hidden",
+  },
+  publicProfileQuestImage: {
+    height: "100%",
+    position: "absolute",
+    width: "100%",
+  },
+  publicProfileQuestCopy: {
+    gap: 3,
+    padding: 13,
+    paddingRight: 54,
+  },
+  publicProfileQuestCategory: {
+    color: "#9bd8e4",
+    fontSize: 8,
+    fontWeight: "900",
+    letterSpacing: 1,
+    textTransform: "uppercase",
+  },
+  publicProfileQuestTitle: {
+    color: "#ffffff",
+    fontSize: 17,
+    fontWeight: "900",
+    lineHeight: 20,
+  },
+  publicProfileQuestMeta: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 4,
+  },
+  publicProfileQuestLocation: {
+    color: "#cdebf1",
+    flex: 1,
+    fontSize: 10,
+    fontWeight: "800",
+  },
+  publicProfileQuestArrow: {
+    alignItems: "center",
+    backgroundColor: "#9bd8e4",
+    borderRadius: 999,
+    bottom: 13,
+    height: 34,
+    justifyContent: "center",
+    position: "absolute",
+    right: 13,
+    width: 34,
+  },
+  publicProfileEmpty: {
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 18,
   },
   detailBox: {
     backgroundColor: "#171925",
@@ -10492,6 +13136,60 @@ const styles = StyleSheet.create({
     gap: 9,
     paddingHorizontal: 4,
     paddingVertical: 8,
+  },
+  guestRowActions: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 6,
+  },
+  guestLocationControl: {
+    alignItems: "center",
+    gap: 3,
+  },
+  guestLocationLabel: {
+    color: "#8f99a8",
+    fontSize: 8,
+    fontWeight: "900",
+    letterSpacing: 0.8,
+  },
+  guestLocationButton: {
+    alignItems: "center",
+    borderRadius: 999,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 5,
+    minHeight: 34,
+    paddingHorizontal: 10,
+  },
+  guestLocationButtonShared: {
+    backgroundColor: "#6daec2",
+    borderColor: "#6daec2",
+  },
+  guestLocationButtonUnshared: {
+    backgroundColor: "rgba(190,24,93,0.18)",
+    borderColor: "rgba(251,113,133,0.6)",
+  },
+  guestLocationButtonText: {
+    color: "#08121a",
+    fontSize: 11,
+    fontWeight: "900",
+  },
+  guestLocationButtonTextUnshared: {
+    color: "#fecdd3",
+  },
+  guestIconButton: {
+    alignItems: "center",
+    backgroundColor: "rgba(155,200,210,0.08)",
+    borderColor: "rgba(155,200,210,0.2)",
+    borderRadius: 999,
+    borderWidth: 1,
+    height: 36,
+    justifyContent: "center",
+    width: 36,
+  },
+  guestIconButtonActive: {
+    backgroundColor: "#6daec2",
+    borderColor: "#6daec2",
   },
   addressAccessButton: {
     alignItems: "center",
@@ -10923,6 +13621,10 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     minWidth: 0,
   },
+  commentThreadNameButton: {
+    flexShrink: 1,
+    minWidth: 0,
+  },
   commentThreadTime: {
     color: "#aeb6c6",
     fontSize: 12,
@@ -10984,8 +13686,171 @@ const styles = StyleSheet.create({
     width: 40,
   },
   commentComposerActions: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 6,
+  },
+  commentComposerHint: {
+    color: "#7f8998",
+    flex: 1,
+    fontSize: 10,
+    lineHeight: 14,
+  },
+  commentComposerCount: {
+    color: "#7f8998",
+    fontSize: 10,
+    fontWeight: "800",
+  },
+  conversationHeader: {
+    backgroundColor: "#121d27",
+    borderColor: "rgba(155,216,228,0.12)",
+    borderRadius: 20,
+    borderWidth: 1,
+    gap: 12,
+    padding: 13,
+  },
+  conversationModalCard: {
+    maxHeight: "92%",
+  },
+  conversationLayout: {
+    flex: 1,
+    gap: 10,
+    minHeight: 0,
+  },
+  conversationListScroll: {
+    flex: 1,
+    minHeight: 0,
+  },
+  conversationListContent: {
+    flexGrow: 1,
+    justifyContent: "flex-end",
+    paddingBottom: 2,
+  },
+  conversationHeaderTop: {
+    alignItems: "flex-start",
     flexDirection: "row",
     gap: 10,
+  },
+  conversationHeaderIcon: {
+    alignItems: "center",
+    backgroundColor: "#9bd8e4",
+    borderRadius: 13,
+    height: 40,
+    justifyContent: "center",
+    width: 40,
+  },
+  conversationHeaderAvatar: {
+    borderRadius: 13,
+    height: 40,
+    width: 40,
+  },
+  conversationHeaderCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  conversationEyebrow: {
+    color: "#6daec2",
+    fontSize: 9,
+    fontWeight: "900",
+    letterSpacing: 1,
+  },
+  conversationTitle: {
+    color: "#ffffff",
+    fontSize: 18,
+    fontWeight: "900",
+    lineHeight: 21,
+  },
+  conversationSubtitle: {
+    color: "#929dab",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  conversationClose: {
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderRadius: 999,
+    height: 32,
+    justifyContent: "center",
+    width: 32,
+  },
+  conversationModeSwitch: {
+    backgroundColor: "#0d1119",
+    borderRadius: 13,
+    flexDirection: "row",
+    gap: 4,
+    padding: 4,
+  },
+  conversationModeButton: {
+    alignItems: "center",
+    borderRadius: 10,
+    flex: 1,
+    flexDirection: "row",
+    gap: 6,
+    justifyContent: "center",
+    minHeight: 37,
+  },
+  conversationModeButtonActive: {
+    backgroundColor: "#9bd8e4",
+  },
+  conversationModeText: {
+    color: "#9aa5b5",
+    fontSize: 11,
+    fontWeight: "900",
+  },
+  conversationModeTextActive: {
+    color: "#082f3a",
+  },
+  conversationSearchShell: {
+    alignItems: "center",
+    backgroundColor: "#171925",
+    borderColor: "rgba(255,255,255,0.08)",
+    borderRadius: 14,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 8,
+    minHeight: 45,
+    paddingHorizontal: 12,
+  },
+  conversationSearchInput: {
+    color: "#f8fafc",
+    flex: 1,
+    fontSize: 13,
+    minHeight: 43,
+  },
+  commentThreadItemOwn: {
+    justifyContent: "flex-end",
+  },
+  conversationBubble: {
+    backgroundColor: "#20232f",
+    borderColor: "rgba(255,255,255,0.06)",
+    borderRadius: 16,
+    borderTopLeftRadius: 5,
+    borderWidth: 1,
+    flex: 0,
+    maxWidth: "84%",
+    paddingHorizontal: 11,
+    paddingVertical: 9,
+  },
+  conversationBubbleOwn: {
+    backgroundColor: "#9bd8e4",
+    borderColor: "#bceaf1",
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 5,
+    flexGrow: 0,
+  },
+  conversationBubbleNameOwn: {
+    color: "#082f3a",
+  },
+  conversationBubbleTimeOwn: {
+    color: "#35616c",
+  },
+  conversationBubbleTextOwn: {
+    color: "#082f3a",
+  },
+  conversationEmpty: {
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 28,
   },
   onboardingCard: {
     alignSelf: "center",
@@ -11516,6 +14381,132 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     textDecorationLine: "underline",
   },
+  meetupSafetyCard: {
+    alignSelf: "center",
+    backgroundColor: "#111520",
+    borderColor: "rgba(155,216,228,0.2)",
+    gap: 14,
+    maxWidth: 450,
+    padding: 18,
+    width: "100%",
+  },
+  meetupSafetyHeader: {
+    alignItems: "flex-start",
+    flexDirection: "row",
+    gap: 11,
+  },
+  meetupSafetyIcon: {
+    alignItems: "center",
+    backgroundColor: "#9bd8e4",
+    borderRadius: 14,
+    height: 46,
+    justifyContent: "center",
+    width: 46,
+  },
+  meetupSafetyHeadingCopy: {
+    flex: 1,
+    gap: 2,
+    minWidth: 0,
+  },
+  meetupSafetyEyebrow: {
+    color: "#9bd8e4",
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 1.2,
+  },
+  meetupSafetyTitle: {
+    color: "#f8fafc",
+    fontSize: 21,
+    fontWeight: "900",
+    letterSpacing: -0.4,
+  },
+  meetupSafetySubtitle: {
+    color: "#9aa5b5",
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  meetupSafetyClose: {
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderRadius: 999,
+    height: 34,
+    justifyContent: "center",
+    width: 34,
+  },
+  meetupSafetyTips: {
+    backgroundColor: "rgba(8,13,21,0.5)",
+    borderColor: "rgba(255,255,255,0.06)",
+    borderRadius: 16,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+  },
+  meetupSafetyTipRow: {
+    alignItems: "flex-start",
+    borderBottomColor: "rgba(255,255,255,0.06)",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    flexDirection: "row",
+    gap: 10,
+    paddingVertical: 10,
+  },
+  meetupSafetyTipIcon: {
+    alignItems: "center",
+    backgroundColor: "rgba(155,216,228,0.1)",
+    borderRadius: 10,
+    height: 33,
+    justifyContent: "center",
+    width: 33,
+  },
+  meetupSafetyTipCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  meetupSafetyTipTitle: {
+    color: "#eef5f7",
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  meetupSafetyTipText: {
+    color: "#9aa5b5",
+    fontSize: 11,
+    lineHeight: 15,
+  },
+  meetupSafetyRememberRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 9,
+    minHeight: 32,
+  },
+  meetupSafetyRememberText: {
+    color: "#c8d0da",
+    flex: 1,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  meetupSafetyContinue: {
+    alignItems: "center",
+    backgroundColor: "#9bd8e4",
+    borderRadius: 14,
+    flexDirection: "row",
+    gap: 8,
+    justifyContent: "center",
+    minHeight: 50,
+    paddingHorizontal: 16,
+  },
+  meetupSafetyContinueText: {
+    color: "#082f3a",
+    fontSize: 15,
+    fontWeight: "900",
+  },
+  meetupSafetyDismiss: {
+    alignItems: "center",
+    minHeight: 28,
+  },
+  meetupSafetyDismissText: {
+    color: "#9bc8d2",
+    fontSize: 12,
+    fontWeight: "800",
+    textDecorationLine: "underline",
+  },
   eulaBackdrop: {
     ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(5,8,16,0.94)",
@@ -11620,6 +14611,246 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     padding: 16,
     width: "100%",
+  },
+  videoTrimmerCard: {
+    alignSelf: "center",
+    backgroundColor: "#11131c",
+    borderColor: "rgba(155,216,228,0.2)",
+    borderRadius: 24,
+    borderWidth: 1,
+    gap: 12,
+    maxHeight: "94%",
+    maxWidth: 460,
+    padding: 16,
+    width: "100%",
+  },
+  videoTrimSummary: {
+    alignItems: "center",
+    backgroundColor: "rgba(155,216,228,0.08)",
+    borderRadius: 14,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  videoTrimDuration: {
+    color: "#ffffff",
+    fontSize: 14,
+    fontWeight: "900",
+  },
+  videoTrimRange: {
+    color: "#9bd8e4",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  videoTrimControl: {
+    backgroundColor: "#191c27",
+    borderRadius: 14,
+    gap: 2,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  videoTrimControlHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 4,
+  },
+  videoTrimLabel: {
+    color: "#dce4ed",
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  videoTrimValue: {
+    color: "#9bd8e4",
+    fontSize: 11,
+    fontWeight: "900",
+  },
+  videoRangeSection: {
+    backgroundColor: "#191c27",
+    borderRadius: 16,
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  videoRangeHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  videoRangeTrack: {
+    backgroundColor: "#303646",
+    borderRadius: 9,
+    height: 58,
+    marginHorizontal: 7,
+    overflow: "visible",
+    position: "relative",
+  },
+  videoRangeFrames: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 9,
+    flexDirection: "row",
+    gap: 2,
+    overflow: "hidden",
+    padding: 3,
+  },
+  videoRangeFrame: {
+    backgroundColor: "rgba(155,216,228,0.2)",
+    borderColor: "rgba(255,255,255,0.06)",
+    borderRadius: 3,
+    borderWidth: 1,
+    flex: 1,
+  },
+  videoRangeShade: {
+    backgroundColor: "rgba(5,8,14,0.76)",
+    borderBottomLeftRadius: 9,
+    borderTopLeftRadius: 9,
+    bottom: 0,
+    left: 0,
+    position: "absolute",
+    top: 0,
+  },
+  videoRangeShadeRight: {
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 9,
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 9,
+    left: undefined,
+    right: 0,
+  },
+  videoRangeSelection: {
+    borderBottomColor: "#9bd8e4",
+    borderTopColor: "#9bd8e4",
+    borderWidth: 3,
+    bottom: 0,
+    position: "absolute",
+    top: 0,
+  },
+  videoRangeHandle: {
+    alignItems: "center",
+    backgroundColor: "#9bd8e4",
+    borderBottomLeftRadius: 8,
+    borderTopLeftRadius: 8,
+    bottom: -3,
+    justifyContent: "center",
+    marginLeft: -10,
+    position: "absolute",
+    top: -3,
+    width: 20,
+    zIndex: 3,
+  },
+  videoRangeHandleEnd: {
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 8,
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 8,
+    marginLeft: -10,
+  },
+  videoRangeGrip: {
+    backgroundColor: "rgba(8,47,58,0.65)",
+    borderRadius: 2,
+    height: 20,
+    width: 3,
+  },
+  videoRangeTimes: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  videoRangeTime: {
+    color: "#aeb6c6",
+    fontSize: 10,
+    fontWeight: "800",
+  },
+  videoTrimDoneButton: {
+    alignItems: "center",
+    backgroundColor: "#9bd8e4",
+    borderRadius: 15,
+    flexDirection: "row",
+    gap: 8,
+    justifyContent: "center",
+    minHeight: 52,
+  },
+  videoTrimDoneText: {
+    color: "#082f3a",
+    fontSize: 15,
+    fontWeight: "900",
+  },
+  videoTrimDeleteButton: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 7,
+    justifyContent: "center",
+    minHeight: 40,
+  },
+  videoTrimDeleteText: {
+    color: "#fb7185",
+    fontSize: 12,
+    fontWeight: "900",
+  },
+  createPickerModalCard: {
+    maxWidth: 430,
+  },
+  createCategoryModalCard: {
+    maxHeight: "76%",
+    maxWidth: 440,
+  },
+  createPickerHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  createPickerSubtitle: {
+    color: "#8f98aa",
+    fontSize: 11,
+    marginTop: 3,
+  },
+  createPickerClose: {
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderColor: "rgba(255,255,255,0.08)",
+    borderRadius: 999,
+    borderWidth: 1,
+    height: 36,
+    justifyContent: "center",
+    width: 36,
+  },
+  createDatePicker: {
+    height: 190,
+    width: "100%",
+  },
+  createCategoryGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  createCategoryOption: {
+    alignItems: "center",
+    backgroundColor: "#1b1e2a",
+    borderColor: "rgba(255,255,255,0.07)",
+    borderRadius: 14,
+    borderWidth: 1,
+    flexBasis: "47%",
+    flexDirection: "row",
+    flexGrow: 1,
+    gap: 8,
+    minHeight: 54,
+    paddingHorizontal: 11,
+    paddingVertical: 9,
+  },
+  createCategoryOptionActive: {
+    backgroundColor: "#9bd8e4",
+    borderColor: "#bceaf1",
+  },
+  createCategoryOptionText: {
+    color: "#e8edf4",
+    flex: 1,
+    fontSize: 12,
+    fontWeight: "800",
+    lineHeight: 15,
+  },
+  createCategoryOptionTextActive: {
+    color: "#082f3a",
   },
   pickerModalScroll: {
     maxHeight: "100%",
@@ -12537,6 +15768,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     ...StyleSheet.absoluteFillObject,
   },
+  feedVideoLoading: {
+    alignItems: "center",
+    backgroundColor: "rgba(5,10,15,0.18)",
+    justifyContent: "center",
+    ...StyleSheet.absoluteFillObject,
+  },
   feedVideoErrorText: {
     color: "#ffffff",
     fontSize: 11,
@@ -12634,21 +15871,40 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 6,
   },
-  feedDistancePill: {
+  feedLocationPill: {
     alignItems: "center",
-    backgroundColor: "rgba(9,16,24,0.48)",
-    borderColor: "rgba(255,255,255,0.14)",
-    borderRadius: 999,
+    backgroundColor: "rgba(9,16,24,0.64)",
+    borderColor: "rgba(255,255,255,0.16)",
+    borderRadius: 15,
     borderWidth: 1,
     flexDirection: "row",
-    gap: 5,
-    maxWidth: 105,
-    minHeight: 34,
-    paddingHorizontal: 10,
+    gap: 8,
+    maxWidth: 156,
+    minHeight: 45,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
+  feedLocationIcon: {
+    alignItems: "center",
+    backgroundColor: "rgba(155,216,228,0.16)",
+    borderRadius: 10,
+    height: 29,
+    justifyContent: "center",
+    width: 29,
+  },
+  feedLocationCopy: {
+    flex: 1,
+    gap: 1,
+    minWidth: 0,
   },
   feedDistancePillText: {
     color: "#ffffff",
-    fontSize: 11,
+    fontSize: 11.5,
+    fontWeight: "900",
+  },
+  feedCityStateText: {
+    color: "rgba(219,238,243,0.76)",
+    fontSize: 9,
     fontWeight: "800",
   },
   feedMoreButton: {
@@ -12657,9 +15913,9 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.14)",
     borderRadius: 999,
     borderWidth: 1,
-    height: 32,
+    height: 36,
     justifyContent: "center",
-    width: 32,
+    width: 36,
   },
   feedBottomOverlay: {
     bottom: 0,
@@ -12695,6 +15951,16 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 4,
   },
+  feedTitleMembershipRow: {
+    alignItems: "flex-start",
+    flexDirection: "row",
+    gap: 12,
+  },
+  feedTitleCopy: {
+    flex: 1,
+    gap: 7,
+    minWidth: 0,
+  },
   feedMetaRow: {
     alignItems: "center",
     flexDirection: "row",
@@ -12705,6 +15971,19 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 11,
     fontWeight: "700",
+  },
+  feedCountdownPill: {
+    alignItems: "center",
+    borderRadius: 999,
+    flexDirection: "row",
+    gap: 5,
+    maxWidth: 126,
+    minHeight: 30,
+    paddingHorizontal: 10,
+  },
+  feedCountdownText: {
+    fontSize: 10,
+    fontWeight: "900",
   },
   feedContextRow: {
     alignItems: "center",
@@ -12736,6 +16015,29 @@ const styles = StyleSheet.create({
     minHeight: 40,
     paddingHorizontal: 13,
   },
+  feedJoinButtonOnMedia: {
+    alignSelf: "stretch",
+    backgroundColor: "#9bd8e4",
+    maxWidth: 142,
+    minHeight: 40,
+    paddingHorizontal: 11,
+    width: "100%",
+  },
+  feedMembershipInline: {
+    alignItems: "center",
+    gap: 5,
+    paddingTop: 1,
+    width: 142,
+  },
+  feedGoingOnMedia: {
+    color: "#ffffff",
+    fontSize: 10,
+    fontWeight: "800",
+    textAlign: "center",
+    textShadowColor: "rgba(0,0,0,0.65)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
   feedJoinButtonReady: {
     backgroundColor: "#9bd8e4",
   },
@@ -12763,7 +16065,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     flexDirection: "row",
     gap: 3,
-    marginTop: 11,
+    marginTop: 0,
     minHeight: 52,
     paddingHorizontal: 10,
   },

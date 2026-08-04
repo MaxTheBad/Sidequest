@@ -58,17 +58,19 @@
       <string>_expo._tcp</string>
     </array>
     <key>NSCameraUsageDescription</key>
-    <string>QuestHat uses the camera so you can add profile and quest photos.</string>
+    <string>QuestHat uses the camera so you can record short quest videos and add profile or quest photos.</string>
     <key>NSLocalNetworkUsageDescription</key>
     <string>Expo Dev Launcher uses the local network to discover and connect to development servers running on your computer.</string>
     <key>NSLocationWhenInUseUsageDescription</key>
     <string>QuestHat uses your location to show nearby quests and estimate distance.</string>
   <key>NSMicrophoneUsageDescription</key>
-  <string>Allow $(PRODUCT_NAME) to access your microphone</string>
+  <string>QuestHat uses the microphone to include sound in videos you record for a quest.</string>
   <key>NSMotionUsageDescription</key>
   <string>QuestHat uses motion data to support device and media interactions in the app.</string>
-  <key>NSPhotoLibraryUsageDescription</key>
-  <string>QuestHat uses your photo library so you can attach media to quests.</string>
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>QuestHat uses your photo library so you can attach media to quests.</string>
+    <key>NSSupportsLiveActivities</key>
+    <true/>
     <key>RCTNewArchEnabled</key>
     <true/>
     <key>UILaunchStoryboardName</key>

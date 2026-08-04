@@ -8,13 +8,49 @@
 
 /* Begin PBXBuildFile section */
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
+		15F46D436FF9EC0DBFC9FE33 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7BB8E551426F52A4AFC11114 /* WidgetKit.framework */; };
+		2292AFBE0CD727E2669E0E75 /* QuestHatActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83086A2603A1791586463061 /* QuestHatActivityAttributes.swift */; };
+		3255620723ED41E048721FC8 /* ActivityKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 86A9B84CFE495EA06ECB229F /* ActivityKit.framework */; };
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
+		4784C7A90C0512C447BAC3B4 /* QuestHatLiveActivityBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = 1CE610175E6ED72BE71F4575 /* QuestHatLiveActivityBridge.m */; };
+		50846B95CD3BDA2A36160F4A /* QuestHatLiveActivityWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D7092ADC18C984AA41BAC77 /* QuestHatLiveActivityWidget.swift */; };
+		61E40CA934842ACFF57FC88F /* QuestHatLiveActivityModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = B440CCDAF98264D40AD79F2C /* QuestHatLiveActivityModule.swift */; };
+		8B19EC3DF5280997D4D3ACF9 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3E244AEE27F9BC27E765FDCE /* SwiftUI.framework */; };
+		9F6E101A4B6D47B196310001 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 9F6E101A4B6D47B196310002 /* Assets.xcassets */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
+		CB310294724D4F002B25AC16 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7A28BE55D514B22872D91AD5 /* Foundation.framework */; };
+		D209DC6CFB26A45EE9785C05 /* ActivityKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 86A9B84CFE495EA06ECB229F /* ActivityKit.framework */; };
 		DAA9D82619BF970C0E101C8F /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0094EB44B5F0CA94B5EE3F4A /* ExpoModulesProvider.swift */; };
+		EC0E108A5B723C1391D5B45A /* QuestHatLiveActivity.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = FC16E564A605ABF113B69548 /* QuestHatLiveActivity.appex */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
 		F50174038A9F279B60B26136 /* libPods-QuestHat.a in Frameworks */ = {isa = PBXBuildFile; fileRef = D7ED2F6692FF6FB314DED327 /* libPods-QuestHat.a */; };
+		F8E540B4FDE3C840992211AB /* QuestHatActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83086A2603A1791586463061 /* QuestHatActivityAttributes.swift */; };
 		FAB9DE6B37842C5A8D48C8D1 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 1C885562C0CB185C124D6E08 /* PrivacyInfo.xcprivacy */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		51CAC582F038137F907558C3 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 83CBB9F71A601CBA00E9B192 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A3AA2E2F8A0050549052C23E;
+			remoteInfo = QuestHatLiveActivity;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		DCE2372C955734280888D33B /* Embed App Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				EC0E108A5B723C1391D5B45A /* QuestHatLiveActivity.appex in Embed App Extensions */,
+			);
+			name = "Embed App Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		0094EB44B5F0CA94B5EE3F4A /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-QuestHat/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
@@ -22,14 +58,25 @@
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = QuestHat/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = QuestHat/Info.plist; sourceTree = "<group>"; };
 		1C885562C0CB185C124D6E08 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = QuestHat/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		1CE610175E6ED72BE71F4575 /* QuestHatLiveActivityBridge.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; name = QuestHatLiveActivityBridge.m; path = QuestHat/QuestHatLiveActivityBridge.m; sourceTree = "<group>"; };
+		3E244AEE27F9BC27E765FDCE /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = "<group>"; };
 		570950A2863EA6EEF5747D33 /* Pods-QuestHat.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-QuestHat.debug.xcconfig"; path = "Target Support Files/Pods-QuestHat/Pods-QuestHat.debug.xcconfig"; sourceTree = "<group>"; };
+		7A28BE55D514B22872D91AD5 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
+		7BB8E551426F52A4AFC11114 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = "<group>"; };
+		7D7092ADC18C984AA41BAC77 /* QuestHatLiveActivityWidget.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = QuestHatLiveActivityWidget.swift; sourceTree = "<group>"; };
+		83086A2603A1791586463061 /* QuestHatActivityAttributes.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = QuestHatActivityAttributes.swift; path = QuestHat/QuestHatActivityAttributes.swift; sourceTree = "<group>"; };
+		86A9B84CFE495EA06ECB229F /* ActivityKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ActivityKit.framework; path = System/Library/Frameworks/ActivityKit.framework; sourceTree = "<group>"; };
+		9F6E101A4B6D47B196310002 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = QuestHat/SplashScreen.storyboard; sourceTree = "<group>"; };
+		B440CCDAF98264D40AD79F2C /* QuestHatLiveActivityModule.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = QuestHatLiveActivityModule.swift; path = QuestHat/QuestHatLiveActivityModule.swift; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
+		D2475CE47537A2822FD58173 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		D7ED2F6692FF6FB314DED327 /* libPods-QuestHat.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-QuestHat.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		E81BFF6409294554AC30B63F /* Pods-QuestHat.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-QuestHat.release.xcconfig"; path = "Target Support Files/Pods-QuestHat/Pods-QuestHat.release.xcconfig"; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = QuestHat/AppDelegate.swift; sourceTree = "<group>"; };
 		F11748442D0722820044C1D9 /* QuestHat-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "QuestHat-Bridging-Header.h"; path = "QuestHat/QuestHat-Bridging-Header.h"; sourceTree = "<group>"; };
+		FC16E564A605ABF113B69548 /* QuestHatLiveActivity.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = QuestHatLiveActivity.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -38,6 +85,18 @@
 			buildActionMask = 2147483647;
 			files = (
 				F50174038A9F279B60B26136 /* libPods-QuestHat.a in Frameworks */,
+				D209DC6CFB26A45EE9785C05 /* ActivityKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		2E79004D8FBA4741C4BD0BD8 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				CB310294724D4F002B25AC16 /* Foundation.framework in Frameworks */,
+				3255620723ED41E048721FC8 /* ActivityKit.framework in Frameworks */,
+				15F46D436FF9EC0DBFC9FE33 /* WidgetKit.framework in Frameworks */,
+				8B19EC3DF5280997D4D3ACF9 /* SwiftUI.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -62,6 +121,9 @@
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */,
 				1C885562C0CB185C124D6E08 /* PrivacyInfo.xcprivacy */,
+				83086A2603A1791586463061 /* QuestHatActivityAttributes.swift */,
+				B440CCDAF98264D40AD79F2C /* QuestHatLiveActivityModule.swift */,
+				1CE610175E6ED72BE71F4575 /* QuestHatLiveActivityBridge.m */,
 			);
 			name = QuestHat;
 			sourceTree = "<group>";
@@ -71,8 +133,23 @@
 			children = (
 				ED297162215061F000B7C4FE /* JavaScriptCore.framework */,
 				D7ED2F6692FF6FB314DED327 /* libPods-QuestHat.a */,
+				B185C364C8FEC1993560324E /* iOS */,
+				86A9B84CFE495EA06ECB229F /* ActivityKit.framework */,
+				7BB8E551426F52A4AFC11114 /* WidgetKit.framework */,
+				3E244AEE27F9BC27E765FDCE /* SwiftUI.framework */,
 			);
 			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		4E288BACFA89EBAEFDECCF22 /* QuestHatLiveActivity */ = {
+			isa = PBXGroup;
+			children = (
+				7D7092ADC18C984AA41BAC77 /* QuestHatLiveActivityWidget.swift */,
+				9F6E101A4B6D47B196310002 /* Assets.xcassets */,
+				D2475CE47537A2822FD58173 /* Info.plist */,
+			);
+			name = QuestHatLiveActivity;
+			path = QuestHatLiveActivity;
 			sourceTree = "<group>";
 		};
 		832341AE1AAA6A7D00B99B32 /* Libraries */ = {
@@ -91,6 +168,7 @@
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
 				8D05D4EC3BE151F352A34DF3 /* Pods */,
 				D1FD9DBE2ABA79A8445F75B1 /* ExpoModulesProviders */,
+				4E288BACFA89EBAEFDECCF22 /* QuestHatLiveActivity */,
 			);
 			indentWidth = 2;
 			sourceTree = "<group>";
@@ -101,6 +179,7 @@
 			isa = PBXGroup;
 			children = (
 				13B07F961A680F5B00A75B9A /* QuestHat.app */,
+				FC16E564A605ABF113B69548 /* QuestHatLiveActivity.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -113,6 +192,14 @@
 			);
 			name = Pods;
 			path = Pods;
+			sourceTree = "<group>";
+		};
+		B185C364C8FEC1993560324E /* iOS */ = {
+			isa = PBXGroup;
+			children = (
+				7A28BE55D514B22872D91AD5 /* Foundation.framework */,
+			);
+			name = iOS;
 			sourceTree = "<group>";
 		};
 		BB2F792B24A3F905000567C9 /* Supporting */ = {
@@ -148,15 +235,34 @@
 				800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */,
 				CAA540B26A4548C6923261CF /* [Expo Dev Launcher] Strip Local Network Keys for Release */,
 				58C18808A25A6E9CB53DF9EC /* [CP] Embed Pods Frameworks */,
+				DCE2372C955734280888D33B /* Embed App Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				D4097AD5A52330B73BCDE23E /* PBXTargetDependency */,
 			);
 			name = QuestHat;
 			productName = QuestHat;
 			productReference = 13B07F961A680F5B00A75B9A /* QuestHat.app */;
 			productType = "com.apple.product-type.application";
+		};
+		A3AA2E2F8A0050549052C23E /* QuestHatLiveActivity */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = E2E6B31E45872ACBF1CA2E84 /* Build configuration list for PBXNativeTarget "QuestHatLiveActivity" */;
+			buildPhases = (
+				2D0819ED5F22C5A41099D3FB /* Sources */,
+				2E79004D8FBA4741C4BD0BD8 /* Frameworks */,
+				B12615003B0928670707EFE5 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = QuestHatLiveActivity;
+			productName = QuestHatLiveActivity;
+			productReference = FC16E564A605ABF113B69548 /* QuestHatLiveActivity.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -168,6 +274,10 @@
 				TargetAttributes = {
 					13B07F861A680F5B00A75B9A = {
 						LastSwiftMigration = 1250;
+					};
+					A3AA2E2F8A0050549052C23E = {
+						CreatedOnToolsVersion = 26.0;
+						DevelopmentTeam = 3258CL32QP;
 					};
 				};
 			};
@@ -185,6 +295,7 @@
 			projectRoot = "";
 			targets = (
 				13B07F861A680F5B00A75B9A /* QuestHat */,
+				A3AA2E2F8A0050549052C23E /* QuestHatLiveActivity */,
 			);
 		};
 /* End PBXProject section */
@@ -198,6 +309,14 @@
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
 				3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */,
 				FAB9DE6B37842C5A8D48C8D1 /* PrivacyInfo.xcprivacy in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B12615003B0928670707EFE5 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9F6E101A4B6D47B196310001 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -368,10 +487,31 @@
 			files = (
 				F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */,
 				DAA9D82619BF970C0E101C8F /* ExpoModulesProvider.swift in Sources */,
+				F8E540B4FDE3C840992211AB /* QuestHatActivityAttributes.swift in Sources */,
+				61E40CA934842ACFF57FC88F /* QuestHatLiveActivityModule.swift in Sources */,
+				4784C7A90C0512C447BAC3B4 /* QuestHatLiveActivityBridge.m in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		2D0819ED5F22C5A41099D3FB /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2292AFBE0CD727E2669E0E75 /* QuestHatActivityAttributes.swift in Sources */,
+				50846B95CD3BDA2A36160F4A /* QuestHatLiveActivityWidget.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		D4097AD5A52330B73BCDE23E /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = QuestHatLiveActivity;
+			target = A3AA2E2F8A0050549052C23E /* QuestHatLiveActivity */;
+			targetProxy = 51CAC582F038137F907558C3 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		13B07F941A680F5B00A75B9A /* Debug */ = {
@@ -383,7 +523,7 @@
 				CODE_SIGN_ENTITLEMENTS = QuestHat/QuestHat.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 46;
+				CURRENT_PROJECT_VERSION = 83;
 				DEVELOPMENT_TEAM = 3258CL32QP;
 				ENABLE_BITCODE = NO;
 				GCC_PREPROCESSOR_DEFINITIONS = (
@@ -406,10 +546,10 @@
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
 				PRODUCT_BUNDLE_IDENTIFIER = com.questhat.app;
 				PRODUCT_NAME = QuestHat;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_OBJC_BRIDGING_HEADER = "QuestHat/QuestHat-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
-				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				TARGETED_DEVICE_FAMILY = 1;
 				VERSIONING_SYSTEM = "apple-generic";
 			};
@@ -424,7 +564,7 @@
 				CODE_SIGN_ENTITLEMENTS = QuestHat/QuestHat.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Distribution";
 				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = 56;
+				CURRENT_PROJECT_VERSION = 83;
 				DEVELOPMENT_TEAM = 3258CL32QP;
 				INFOPLIST_FILE = QuestHat/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
@@ -443,11 +583,39 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.questhat.app;
 				PRODUCT_NAME = QuestHat;
 				PROVISIONING_PROFILE_SPECIFIER = "QuestHat App Store";
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_OBJC_BRIDGING_HEADER = "QuestHat/QuestHat-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
-				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				TARGETED_DEVICE_FAMILY = 1;
 				VERSIONING_SYSTEM = "apple-generic";
+			};
+			name = Release;
+		};
+		611A93520D5A6317694E77B8 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_IDENTITY = "Apple Distribution";
+				CODE_SIGN_STYLE = Manual;
+				CURRENT_PROJECT_VERSION = 83;
+				DEVELOPMENT_TEAM = 3258CL32QP;
+				INFOPLIST_FILE = QuestHatLiveActivity/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.questhat.app.LiveActivity;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "QuestHat Live Activity App Store";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;
 		};
@@ -585,6 +753,31 @@
 			};
 			name = Release;
 		};
+		DFD79176CA8A1C48D86D181D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 83;
+				DEVELOPMENT_TEAM = 3258CL32QP;
+				INFOPLIST_FILE = QuestHatLiveActivity/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.questhat.app.LiveActivity;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -602,6 +795,15 @@
 			buildConfigurations = (
 				83CBBA201A601CBA00E9B192 /* Debug */,
 				83CBBA211A601CBA00E9B192 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		E2E6B31E45872ACBF1CA2E84 /* Build configuration list for PBXNativeTarget "QuestHatLiveActivity" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				611A93520D5A6317694E77B8 /* Release */,
+				DFD79176CA8A1C48D86D181D /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
