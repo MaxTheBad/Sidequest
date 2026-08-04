@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { formatActivityTime } from "@/lib/activity-time";
 import { getSupabaseClient } from "@/lib/supabase";
 import { getPersistedNotificationLastSeen, markNotificationsSeen } from "@/lib/notification-state";
 import { getDeliveredNotifications } from "@/lib/notifications";
@@ -255,7 +256,7 @@ export default function NotificationsPage() {
                     </div>
                     <p className="text-sm text-gray-600 mt-1">{item.kind === "message" ? item.body : item.body}</p>
                   </div>
-                  <span className="text-[11px] text-gray-500 whitespace-nowrap">{new Date(item.created_at).toLocaleString()}</span>
+                  <span className="text-[11px] text-gray-500 whitespace-nowrap">{formatActivityTime(item.created_at)}</span>
                 </div>
               </Link>
             ))}

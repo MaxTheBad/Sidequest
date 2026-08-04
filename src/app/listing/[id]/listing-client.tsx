@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { formatActivityTime, formatPostedTime } from "@/lib/activity-time";
 import { readStoredUserLocation, writeStoredUserLocation } from "@/lib/location-distance";
 import { getSupabaseClient } from "@/lib/supabase";
 import { resolveCanonicalCategory } from "@/lib/category-suggestions.js";
@@ -863,19 +864,7 @@ export default function ListingPage() {
   }
 
   function formatPostedLabel(createdAt?: string | null) {
-    if (!createdAt) return "Posted recently";
-    const created = new Date(createdAt);
-    if (Number.isNaN(created.getTime())) return "Posted recently";
-    const diffMs = renderedAt - created.getTime();
-    const diffHours = diffMs / (60 * 60 * 1000);
-    const diffDays = diffHours / 24;
-    if (diffHours < 24) {
-      const roundedMinutes = Math.max(1, Math.round(diffMs / (60 * 1000)));
-      if (roundedMinutes < 60) return `Posted ${roundedMinutes}m ago`;
-      return `Posted ${Math.max(1, Math.round(diffHours))} hrs ago`;
-    }
-    if (diffDays < 7) return `Posted ${created.toLocaleDateString(undefined, { weekday: "short" })}`;
-    return `Posted ${created.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`;
+    return formatPostedTime(createdAt, renderedAt);
   }
 
   function getEventTimingLabel(availability?: string | null) {
@@ -1195,7 +1184,7 @@ export default function ListingPage() {
                             {(profile?.display_name || "Member").trim().split(/\s+/)[0] || "Member"}
                           </Link>
                           {blockedUserIds.includes(comment.sender_id) && <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-100 text-red-700">Blocked</span>}
-                          <span className="text-[11px] text-gray-500">{new Date(comment.created_at).toLocaleString()}</span>
+                          <span className="text-[11px] text-gray-500">{formatActivityTime(comment.created_at, renderedAt)}</span>
                         </div>
                         <p className="mt-2 text-sm text-gray-700">{comment.body.replace(/^\[PUBLIC\]\s?/, "")}</p>
                       </div>
@@ -1360,7 +1349,7 @@ export default function ListingPage() {
                             <Link href={`/profile/${comment.sender_id}`} className="text-xs font-medium underline">
                               {(profile?.display_name || "Member").trim().split(/\s+/)[0] || "Member"}
                             </Link>
-                            <span className="text-[11px] text-gray-500">{new Date(comment.created_at).toLocaleString()}</span>
+                            <span className="text-[11px] text-gray-500">{formatActivityTime(comment.created_at, renderedAt)}</span>
                           </div>
                           <p className="mt-2 text-sm text-gray-700">{comment.body.replace(/^\[PUBLIC\]\s?/, "")}</p>
                         </div>

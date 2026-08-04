@@ -3,6 +3,7 @@
 import Link from "next/link";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { formatActivityTime } from "@/lib/activity-time";
 import { getSupabaseClient } from "@/lib/supabase";
 
 type InboxMessage = {
@@ -535,7 +536,10 @@ export default function InboxPage() {
                       <div className="h-7 w-7 rounded-full border bg-gray-200 shrink-0 grid place-items-center text-[11px] font-semibold text-gray-700">{getInitial(t.partnerName)}</div>
                     )
                   ) : null}
-                  <p className="font-medium truncate">{t.title}</p>
+                  <div className="min-w-0 flex-1 flex items-center justify-between gap-2">
+                    <p className="font-medium truncate">{t.title}</p>
+                    <span className={`shrink-0 text-[11px] ${activeThreadId === t.id ? "text-white/70" : "text-gray-500"}`}>{formatActivityTime(t.lastMessageAt)}</span>
+                  </div>
                 </div>
                 <Link
                   href={`/listing/${t.questId}`}
@@ -607,7 +611,7 @@ export default function InboxPage() {
                         )}
                       </div>
                       <p>{getMessageText(m.body)}</p>
-                      <p className={`mt-1 text-[11px] ${mine ? "text-white/70" : "text-gray-500"}`}>{new Date(m.created_at).toLocaleString()}</p>
+                      <p className={`mt-1 text-[11px] ${mine ? "text-white/70" : "text-gray-500"}`}>{formatActivityTime(m.created_at)}</p>
                     </div>
                   );
                 })

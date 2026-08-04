@@ -5,6 +5,7 @@ import { FormEvent, PointerEvent, UIEvent, useEffect, useMemo, useRef, useState 
 import { useRouter } from "next/navigation";
 import CityAutocompleteInput from "@/components/city-autocomplete-input";
 import QuestMap from "@/components/quest-map";
+import { formatActivityTime, formatPostedTime } from "@/lib/activity-time";
 import { getSupabaseClient } from "@/lib/supabase";
 import { CANONICAL_CATEGORIES, resolveCanonicalCategory, suggestCanonicalCategories } from "@/lib/category-suggestions.js";
 import { getCategoryFallbackMedia } from "@/lib/category-default-media";
@@ -2552,19 +2553,7 @@ export default function Home() {
   }
 
   function formatPostedLabel(createdAt?: string | null) {
-    if (!createdAt) return "Posted recently";
-    const created = new Date(createdAt);
-    if (Number.isNaN(created.getTime())) return "Posted recently";
-    const diffMs = Date.now() - created.getTime();
-    const diffHours = diffMs / (60 * 60 * 1000);
-    const diffDays = diffHours / 24;
-    if (diffHours < 24) {
-      const roundedMinutes = Math.max(1, Math.round(diffMs / (60 * 1000)));
-      if (roundedMinutes < 60) return `Posted ${roundedMinutes}m ago`;
-      return `Posted ${Math.max(1, Math.round(diffHours))} hrs ago`;
-    }
-    if (diffDays < 7) return `Posted ${created.toLocaleDateString(undefined, { weekday: "short" })}`;
-    return `Posted ${created.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`;
+    return formatPostedTime(createdAt);
   }
 
   function getEventTimingLabel(availability?: string | null) {
@@ -5611,7 +5600,7 @@ export default function Home() {
                           <Link href={`/profile/${comment.sender_id}`} className="text-xs font-medium underline">
                             {(profile?.display_name || "Member").trim().split(/\s+/)[0] || "Member"}
                           </Link>
-                          <span className="text-[11px] text-gray-500">{new Date(comment.created_at).toLocaleString()}</span>
+                          <span className="text-[11px] text-gray-500">{formatActivityTime(comment.created_at)}</span>
                         </div>
                         <p className="mt-2 text-sm text-gray-700">{comment.body.replace(/^\[PUBLIC\]\s?/, "")}</p>
                       </div>

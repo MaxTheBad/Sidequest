@@ -481,7 +481,33 @@ function getTitleSuggestionsByCategory(categoryName: string) {
 
 function formatDate(value?: string | null) {
   if (!value) return "";
-  return new Date(value).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "";
+  const now = Date.now();
+  const elapsed = Math.max(0, now - date.getTime());
+  const minuteMs = 60 * 1000;
+  const hourMs = 60 * minuteMs;
+  const dayMs = 24 * hourMs;
+
+  if (elapsed < minuteMs) return "Just now";
+  if (elapsed < hourMs) {
+    const minutes = Math.floor(elapsed / minuteMs);
+    return `${minutes} ${minutes === 1 ? "min" : "mins"} ago`;
+  }
+  if (elapsed < dayMs) {
+    const hours = Math.floor(elapsed / hourMs);
+    return `${hours} ${hours === 1 ? "hour" : "hours"} ago`;
+  }
+  if (elapsed < 7 * dayMs) {
+    const days = Math.floor(elapsed / dayMs);
+    return `${days} ${days === 1 ? "day" : "days"} ago`;
+  }
+
+  return date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    ...(date.getFullYear() === new Date(now).getFullYear() ? {} : { year: "numeric" }),
+  });
 }
 
 function formatEventCountdown(startsAt: string, now: number) {
