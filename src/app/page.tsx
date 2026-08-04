@@ -59,6 +59,8 @@ type Quest = {
   skill_level: string;
   group_size: number;
   availability: string | null;
+  starts_at?: string | null;
+  time_flexible?: boolean | null;
   hobby_id: string;
   media_video_url: string | null;
   media_source: "live" | "upload" | null;
@@ -70,6 +72,13 @@ type Quest = {
 function getQuestHobby(q?: { hobbies?: { name?: string | null; category?: string | null }[] | { name?: string | null; category?: string | null } | null }) {
   if (!q?.hobbies) return null;
   return Array.isArray(q.hobbies) ? (q.hobbies[0] ?? null) : q.hobbies;
+}
+
+function toDateTimeLocalValue(value?: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "";
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
 }
 
 function getQuestCategoryLabel(q?: { hobbies?: { category: string | null }[] | { category: string | null } | null }) {
@@ -350,12 +359,9 @@ export default function Home() {
   const [exactLocationVisibility, setExactLocationVisibility] = useState<"private" | "public" | "approved_members">("approved_members");
   const [citySuggestions, setCitySuggestions] = useState<string[]>([]);
   const [restoreScrollY, setRestoreScrollY] = useState<number | null>(null);
-  const [availabilityMode, setAvailabilityMode] = useState<"specific_time" | "find_best_time">("find_best_time");
   const [availability, setAvailability] = useState("");
   const [startAt, setStartAt] = useState("");
-  const [isRecurring, setIsRecurring] = useState(false);
-  const [recurringFrequency, setRecurringFrequency] = useState<"daily" | "weekly" | "monthly">("weekly");
-  const [recurringStartDate, setRecurringStartDate] = useState("");
+  const [timeFlexible, setTimeFlexible] = useState(false);
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   const [skillLevel, setSkillLevel] = useState("any");
   const [groupSizeChoice, setGroupSizeChoice] = useState("any");
@@ -738,7 +744,7 @@ export default function Home() {
       const blocked = Array.from(new Set(((blockRows || []) as Array<{ requester_id: string; addressee_id: string }>).flatMap((r) => [r.requester_id, r.addressee_id]).filter((id) => id !== uid)));
       setBlockedUserIds(blocked);
     }
-    let q = supabase.from("quests").select("id,creator_id,created_at,title,description,city,skill_level,group_size,availability,hobby_id,join_mode,exact_location_visibility,exact_address,media_video_url,media_source,media_items,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,username,avatar_url)").order("created_at", { ascending: false }).limit(24);
+    let q = supabase.from("quests").select("id,creator_id,created_at,title,description,city,skill_level,group_size,availability,starts_at,time_flexible,hobby_id,join_mode,exact_location_visibility,exact_address,media_video_url,media_source,media_items,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,username,avatar_url)").order("created_at", { ascending: false }).limit(24);
       const filterCategoryName = getFilterCategoryName(hobbyFilter);
       if (hobbyFilter !== "all") {
         if (filterCategoryName && hobbyFilter.startsWith("canonical:")) {
@@ -753,7 +759,7 @@ export default function Home() {
 
     // Backward compatibility if migration for media_items has not been applied yet
     if (error?.message?.includes("column quests.media_items does not exist")) {
-      let fallback = supabase.from("quests").select("id,creator_id,created_at,title,description,city,skill_level,group_size,availability,hobby_id,join_mode,exact_location_visibility,exact_address,media_video_url,media_source,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,username,avatar_url)").order("created_at", { ascending: false }).limit(24);
+      let fallback = supabase.from("quests").select("id,creator_id,created_at,title,description,city,skill_level,group_size,availability,starts_at,time_flexible,hobby_id,join_mode,exact_location_visibility,exact_address,media_video_url,media_source,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,username,avatar_url)").order("created_at", { ascending: false }).limit(24);
       if (hobbyFilter !== "all") {
         if (filterCategoryName && hobbyFilter.startsWith("canonical:")) {
           fallback = fallback.ilike("hobbies.name", filterCategoryName);
@@ -1683,12 +1689,9 @@ export default function Home() {
   function resetQuestForm() {
     setTitle("");
     setDescription("");
-    setAvailabilityMode("find_best_time");
     setAvailability("");
     setStartAt("");
-    setIsRecurring(false);
-    setRecurringFrequency("weekly");
-    setRecurringStartDate("");
+    setTimeFlexible(false);
     setShowAdvancedSettings(false);
     setHobbyId("");
     setCategoryInput("");
@@ -2195,11 +2198,9 @@ export default function Home() {
     setExactAddress(q.exact_address || "");
     setJoinMode(q.join_mode || "open");
     setExactLocationVisibility(q.exact_location_visibility || "private");
-    setAvailabilityMode("find_best_time");
     setAvailability(q.availability || "");
-    setStartAt("");
-    setIsRecurring(false);
-    setRecurringStartDate("");
+    setStartAt(toDateTimeLocalValue(q.starts_at));
+    setTimeFlexible(q.time_flexible === true);
     setSkillLevel(q.skill_level || "");
     if (!q.group_size || q.group_size <= 0) {
       setGroupSizeChoice("any");
@@ -2615,8 +2616,9 @@ export default function Home() {
     if (groupSizeChoice === "custom" && (!Number.isFinite(selectedGroupSize) || selectedGroupSize < 2 || selectedGroupSize > 50)) {
       return flagFieldError("groupSize", "Custom group size must be between 2 and 50.");
     }
-    if (availabilityMode === "specific_time" && !startAt) return setStatus("Pick a specific start time.");
-    if (isRecurring && !recurringStartDate) return setStatus("Pick a recurring start date.");
+    if (!startAt) return setStatus("Choose a date and start time.");
+    const selectedStartTime = new Date(startAt);
+    if (!Number.isFinite(selectedStartTime.getTime()) || selectedStartTime.getTime() <= Date.now()) return setStatus("Choose a start time in the future.");
 
     const isPublicWarningMuted = Date.now() < publicWarningMutedUntilRef.current;
     if (locationMode === "in_person" && exactLocationVisibility === "public" && !isPublicWarningMuted && !publicVisibilityBypassRef.current && !publicVisibilityConfirmed) {
@@ -2626,8 +2628,8 @@ export default function Home() {
 
     const derivedCity = locationMode === "remote" ? city : deriveCityFromLocation(exactAddress) || city;
     const availabilityParts = [
-      availabilityMode === "specific_time" ? `Start at: ${new Date(startAt).toLocaleString()}` : "Let's find the best time",
-      isRecurring ? `Recurring ${recurringFrequency} from ${recurringStartDate}` : null,
+      `Start at: ${selectedStartTime.toLocaleString()}`,
+      timeFlexible ? "Time flexible" : null,
       availability.trim() ? `Notes: ${availability.trim()}` : null,
     ].filter(Boolean);
     const avail = availabilityParts.join(" · ");
@@ -2780,6 +2782,8 @@ export default function Home() {
           join_mode: joinMode,
           exact_location_visibility: locationMode === "remote" ? "private" : exactLocationVisibility,
           availability: avail,
+          starts_at: selectedStartTime.toISOString(),
+          time_flexible: timeFlexible,
           group_size: selectedGroupSize,
           media_items: nextMediaItems,
           media_video_url: null,
@@ -2844,6 +2848,8 @@ export default function Home() {
           join_mode: joinMode,
           exact_location_visibility: locationMode === "remote" ? "private" : exactLocationVisibility,
           availability: avail,
+          starts_at: selectedStartTime.toISOString(),
+          time_flexible: timeFlexible,
           group_size: selectedGroupSize,
           media_video_url: null,
           media_source: null,
@@ -4789,28 +4795,12 @@ export default function Home() {
               <label className={`text-xs font-medium uppercase tracking-wide ${fieldErrors.title ? "text-red-600" : "text-slate-600"}`}>Title *</label>
               <input className={`border rounded-xl px-2.5 py-2 text-sm sm:px-3 sm:py-2.5 sm:text-base ${fieldErrors.title ? "border-red-500 ring-1 ring-red-300" : ""}`} placeholder={titlePlaceholder} value={title} onChange={(e) => { setTitle(e.target.value); clearFieldError("title"); }} />
 
-              <label className="text-xs font-medium uppercase tracking-wide text-slate-600">Availability *</label>
-              <div className="grid gap-1.5 text-sm sm:gap-2">
-                <label className="flex items-center gap-2"><input type="radio" checked={availabilityMode === "specific_time"} onChange={() => setAvailabilityMode("specific_time")} className="scale-90" /> <span className="text-sm sm:text-base">Start at a specific time</span></label>
-                <label className="flex items-center gap-2"><input type="radio" checked={availabilityMode === "find_best_time"} onChange={() => setAvailabilityMode("find_best_time")} className="scale-90" /> <span className="text-sm sm:text-base">Let&apos;s see which time works best</span></label>
-              </div>
-              {availabilityMode === "specific_time" && (
-                <input type="datetime-local" className="border rounded-xl px-2.5 py-2 text-sm sm:px-3 sm:py-2.5 sm:text-base" value={startAt} onChange={(e) => setStartAt(e.target.value)} />
-              )}
+              <label className="text-xs font-medium uppercase tracking-wide text-slate-600">Date and start time *</label>
+              <input type="datetime-local" min={toDateTimeLocalValue(new Date().toISOString())} className="border rounded-xl px-2.5 py-2 text-sm sm:px-3 sm:py-2.5 sm:text-base" value={startAt} onChange={(e) => setStartAt(e.target.value)} />
               <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={isRecurring} onChange={(e) => setIsRecurring(e.target.checked)} className="scale-90" /> <span className="text-sm">Recurring</span>
+                <input type="checkbox" checked={timeFlexible} onChange={(e) => setTimeFlexible(e.target.checked)} className="scale-90" />
+                <span className="text-sm">Time flexible — the listed time is real, but I’m open to adjusting it.</span>
               </label>
-              {isRecurring && (
-                <div className="grid gap-2">
-                  <CreateSelect
-                    value={recurringFrequency}
-                    placeholder="Choose frequency"
-                    options={[{ value: "daily", label: "Daily" }, { value: "weekly", label: "Weekly" }, { value: "monthly", label: "Monthly" }]}
-                    onChange={(next) => setRecurringFrequency(next as "daily" | "weekly" | "monthly")}
-                  />
-                  <input type="date" className="border rounded-xl px-2.5 py-2 text-sm sm:px-3 sm:py-2.5 sm:text-base" value={recurringStartDate} onChange={(e) => setRecurringStartDate(e.target.value)} placeholder="Start date" />
-                </div>
-              )}
 
               <label className="text-xs font-medium uppercase tracking-wide text-slate-600">Join Mode *</label>
               <CreateSelect

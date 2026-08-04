@@ -60,6 +60,7 @@ export default function JoinedPage() {
   const [rows, setRows] = useState<JoinedQuest[]>([]);
   const [sort, setSort] = useState<SortMode>("closest");
   const [myCity, setMyCity] = useState("");
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     if (!supabase) return;
@@ -119,15 +120,27 @@ export default function JoinedPage() {
     });
   }, [rows, sort, myCity]);
 
+  const matchesSearch = (row: JoinedQuest) => {
+    const query = search.trim().toLowerCase();
+    if (!query) return true;
+    return [row.quests?.title, row.quests?.city, row.quests?.availability, row.quests?.hobbies?.[0]?.name]
+      .some((value) => (value || "").toLowerCase().includes(query));
+  };
+  const visibleHosting = hosting.filter(matchesSearch);
+  const visiblePending = pending.filter(matchesSearch);
+  const visibleApproved = approved.filter(matchesSearch);
+
   return (
-    <main className="page-shell page-joined min-h-screen bg-transparent p-4">
-      <section className="max-w-4xl mx-auto rounded-2xl border bg-white p-4 space-y-4">
-        <div className="flex items-center justify-between">
-          <h1 className="text-xl font-bold">Joined Quests</h1>
-          <Link href="/" className="border rounded px-3 py-2 text-sm">Back</Link>
+    <main className="page-shell page-joined app-page min-h-screen bg-transparent p-4">
+      <section className="max-w-4xl mx-auto rounded-2xl border bg-white p-4 space-y-4 app-page-card">
+        <div className="flex items-center justify-between app-page-header">
+          <div><p className="app-kicker">Your plans</p><h1 className="text-xl font-bold">Joined Quests</h1><p className="app-page-subtitle">Hosting, pending requests, and plans you joined.</p></div>
+          <Link href="/" className="border rounded px-3 py-2 text-sm">Discover</Link>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="app-search-field"><span aria-hidden="true">⌕</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search your quests" aria-label="Search joined quests" /></div>
+
+        <div className="flex flex-wrap items-center gap-2 app-filter-chips">
           <span className="text-sm text-gray-600">Sort:</span>
           <button className={`border rounded px-3 py-1 text-sm ${sort === "closest" ? "bg-black text-white" : ""}`} onClick={() => setSort("closest")}>Closest</button>
           <button className={`border rounded px-3 py-1 text-sm ${sort === "starting_soon" ? "bg-black text-white" : ""}`} onClick={() => setSort("starting_soon")}>Almost start time</button>
@@ -136,30 +149,30 @@ export default function JoinedPage() {
 
         {status && <p className="text-sm rounded border bg-amber-100 text-amber-900 border-amber-300 px-3 py-2">{status}</p>}
 
-        <div className="space-y-2">
-          <h2 className="font-semibold">Hosting ({hosting.length})</h2>
-          {hosting.length === 0 ? <p className="text-sm text-gray-500">You’re not hosting any active listings.</p> : hosting.map((r) => (
-            <Link key={`h-${r.quest_id}`} href={`/listing/${r.quest_id}`} className="block rounded-xl border bg-emerald-50 px-3 py-2">
+        <div className="space-y-2 app-quest-collection">
+          <h2 className="font-semibold">Hosting <span>{visibleHosting.length}</span></h2>
+          {visibleHosting.length === 0 ? <p className="text-sm text-gray-500">You’re not hosting any matching active quests.</p> : visibleHosting.map((r) => (
+            <Link key={`h-${r.quest_id}`} href={`/listing/${r.quest_id}`} className="block rounded-xl border bg-emerald-50 px-3 py-2 app-joined-card is-hosting">
               <p className="flex items-center gap-2 font-medium"><AppIcon name="star" className="h-4 w-4 text-amber-500" /> {r.quests?.title || "Untitled listing"}</p>
               <p className="text-xs text-gray-600">{r.role === "creator" ? "Organizer" : "Co-host"} · {r.quests?.city || locationSummary(r.quests?.exact_address) || "city tbd"} · {r.quests?.availability || "availability tbd"}</p>
             </Link>
           ))}
         </div>
 
-        <div className="space-y-2">
-          <h2 className="font-semibold">Waiting on approval ({pending.length})</h2>
-          {pending.length === 0 ? <p className="text-sm text-gray-500">No pending requests.</p> : pending.map((r) => (
-            <Link key={`p-${r.quest_id}`} href={`/listing/${r.quest_id}`} className="block rounded-xl border bg-amber-50 px-3 py-2">
+        <div className="space-y-2 app-quest-collection">
+          <h2 className="font-semibold">Waiting on approval <span>{visiblePending.length}</span></h2>
+          {visiblePending.length === 0 ? <p className="text-sm text-gray-500">No matching pending requests.</p> : visiblePending.map((r) => (
+            <Link key={`p-${r.quest_id}`} href={`/listing/${r.quest_id}`} className="block rounded-xl border bg-amber-50 px-3 py-2 app-joined-card is-pending">
               <p className="font-medium">{r.quests?.title || "Untitled listing"}</p>
               <p className="text-xs text-gray-600">{r.quests?.city || locationSummary(r.quests?.exact_address) || "city tbd"} · {r.quests?.availability || "availability tbd"}</p>
             </Link>
           ))}
         </div>
 
-        <div className="space-y-2">
-          <h2 className="font-semibold">Joined ({approved.length})</h2>
-          {loading ? <p>Loading...</p> : approved.length === 0 ? <p className="text-sm text-gray-500">You haven’t joined any approved quests yet.</p> : approved.map((r) => (
-            <Link key={r.quest_id} href={`/listing/${r.quest_id}`} className="block rounded-xl border px-3 py-2 hover:bg-gray-50">
+        <div className="space-y-2 app-quest-collection">
+          <h2 className="font-semibold">Joined <span>{visibleApproved.length}</span></h2>
+          {loading ? <p>Loading...</p> : visibleApproved.length === 0 ? <p className="text-sm text-gray-500">You haven’t joined any matching approved quests yet.</p> : visibleApproved.map((r) => (
+            <Link key={r.quest_id} href={`/listing/${r.quest_id}`} className="block rounded-xl border px-3 py-2 hover:bg-gray-50 app-joined-card">
               <p className="font-medium">{r.quests?.title || "Untitled listing"}</p>
               <p className="text-xs text-gray-600">{r.quests?.city || locationSummary(r.quests?.exact_address) || "city tbd"} · {r.quests?.availability || "availability tbd"}</p>
             </Link>

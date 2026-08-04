@@ -9,8 +9,32 @@ import { isImageLikeFile, prepareImageForUpload } from "@/lib/media-optimize";
 import { useUsernameAvailability } from "@/lib/use-username-availability";
 import { normalizeUsername } from "@/lib/username";
 import { recordSecurityAudit } from "@/lib/security-audit";
+import { AppIcon, type AppIconName } from "@/components/app-icons";
 
-type Tab = "profile" | "account" | "preferences" | "friends" | "blocked";
+type Tab = "profile" | "account" | "preferences" | "notifications" | "friends" | "blocked";
+type NotificationPreferences = {
+  messages: boolean;
+  comments: boolean;
+  joined_comments: boolean;
+  join_updates: boolean;
+  join_requests: boolean;
+  friend_requests: boolean;
+  followed_posts: boolean;
+  liked_categories: boolean;
+  quest_reminders: boolean;
+};
+
+const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
+  messages: true,
+  comments: true,
+  joined_comments: false,
+  join_updates: true,
+  join_requests: true,
+  friend_requests: true,
+  followed_posts: false,
+  liked_categories: false,
+  quest_reminders: true,
+};
 type SocialProfile = { id: string; display_name: string | null; avatar_url: string | null; username: string | null };
 type FriendEdge = {
   requester_id: string;
@@ -59,6 +83,9 @@ export default function SettingsPage() {
   const [marketingOptIn, setMarketingOptIn] = useState(false);
   const [themePref, setThemePref] = useState<"auto" | "light" | "dark">("auto");
   const [publicLocationWarningEnabled, setPublicLocationWarningEnabled] = useState(true);
+  const [notificationPreferences, setNotificationPreferences] = useState<NotificationPreferences>(DEFAULT_NOTIFICATION_PREFERENCES);
+  const [notificationPreferencesLoading, setNotificationPreferencesLoading] = useState(false);
+  const [notificationPreferencesSaving, setNotificationPreferencesSaving] = useState(false);
   const [friendsProfiles, setFriendsProfiles] = useState<FriendRow[]>([]);
   const [friendRequests, setFriendRequests] = useState<RequestRow[]>([]);
   const [blockedProfiles, setBlockedProfiles] = useState<BlockedProfile[]>([]);
@@ -90,6 +117,13 @@ export default function SettingsPage() {
   })();
   const initialUsername = initialProfileSnapshot?.username || "";
   const usernameAvailability = useUsernameAvailability(username, userId, initialUsername);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (new URLSearchParams(window.location.search).get("section") === "notifications") {
+      setTab("notifications");
+    }
+  }, []);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -234,6 +268,38 @@ export default function SettingsPage() {
 
     void run();
   }, [supabase, blockedRefreshTick]);
+
+  useEffect(() => {
+    if (!supabase || !userId) return;
+    let cancelled = false;
+    const load = async () => {
+      setNotificationPreferencesLoading(true);
+      const { data, error } = await supabase
+        .from("notification_preferences")
+        .select("messages,comments,joined_comments,join_updates,join_requests,friend_requests,followed_posts,liked_categories,quest_reminders")
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (!cancelled && !error && data) {
+        setNotificationPreferences({
+          messages: data.messages !== false,
+          comments: data.comments !== false,
+          joined_comments: data.joined_comments === true,
+          join_updates: data.join_updates !== false,
+          join_requests: data.join_requests !== false,
+          friend_requests: data.friend_requests !== false,
+          followed_posts: data.followed_posts === true,
+          liked_categories: data.liked_categories === true,
+          quest_reminders: data.quest_reminders !== false,
+        });
+      }
+      if (!cancelled) {
+        if (error) setStatus(error.message);
+        setNotificationPreferencesLoading(false);
+      }
+    };
+    void load();
+    return () => { cancelled = true; };
+  }, [supabase, userId]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -716,6 +782,19 @@ export default function SettingsPage() {
     setStatus("Preferences saved ✅");
   }
 
+  async function saveNotificationPreferences() {
+    if (!supabase || !userId || notificationPreferencesSaving) return;
+    setNotificationPreferencesSaving(true);
+    setStatus("");
+    const { error } = await supabase.from("notification_preferences").upsert({
+      user_id: userId,
+      ...notificationPreferences,
+      updated_at: new Date().toISOString(),
+    });
+    setNotificationPreferencesSaving(false);
+    setStatus(error ? error.message : "Notification preferences saved.");
+  }
+
   async function restartOnboarding() {
     if (!supabase || !userId) return;
     const ok = window.confirm("Restart onboarding for this account?");
@@ -744,20 +823,21 @@ export default function SettingsPage() {
   }
 
   return (
-    <main className="page-shell page-settings min-h-screen bg-transparent p-4">
+    <main className="page-shell page-settings app-page min-h-screen bg-transparent p-4">
       <datalist id="country-list">{COUNTRY_OPTIONS.map((c) => <option key={c.code} value={c.name} />)}</datalist>
-      <section className="max-w-3xl mx-auto rounded-2xl border bg-white p-5 space-y-4">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold">Settings</h1>
+      <section className="max-w-4xl mx-auto rounded-2xl border bg-white p-5 space-y-4 app-page-card">
+        <div className="flex items-center justify-between app-page-header">
+          <div><p className="app-kicker">Your QuestHat</p><h1 className="text-2xl font-bold">Settings</h1><p className="app-page-subtitle">Profile, privacy, notifications, and account controls.</p></div>
           <Link href="/" className="border rounded px-3 py-2 text-sm">Back</Link>
         </div>
 
         {status && <p className="text-sm rounded border bg-amber-50 px-3 py-2">{status}</p>}
 
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex gap-2 flex-wrap app-segmented-tabs">
           <button className={`px-3 py-2 rounded ${tab === "profile" ? "bg-black text-white" : "border"}`} onClick={() => setTab("profile")}>Profile</button>
           <button className={`px-3 py-2 rounded ${tab === "account" ? "bg-black text-white" : "border"}`} onClick={() => setTab("account")}>Account</button>
           <button className={`px-3 py-2 rounded ${tab === "preferences" ? "bg-black text-white" : "border"}`} onClick={() => setTab("preferences")}>Preferences</button>
+          <button className={`px-3 py-2 rounded ${tab === "notifications" ? "bg-black text-white" : "border"}`} onClick={() => setTab("notifications")}>Notifications</button>
           <button className={`px-3 py-2 rounded ${tab === "friends" ? "bg-black text-white" : "border"}`} onClick={() => setTab("friends")}>Friends</button>
           <button className={`px-3 py-2 rounded ${tab === "blocked" ? "bg-black text-white" : "border"}`} onClick={() => setTab("blocked")}>Blocked</button>
         </div>
@@ -868,16 +948,15 @@ export default function SettingsPage() {
                   )}
                 </div>
 
-                <label className="text-sm font-medium">Actual name</label>
-                <input className="border rounded px-3 py-2" value={actualName} onChange={(e) => setActualName(e.target.value)} />
+                <label className="text-sm font-medium">Username</label>
+                <div className="app-username-field"><span>@</span><input className="border rounded px-3 py-2" value={username} onChange={(e) => { setUsername(e.target.value); setActualName(e.target.value); }} autoCapitalize="none" autoCorrect="off" /></div>
+                <p className="text-xs text-gray-500">This is the unique name people see across QuestHat.</p>
                 {usernameAvailability === "checking" ? <p className="text-sm text-gray-500">Checking username...</p> : null}
                 {usernameAvailability === "available" && normalizeUsername(username) !== normalizeUsername(initialUsername) ? (
                   <p className="text-sm text-emerald-600">Username is available.</p>
                 ) : null}
                 {usernameAvailability === "taken" ? <p className="text-sm text-red-600">That username is already taken.</p> : null}
                 {usernameAvailability === "error" ? <p className="text-sm text-amber-600">Could not check username availability.</p> : null}
-                <label className="text-sm font-medium">Username</label>
-                <input className="border rounded px-3 py-2" value={username} onChange={(e) => setUsername(e.target.value)} />
                 <label className="text-sm font-medium">Date of birth</label>
                 <input type="date" className="border rounded px-3 py-2" value={dob} onChange={(e) => setDob(e.target.value)} />
 
@@ -1030,6 +1109,44 @@ export default function SettingsPage() {
                 <button type="button" className="border rounded px-3 py-2 w-fit" onClick={() => void restartOnboarding()}>Restart onboarding</button>
                 <button className="border rounded px-3 py-2 w-fit">Save preferences</button>
               </form>
+            )}
+
+            {tab === "notifications" && (
+              <div className="app-settings-panel space-y-4">
+                <div className="app-section-heading">
+                  <div className="app-section-icon"><AppIcon name="bell" className="h-5 w-5" /></div>
+                  <div><h2 className="text-lg font-bold">Notification preferences</h2><p className="text-sm text-gray-500">Choose which QuestHat updates should reach you.</p></div>
+                </div>
+                {notificationPreferencesLoading ? <div className="h-28 rounded-2xl sq-shimmer" /> : (
+                  <div className="app-preference-list">
+                    {([
+                      ["messages", "Direct messages", "New private messages about a quest.", "message"],
+                      ["comments", "Comments on your quests", "Replies and comments on quests you host.", "message"],
+                      ["joined_comments", "Comments on joined quests", "Conversation updates from quests you joined.", "message"],
+                      ["join_updates", "Join decisions", "Approvals, declines, and address sharing.", "check"],
+                      ["join_requests", "Join requests", "Someone asks to join a quest you host.", "people"],
+                      ["friend_requests", "Friend requests", "New connection requests and updates.", "people"],
+                      ["quest_reminders", "Quest reminders", "Starting-soon reminders and host coordination.", "clock"],
+                      ["followed_posts", "Posts from friends", "A friend publishes a new quest.", "star"],
+                      ["liked_categories", "Liked categories", "New quests matching your saved interests.", "star"],
+                    ] as Array<[keyof NotificationPreferences, string, string, AppIconName]>).map(([key, title, description, icon]) => (
+                      <div className="app-preference-row" key={key}>
+                        <div className="app-preference-copy"><AppIcon name={icon} className="h-5 w-5" /><div><p className="font-bold">{title}</p><p>{description}</p></div></div>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={notificationPreferences[key]}
+                          className={`app-switch ${notificationPreferences[key] ? "is-on" : ""}`}
+                          onClick={() => setNotificationPreferences((current) => ({ ...current, [key]: !current[key] }))}
+                        ><span /></button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <button type="button" className="app-primary-button" disabled={notificationPreferencesSaving || notificationPreferencesLoading} onClick={() => void saveNotificationPreferences()}>
+                  {notificationPreferencesSaving ? "Saving…" : "Save notification settings"}
+                </button>
+              </div>
             )}
 
             {tab === "friends" && (

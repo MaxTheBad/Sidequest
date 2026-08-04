@@ -112,6 +112,7 @@ export default function InboxPage() {
   const lastMessageIdRef = useRef<string | null>(null);
   const lastIncomingIdRef = useRef<string | null>(null);
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
+  const [threadSearch, setThreadSearch] = useState("");
   const pendingThreadTargetRef = useRef<{ thread: string | null; message: string | null } | null>(null);
 
   const loadInbox = useCallback(async (uid: string, silent = false) => {
@@ -307,6 +308,12 @@ export default function InboxPage() {
     return Array.from(map.values()).sort((a, b) => +new Date(b.lastMessageAt) - +new Date(a.lastMessageAt));
   }, [messages, userId, questOwners]);
 
+  const visibleThreads = useMemo(() => {
+    const query = threadSearch.trim().toLowerCase();
+    if (!query) return threads;
+    return threads.filter((thread) => [thread.title, thread.partnerName, thread.preview].some((value) => (value || "").toLowerCase().includes(query)));
+  }, [threadSearch, threads]);
+
   const activeThread = useMemo(() => threads.find((t) => t.id === activeThreadId) || null, [threads, activeThreadId]);
 
   useEffect(() => {
@@ -492,27 +499,28 @@ export default function InboxPage() {
   }
 
   return (
-    <main className="page-shell page-inbox min-h-screen bg-transparent p-4">
+    <main className="page-shell page-inbox app-page min-h-screen bg-transparent p-4">
       <div className="max-w-6xl mx-auto">
-        <div className="mb-3 flex items-center justify-between">
-          <h1 className="text-2xl font-bold">Inbox</h1>
+        <div className="mb-3 flex items-center justify-between app-page-header app-inbox-header">
+          <div><p className="app-kicker">Conversations</p><h1 className="text-2xl font-bold">Inbox</h1><p className="app-page-subtitle">Private messages around your quests.</p></div>
           <div className="flex gap-2">
-            <Link href="/" className="border rounded px-3 py-2">Back to listings</Link>
             <button className="border rounded px-3 py-2" onClick={() => userId && void loadInbox(userId)}>Refresh</button>
           </div>
         </div>
 
+        <div className="app-search-field mb-3"><span aria-hidden="true">⌕</span><input value={threadSearch} onChange={(event) => setThreadSearch(event.target.value)} placeholder="Search people, quests, or messages" aria-label="Search inbox" /></div>
+
         {status && <div className="mb-3 rounded border bg-amber-50 px-3 py-2 text-sm">{status}</div>}
 
         <div className="grid md:grid-cols-[340px_1fr] gap-3">
-          <aside className={`rounded-2xl border bg-white p-2 max-h-[70vh] overflow-auto ${activeThread ? "hidden md:block" : "block"}`}>
+          <aside className={`rounded-2xl border bg-white p-2 max-h-[72vh] overflow-auto app-thread-list ${activeThread ? "hidden md:block" : "block"}`}>
             {loading ? (
               <div className="space-y-2 p-1">
                 <div className="h-20 rounded-xl border sq-shimmer" />
                 <div className="h-20 rounded-xl border sq-shimmer" />
                 <div className="h-20 rounded-xl border sq-shimmer" />
               </div>
-            ) : threads.length === 0 ? <p className="p-3 text-sm text-gray-500">No messages yet.</p> : threads.map((t) => (
+            ) : visibleThreads.length === 0 ? <p className="p-3 text-sm text-gray-500">{threadSearch ? "No conversations match your search." : "No messages yet."}</p> : visibleThreads.map((t) => (
               <button
                 key={t.id}
                 className={`w-full text-left rounded-xl px-3 py-2 border mb-2 ${activeThreadId === t.id ? "bg-black text-white" : "bg-white"}`}
@@ -555,7 +563,7 @@ export default function InboxPage() {
             ))}
           </aside>
 
-          <section className={`rounded-2xl border bg-white p-3 flex flex-col h-[70vh] ${activeThread ? "block" : "hidden md:flex"}`}>
+          <section className={`rounded-2xl border bg-white p-3 flex flex-col h-[72vh] app-message-thread ${activeThread ? "block" : "hidden md:flex"}`}>
             {activeThread && (
               <div className="mb-2 pb-2 border-b text-sm flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">

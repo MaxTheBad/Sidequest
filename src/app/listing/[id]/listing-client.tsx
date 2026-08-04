@@ -23,6 +23,8 @@ type Listing = {
   skill_level: string;
   group_size: number;
   availability: string | null;
+  starts_at?: string | null;
+  time_flexible?: boolean | null;
   media_video_url: string | null;
   media_source: "live" | "upload" | null;
   media_items?: { url: string; type: "image" | "video"; label?: string | null; thumbnailUrl?: string | null }[] | null;
@@ -378,7 +380,7 @@ export default function ListingPage() {
 
       const withMedia = await supabase
         .from("quests")
-        .select("id,creator_id,created_at,title,description,city,join_mode,exact_location_visibility,exact_address,skill_level,group_size,availability,media_video_url,media_source,media_items,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,avatar_url)")
+        .select("id,creator_id,created_at,title,description,city,join_mode,exact_location_visibility,exact_address,skill_level,group_size,availability,starts_at,time_flexible,media_video_url,media_source,media_items,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,avatar_url)")
         .eq("id", listingId)
         .maybeSingle();
 
@@ -389,7 +391,7 @@ export default function ListingPage() {
       if (error?.message?.includes("column quests.media_items does not exist")) {
         const fallback = await supabase
           .from("quests")
-          .select("id,creator_id,created_at,title,description,city,join_mode,exact_location_visibility,exact_address,skill_level,group_size,availability,media_video_url,media_source,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,avatar_url)")
+          .select("id,creator_id,created_at,title,description,city,join_mode,exact_location_visibility,exact_address,skill_level,group_size,availability,starts_at,time_flexible,media_video_url,media_source,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,avatar_url)")
           .eq("id", listingId)
           .maybeSingle();
         data = fallback.data as Listing | null;
@@ -877,6 +879,12 @@ export default function ListingPage() {
   }
 
   function getEventTimingLabel(availability?: string | null) {
+    if (listing?.starts_at) {
+      const date = new Date(listing.starts_at);
+      if (Number.isFinite(date.getTime())) {
+        return `${date.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })} at ${date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}${listing.time_flexible ? " · time flexible" : ""}`;
+      }
+    }
     const raw = (availability || "").trim();
     if (!raw) return "Event time tbd";
     return raw.replace(/^Start at:\s*/i, "Event: ");
@@ -886,11 +894,11 @@ export default function ListingPage() {
   const blockedMembers = members.filter((m) => blockedUserIds.includes(m.user_id));
 
   return (
-    <main className="page-shell page-listing min-h-screen overflow-y-auto overscroll-contain bg-transparent p-4 [-webkit-overflow-scrolling:touch]">
+    <main className="page-shell page-listing app-page min-h-screen overflow-y-auto overscroll-contain bg-transparent p-4 [-webkit-overflow-scrolling:touch]">
       <div className="max-w-4xl mx-auto space-y-3">
         <button
           type="button"
-          className="inline-block border rounded px-3 py-2 text-left"
+          className="inline-block border rounded px-3 py-2 text-left app-back-button"
           onClick={() => {
             if (window.history.length > 1) {
               router.back();
@@ -905,15 +913,15 @@ export default function ListingPage() {
         {!listing && status ? (
           <div className="rounded-2xl border bg-white p-4 text-sm">{status}</div>
         ) : listing ? (
-          <article className="rounded-2xl border bg-white p-4 space-y-4">
-            <div className="flex items-center gap-3">
+          <article className="rounded-2xl border bg-white p-4 space-y-4 quest-detail-panel">
+            <div className="flex items-center gap-3 quest-detail-titlebar">
               {listing.profiles?.[0]?.avatar_url ? (
                 <img src={listing.profiles[0].avatar_url} alt="Creator" className="h-12 w-12 rounded-full border object-cover" />
               ) : (
                 <div className="h-12 w-12 rounded-full border bg-gray-100" />
               )}
               <div>
-                <h1 className="text-2xl font-bold">{listing.title}</h1>
+                <p className="app-kicker">{listingCategoryLabel()}</p><h1 className="text-2xl font-bold">{listing.title}</h1>
                 <Link href={`/profile/${listing.creator_id}`} className="text-sm underline text-gray-600">
                   {listing.profiles?.[0]?.display_name || "View creator profile"}
                 </Link>
@@ -1002,35 +1010,17 @@ export default function ListingPage() {
               </div>
             )}
 
-            <p className="text-sm text-gray-600">{getSkillLevelLabel(listing.skill_level)} · {listingCategoryLabel()} · group {listing.group_size}</p>
-            <p className="text-sm">{listing.description || "No description yet."}</p>
-            <p className="text-xs text-gray-500">
-              Where: {isVirtualListing() ? "Virtual" : (sanitizeLocationLabel(listing.city) || sanitizeLocationLabel(locationSummary(listing.exact_address)) || "city tbd")}
-              {myDistanceLabel ? ` · ${myDistanceLabel}` : null}
-              {myLocationStatus === "denied" ? " · location off" : null}
-            </p>
-            <p className="text-xs text-gray-500">When: {getEventTimingLabel(listing.availability)}</p>
-            <p className="text-xs text-gray-500">{formatPostedLabel(listing.created_at)}</p>
-            {isVirtualListing() ? (
-              <p className="text-xs text-emerald-700">
-                Virtual
-                {listing.exact_location_visibility === "public"
-                  ? ": Everyone"
-                  : listing.exact_location_visibility === "approved_members"
-                    ? ": Approved members"
-                    : canViewExactAddress
-                      ? ": Shared to you"
-                      : ": The host will share this when ready"}
-              </p>
-            ) : canViewExactAddress && listing.exact_address ? (
-              <p className="text-xs text-emerald-700">Exact address: {listing.exact_address}</p>
-            ) : (
-              <p className="text-xs text-gray-500">
-                The host will share this when they are ready, based on their privacy setting.
-              </p>
-            )}
+            <div className="quest-detail-tags"><span>{getSkillLevelLabel(listing.skill_level)}</span><span>{listing.join_mode === "approval_required" ? "Approval required" : "Open join"}</span><span>Up to {listing.group_size}</span></div>
+            <div className="quest-detail-description"><p>{listing.description || "The host has not added a description yet."}</p></div>
+            <div className="quest-detail-facts">
+              <div><span className="quest-detail-fact-icon"><AppIcon name="location" className="h-5 w-5" /></span><div><small>Meetup</small><strong>{isVirtualListing() ? "Virtual" : (sanitizeLocationLabel(listing.city) || sanitizeLocationLabel(locationSummary(listing.exact_address)) || "Location to be confirmed")}</strong><p>{myDistanceLabel || (myLocationStatus === "denied" ? "Enable location for distance" : "Location and directions")}</p></div></div>
+              <div><span className="quest-detail-fact-icon"><AppIcon name="clock" className="h-5 w-5" /></span><div><small>Starts</small><strong>{getEventTimingLabel(listing.availability)}</strong><p>{formatPostedLabel(listing.created_at)}</p></div></div>
+              <div><span className="quest-detail-fact-icon"><AppIcon name="shield" className="h-5 w-5" /></span><div><small>Exact location</small><strong>{canViewExactAddress ? "Available to you" : "Protected"}</strong><p>{isVirtualListing()
+                ? (listing.exact_location_visibility === "public" ? "Shared with everyone" : listing.exact_location_visibility === "approved_members" ? "Shared with approved guests" : canViewExactAddress ? "Meeting link shared" : "Host shares when ready")
+                : canViewExactAddress && listing.exact_address ? listing.exact_address : "The host shares it based on their privacy setting."}</p></div></div>
+            </div>
 
-            <div className="rounded-xl border bg-gray-50 p-3">
+            <div className="rounded-xl border bg-gray-50 p-3 quest-detail-section quest-members-section">
               <p className="text-sm font-medium mb-2">Joined members ({visibleMembers.filter((m) => (m.status || "approved") === "approved").length})</p>
               {visibleMembers.some((m) => (m.status || "approved") === "approved" && (m.role === "creator" || m.role === "cohost")) && (
                 <div className="mb-2 flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-800">
@@ -1187,7 +1177,7 @@ export default function ListingPage() {
               </div>
             )}
 
-            <div className="rounded-xl border bg-gray-50 p-3">
+            <div className="rounded-xl border bg-gray-50 p-3 quest-detail-section quest-comments-section">
               <p className="text-sm font-medium mb-2">Comments ({comments.length})</p>
               {comments.length ? (
                 <div className="space-y-2">
@@ -1217,7 +1207,7 @@ export default function ListingPage() {
               )}
             </div>
 
-            <div className="pt-2 flex gap-2 flex-wrap">
+            <div className="pt-2 flex gap-2 flex-wrap quest-detail-actions">
               {!isOwner ? (
                 <>
                   <button className="border rounded px-3 py-2 bg-black text-white" onClick={() => void toggleJoin()}>{myMembershipStatus === "pending" ? "Cancel request" : (myMembershipStatus === "declined" ? "Request again" : (hasJoined ? "Leave" : ((listing.join_mode || "open") === "approval_required" ? "Request to join" : "Join")))}</button>

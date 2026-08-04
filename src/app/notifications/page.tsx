@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase";
 import { getPersistedNotificationLastSeen, markNotificationsSeen } from "@/lib/notification-state";
 import { getDeliveredNotifications } from "@/lib/notifications";
+import { AppIcon } from "@/components/app-icons";
 
 type NotificationItem = {
   id: string;
@@ -52,11 +53,9 @@ export default function NotificationsPage() {
   const supabase = getSupabaseClient();
   const [userId, setUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [status, setStatus] = useState("");
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [lastSeenAt, setLastSeenAt] = useState<string>("");
   const [activeFilters, setActiveFilters] = useState<Array<"messages" | "comments" | "joined" | "your_listings">>([]);
-  const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
 
   useEffect(() => {
     if (!supabase) return;
@@ -202,23 +201,23 @@ export default function NotificationsPage() {
   }
 
   return (
-    <main className="page-shell page-notifications min-h-screen bg-transparent p-4">
-      <section className="max-w-4xl mx-auto rounded-3xl border bg-white p-5 space-y-4">
-        <div className="flex items-center justify-between gap-3">
+    <main className="page-shell page-notifications app-page min-h-screen bg-transparent p-4">
+      <section className="max-w-4xl mx-auto rounded-3xl border bg-white p-5 space-y-4 app-page-card">
+        <div className="flex items-center justify-between gap-3 app-page-header">
           <div>
-            <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Activity</p>
+            <p className="app-kicker">Activity</p>
             <h1 className="text-2xl font-semibold">Notifications</h1>
-            <p className="text-sm text-gray-500">{unreadCount} new since you last checked.</p>
+            <p className="app-page-subtitle">{unreadCount} new since you last checked.</p>
           </div>
           <div className="flex items-center gap-2">
+            <Link href="/settings?section=notifications" className="border rounded-full px-3 py-2 text-sm inline-flex items-center gap-2"><AppIcon name="settings" className="h-4 w-4" /> Settings</Link>
             <button className="border rounded-full px-3 py-2 text-sm" onClick={markSeen}>Mark all seen</button>
-            <Link href="/" className="border rounded-full px-3 py-2 text-sm">Back</Link>
           </div>
         </div>
 
         {status && <p className="text-sm rounded border bg-amber-100 text-amber-900 border-amber-300 px-3 py-2">{status}</p>}
 
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 app-filter-chips">
           <button type="button" onClick={clearFilters} className={`rounded-full px-3 py-2 text-sm border ${activeFilters.length === 0 ? "bg-black text-white border-black" : "bg-white"}`}>
             All
           </button>
@@ -242,9 +241,9 @@ export default function NotificationsPage() {
         ) : visibleItems.length === 0 ? (
           <p className="text-sm text-gray-500">No recent activity yet.</p>
         ) : (
-          <div className="grid gap-3">
+          <div className="grid gap-3 app-notification-list">
             {visibleItems.map((item) => (
-              <Link key={item.id} href={item.href} className="block rounded-2xl border px-4 py-3 hover:bg-gray-50">
+              <Link key={item.id} href={item.href} className="block rounded-2xl border px-4 py-3 hover:bg-gray-50 app-notification-card">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${badgeTone(item)}`}>{item.badge}</p>
