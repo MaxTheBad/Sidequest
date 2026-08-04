@@ -74,7 +74,6 @@ export default function NotificationsPage() {
 
       const delivered = await getDeliveredNotifications(supabase, uid);
       if (delivered) {
-        setBlockedUserIds([]);
         const mapped = delivered.map((row) => ({
           id: row.id,
           kind: row.kind,
@@ -107,7 +106,6 @@ export default function NotificationsPage() {
       ]);
 
       const blocked = Array.from(new Set(((blockRows || []) as Array<{ requester_id: string; addressee_id: string }>).flatMap((r) => [r.requester_id, r.addressee_id]).filter((id) => id !== uid)));
-      setBlockedUserIds(blocked);
 
       const notifications: NotificationItem[] = [];
       ((myMessages || []) as MessageNotificationRow[]).forEach((row) => {
@@ -214,8 +212,6 @@ export default function NotificationsPage() {
             <button className="border rounded-full px-3 py-2 text-sm" onClick={markSeen}>Mark all seen</button>
           </div>
         </div>
-
-        {status && <p className="text-sm rounded border bg-amber-100 text-amber-900 border-amber-300 px-3 py-2">{status}</p>}
 
         <div className="flex flex-wrap gap-2 app-filter-chips">
           <button type="button" onClick={clearFilters} className={`rounded-full px-3 py-2 text-sm border ${activeFilters.length === 0 ? "bg-black text-white border-black" : "bg-white"}`}>
