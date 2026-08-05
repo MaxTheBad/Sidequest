@@ -4303,7 +4303,6 @@ export default function Home() {
                 <input
                   type="file"
                   accept="image/*"
-                  capture="user"
                   className="border rounded-xl px-3 py-2 bg-white text-sm"
                   onChange={(e) => {
                     const picked = e.target.files?.[0] ?? null;
@@ -4608,11 +4607,10 @@ export default function Home() {
               <h3 className="font-semibold">Optional next step: profile photo</h3>
               <button className="border rounded px-2 py-1" onClick={() => void skipPhotoStep()}>Skip</button>
             </div>
-            <p className="text-sm text-gray-600">Use your camera to add one profile photo now, or skip and do it later in Settings.</p>
+            <p className="text-sm text-gray-600">Choose a photo or take one now, or skip and do it later in Settings.</p>
             <input
               type="file"
               accept="image/*"
-              capture="user"
               className="border rounded px-3 py-2 w-full"
               onChange={(e) => {
                 const picked = e.target.files?.[0] ?? null;

@@ -101,7 +101,6 @@ export default function SettingsPage() {
     try {
       return JSON.parse(initialProfileSnapshotRef.current) as {
         actualName?: string;
-        actualNameChangedAt?: string | null;
         username?: string;
         countryCode?: string;
         city?: string;
@@ -148,7 +147,7 @@ export default function SettingsPage() {
 
       const { data: profile } = await supabase
         .from("profiles")
-        .select("display_name,display_name_changed_at,username,username_changed_at,city,region,country_code,bio,friends_visibility,show_location,radius_km,avatar_url,avatar_source_url,deactivated_at")
+        .select("display_name,username,username_changed_at,city,region,country_code,bio,friends_visibility,show_location,radius_km,avatar_url,avatar_source_url,deactivated_at")
         .eq("id", uid)
         .maybeSingle();
 
@@ -181,7 +180,6 @@ export default function SettingsPage() {
       setCountryCode(resolvedCountryCode);
       initialProfileSnapshotRef.current = JSON.stringify({
         actualName: profile?.display_name || metaName || "",
-        actualNameChangedAt: profile?.display_name_changed_at || null,
         username: profile?.username || "",
         countryCode: resolvedCountryCode,
         city: profile?.city ?? (typeof authMeta.city === "string" ? authMeta.city : ""),
@@ -322,7 +320,6 @@ export default function SettingsPage() {
     if (!supabase || !userId) return setStatus("Not signed in.");
     const initial = initialProfileSnapshot || {
       actualName: "",
-      actualNameChangedAt: null,
       username: "",
       countryCode: "",
       city: "",
@@ -333,7 +330,6 @@ export default function SettingsPage() {
       usernameChangedAt: null,
     };
     const changedFields = [
-      initial.actualName !== actualName ? "actual name" : null,
       initial.username !== username ? "username" : null,
       initial.countryCode !== countryCode ? "country" : null,
       initial.city !== city ? "city" : null,
@@ -342,13 +338,6 @@ export default function SettingsPage() {
       initial.showLocation !== showLocation ? "location visibility" : null,
       initial.friendsVisibility !== friendsVisibility ? "friends visibility" : null,
     ].filter(Boolean) as string[];
-    const actualNameChanged = actualName.trim() !== (initial.actualName || "").trim();
-    const actualNameChangedAtMs = initial.actualNameChangedAt ? new Date(initial.actualNameChangedAt).getTime() : 0;
-    const actualNameCooldownActive =
-      actualNameChanged &&
-      Number.isFinite(actualNameChangedAtMs) &&
-      actualNameChangedAtMs > 0 &&
-      Date.now() - actualNameChangedAtMs < 24 * 60 * 60 * 1000;
     const usernameChanged = normalizeUsername(username) !== normalizeUsername(initial.username || "");
     const usernameChangedAtMs = initial.usernameChangedAt ? new Date(initial.usernameChangedAt).getTime() : 0;
     const usernameCooldownActive =
@@ -356,10 +345,8 @@ export default function SettingsPage() {
       Number.isFinite(usernameChangedAtMs) &&
       usernameChangedAtMs > 0 &&
       Date.now() - usernameChangedAtMs < 24 * 60 * 60 * 1000;
-    let actualNameBlocked = actualNameCooldownActive;
     let usernameBlocked = usernameCooldownActive;
     const nextUsernameChangedAt = usernameChanged && !usernameCooldownActive ? new Date().toISOString() : initial.usernameChangedAt || null;
-    const nextActualNameChangedAt = actualNameChanged && !actualNameCooldownActive ? new Date().toISOString() : initial.actualNameChangedAt || null;
 
     const saveBaseProfile = async () =>
       supabase
@@ -381,7 +368,6 @@ export default function SettingsPage() {
         id: userId,
         username,
         display_name: actualName,
-        display_name_changed_at: nextActualNameChangedAt,
         username_changed_at: nextUsernameChangedAt,
         city,
         region: region || null,
@@ -394,22 +380,19 @@ export default function SettingsPage() {
       });
 
     const profileSaveResult =
-      actualNameChanged || usernameChanged
+      usernameChanged && !usernameCooldownActive
         ? await saveNameAndBase()
         : await saveBaseProfile();
     let { error } = profileSaveResult;
 
-    if (actualNameChanged && !actualNameCooldownActive && error?.message.toLowerCase().includes("once every 24 hours")) {
-      actualNameBlocked = true;
-      ({ error } = await saveBaseProfile());
-    }
     if (usernameChanged && !usernameCooldownActive && error?.message.toLowerCase().includes("once every 24 hours")) {
       usernameBlocked = true;
       ({ error } = await saveBaseProfile());
     }
 
     if (error) return setStatus(error.message);
-    const savedActualName = actualName;
+    const savedUsername = usernameBlocked ? initial.username || username : username;
+    const savedActualName = usernameBlocked ? initial.actualName || savedUsername : actualName;
 
     const { error: metaErr } = await supabase.auth.updateUser({
       data: {
@@ -425,11 +408,12 @@ export default function SettingsPage() {
     });
 
     if (metaErr) return setStatus(metaErr.message);
-    if (actualNameBlocked || usernameBlocked) {
+    if (usernameBlocked) {
       const otherChanges = changedFields.filter((field) => field !== "username");
       setActualName(savedActualName);
+      setUsername(savedUsername);
       setStatus(
-        `${actualNameBlocked ? "You can only change your name once every 24 hours." : "You can only change your username once every 24 hours."}${
+        `You can only change your username once every 24 hours.${
           otherChanges.length ? ` Other changes saved: ${otherChanges.join(", ")}.` : ""
         }`,
       );
@@ -438,8 +422,7 @@ export default function SettingsPage() {
     }
     initialProfileSnapshotRef.current = JSON.stringify({
       actualName: savedActualName,
-      actualNameChangedAt: actualNameBlocked ? initial.actualNameChangedAt || null : nextActualNameChangedAt,
-      username,
+      username: savedUsername,
       countryCode,
       city,
       region,
@@ -857,7 +840,6 @@ export default function SettingsPage() {
                     ref={photoInputRef}
                     type="file"
                     accept="image/*"
-                    capture="user"
                     className="hidden"
                     onChange={(e) => {
                       const picked = e.target.files?.[0] ?? null;
