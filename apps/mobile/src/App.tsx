@@ -5659,12 +5659,21 @@ function privateThreadIncludesUsers(
       : isJoined || isOwner
         ? styles.feedJoinButtonJoined
         : styles.feedJoinButtonReady;
-    const joinButtonMuted = membershipStatus === "pending" || isJoined || isOwner;
     const joinButtonContentColor = membershipStatus === "pending"
-      ? isLightTheme ? "#8a4b08" : "#fcd34d"
-      : joinButtonMuted
-        ? isLightTheme ? "#0f5f73" : "#dff7fb"
+      ? "#854d0e"
+      : isJoined || isOwner
+        ? "#0b5364"
         : "#082f3a";
+    const joinButtonSurface = membershipStatus === "pending"
+      ? "rgba(254,243,199,0.96)"
+      : isJoined || isOwner
+        ? "rgba(223,247,251,0.96)"
+        : "#9bd8e4";
+    const joinButtonBorder = membershipStatus === "pending"
+      ? "rgba(180,83,9,0.32)"
+      : isJoined || isOwner
+        ? "rgba(15,95,115,0.28)"
+        : "rgba(255,255,255,0.35)";
     const feedCountdown = quest.starts_at ? formatFeedCountdown(quest.starts_at, countdownNow) : null;
 
     return (
@@ -5738,7 +5747,12 @@ function privateThreadIncludesUsers(
               </View>
               <View style={styles.feedMembershipInline} pointerEvents="box-none">
                 <Pressable
-                  style={[styles.feedJoinButton, styles.feedJoinButtonOnMedia, joinButtonTone]}
+                  style={[
+                    styles.feedJoinButton,
+                    styles.feedJoinButtonOnMedia,
+                    joinButtonTone,
+                    { backgroundColor: joinButtonSurface, borderColor: joinButtonBorder, borderWidth: 1 },
+                  ]}
                   onPress={() => {
                     if (!isJoinActionDisabled) void toggleJoinQuestMobile(quest);
                   }}
