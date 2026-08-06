@@ -484,6 +484,27 @@ function formatDate(value?: string | null) {
   });
 }
 
+function formatQuestDateTime(value?: string | Date | null) {
+  if (!value) return "";
+  const date = value instanceof Date ? value : new Date(value);
+  if (!Number.isFinite(date.getTime())) return "";
+  return date.toLocaleString(undefined, {
+    month: "numeric",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function formatQuestTiming(startsAt?: string | null, availability?: string | null, fallback = "Time decided together") {
+  const scheduled = formatQuestDateTime(startsAt);
+  if (scheduled) return `Start at: ${scheduled}`;
+  const raw = (availability || "").trim();
+  if (!raw) return fallback;
+  return raw.replace(/(\d{1,2}:\d{2}):\d{2}(\s*[AP]M\b)/gi, "$1$2");
+}
+
 function formatEventCountdown(startsAt: string, now: number) {
   const remainingSeconds = Math.max(0, Math.floor((new Date(startsAt).getTime() - now) / 1000));
   const hours = Math.floor(remainingSeconds / 3600);
@@ -3563,7 +3584,7 @@ function privateThreadIncludesUsers(
       ? "Virtual"
       : selectedPublicLocation || deriveCityFromLocation(draftExactAddress) || draftExactAddress.split(",")[0]?.trim() || "";
     const availabilityParts = [
-      `Start at: ${selectedStartTime.toLocaleString()}`,
+      `Start at: ${formatQuestDateTime(selectedStartTime)}`,
       timeFlexible ? "Time flexible" : null,
     ].filter(Boolean);
     const availabilityText = availabilityParts.join(" · ");
@@ -5705,7 +5726,7 @@ function privateThreadIncludesUsers(
                 </Pressable>
                 <View style={styles.feedMetaRow}>
                   <Ionicons name="calendar-outline" size={14} color="#d9e2e8" />
-                  <Text style={styles.feedMetaText} numberOfLines={1}>{quest.availability || "Time decided together"}</Text>
+                  <Text style={styles.feedMetaText} numberOfLines={1}>{formatQuestTiming(quest.starts_at, quest.availability)}</Text>
                 </View>
               </View>
               <View style={styles.feedMembershipInline} pointerEvents="box-none">
@@ -5999,7 +6020,7 @@ function privateThreadIncludesUsers(
                       {selectedCreator?.display_name || selectedCreator?.username || "QuestHat host"}
                     </Text>
                     <View style={styles.mapPreviewMetaDot} />
-                    <Text style={styles.mapPreviewHost} numberOfLines={1}>{selectedQuest.availability || "Time together"}</Text>
+                    <Text style={styles.mapPreviewHost} numberOfLines={1}>{formatQuestTiming(selectedQuest.starts_at, selectedQuest.availability, "Time together")}</Text>
                   </View>
                 </View>
                 <Ionicons name="chevron-forward" size={18} color="#6daec2" />
@@ -6300,7 +6321,7 @@ function privateThreadIncludesUsers(
               <Pressable style={styles.createSelectField} onPress={() => setShowStartAtPicker(true)}>
                 <View style={styles.createFieldLeading}><Ionicons name="calendar-clear-outline" size={17} color="#0f5f73" /></View>
                 <Text style={[styles.createSelectValue, !startAt && styles.dropdownPlaceholder]} numberOfLines={1}>
-                  {startAt ? new Date(startAt).toLocaleString() : "Choose date and time"}
+                  {startAt ? formatQuestDateTime(startAt) : "Choose date and time"}
                 </Text>
                 <Ionicons name="chevron-forward" size={17} color="#64748b" />
               </Pressable>
@@ -7616,7 +7637,7 @@ function privateThreadIncludesUsers(
                 <View style={styles.questDetailFactIcon}><Ionicons name="calendar-outline" size={19} color="#9bd8e4" /></View>
                 <View style={styles.questDetailFactCopy}>
                   <Text style={styles.questDetailFactLabel}>WHEN</Text>
-                  <Text style={styles.questDetailFactValue}>{selectedQuest.availability || "Let's find the best time"}</Text>
+                  <Text style={styles.questDetailFactValue}>{formatQuestTiming(selectedQuest.starts_at, selectedQuest.availability, "Let's find the best time")}</Text>
                 </View>
               </View>
               <View style={styles.questDetailFactDivider} />

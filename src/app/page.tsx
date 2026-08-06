@@ -2601,10 +2601,18 @@ export default function Home() {
     return formatPostedTime(createdAt);
   }
 
-  function getEventTimingLabel(availability?: string | null) {
+  function getEventTimingLabel(availability?: string | null, startsAt?: string | null) {
+    if (startsAt) {
+      const date = new Date(startsAt);
+      if (Number.isFinite(date.getTime())) {
+        return `Event: ${date.toLocaleString(undefined, { month: "numeric", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })}`;
+      }
+    }
     const raw = (availability || "").trim();
     if (!raw) return "Event time tbd";
-    return raw.replace(/^Start at:\s*/i, "Event: ");
+    return raw
+      .replace(/^Start at:\s*/i, "Event: ")
+      .replace(/(\d{1,2}:\d{2}):\d{2}(\s*[AP]M\b)/gi, "$1$2");
   }
 
   function sanitizeLocationLabel(input?: string | null) {
@@ -2664,7 +2672,7 @@ export default function Home() {
 
     const derivedCity = locationMode === "remote" ? city : selectedPublicLocation || deriveCityFromLocation(exactAddress) || city;
     const availabilityParts = [
-      `Start at: ${selectedStartTime.toLocaleString()}`,
+      `Start at: ${selectedStartTime.toLocaleString(undefined, { month: "numeric", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })}`,
       timeFlexible ? "Time flexible" : null,
       availability.trim() ? `Notes: ${availability.trim()}` : null,
     ].filter(Boolean);
@@ -4015,7 +4023,7 @@ export default function Home() {
                       {formatPostedLabel(q.created_at)}
                     </p>
                     <p className="text-xs font-medium text-slate-500 leading-relaxed">
-                      {getEventTimingLabel(q.availability)}
+                      {getEventTimingLabel(q.availability, q.starts_at)}
                     </p>
                     {expandedQuestIds[q.id] ? (
                       <>
@@ -4031,7 +4039,7 @@ export default function Home() {
                         </div>
                         {q.description ? <p className="text-sm text-slate-700 leading-relaxed line-clamp-2">{q.description}</p> : null}
                         <p className="text-xs text-slate-500 leading-relaxed">Where: {formatQuestCityState(q)}{distanceLabel ? ` · ${distanceLabel}` : ""}</p>
-                        <p className="text-xs text-slate-500 leading-relaxed">When: {getEventTimingLabel(q.availability)}</p>
+                        <p className="text-xs text-slate-500 leading-relaxed">When: {getEventTimingLabel(q.availability, q.starts_at)}</p>
                         <button
                           className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 underline underline-offset-2"
                           onClick={() => setExpandedQuestIds((prev) => ({ ...prev, [q.id]: false }))}
@@ -4096,7 +4104,7 @@ export default function Home() {
                   <p className="text-xs font-medium text-slate-500 leading-relaxed">
                     Where: {formatQuestCityState(q)}{distanceLabel ? ` · ${distanceLabel}` : ""}
                   </p>
-                  <p className="text-xs font-medium text-slate-500 leading-relaxed">When: {getEventTimingLabel(q.availability)}</p>
+                  <p className="text-xs font-medium text-slate-500 leading-relaxed">When: {getEventTimingLabel(q.availability, q.starts_at)}</p>
                 </div>
               )}
             </article>
