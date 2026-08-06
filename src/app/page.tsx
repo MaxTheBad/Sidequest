@@ -30,6 +30,52 @@ type QuestMediaItem = {
 
 type UploadedQuestMediaItem = QuestMediaItem & { audit?: MediaAuditInput };
 
+type LocationSuggestion = {
+  label: string;
+  publicLabel: string;
+};
+
+type GeocodedAddress = {
+  city?: string;
+  town?: string;
+  village?: string;
+  municipality?: string;
+  city_district?: string;
+  state?: string;
+  country?: string;
+  country_code?: string;
+};
+
+const US_STATE_CODES: Record<string, string> = {
+  alabama: "AL", alaska: "AK", arizona: "AZ", arkansas: "AR", california: "CA", colorado: "CO",
+  connecticut: "CT", delaware: "DE", florida: "FL", georgia: "GA", hawaii: "HI", idaho: "ID",
+  illinois: "IL", indiana: "IN", iowa: "IA", kansas: "KS", kentucky: "KY", louisiana: "LA",
+  maine: "ME", maryland: "MD", massachusetts: "MA", michigan: "MI", minnesota: "MN",
+  mississippi: "MS", missouri: "MO", montana: "MT", nebraska: "NE", nevada: "NV",
+  "new hampshire": "NH", "new jersey": "NJ", "new mexico": "NM", "new york": "NY",
+  "north carolina": "NC", "north dakota": "ND", ohio: "OH", oklahoma: "OK", oregon: "OR",
+  pennsylvania: "PA", "rhode island": "RI", "south carolina": "SC", "south dakota": "SD",
+  tennessee: "TN", texas: "TX", utah: "UT", vermont: "VT", virginia: "VA", washington: "WA",
+  "west virginia": "WV", wisconsin: "WI", wyoming: "WY", "district of columbia": "DC",
+};
+
+function normalizeLocationQuery(value?: string | null) {
+  return (value || "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function formatLocationSuggestion(address: GeocodedAddress | undefined, fallbackCountryCode: string) {
+  if (!address) return "";
+  const city = address.city || address.town || address.village || address.municipality || address.city_district || "";
+  if (!city) return "";
+  const resolvedCountryCode = (address.country_code || fallbackCountryCode).toUpperCase();
+  if (resolvedCountryCode === "US") {
+    const state = (address.state || "").trim();
+    const stateCode = US_STATE_CODES[state.toLowerCase()] || (/^[A-Z]{2}$/.test(state) ? state : "");
+    return stateCode ? `${city}, ${stateCode}` : city;
+  }
+  return resolvedCountryCode ? `${city}, ${resolvedCountryCode.slice(0, 3)}` : city;
+}
+
 const MAX_QUEST_MEDIA_ITEMS = 3;
 const MAX_QUEST_VIDEOS = 2;
 
@@ -270,6 +316,8 @@ export default function Home() {
   const [authTurnstileToken, setAuthTurnstileToken] = useState("");
   const [reportTurnstileToken, setReportTurnstileToken] = useState("");
   const [questTurnstileToken, setQuestTurnstileToken] = useState("");
+  const [questVerificationState, setQuestVerificationState] = useState<"loading" | "ready" | "verified" | "error">("loading");
+  const [questVerificationAttempt, setQuestVerificationAttempt] = useState(0);
   const [authMode, setAuthMode] = useState<AuthMode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -358,7 +406,10 @@ export default function Home() {
   const [exactAddress, setExactAddress] = useState("");
   const [joinMode, setJoinMode] = useState<"open" | "approval_required">("open");
   const [exactLocationVisibility, setExactLocationVisibility] = useState<"private" | "public" | "approved_members">("approved_members");
-  const [citySuggestions, setCitySuggestions] = useState<string[]>([]);
+  const [citySuggestions, setCitySuggestions] = useState<LocationSuggestion[]>([]);
+  const [selectedLocationSuggestion, setSelectedLocationSuggestion] = useState<string | null>(null);
+  const [selectedPublicLocation, setSelectedPublicLocation] = useState<string | null>(null);
+  const [locationSearchLoading, setLocationSearchLoading] = useState(false);
   const [restoreScrollY, setRestoreScrollY] = useState<number | null>(null);
   const [availability, setAvailability] = useState("");
   const [startAt, setStartAt] = useState("");
@@ -407,6 +458,7 @@ export default function Home() {
   const manualShareWarningBypassRef = useRef(false);
   const publicWarningMutedUntilRef = useRef<number>(0);
   const locationVisibilityRef = useRef<HTMLDivElement | null>(null);
+  const questVerificationRef = useRef<HTMLDivElement | null>(null);
   const createQuestFormRef = useRef<HTMLFormElement | null>(null);
 
   function onboardingStorageKey(uid: string) {
@@ -716,20 +768,60 @@ export default function Home() {
   }, [status]);
 
   useEffect(() => {
+    if (locationMode !== "in_person") {
+      setCitySuggestions([]);
+      setSelectedLocationSuggestion(null);
+      setSelectedPublicLocation(null);
+      setLocationSearchLoading(false);
+      return;
+    }
     const q = exactAddress.trim();
-    if (q.length < 2) return setCitySuggestions([]);
+    if (selectedLocationSuggestion && normalizeLocationQuery(selectedLocationSuggestion) === normalizeLocationQuery(q)) {
+      setCitySuggestions([]);
+      setLocationSearchLoading(false);
+      return;
+    }
+    if (q.length < 3) {
+      setCitySuggestions([]);
+      setLocationSearchLoading(false);
+      return;
+    }
+
+    const abortController = new AbortController();
+    setLocationSearchLoading(true);
     const t = setTimeout(async () => {
       try {
-        const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=5${countryCode ? `&countrycodes=${countryCode.toLowerCase()}` : ""}&q=${encodeURIComponent(q)}`;
-        const res = await fetch(url);
-        const data = (await res.json()) as Array<{ display_name: string }>;
-        setCitySuggestions(data.map((x) => x.display_name).slice(0, 5));
+        const normalizedQuery = q.toLowerCase();
+        const searchParts = [q];
+        if (city && !normalizedQuery.includes(city.toLowerCase())) searchParts.push(city);
+        if (countryQuery && !normalizedQuery.includes(countryQuery.toLowerCase())) searchParts.push(countryQuery);
+        const locationBias = userLocation
+          ? `&viewbox=${userLocation.lon - 1.5},${userLocation.lat + 1},${userLocation.lon + 1.5},${userLocation.lat - 1}`
+          : "";
+        const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&dedupe=1&limit=10&accept-language=en&q=${encodeURIComponent(searchParts.join(", "))}${countryCode ? `&countrycodes=${countryCode.toLowerCase()}` : ""}${locationBias}`;
+        const res = await fetch(url, { signal: abortController.signal });
+        if (!res.ok) throw new Error(`Location search failed (${res.status})`);
+        const data = (await res.json()) as Array<{ display_name?: string; name?: string; address?: GeocodedAddress }>;
+        const suggestions = Array.from(new Map(data.map((result) => {
+          const label = (result.display_name || result.name || "").trim();
+          if (!label) return null;
+          return [label.toLowerCase(), {
+            label,
+            publicLabel: formatLocationSuggestion(result.address, countryCode),
+          }] as const;
+        }).filter((entry): entry is readonly [string, LocationSuggestion] => Boolean(entry))).values());
+        if (!abortController.signal.aborted) setCitySuggestions(suggestions);
       } catch {
-        setCitySuggestions([]);
+        if (!abortController.signal.aborted) setCitySuggestions([]);
+      } finally {
+        if (!abortController.signal.aborted) setLocationSearchLoading(false);
       }
-    }, 300);
-    return () => clearTimeout(t);
-  }, [exactAddress, countryCode]);
+    }, 350);
+    return () => {
+      clearTimeout(t);
+      abortController.abort();
+    };
+  }, [city, countryCode, countryQuery, exactAddress, locationMode, selectedLocationSuggestion, userLocation]);
 
   async function loadQuests() {
     if (!supabase) return;
@@ -1701,6 +1793,10 @@ export default function Home() {
     setCategoryDropdownOpen(false);
     setLocationMode("in_person");
     setExactAddress("");
+    setCitySuggestions([]);
+    setSelectedLocationSuggestion(null);
+    setSelectedPublicLocation(null);
+    setLocationSearchLoading(false);
     setJoinMode("open");
     setExactLocationVisibility("approved_members");
     setSkillLevel("any");
@@ -1719,6 +1815,8 @@ export default function Home() {
     setShowPublicLocationConfirm(false);
     setHighlightLocationVisibility(false);
     setPublicVisibilityConfirmed(false);
+    setQuestTurnstileToken("");
+    setQuestVerificationState("loading");
     publicVisibilityBypassRef.current = false;
   }
 
@@ -2197,6 +2295,10 @@ export default function Home() {
     setCategoryInput(hobby?.name || "");
     setCity(q.city || "");
     setExactAddress(q.exact_address || "");
+    setCitySuggestions([]);
+    setSelectedLocationSuggestion(q.exact_address || null);
+    setSelectedPublicLocation(q.city || null);
+    setLocationSearchLoading(false);
     setJoinMode(q.join_mode || "open");
     setExactLocationVisibility(q.exact_location_visibility || "private");
     setAvailability(q.availability || "");
@@ -2230,6 +2332,8 @@ export default function Home() {
       })),
     );
     setRemoveExistingVideo(false);
+    setQuestTurnstileToken("");
+    setQuestVerificationState("loading");
     setShowCreateModal(true);
   }
 
@@ -2600,6 +2704,8 @@ export default function Home() {
       if (!exactAddress.trim()) return flagFieldError("location", "Remote meeting link is required.");
     } else if (!exactAddress.trim()) {
       return flagFieldError("location", "Location is required.");
+    } else if (!selectedLocationSuggestion || normalizeLocationQuery(selectedLocationSuggestion) !== normalizeLocationQuery(exactAddress)) {
+      return flagFieldError("location", "Choose a verified location from the suggestions.");
     }
     if (!groupSizeChoice) return flagFieldError("groupSize", "Group size is required.");
     if (groupSizeChoice === "custom" && (!Number.isFinite(selectedGroupSize) || selectedGroupSize < 2 || selectedGroupSize > 50)) {
@@ -2615,7 +2721,7 @@ export default function Home() {
       return;
     }
 
-    const derivedCity = locationMode === "remote" ? city : deriveCityFromLocation(exactAddress) || city;
+    const derivedCity = locationMode === "remote" ? city : selectedPublicLocation || deriveCityFromLocation(exactAddress) || city;
     const availabilityParts = [
       `Start at: ${selectedStartTime.toLocaleString()}`,
       timeFlexible ? "Time flexible" : null,
@@ -2708,7 +2814,11 @@ export default function Home() {
 
     setShowPublicLocationConfirm(false);
     setPublicVisibilityConfirmed(false);
-    if (!questTurnstileToken.trim()) return setStatus("Complete the verification check before posting.");
+    if (!questTurnstileToken.trim()) {
+      setStatus("Complete the verification check before posting.");
+      questVerificationRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
     if (!editingQuestId && Date.now() - lastQuestCreateMs < 5 * 60 * 1000) {
       return setStatus("Please wait 5 minutes before creating another listing.");
     }
@@ -2720,6 +2830,10 @@ export default function Home() {
     if (!questVerify.ok) {
       setSavingQuest(false);
       setQuestSaveProgress({ percent: 0, label: "" });
+      setQuestTurnstileToken("");
+      setQuestVerificationState("error");
+      setQuestVerificationAttempt((value) => value + 1);
+      questVerificationRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
       return setStatus("Verification failed. Please try again.");
     }
     setSavingQuest(true);
@@ -2887,6 +3001,9 @@ export default function Home() {
       setQuestSaveProgress({ percent: 100, label: "Posted" });
     } catch (err) {
       setStatus(err instanceof Error ? err.message : "Could not save listing.");
+      setQuestTurnstileToken("");
+      setQuestVerificationState("loading");
+      setQuestVerificationAttempt((value) => value + 1);
     } finally {
       publicVisibilityBypassRef.current = false;
       setSavingQuest(false);
@@ -4681,7 +4798,7 @@ export default function Home() {
 
       {showCreateModal && (
         <div className="fixed inset-0 z-50 bg-black/45 flex items-stretch sm:items-center justify-center p-0 sm:p-4 overflow-hidden">
-          <div className="w-full sm:w-full sm:max-w-xl rounded-none sm:rounded-2xl border-0 sm:border bg-white p-3 sm:p-4 space-y-2 h-[100dvh] sm:h-auto sm:max-h-[92vh] overflow-y-auto overflow-x-hidden my-0 sm:my-auto pb-28 md:pb-4 box-border">
+          <div className="w-full sm:w-full sm:max-w-xl rounded-none sm:rounded-2xl border-0 sm:border bg-white p-3 sm:p-4 space-y-2 h-[100svh] sm:h-auto sm:max-h-[92vh] overflow-y-auto overflow-x-hidden my-0 sm:my-auto pb-28 md:pb-4 box-border">
             <div className="sticky top-0 z-10 -mx-3 sm:mx-0 px-3 sm:px-0 py-2 bg-white/95 dark:bg-black/95 backdrop-blur flex justify-between items-center gap-3 border-b border-slate-100 dark:border-slate-800">
               <h3 className="font-semibold text-lg sm:text-xl text-slate-900 dark:text-white">{editingQuestId ? "Edit Listing" : "Create Quest"}</h3>
               <button disabled={savingQuest} onClick={() => { setShowCreateModal(false); resetQuestForm(); }} className="border rounded-full px-2 py-1 text-sm sm:text-base disabled:opacity-50">Close</button>
@@ -4875,24 +4992,51 @@ export default function Home() {
                   </label>
                   <div className="relative">
                     <input
-                      className={`border rounded-xl px-2.5 py-2 w-full bg-white text-sm sm:px-3 sm:py-2.5 sm:text-base ${fieldErrors.location ? "border-red-500 ring-1 ring-red-300" : ""}`}
-                      placeholder={locationMode === "remote" ? "Paste a Google Meet, Zoom, or Teams link" : "We recommend a public place"}
+                      className={`border rounded-xl px-2.5 py-2 pr-10 w-full bg-white text-sm sm:px-3 sm:py-2.5 sm:text-base ${fieldErrors.location ? "border-red-500 ring-1 ring-red-300" : ""}`}
+                      placeholder={locationMode === "remote" ? "Paste a Google Meet, Zoom, or Teams link" : "Exact address or Barnes & Noble Miami"}
                       value={exactAddress}
                       onChange={(e) => {
                         setExactAddress(e.target.value);
+                        setSelectedLocationSuggestion(null);
+                        setSelectedPublicLocation(null);
                         clearFieldError("location");
                       }}
                     />
+                    {locationMode === "in_person" && locationSearchLoading ? (
+                      <span className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin rounded-full border-2 border-slate-300 border-t-[#0c5063]" aria-label="Searching locations" />
+                    ) : locationMode === "in_person" && selectedLocationSuggestion ? (
+                      <AppIcon name="check" className="absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-emerald-600" />
+                    ) : null}
                     {locationMode === "in_person" && citySuggestions.length > 0 && (
-                      <div className="absolute z-20 left-0 right-0 mt-1 border rounded bg-white shadow max-h-44 overflow-auto text-sm">
-                        {citySuggestions.map((c) => (
-                          <button key={c} type="button" className="block w-full text-left px-3 py-2 hover:bg-gray-100" onClick={() => { setExactAddress(c); setCitySuggestions([]); }}>
-                            {c}
+                      <div className="absolute z-20 left-0 right-0 mt-1 max-h-56 overflow-auto rounded-xl border bg-white text-sm shadow-xl">
+                        {citySuggestions.map((suggestion) => (
+                          <button
+                            key={suggestion.label}
+                            type="button"
+                            className="flex w-full items-start gap-2 border-b px-3 py-3 text-left last:border-b-0 hover:bg-slate-50"
+                            onClick={() => {
+                              setExactAddress(suggestion.label);
+                              setSelectedLocationSuggestion(suggestion.label);
+                              setSelectedPublicLocation(suggestion.publicLabel || deriveCityFromLocation(suggestion.label));
+                              setLocationSearchLoading(false);
+                              setCitySuggestions([]);
+                              clearFieldError("location");
+                            }}
+                          >
+                            <AppIcon name="location" className="mt-0.5 h-4 w-4 shrink-0 text-[#0c5063]" />
+                            <span>{suggestion.label}</span>
                           </button>
                         ))}
                       </div>
                     )}
                   </div>
+                  <p className={`text-[10px] leading-4 sm:text-xs ${selectedLocationSuggestion ? "font-medium text-emerald-700" : "text-slate-500"}`}>
+                    {locationMode === "remote"
+                      ? "The link follows the privacy setting above."
+                      : selectedLocationSuggestion
+                        ? "Verified location selected."
+                        : "Select a result from the list so QuestHat can save the location."}
+                  </p>
                 </div>
               </div>
 
@@ -4908,6 +5052,10 @@ export default function Home() {
                     onChange={(next) => {
                       setCountryQuery(next);
                       setCountryCode(resolveCountryCodeByName(next));
+                      setExactAddress("");
+                      setCitySuggestions([]);
+                      setSelectedLocationSuggestion(null);
+                      setSelectedPublicLocation(null);
                       clearFieldError("country");
                     }}
                   />
@@ -5279,7 +5427,55 @@ export default function Home() {
                 </div>
               )}
 
-              <TurnstileInvisible onToken={setQuestTurnstileToken} />
+              <div
+                ref={questVerificationRef}
+                className={`scroll-mt-24 rounded-2xl border p-3 ${questVerificationState === "verified" ? "border-emerald-200 bg-emerald-50" : questVerificationState === "error" ? "border-red-200 bg-red-50" : "border-slate-200 bg-slate-50"}`}
+              >
+                <div className="mb-2 flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">Security verification</p>
+                    <p className="text-xs text-slate-600">
+                      {questVerificationState === "verified"
+                        ? "Verified. You can save your changes."
+                        : questVerificationState === "error"
+                          ? "Verification could not load. Try again below."
+                          : "Complete this quick check before posting or saving changes."}
+                    </p>
+                  </div>
+                  {questVerificationState === "verified" ? (
+                    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-800">
+                      <AppIcon name="check" className="h-3.5 w-3.5" /> Verified
+                    </span>
+                  ) : null}
+                </div>
+                <TurnstileInvisible
+                  key={questVerificationAttempt}
+                  className="overflow-x-auto"
+                  onReady={() => setQuestVerificationState((current) => current === "verified" ? current : "ready")}
+                  onToken={(token) => {
+                    setQuestTurnstileToken(token);
+                    setQuestVerificationState(token ? "verified" : "ready");
+                  }}
+                  onError={() => setQuestVerificationState("error")}
+                  onExpired={() => {
+                    setQuestTurnstileToken("");
+                    setQuestVerificationState("ready");
+                  }}
+                />
+                {questVerificationState === "error" ? (
+                  <button
+                    type="button"
+                    className="mt-2 rounded-xl border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-700"
+                    onClick={() => {
+                      setQuestTurnstileToken("");
+                      setQuestVerificationState("loading");
+                      setQuestVerificationAttempt((value) => value + 1);
+                    }}
+                  >
+                    Try verification again
+                  </button>
+                ) : null}
+              </div>
 
               {savingQuest && (
                 <div className="grid gap-2 rounded border bg-blue-50 px-3 py-2 text-sm text-slate-800">
