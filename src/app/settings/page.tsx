@@ -486,8 +486,9 @@ export default function SettingsPage() {
       const finalScale = baseScale * zoom;
       const drawW = img.width * finalScale;
       const drawH = img.height * finalScale;
-      const dx = (size - drawW) / 2 + cropOffsetX;
-      const dy = (size - drawH) / 2 + cropOffsetY;
+      const previewScale = size / 256;
+      const dx = (size - drawW) / 2 + cropOffsetX * previewScale;
+      const dy = (size - drawH) / 2 + cropOffsetY * previewScale;
 
       ctx.clearRect(0, 0, size, size);
       ctx.drawImage(img, dx, dy, drawW, drawH);
@@ -598,7 +599,7 @@ export default function SettingsPage() {
 
     let { error: profileErr } = await supabase
       .from("profiles")
-      .upsert({ id: userId, avatar_url: publicData.publicUrl, avatar_source_url: originalData.publicUrl, avatar_capture_method: "camera", photo_onboarding_done: true });
+      .upsert({ id: userId, avatar_url: publicData.publicUrl, avatar_source_url: originalData.publicUrl, avatar_capture_method: "upload", photo_onboarding_done: true });
 
     if (profileErr?.message?.includes("column") && (profileErr.message.includes("avatar_capture_method") || profileErr.message.includes("photo_onboarding_done"))) {
       const fallback = await supabase.from("profiles").upsert({ id: userId, avatar_url: publicData.publicUrl, avatar_source_url: originalData.publicUrl });
@@ -1366,15 +1367,15 @@ export default function SettingsPage() {
       ) : null}
 
       {showPhotoCropper && photoPreviewUrl && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="w-full max-w-sm rounded-2xl bg-white border p-4 space-y-3">
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 flex items-start sm:items-center justify-center p-4">
+          <div className="my-auto w-full max-w-sm max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-2xl bg-white border p-4 space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="font-semibold">Adjust profile photo</h3>
               <button className="border rounded px-2 py-1" onClick={() => setShowPhotoCropper(false)}>Done</button>
             </div>
             <p className="text-xs text-gray-600">Drag the photo in the circle to reposition it. Use zoom for framing. We keep the original upload so you can crop again later.</p>
             <div
-              className="relative h-64 w-64 rounded-full overflow-hidden border mx-auto bg-black/5 touch-none cursor-grab active:cursor-grabbing"
+              className="relative h-64 w-64 max-w-full rounded-full overflow-hidden border mx-auto bg-black/5 touch-none cursor-grab active:cursor-grabbing"
               onPointerDown={onCropPointerDown}
               onPointerMove={onCropPointerMove}
               onPointerUp={onCropPointerUp}
