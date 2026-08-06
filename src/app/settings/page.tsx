@@ -35,6 +35,12 @@ const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   liked_categories: false,
   quest_reminders: true,
 };
+const PROFILE_CROP_PREVIEW_SIZE = 256;
+
+function clampNumber(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
 type SocialProfile = { id: string; display_name: string | null; avatar_url: string | null; username: string | null };
 type FriendEdge = {
   requester_id: string;
@@ -70,6 +76,7 @@ export default function SettingsPage() {
   const [cropZoom, setCropZoom] = useState(1.2);
   const [cropOffsetX, setCropOffsetX] = useState(0);
   const [cropOffsetY, setCropOffsetY] = useState(0);
+  const [cropImageSize, setCropImageSize] = useState({ width: 1, height: 1 });
   const [dragging, setDragging] = useState(false);
   const [lastPointer, setLastPointer] = useState<{ x: number; y: number } | null>(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -116,6 +123,11 @@ export default function SettingsPage() {
   })();
   const initialUsername = initialProfileSnapshot?.username || "";
   const usernameAvailability = useUsernameAvailability(username, userId, initialUsername);
+  const cropAspectRatio = cropImageSize.width / cropImageSize.height;
+  const cropBaseWidth = cropAspectRatio >= 1 ? PROFILE_CROP_PREVIEW_SIZE * cropAspectRatio : PROFILE_CROP_PREVIEW_SIZE;
+  const cropBaseHeight = cropAspectRatio >= 1 ? PROFILE_CROP_PREVIEW_SIZE : PROFILE_CROP_PREVIEW_SIZE / cropAspectRatio;
+  const cropMaxOffsetX = Math.max(0, (cropBaseWidth * cropZoom - PROFILE_CROP_PREVIEW_SIZE) / 2);
+  const cropMaxOffsetY = Math.max(0, (cropBaseHeight * cropZoom - PROFILE_CROP_PREVIEW_SIZE) / 2);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -486,7 +498,7 @@ export default function SettingsPage() {
       const finalScale = baseScale * zoom;
       const drawW = img.width * finalScale;
       const drawH = img.height * finalScale;
-      const previewScale = size / 256;
+      const previewScale = size / PROFILE_CROP_PREVIEW_SIZE;
       const dx = (size - drawW) / 2 + cropOffsetX * previewScale;
       const dy = (size - drawH) / 2 + cropOffsetY * previewScale;
 
@@ -654,8 +666,8 @@ export default function SettingsPage() {
     if (!dragging || !lastPointer) return;
     const dx = e.clientX - lastPointer.x;
     const dy = e.clientY - lastPointer.y;
-    setCropOffsetX((v) => v + dx);
-    setCropOffsetY((v) => v + dy);
+    setCropOffsetX((value) => clampNumber(value + dx, -cropMaxOffsetX, cropMaxOffsetX));
+    setCropOffsetY((value) => clampNumber(value + dy, -cropMaxOffsetY, cropMaxOffsetY));
     setLastPointer({ x: e.clientX, y: e.clientY });
   }
 
@@ -1384,18 +1396,43 @@ export default function SettingsPage() {
               <img
                 src={photoPreviewUrl}
                 alt="Crop preview"
-                className="h-full w-full object-cover select-none"
+                className="absolute left-1/2 top-1/2 max-w-none select-none"
                 draggable={false}
-                style={{ transform: `translate(${cropOffsetX}px, ${cropOffsetY}px) scale(${cropZoom})`, transformOrigin: "center center" }}
+                onLoad={(event) => {
+                  const image = event.currentTarget;
+                  if (image.naturalWidth && image.naturalHeight) {
+                    setCropImageSize({ width: image.naturalWidth, height: image.naturalHeight });
+                  }
+                }}
+                style={{
+                  height: cropBaseHeight,
+                  width: cropBaseWidth,
+                  transform: `translate(calc(-50% + ${cropOffsetX}px), calc(-50% + ${cropOffsetY}px)) scale(${cropZoom})`,
+                  transformOrigin: "center center",
+                }}
               />
               <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/55 to-transparent px-3 py-2 text-[11px] text-white">Drag to reposition</div>
             </div>
             <label className="text-xs">Zoom</label>
-            <input type="range" min={1} max={3} step={0.05} value={cropZoom} onChange={(e) => setCropZoom(Number(e.target.value))} />
+            <input
+              type="range"
+              min={1}
+              max={3}
+              step={0.05}
+              value={cropZoom}
+              onChange={(event) => {
+                const nextZoom = Number(event.target.value);
+                const nextMaxX = Math.max(0, (cropBaseWidth * nextZoom - PROFILE_CROP_PREVIEW_SIZE) / 2);
+                const nextMaxY = Math.max(0, (cropBaseHeight * nextZoom - PROFILE_CROP_PREVIEW_SIZE) / 2);
+                setCropZoom(nextZoom);
+                setCropOffsetX((value) => clampNumber(value, -nextMaxX, nextMaxX));
+                setCropOffsetY((value) => clampNumber(value, -nextMaxY, nextMaxY));
+              }}
+            />
             <label className="text-xs">Move left/right</label>
-            <input type="range" min={-140} max={140} step={1} value={cropOffsetX} onChange={(e) => setCropOffsetX(Number(e.target.value))} />
+            <input type="range" min={-cropMaxOffsetX} max={cropMaxOffsetX} step={1} value={cropOffsetX} onChange={(e) => setCropOffsetX(Number(e.target.value))} />
             <label className="text-xs">Move up/down</label>
-            <input type="range" min={-140} max={140} step={1} value={cropOffsetY} onChange={(e) => setCropOffsetY(Number(e.target.value))} />
+            <input type="range" min={-cropMaxOffsetY} max={cropMaxOffsetY} step={1} value={cropOffsetY} onChange={(e) => setCropOffsetY(Number(e.target.value))} />
           </div>
         </div>
       )}
