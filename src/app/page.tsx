@@ -63,6 +63,23 @@ function normalizeLocationQuery(value?: string | null) {
   return (value || "").trim().toLowerCase().replace(/\s+/g, " ");
 }
 
+function getLocationSearchVariants(value: string) {
+  const raw = value.trim();
+  const withoutUnit = raw
+    .replace(/\s*(?:#\s*[\w-]+|(?:suite|ste|unit|apt|apartment|floor)\s*#?\s*[\w-]+)\s*,?/gi, ", ")
+    .replace(/,\s*,+/g, ", ")
+    .replace(/\s+,/g, ",")
+    .replace(/\s{2,}/g, " ")
+    .replace(/,\s*$/, "")
+    .trim();
+  const simplifiedVenue = raw
+    .replace(/^the\s+(?:shops?|mall|plaza)\s+at\s+/i, "")
+    .replace(/^(?:shops?|mall|plaza)\s+at\s+/i, "")
+    .trim();
+
+  return Array.from(new Set([raw, withoutUnit, simplifiedVenue].filter((query) => query.length >= 3)));
+}
+
 function formatLocationSuggestion(address: GeocodedAddress | undefined, fallbackCountryCode: string) {
   if (!address) return "";
   const city = address.city || address.town || address.village || address.municipality || address.city_district || "";
@@ -791,17 +808,21 @@ export default function Home() {
     setLocationSearchLoading(true);
     const t = setTimeout(async () => {
       try {
-        const normalizedQuery = q.toLowerCase();
-        const searchParts = [q];
-        if (city && !normalizedQuery.includes(city.toLowerCase())) searchParts.push(city);
-        if (countryQuery && !normalizedQuery.includes(countryQuery.toLowerCase())) searchParts.push(countryQuery);
         const locationBias = userLocation
           ? `&viewbox=${userLocation.lon - 1.5},${userLocation.lat + 1},${userLocation.lon + 1.5},${userLocation.lat - 1}`
           : "";
-        const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&dedupe=1&limit=10&accept-language=en&q=${encodeURIComponent(searchParts.join(", "))}${countryCode ? `&countrycodes=${countryCode.toLowerCase()}` : ""}${locationBias}`;
-        const res = await fetch(url, { signal: abortController.signal });
-        if (!res.ok) throw new Error(`Location search failed (${res.status})`);
-        const data = (await res.json()) as Array<{ display_name?: string; name?: string; address?: GeocodedAddress }>;
+        let data: Array<{ display_name?: string; name?: string; address?: GeocodedAddress }> = [];
+        for (const query of getLocationSearchVariants(q)) {
+          const normalizedQuery = query.toLowerCase();
+          const searchParts = [query];
+          if (city && !normalizedQuery.includes(city.toLowerCase())) searchParts.push(city);
+          if (countryQuery && !normalizedQuery.includes(countryQuery.toLowerCase())) searchParts.push(countryQuery);
+          const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&dedupe=1&limit=10&accept-language=en&q=${encodeURIComponent(searchParts.join(", "))}${countryCode ? `&countrycodes=${countryCode.toLowerCase()}` : ""}${locationBias}`;
+          const res = await fetch(url, { signal: abortController.signal });
+          if (!res.ok) throw new Error(`Location search failed (${res.status})`);
+          data = (await res.json()) as Array<{ display_name?: string; name?: string; address?: GeocodedAddress }>;
+          if (data.length > 0) break;
+        }
         const suggestions = Array.from(new Map(data.map((result) => {
           const label = (result.display_name || result.name || "").trim();
           if (!label) return null;
@@ -5035,6 +5056,8 @@ export default function Home() {
                       ? "The link follows the privacy setting above."
                       : selectedLocationSuggestion
                         ? "Verified location selected."
+                        : exactAddress.trim().length >= 3 && !locationSearchLoading && citySuggestions.length === 0
+                          ? "No exact matches yet. Try the street address without a suite number or use the venue's shorter name."
                         : "Select a result from the list so QuestHat can save the location."}
                   </p>
                 </div>
