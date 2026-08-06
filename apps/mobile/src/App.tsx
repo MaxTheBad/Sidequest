@@ -920,6 +920,7 @@ export default function App() {
   const [scrollOffsetY, setScrollOffsetY] = useState(0);
   const [scrollDirection, setScrollDirection] = useState<"up" | "down">("up");
   const [topBarHidden, setTopBarHidden] = useState(false);
+  const [bottomNavHidden, setBottomNavHidden] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [quests, setQuests] = useState<QuestPreview[]>([]);
@@ -1330,6 +1331,7 @@ export default function App() {
   const shellPrimary = "#6daec2";
   const scrollPositionRef = useRef(0);
   const topBarVisibility = useRef(new Animated.Value(1)).current;
+  const bottomNavVisibility = useRef(new Animated.Value(1)).current;
   const coordinateCacheRef = useRef<Record<string, DeviceLocation>>({});
   const busyLabel = authActionLoading || (accountActionLoading === "deactivate" ? "Deactivating account..." : null) || (accountActionLoading === "restore" ? "Restoring account..." : null) || (accountActionLoading === "delete" ? "Deleting account..." : null) || (refreshing ? "Refreshing..." : null) || (locationStatus === "loading" ? "Checking your location..." : null) || (creatingQuest ? "Creating quest..." : null) || (savingProfile ? "Saving profile..." : null) || (savingPreferences ? "Saving preferences..." : null) || (uploadingMedia ? "Uploading media..." : null) || (onboardingSaving ? "Saving onboarding..." : null) || (selectedQuestLoading ? "Loading quest..." : null) || (selectedProfileLoading ? "Loading profile..." : null) || (sendingQuestion ? "Sending message..." : null);
   const topBarBackground = scrollOffsetY > 12
@@ -1347,7 +1349,16 @@ export default function App() {
   }, [topBarHidden, topBarVisibility]);
 
   useEffect(() => {
+    Animated.timing(bottomNavVisibility, {
+      toValue: bottomNavHidden ? 0 : 1,
+      duration: bottomNavHidden ? 170 : 220,
+      useNativeDriver: true,
+    }).start();
+  }, [bottomNavHidden, bottomNavVisibility]);
+
+  useEffect(() => {
     setTopBarHidden(false);
+    setBottomNavHidden(false);
     scrollPositionRef.current = 0;
   }, [activeTab]);
 
@@ -8931,10 +8942,16 @@ function privateThreadIncludesUsers(
               if (delta < -3) setScrollDirection("up");
               if (nextY < 14) {
                 setTopBarHidden(false);
+                setBottomNavHidden(false);
               } else if (delta > 5 && nextY > 34) {
                 setTopBarHidden(true);
               } else if (delta < -5) {
                 setTopBarHidden(false);
+              }
+              if (delta > 5 && nextY > 80) {
+                setBottomNavHidden(true);
+              } else if (delta < -5) {
+                setBottomNavHidden(false);
               }
               scrollPositionRef.current = nextY;
               setScrollOffsetY(nextY);
@@ -8978,15 +8995,18 @@ function privateThreadIncludesUsers(
           {renderEulaModal()}
           {renderAccountLifecycleModal()}
 
-          {activeTab !== "create" ? <View
+          {activeTab !== "create" ? <Animated.View
             style={[
               styles.tabBar,
               {
                 backgroundColor: isLightTheme ? "rgba(255,255,255,0.72)" : "rgba(20,21,31,0.64)",
                 borderColor: isLightTheme ? "rgba(255,255,255,0.66)" : "rgba(255,255,255,0.1)",
                 shadowColor: isLightTheme ? "#000" : "transparent",
+                opacity: bottomNavVisibility,
+                transform: [{ translateY: bottomNavVisibility.interpolate({ inputRange: [0, 1], outputRange: [120, 0] }) }],
               },
             ]}
+            pointerEvents={bottomNavHidden ? "none" : "auto"}
           >
             {visibleTabs.map((tab) => {
               const active = activeTab === tab.key;
@@ -9017,7 +9037,7 @@ function privateThreadIncludesUsers(
                 </Pressable>
               );
             })}
-          </View> : null}
+          </Animated.View> : null}
         </KeyboardAvoidingView>
       </SafeAreaView>
     </AppErrorBoundary>
