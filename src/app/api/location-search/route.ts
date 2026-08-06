@@ -80,19 +80,24 @@ export async function GET(request: Request) {
 
   try {
     for (const variant of getSearchVariants(query)) {
-      const normalized = variant.toLowerCase();
-      const searchParts = [variant];
-      if (city && !normalized.includes(city.toLowerCase())) searchParts.push(city);
-      if (countryName && !normalized.includes(countryName.toLowerCase())) searchParts.push(countryName);
-      const upstreamUrl = `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&dedupe=1&limit=10&accept-language=en&q=${encodeURIComponent(searchParts.join(", "))}${countryCode ? `&countrycodes=${countryCode.toLowerCase()}` : ""}${locationBias}`;
-      const response = await fetch(upstreamUrl, {
-        headers: {
-          Accept: "application/json",
-          "User-Agent": "QuestHat/1.0 (support@questhat.com)",
-        },
-      });
-      if (!response.ok) continue;
-      results = await response.json() as NominatimResult[];
+      const contextualQueries = [
+        variant,
+        city && !variant.toLowerCase().includes(city.toLowerCase()) ? `${variant}, ${city}` : "",
+      ].filter(Boolean);
+      for (const contextualQuery of contextualQueries) {
+        const searchParts = [contextualQuery];
+        if (countryName && !contextualQuery.toLowerCase().includes(countryName.toLowerCase())) searchParts.push(countryName);
+        const upstreamUrl = `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&dedupe=1&limit=10&accept-language=en&q=${encodeURIComponent(searchParts.join(", "))}${countryCode ? `&countrycodes=${countryCode.toLowerCase()}` : ""}${locationBias}`;
+        const response = await fetch(upstreamUrl, {
+          headers: {
+            Accept: "application/json",
+            "User-Agent": "QuestHat/1.0 (support@questhat.com)",
+          },
+        });
+        if (!response.ok) continue;
+        results = await response.json() as NominatimResult[];
+        if (results.length) break;
+      }
       if (results.length) break;
     }
   } catch {
@@ -107,6 +112,6 @@ export async function GET(request: Request) {
 
   return Response.json(
     { suggestions },
-    { headers: { "Cache-Control": "public, max-age=300, s-maxage=86400, stale-while-revalidate=604800" } },
+    { headers: { "Cache-Control": suggestions.length ? "public, max-age=300, s-maxage=86400, stale-while-revalidate=604800" : "public, max-age=30, s-maxage=300" } },
   );
 }

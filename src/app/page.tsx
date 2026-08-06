@@ -743,7 +743,7 @@ export default function Home() {
     setLocationSearchAttempted(false);
     setCitySuggestions([]);
     try {
-      const params = new URLSearchParams({ q, city, country: countryQuery, countryCode });
+      const params = new URLSearchParams({ q, city, country: countryQuery, countryCode, v: "2" });
       if (userLocation) {
         params.set("lat", String(userLocation.lat));
         params.set("lon", String(userLocation.lon));
@@ -4931,6 +4931,28 @@ export default function Home() {
                     />
                   </div>
                 ) : null}
+                {locationMode === "in_person" ? (
+                  <div className="grid gap-1">
+                    <label className={`text-[11px] font-medium uppercase tracking-wide ${fieldErrors.country ? "text-red-600" : "text-slate-600"}`}>Country *</label>
+                    <CreateSelect
+                      value={countryQuery}
+                      placeholder="Choose a country"
+                      searchable
+                      invalid={Boolean(fieldErrors.country)}
+                      options={countryOptions.map((country) => ({ value: country.name, label: country.name }))}
+                      onChange={(next) => {
+                        setCountryQuery(next);
+                        setCountryCode(resolveCountryCodeByName(next));
+                        setExactAddress("");
+                        setCitySuggestions([]);
+                        setSelectedLocationSuggestion(null);
+                        setSelectedPublicLocation(null);
+                        setLocationSearchAttempted(false);
+                        clearFieldError("country");
+                      }}
+                    />
+                  </div>
+                ) : null}
                 <div className="grid gap-1">
                   <label className={`text-[11px] font-medium uppercase tracking-wide ${fieldErrors.location ? "text-red-600" : "text-slate-600"}`}>
                     {locationMode === "remote" ? "Meeting link" : "Meetup location"}
@@ -4998,29 +5020,6 @@ export default function Home() {
                           ? "No exact matches yet. Try the street address without a suite number or use the venue's shorter name."
                         : "Select a result from the list so QuestHat can save the location."}
                   </p>
-                </div>
-              </div>
-
-              <div className="grid gap-2 sm:grid-cols-2 sm:items-end">
-                <div className="grid gap-1">
-                  <label className={`text-xs font-medium uppercase tracking-wide ${fieldErrors.country ? "text-red-600" : "text-slate-600"}`}>Country *</label>
-                  <CreateSelect
-                    value={countryQuery}
-                    placeholder="Choose a country"
-                    searchable
-                    invalid={Boolean(fieldErrors.country)}
-                    options={countryOptions.map((country) => ({ value: country.name, label: country.name }))}
-                    onChange={(next) => {
-                      setCountryQuery(next);
-                      setCountryCode(resolveCountryCodeByName(next));
-                      setExactAddress("");
-                      setCitySuggestions([]);
-                      setSelectedLocationSuggestion(null);
-                      setSelectedPublicLocation(null);
-                      setLocationSearchAttempted(false);
-                      clearFieldError("country");
-                    }}
-                  />
                 </div>
               </div>
 

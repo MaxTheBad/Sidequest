@@ -1287,6 +1287,7 @@ export default function App() {
         city: cityContext,
         country: selectedCountrySuggestion,
         countryCode: selectedCountryCode,
+        v: "2",
       });
       if (deviceLocation) {
         params.set("lat", String(deviceLocation.lat));
