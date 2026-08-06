@@ -5701,7 +5701,7 @@ function privateThreadIncludesUsers(
             <View style={styles.feedTitleMembershipRow}>
               <View style={styles.feedTitleCopy}>
                 <Pressable hitSlop={10} onPress={() => void openQuestDetail(quest.id)}>
-                  <Text style={styles.feedTitle} numberOfLines={2}>{quest.title}</Text>
+                  <Text style={styles.feedTitle}>{quest.title}</Text>
                 </Pressable>
                 <View style={styles.feedMetaRow}>
                   <Ionicons name="calendar-outline" size={14} color="#d9e2e8" />
