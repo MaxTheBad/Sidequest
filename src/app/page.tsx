@@ -35,62 +35,8 @@ type LocationSuggestion = {
   publicLabel: string;
 };
 
-type GeocodedAddress = {
-  city?: string;
-  town?: string;
-  village?: string;
-  municipality?: string;
-  city_district?: string;
-  state?: string;
-  country?: string;
-  country_code?: string;
-};
-
-const US_STATE_CODES: Record<string, string> = {
-  alabama: "AL", alaska: "AK", arizona: "AZ", arkansas: "AR", california: "CA", colorado: "CO",
-  connecticut: "CT", delaware: "DE", florida: "FL", georgia: "GA", hawaii: "HI", idaho: "ID",
-  illinois: "IL", indiana: "IN", iowa: "IA", kansas: "KS", kentucky: "KY", louisiana: "LA",
-  maine: "ME", maryland: "MD", massachusetts: "MA", michigan: "MI", minnesota: "MN",
-  mississippi: "MS", missouri: "MO", montana: "MT", nebraska: "NE", nevada: "NV",
-  "new hampshire": "NH", "new jersey": "NJ", "new mexico": "NM", "new york": "NY",
-  "north carolina": "NC", "north dakota": "ND", ohio: "OH", oklahoma: "OK", oregon: "OR",
-  pennsylvania: "PA", "rhode island": "RI", "south carolina": "SC", "south dakota": "SD",
-  tennessee: "TN", texas: "TX", utah: "UT", vermont: "VT", virginia: "VA", washington: "WA",
-  "west virginia": "WV", wisconsin: "WI", wyoming: "WY", "district of columbia": "DC",
-};
-
 function normalizeLocationQuery(value?: string | null) {
   return (value || "").trim().toLowerCase().replace(/\s+/g, " ");
-}
-
-function getLocationSearchVariants(value: string) {
-  const raw = value.trim();
-  const withoutUnit = raw
-    .replace(/\s*(?:#\s*[\w-]+|(?:suite|ste|unit|apt|apartment|floor)\s*#?\s*[\w-]+)\s*,?/gi, ", ")
-    .replace(/,\s*,+/g, ", ")
-    .replace(/\s+,/g, ",")
-    .replace(/\s{2,}/g, " ")
-    .replace(/,\s*$/, "")
-    .trim();
-  const simplifiedVenue = raw
-    .replace(/^the\s+(?:shops?|mall|plaza)\s+at\s+/i, "")
-    .replace(/^(?:shops?|mall|plaza)\s+at\s+/i, "")
-    .trim();
-
-  return Array.from(new Set([raw, withoutUnit, simplifiedVenue].filter((query) => query.length >= 3)));
-}
-
-function formatLocationSuggestion(address: GeocodedAddress | undefined, fallbackCountryCode: string) {
-  if (!address) return "";
-  const city = address.city || address.town || address.village || address.municipality || address.city_district || "";
-  if (!city) return "";
-  const resolvedCountryCode = (address.country_code || fallbackCountryCode).toUpperCase();
-  if (resolvedCountryCode === "US") {
-    const state = (address.state || "").trim();
-    const stateCode = US_STATE_CODES[state.toLowerCase()] || (/^[A-Z]{2}$/.test(state) ? state : "");
-    return stateCode ? `${city}, ${stateCode}` : city;
-  }
-  return resolvedCountryCode ? `${city}, ${resolvedCountryCode.slice(0, 3)}` : city;
 }
 
 const MAX_QUEST_MEDIA_ITEMS = 3;
@@ -427,6 +373,7 @@ export default function Home() {
   const [selectedLocationSuggestion, setSelectedLocationSuggestion] = useState<string | null>(null);
   const [selectedPublicLocation, setSelectedPublicLocation] = useState<string | null>(null);
   const [locationSearchLoading, setLocationSearchLoading] = useState(false);
+  const [locationSearchAttempted, setLocationSearchAttempted] = useState(false);
   const [restoreScrollY, setRestoreScrollY] = useState<number | null>(null);
   const [availability, setAvailability] = useState("");
   const [startAt, setStartAt] = useState("");
@@ -784,65 +731,36 @@ export default function Home() {
     return () => clearTimeout(t);
   }, [status]);
 
-  useEffect(() => {
-    if (locationMode !== "in_person") {
-      setCitySuggestions([]);
-      setSelectedLocationSuggestion(null);
-      setSelectedPublicLocation(null);
-      setLocationSearchLoading(false);
-      return;
-    }
+  async function searchQuestLocations() {
     const q = exactAddress.trim();
-    if (selectedLocationSuggestion && normalizeLocationQuery(selectedLocationSuggestion) === normalizeLocationQuery(q)) {
-      setCitySuggestions([]);
-      setLocationSearchLoading(false);
-      return;
-    }
     if (q.length < 3) {
       setCitySuggestions([]);
-      setLocationSearchLoading(false);
-      return;
+      setLocationSearchAttempted(true);
+      return setStatus("Enter at least 3 characters to search.");
     }
 
-    const abortController = new AbortController();
     setLocationSearchLoading(true);
-    const t = setTimeout(async () => {
-      try {
-        const locationBias = userLocation
-          ? `&viewbox=${userLocation.lon - 1.5},${userLocation.lat + 1},${userLocation.lon + 1.5},${userLocation.lat - 1}`
-          : "";
-        let data: Array<{ display_name?: string; name?: string; address?: GeocodedAddress }> = [];
-        for (const query of getLocationSearchVariants(q)) {
-          const normalizedQuery = query.toLowerCase();
-          const searchParts = [query];
-          if (city && !normalizedQuery.includes(city.toLowerCase())) searchParts.push(city);
-          if (countryQuery && !normalizedQuery.includes(countryQuery.toLowerCase())) searchParts.push(countryQuery);
-          const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&dedupe=1&limit=10&accept-language=en&q=${encodeURIComponent(searchParts.join(", "))}${countryCode ? `&countrycodes=${countryCode.toLowerCase()}` : ""}${locationBias}`;
-          const res = await fetch(url, { signal: abortController.signal });
-          if (!res.ok) throw new Error(`Location search failed (${res.status})`);
-          data = (await res.json()) as Array<{ display_name?: string; name?: string; address?: GeocodedAddress }>;
-          if (data.length > 0) break;
-        }
-        const suggestions = Array.from(new Map(data.map((result) => {
-          const label = (result.display_name || result.name || "").trim();
-          if (!label) return null;
-          return [label.toLowerCase(), {
-            label,
-            publicLabel: formatLocationSuggestion(result.address, countryCode),
-          }] as const;
-        }).filter((entry): entry is readonly [string, LocationSuggestion] => Boolean(entry))).values());
-        if (!abortController.signal.aborted) setCitySuggestions(suggestions);
-      } catch {
-        if (!abortController.signal.aborted) setCitySuggestions([]);
-      } finally {
-        if (!abortController.signal.aborted) setLocationSearchLoading(false);
+    setLocationSearchAttempted(false);
+    setCitySuggestions([]);
+    try {
+      const params = new URLSearchParams({ q, city, country: countryQuery, countryCode });
+      if (userLocation) {
+        params.set("lat", String(userLocation.lat));
+        params.set("lon", String(userLocation.lon));
       }
-    }, 350);
-    return () => {
-      clearTimeout(t);
-      abortController.abort();
-    };
-  }, [city, countryCode, countryQuery, exactAddress, locationMode, selectedLocationSuggestion, userLocation]);
+      const response = await fetch(`/api/location-search?${params.toString()}`);
+      const payload = await response.json() as { suggestions?: LocationSuggestion[]; error?: string };
+      if (!response.ok) throw new Error(payload.error || "Location search failed.");
+      setCitySuggestions(payload.suggestions || []);
+      setLocationSearchAttempted(true);
+    } catch (error) {
+      setCitySuggestions([]);
+      setLocationSearchAttempted(true);
+      setStatus(error instanceof Error ? error.message : "Location search is temporarily unavailable.");
+    } finally {
+      setLocationSearchLoading(false);
+    }
+  }
 
   async function loadQuests() {
     if (!supabase) return;
@@ -1818,6 +1736,7 @@ export default function Home() {
     setSelectedLocationSuggestion(null);
     setSelectedPublicLocation(null);
     setLocationSearchLoading(false);
+    setLocationSearchAttempted(false);
     setJoinMode("open");
     setExactLocationVisibility("approved_members");
     setSkillLevel("any");
@@ -2320,6 +2239,7 @@ export default function Home() {
     setSelectedLocationSuggestion(q.exact_address || null);
     setSelectedPublicLocation(q.city || null);
     setLocationSearchLoading(false);
+    setLocationSearchAttempted(false);
     setJoinMode(q.join_mode || "open");
     setExactLocationVisibility(q.exact_location_visibility || "private");
     setAvailability(q.availability || "");
@@ -4971,6 +4891,10 @@ export default function Home() {
                       onClick={() => {
                         setLocationMode("remote");
                         setExactLocationVisibility("private");
+                        setCitySuggestions([]);
+                        setSelectedLocationSuggestion(null);
+                        setSelectedPublicLocation(null);
+                        setLocationSearchAttempted(false);
                         setPublicVisibilityConfirmed(false);
                         clearFieldError("location");
                         clearFieldError("locationVisibility");
@@ -5013,20 +4937,34 @@ export default function Home() {
                   </label>
                   <div className="relative">
                     <input
-                      className={`border rounded-xl px-2.5 py-2 pr-10 w-full bg-white text-sm sm:px-3 sm:py-2.5 sm:text-base ${fieldErrors.location ? "border-red-500 ring-1 ring-red-300" : ""}`}
+                      className={`border rounded-xl px-2.5 py-2 w-full bg-white text-sm sm:px-3 sm:py-2.5 sm:text-base ${locationMode === "in_person" ? "pr-24" : ""} ${fieldErrors.location ? "border-red-500 ring-1 ring-red-300" : ""}`}
                       placeholder={locationMode === "remote" ? "Paste a Google Meet, Zoom, or Teams link" : "Exact address or Barnes & Noble Miami"}
                       value={exactAddress}
                       onChange={(e) => {
                         setExactAddress(e.target.value);
+                        setCitySuggestions([]);
                         setSelectedLocationSuggestion(null);
                         setSelectedPublicLocation(null);
+                        setLocationSearchAttempted(false);
                         clearFieldError("location");
                       }}
+                      onKeyDown={(event) => {
+                        if (locationMode === "in_person" && event.key === "Enter") {
+                          event.preventDefault();
+                          void searchQuestLocations();
+                        }
+                      }}
                     />
-                    {locationMode === "in_person" && locationSearchLoading ? (
-                      <span className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin rounded-full border-2 border-slate-300 border-t-[#0c5063]" aria-label="Searching locations" />
-                    ) : locationMode === "in_person" && selectedLocationSuggestion ? (
-                      <AppIcon name="check" className="absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-emerald-600" />
+                    {locationMode === "in_person" ? (
+                      <button
+                        type="button"
+                        className="absolute bottom-1.5 right-1.5 top-1.5 inline-flex min-w-[4.5rem] items-center justify-center gap-1 rounded-lg bg-[#0c5063] px-2 text-xs font-semibold text-white disabled:opacity-60"
+                        disabled={locationSearchLoading || exactAddress.trim().length < 3}
+                        onClick={() => void searchQuestLocations()}
+                      >
+                        {locationSearchLoading ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" /> : null}
+                        {locationSearchLoading ? "Finding" : "Search"}
+                      </button>
                     ) : null}
                     {locationMode === "in_person" && citySuggestions.length > 0 && (
                       <div className="absolute z-20 left-0 right-0 mt-1 max-h-56 overflow-auto rounded-xl border bg-white text-sm shadow-xl">
@@ -5056,7 +4994,7 @@ export default function Home() {
                       ? "The link follows the privacy setting above."
                       : selectedLocationSuggestion
                         ? "Verified location selected."
-                        : exactAddress.trim().length >= 3 && !locationSearchLoading && citySuggestions.length === 0
+                        : locationSearchAttempted && !locationSearchLoading && citySuggestions.length === 0
                           ? "No exact matches yet. Try the street address without a suite number or use the venue's shorter name."
                         : "Select a result from the list so QuestHat can save the location."}
                   </p>
@@ -5079,6 +5017,7 @@ export default function Home() {
                       setCitySuggestions([]);
                       setSelectedLocationSuggestion(null);
                       setSelectedPublicLocation(null);
+                      setLocationSearchAttempted(false);
                       clearFieldError("country");
                     }}
                   />

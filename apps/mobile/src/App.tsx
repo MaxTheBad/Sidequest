@@ -45,7 +45,7 @@ import { APP_NAME, CANONICAL_CATEGORIES, haversineMiles, resolveCanonicalCategor
 import { env } from "./lib/env";
 import { supabase } from "./lib/supabase";
 import { getPushPermissionStatus, registerPushTokenForUser, requestPushPermissionAndRegisterForUser } from "./lib/push";
-import { COUNTRY_OPTIONS, getCountryDisplayAbbreviation } from "./lib/countries";
+import { COUNTRY_OPTIONS } from "./lib/countries";
 
 WebBrowser.maybeCompleteAuthSession();
 Notifications.setNotificationHandler({
@@ -102,32 +102,6 @@ const US_STATE_CODES: Record<string, string> = {
   "west virginia": "WV", wisconsin: "WI", wyoming: "WY", "district of columbia": "DC",
 };
 const US_STATE_ABBREVIATIONS = new Set(Object.values(US_STATE_CODES));
-
-type GeocodedAddress = {
-  city?: string;
-  town?: string;
-  village?: string;
-  municipality?: string;
-  city_district?: string;
-  state?: string;
-  county?: string;
-  country?: string;
-  country_code?: string;
-};
-
-function formatStructuredPublicLocation(address: GeocodedAddress | undefined, countryCode?: string | null) {
-  if (!address) return "";
-  const city = address.city || address.town || address.village || address.municipality || address.city_district || "";
-  if (!city) return "";
-  const normalizedCountryCode = (address.country_code || countryCode || "").toUpperCase();
-  if (normalizedCountryCode === "US") {
-    const rawRegion = (address.state || "").trim();
-    const regionCode = US_STATE_CODES[rawRegion.toLowerCase()] || (US_STATE_ABBREVIATIONS.has(rawRegion.toUpperCase()) ? rawRegion.toUpperCase() : "");
-    return regionCode ? `${city}, ${regionCode}` : city;
-  }
-  const countryAbbreviation = getCountryDisplayAbbreviation(normalizedCountryCode);
-  return countryAbbreviation ? `${city}, ${countryAbbreviation}` : city;
-}
 
 function formatQuestCityState(rawLocation?: string | null) {
   const parts = (rawLocation || "").split(",").map((part) => part.trim()).filter(Boolean);
@@ -987,6 +961,7 @@ export default function App() {
   const [selectedLocationSuggestion, setSelectedLocationSuggestion] = useState<string | null>(null);
   const [selectedPublicLocation, setSelectedPublicLocation] = useState<string | null>(null);
   const [locationSearchLoading, setLocationSearchLoading] = useState(false);
+  const [locationSearchAttempted, setLocationSearchAttempted] = useState(false);
   const [draftJoinMode, setDraftJoinMode] = useState<"approval_required" | "open">("approval_required");
   const [draftLocationVisibility, setDraftLocationVisibility] = useState<"private" | "approved_members" | "public">("private");
   const [draftGroupSize, setDraftGroupSize] = useState("4");
@@ -1260,6 +1235,8 @@ export default function App() {
       setSelectedCountryCode(null);
       setSelectedLocationSuggestion(null);
       setSelectedPublicLocation(null);
+      setLocationSearchLoading(false);
+      setLocationSearchAttempted(false);
       return;
     }
     const query = draftCountryQuery.trim();
@@ -1285,76 +1262,49 @@ export default function App() {
     setCountrySuggestions(matches);
   }, [draftCountryQuery, locationMode, selectedCountrySuggestion]);
 
-  useEffect(() => {
-    if (locationMode !== "in_person") {
-      setLocationSuggestions([]);
-      setSelectedLocationSuggestion(null);
-      setSelectedPublicLocation(null);
-      setLocationSearchLoading(false);
-      return;
-    }
+  async function searchDraftLocations() {
     if (!selectedCountrySuggestion || !selectedCountryCode) {
       setLocationSuggestions([]);
       setSelectedLocationSuggestion(null);
       setSelectedPublicLocation(null);
-      setLocationSearchLoading(false);
-      return;
+      setLocationSearchAttempted(true);
+      return setStatus("Choose a country first.");
     }
     const query = draftExactAddress.trim();
-    if (selectedLocationSuggestion && normalizeQuestLocationQuery(selectedLocationSuggestion) === normalizeQuestLocationQuery(query)) {
-      setLocationSuggestions([]);
-      setLocationSearchLoading(false);
-      return;
-    }
     if (query.length < 3) {
       setLocationSuggestions([]);
-      setLocationSearchLoading(false);
-      return;
+      setLocationSearchAttempted(true);
+      return setStatus("Enter at least 3 characters to search.");
     }
 
-    const abortController = new AbortController();
     setLocationSearchLoading(true);
-    const timer = setTimeout(async () => {
-      try {
-        const normalizedQuery = query.toLowerCase();
-        const searchParts = [query];
-        if (profile?.city && !normalizedQuery.includes(profile.city.toLowerCase())) searchParts.push(profile.city);
-        if (profile?.region && !normalizedQuery.includes(profile.region.toLowerCase())) searchParts.push(profile.region);
-        searchParts.push(selectedCountrySuggestion);
-        const locationBias = deviceLocation
-          ? `&viewbox=${deviceLocation.lon - 1.5},${deviceLocation.lat + 1},${deviceLocation.lon + 1.5},${deviceLocation.lat - 1}`
-          : "";
-        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&dedupe=1&limit=10&accept-language=en&q=${encodeURIComponent(searchParts.join(", "))}&countrycodes=${encodeURIComponent(selectedCountryCode.toLowerCase())}${locationBias}`, {
-          signal: abortController.signal,
-        });
-        if (!response.ok) throw new Error(`Location search failed (${response.status})`);
-        const payload = (await response.json()) as Array<{ display_name?: string; name?: string; address?: GeocodedAddress }>;
-        const unique = Array.from(
-          new Map(
-            (payload || [])
-              .map((result) => {
-                const label = (result.display_name || result.name || [result.address?.city, result.address?.state, result.address?.country].filter(Boolean).join(", ") || "").trim();
-                const publicLabel = formatStructuredPublicLocation(result.address, selectedCountryCode);
-                return label ? [label.toLowerCase(), { label, publicLabel }] as const : null;
-              })
-              .filter((entry): entry is readonly [string, { label: string; publicLabel: string }] => Boolean(entry))
-          ).values()
-        );
-        if (abortController.signal.aborted) return;
-        setLocationSuggestions(unique);
-      } catch (error) {
-        if (abortController.signal.aborted) return;
-        setLocationSuggestions([]);
-      } finally {
-        if (!abortController.signal.aborted) setLocationSearchLoading(false);
+    setLocationSearchAttempted(false);
+    setLocationSuggestions([]);
+    try {
+      const cityContext = [profile?.city, profile?.region].filter(Boolean).join(", ");
+      const params = new URLSearchParams({
+        q: query,
+        city: cityContext,
+        country: selectedCountrySuggestion,
+        countryCode: selectedCountryCode,
+      });
+      if (deviceLocation) {
+        params.set("lat", String(deviceLocation.lat));
+        params.set("lon", String(deviceLocation.lon));
       }
-    }, 350);
-
-    return () => {
-      clearTimeout(timer);
-      abortController.abort();
-    };
-  }, [deviceLocation, draftExactAddress, locationMode, profile?.city, profile?.region, selectedCountryCode, selectedCountrySuggestion, selectedLocationSuggestion]);
+      const response = await fetch(`${env.siteUrl.replace(/\/$/, "")}/api/location-search?${params.toString()}`);
+      const payload = await response.json() as { suggestions?: Array<{ label: string; publicLabel: string }>; error?: string };
+      if (!response.ok) throw new Error(payload.error || "Location search failed.");
+      setLocationSuggestions(payload.suggestions || []);
+      setLocationSearchAttempted(true);
+    } catch (error) {
+      setLocationSuggestions([]);
+      setLocationSearchAttempted(true);
+      setStatus(error instanceof Error ? error.message : "Location search is temporarily unavailable.");
+    } finally {
+      setLocationSearchLoading(false);
+    }
+  }
 
   useEffect(() => {
     void AsyncStorage.getItem("sidequest_theme_pref").then((saved) => {
@@ -3711,6 +3661,7 @@ function privateThreadIncludesUsers(
     setSelectedLocationSuggestion(null);
     setSelectedPublicLocation(null);
     setLocationSearchLoading(false);
+    setLocationSearchAttempted(false);
     setSkillLevel("any");
     setGroupSizeChoice("any");
     setGroupSizeCustom("");
@@ -6383,6 +6334,8 @@ function privateThreadIncludesUsers(
                         setDraftExactAddress("");
                         setSelectedLocationSuggestion(null);
                         setSelectedPublicLocation(null);
+                        setLocationSuggestions([]);
+                        setLocationSearchAttempted(false);
                       }}
                       autoCapitalize="words"
                       autoCorrect={false}
@@ -6403,6 +6356,7 @@ function privateThreadIncludesUsers(
                             setDraftExactAddress("");
                             setSelectedLocationSuggestion(null);
                             setSelectedPublicLocation(null);
+                            setLocationSearchAttempted(false);
                           }}
                         >
                           <Text style={styles.locationSuggestionText}>{suggestion.label}</Text>
@@ -6424,15 +6378,34 @@ function privateThreadIncludesUsers(
                     value={draftExactAddress}
                     onChangeText={(text) => {
                       setDraftExactAddress(text);
+                      setLocationSuggestions([]);
                       setSelectedLocationSuggestion(null);
                       setSelectedPublicLocation(null);
+                      setLocationSearchAttempted(false);
                     }}
                     autoCapitalize="none"
                     editable={locationMode === "remote" || Boolean(selectedCountrySuggestion)}
                     keyboardType={locationMode === "remote" ? "url" : "default"}
+                    returnKeyType={locationMode === "in_person" ? "search" : "done"}
+                    onSubmitEditing={() => {
+                      if (locationMode === "in_person") void searchDraftLocations();
+                    }}
                   />
-                  {locationSearchLoading ? (
-                    <ActivityIndicator size="small" color="#0f5f73" />
+                  {locationMode === "in_person" ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Search locations"
+                      disabled={locationSearchLoading || !selectedCountrySuggestion || draftExactAddress.trim().length < 3}
+                      onPress={() => void searchDraftLocations()}
+                      style={({ pressed }) => [
+                        styles.locationSearchButton,
+                        (locationSearchLoading || !selectedCountrySuggestion || draftExactAddress.trim().length < 3) && styles.locationSearchButtonDisabled,
+                        pressed && styles.locationSearchButtonPressed,
+                      ]}
+                    >
+                      {locationSearchLoading ? <ActivityIndicator size="small" color="#ffffff" /> : <Ionicons name="search-outline" size={16} color="#ffffff" />}
+                      <Text style={styles.locationSearchButtonText}>{locationSearchLoading ? "Finding" : "Search"}</Text>
+                    </Pressable>
                   ) : locationReady ? (
                     <Ionicons name="checkmark-circle" size={19} color="#10b981" />
                   ) : null}
@@ -6462,6 +6435,8 @@ function privateThreadIncludesUsers(
                     ? "The link is protected using the visibility setting below."
                     : selectedLocationSuggestion
                       ? "Verified location selected."
+                      : locationSearchAttempted && !locationSearchLoading && locationSuggestions.length === 0
+                        ? "No exact matches yet. Try without a suite number or use the venue's shorter name."
                       : "Select a result from the list so QuestHat can publish it."}
                 </Text>
               </View>
@@ -9601,6 +9576,28 @@ const styles = StyleSheet.create({
     fontSize: 15,
     minHeight: 46,
     paddingVertical: 10,
+  },
+  locationSearchButton: {
+    alignItems: "center",
+    backgroundColor: "#0f5f73",
+    borderRadius: 10,
+    flexDirection: "row",
+    gap: 5,
+    justifyContent: "center",
+    minHeight: 36,
+    minWidth: 76,
+    paddingHorizontal: 10,
+  },
+  locationSearchButtonDisabled: {
+    opacity: 0.48,
+  },
+  locationSearchButtonPressed: {
+    opacity: 0.78,
+  },
+  locationSearchButtonText: {
+    color: "#ffffff",
+    fontSize: 12,
+    fontWeight: "800",
   },
   createHelperText: {
     color: "#8993a6",
