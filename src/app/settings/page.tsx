@@ -613,13 +613,21 @@ export default function SettingsPage() {
       .from("profiles")
       .upsert({ id: userId, avatar_url: publicData.publicUrl, avatar_source_url: originalData.publicUrl, avatar_capture_method: "upload", photo_onboarding_done: true });
 
-    if (profileErr?.message?.includes("column") && (profileErr.message.includes("avatar_capture_method") || profileErr.message.includes("photo_onboarding_done"))) {
+    const optionalPhotoMetadataRejected = profileErr && (
+      (profileErr.message.includes("column") && (
+        profileErr.message.includes("avatar_capture_method")
+        || profileErr.message.includes("photo_onboarding_done")
+      ))
+      || profileErr.message.includes("profiles_avatar_capture_method_check")
+    );
+
+    if (optionalPhotoMetadataRejected) {
       const fallback = await supabase.from("profiles").upsert({ id: userId, avatar_url: publicData.publicUrl, avatar_source_url: originalData.publicUrl });
       profileErr = fallback.error;
     }
 
     setUploadingPhoto(false);
-    if (profileErr && !profileErr.message.toLowerCase().includes("row-level security")) return setStatus(`Could not save photo: ${profileErr.message}`);
+    if (profileErr) return setStatus(`Could not save photo: ${profileErr.message}`);
 
     const { error: metaErr } = await supabase.auth.updateUser({ data: { avatar_url: publicData.publicUrl } });
     if (metaErr) return setStatus(`Could not save photo metadata: ${metaErr.message}`);
@@ -891,7 +899,17 @@ export default function SettingsPage() {
                     onClick={() => photoInputRef.current?.click()}
                   >
                     {photoPreviewUrl ? (
-                      <img src={photoPreviewUrl} alt="Photo preview" className="h-full w-full object-cover" style={{ transform: `translate(${cropOffsetX}px, ${cropOffsetY}px) scale(${cropZoom})` }} />
+                      <img
+                        src={photoPreviewUrl}
+                        alt="Photo preview"
+                        className="absolute left-1/2 top-1/2 max-w-none select-none"
+                        style={{
+                          height: cropBaseHeight * (96 / PROFILE_CROP_PREVIEW_SIZE),
+                          width: cropBaseWidth * (96 / PROFILE_CROP_PREVIEW_SIZE),
+                          transform: `translate(calc(-50% + ${cropOffsetX * (96 / PROFILE_CROP_PREVIEW_SIZE)}px), calc(-50% + ${cropOffsetY * (96 / PROFILE_CROP_PREVIEW_SIZE)}px)) scale(${cropZoom})`,
+                          transformOrigin: "center center",
+                        }}
+                      />
                     ) : avatarUrl ? (
                       <img src={avatarUrl} alt="Profile" className="h-full w-full object-cover" />
                     ) : (
