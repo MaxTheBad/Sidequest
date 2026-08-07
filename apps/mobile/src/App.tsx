@@ -138,6 +138,8 @@ type QuestPreview = {
   availability: string | null;
   starts_at?: string | null;
   time_flexible?: boolean | null;
+  group_size?: number | null;
+  hobby_id?: string | null;
   skill_level: string | null;
   join_mode?: string | null;
   exact_address?: string | null;
@@ -180,6 +182,9 @@ type DraftMedia = {
   sourceDuration?: number;
   fileSize?: number;
   thumbnailUri?: string;
+  existingUrl?: string;
+  existingThumbnailUrl?: string | null;
+  existingLabel?: string | null;
 };
 
 type CompressedVideoResult = {
@@ -996,6 +1001,8 @@ export default function App() {
   const [uploadingMedia, setUploadingMedia] = useState(false);
   const [optimizingMedia, setOptimizingMedia] = useState(false);
   const [creatingQuest, setCreatingQuest] = useState(false);
+  const [editingQuestId, setEditingQuestId] = useState<string | null>(null);
+  const [minimizedExpiredQuestIds, setMinimizedExpiredQuestIds] = useState<string[]>([]);
   const [settingsUsername, setSettingsUsername] = useState("");
   const [settingsCity, setSettingsCity] = useState("");
   const [settingsBio, setSettingsBio] = useState("");
@@ -1354,7 +1361,7 @@ export default function App() {
   const topBarVisibility = useRef(new Animated.Value(1)).current;
   const bottomNavVisibility = useRef(new Animated.Value(1)).current;
   const coordinateCacheRef = useRef<Record<string, DeviceLocation>>({});
-  const busyLabel = authActionLoading || (accountActionLoading === "deactivate" ? "Deactivating account..." : null) || (accountActionLoading === "restore" ? "Restoring account..." : null) || (accountActionLoading === "delete" ? "Deleting account..." : null) || (refreshing ? "Refreshing..." : null) || (locationStatus === "loading" ? "Checking your location..." : null) || (creatingQuest ? "Creating quest..." : null) || (savingProfile ? "Saving profile..." : null) || (savingPreferences ? "Saving preferences..." : null) || (uploadingMedia ? "Uploading media..." : null) || (onboardingSaving ? "Saving onboarding..." : null) || (selectedQuestLoading ? "Loading quest..." : null) || (selectedProfileLoading ? "Loading profile..." : null) || (sendingQuestion ? "Sending message..." : null);
+  const busyLabel = authActionLoading || (accountActionLoading === "deactivate" ? "Deactivating account..." : null) || (accountActionLoading === "restore" ? "Restoring account..." : null) || (accountActionLoading === "delete" ? "Deleting account..." : null) || (refreshing ? "Refreshing..." : null) || (locationStatus === "loading" ? "Checking your location..." : null) || (creatingQuest ? (editingQuestId ? "Saving quest..." : "Creating quest...") : null) || (savingProfile ? "Saving profile..." : null) || (savingPreferences ? "Saving preferences..." : null) || (uploadingMedia ? "Uploading media..." : null) || (onboardingSaving ? "Saving onboarding..." : null) || (selectedQuestLoading ? "Loading quest..." : null) || (selectedProfileLoading ? "Loading profile..." : null) || (sendingQuestion ? "Sending message..." : null);
   const topBarBackground = scrollOffsetY > 12
     ? scrollDirection === "down"
       ? (isLightTheme ? "rgba(255,255,255,0.76)" : "rgba(17,19,28,0.68)")
@@ -1925,11 +1932,16 @@ export default function App() {
     } else {
       setBlockedUserIds([]);
     }
-    const { data, error } = await supabase
+    let query = supabase
       .from("quests")
-      .select("id,creator_id,title,description,city,availability,starts_at,skill_level,join_mode,created_at,media_items,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,username,avatar_url)")
+      .select("id,creator_id,title,description,city,availability,starts_at,time_flexible,group_size,hobby_id,skill_level,join_mode,created_at,media_items,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,username,avatar_url)")
       .order("created_at", { ascending: false })
       .limit(HOME_QUEST_LIMIT);
+    const nowIso = new Date().toISOString();
+    query = userId
+      ? query.or(`starts_at.gt.${nowIso},creator_id.eq.${userId}`)
+      : query.gt("starts_at", nowIso);
+    const { data, error } = await query;
     if (error) throw error;
     const nextQuests = ((data || []) as QuestPreview[]).filter((quest) => !excludedCreatorIds.includes(quest.creator_id || ""));
     setQuests(nextQuests);
@@ -2201,7 +2213,7 @@ export default function App() {
     if (!supabase) return null;
     const { data, error } = await supabase
       .from("quests")
-      .select("id,creator_id,title,description,city,availability,starts_at,skill_level,created_at,join_mode,exact_location_visibility,exact_address,media_video_url,media_source,media_items,host_coordination_reminders_disabled,host_coordination_reminders_snoozed_until,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,username,city,bio,avatar_url)")
+      .select("id,creator_id,title,description,city,availability,starts_at,time_flexible,group_size,hobby_id,skill_level,created_at,join_mode,exact_location_visibility,exact_address,media_video_url,media_source,media_items,host_coordination_reminders_disabled,host_coordination_reminders_snoozed_until,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,username,city,bio,avatar_url)")
       .eq("id", questId)
       .maybeSingle();
     if (error) throw error;
@@ -3516,8 +3528,76 @@ function privateThreadIncludesUsers(
     );
   }
 
+  async function beginEditQuest(questId: string) {
+    if (!supabase || !userId) return;
+    setStatus("Loading quest editor...");
+    const quest = await loadSelectedQuestDetails(questId);
+    if (!quest || quest.creator_id !== userId) {
+      setStatus("Only the host can edit this quest.");
+      return;
+    }
+
+    const category = getCategory(quest);
+    const exactLocation = quest.exact_address || "";
+    const isRemote = /^virtual$/i.test(quest.city || "");
+    const addressParts = exactLocation.split(",").map((part) => part.trim()).filter(Boolean);
+    const countryLabel = addressParts[addressParts.length - 1] || "Existing location";
+    const groupSize = Number(quest.group_size || 4);
+    const existingMedia = [
+      ...(quest.media_video_url ? [{ url: quest.media_video_url, type: "video" as const, label: "Video", thumbnailUrl: null }] : []),
+      ...((quest.media_items || []).filter((item) => Boolean(item?.url))),
+    ].slice(0, 3);
+
+    resetQuestDrafts();
+    setEditingQuestId(quest.id);
+    setDraftTitle(quest.title || "");
+    setDraftDescription(quest.description || "");
+    setCategoryInput(category);
+    setCategoryIsCustom(false);
+    setDraftHobbyId(quest.hobby_id || hobbies.find((hobby) => hobby.name.toLowerCase() === category.toLowerCase())?.id || "");
+    setStartAt(quest.starts_at || "");
+    setTimeFlexible(quest.time_flexible === true);
+    setLocationMode(isRemote ? "remote" : "in_person");
+    setDraftExactAddress(exactLocation);
+    setSelectedLocationSuggestion(exactLocation || null);
+    setSelectedPublicLocation(quest.city || null);
+    setDraftCountryQuery(isRemote ? "" : countryLabel);
+    setSelectedCountrySuggestion(isRemote ? null : countryLabel);
+    setSelectedCountryCode(null);
+    setDraftJoinMode(quest.join_mode === "open" ? "open" : "approval_required");
+    setDraftLocationVisibility(
+      quest.exact_location_visibility === "public" || quest.exact_location_visibility === "approved_members"
+        ? quest.exact_location_visibility
+        : "private",
+    );
+    setSkillLevel(quest.skill_level || "any");
+    setDraftGroupSize(String(groupSize));
+    if (groupSize === 4 || groupSize === 8) {
+      setGroupSizeChoice(String(groupSize));
+      setGroupSizeCustom("");
+    } else {
+      setGroupSizeChoice("custom");
+      setGroupSizeCustom(String(groupSize));
+    }
+    setDraftMediaItems(existingMedia.map((item, index) => ({
+      uri: item.url,
+      mimeType: item.type === "video" ? "video/mp4" : "image/jpeg",
+      fileName: `existing-${index + 1}.${item.type === "video" ? "mp4" : "jpg"}`,
+      type: item.type,
+      existingUrl: item.url,
+      existingThumbnailUrl: item.thumbnailUrl || null,
+      existingLabel: item.label || null,
+    })));
+    setShowAdvancedSettings(true);
+    setSelectedQuest(null);
+    closeQuestActionsMenu();
+    setActiveTab("create");
+    setStatus(new Date(quest.starts_at || 0).getTime() <= Date.now() ? "Choose a future date to make this quest active again." : "Editing quest.");
+  }
+
   async function createQuest() {
     if (!supabase || !userId) return;
+    const wasEditing = Boolean(editingQuestId);
     if (optimizingMedia) {
       setStatus("Wait for video optimization to finish.");
       return;
@@ -3617,16 +3697,18 @@ function privateThreadIncludesUsers(
         setUploadingMedia(true);
         try {
           for (const [index, media] of draftMediaItems.entries()) {
-            const uploadedUrl = media.type === "image"
+            const uploadedUrl = media.existingUrl || (media.type === "image"
               ? await uploadQuestImage(media)
-              : await uploadQuestVideo(media);
-            const thumbnailUrl = media.type === "video" && media.thumbnailUri
-              ? await uploadQuestImage({ uri: media.thumbnailUri, mimeType: "image/jpeg", fileName: "video-thumbnail.jpg" })
-              : null;
+              : await uploadQuestVideo(media));
+            const thumbnailUrl = media.existingUrl
+              ? media.existingThumbnailUrl || null
+              : media.type === "video" && media.thumbnailUri
+                ? await uploadQuestImage({ uri: media.thumbnailUri, mimeType: "image/jpeg", fileName: "video-thumbnail.jpg" })
+                : null;
             mediaItems.push({
               url: uploadedUrl,
               type: media.type,
-              label: index === 0 ? (media.type === "image" ? "Cover image" : "Cover video") : null,
+              label: index === 0 ? (media.type === "image" ? "Cover image" : "Cover video") : media.existingLabel || null,
               thumbnailUrl,
             });
           }
@@ -3637,10 +3719,8 @@ function privateThreadIncludesUsers(
           setUploadingMedia(false);
         }
       }
-      setStatus("Creating quest...");
-      const { data, error } = await supabase
-        .from("quests")
-        .insert({
+      setStatus(editingQuestId ? "Saving quest..." : "Creating quest...");
+      const questPayload = {
           creator_id: userId,
           title: draftTitle.trim(),
           description: draftDescription.trim() || null,
@@ -3657,18 +3737,20 @@ function privateThreadIncludesUsers(
           media_items: mediaItems,
           media_source: mediaItems.length ? "upload" : null,
           media_video_url: null,
-        })
-        .select("id")
-        .single();
+      };
+      const mutation = editingQuestId
+        ? supabase.from("quests").update(questPayload).eq("id", editingQuestId).eq("creator_id", userId)
+        : supabase.from("quests").insert(questPayload);
+      const { data, error } = await mutation.select("id").single();
       if (error) {
         setStatus(error.message);
         return;
       }
-      if (data?.id) {
+      if (data?.id && !editingQuestId) {
         await supabase.from("quest_members").insert({ quest_id: data.id, user_id: userId, role: "creator", status: "approved" });
       }
       resetQuestDrafts();
-      setStatus("Quest created.");
+      setStatus(wasEditing ? "Quest updated." : "Quest created.");
       await refreshAll();
       setActiveTab("home");
       void maybeShowContextualPushPrompt("published");
@@ -3680,7 +3762,7 @@ function privateThreadIncludesUsers(
   }
 
   function resetQuestDrafts() {
-    draftMediaItems.forEach((media) => { void deleteGeneratedMediaFile(media); });
+    draftMediaItems.filter((media) => !media.existingUrl).forEach((media) => { void deleteGeneratedMediaFile(media); });
     setDraftTitle("");
     setDraftDescription("");
     setDraftExactAddress("");
@@ -3709,6 +3791,7 @@ function privateThreadIncludesUsers(
     setVideoTrimIndex(null);
     setShowVideoTrimmer(false);
     setShowAdvancedSettings(false);
+    setEditingQuestId(null);
   }
 
   async function uploadQuestImage(file: { uri: string; mimeType: string; fileName: string }) {
@@ -5617,7 +5700,10 @@ function privateThreadIncludesUsers(
     const membershipStatus = membershipStatusByQuest[quest.id] || null;
     const isJoined = joinedQuestIds.includes(quest.id);
     const isOwner = Boolean(userId && quest.creator_id === userId);
-    const joinIcon: keyof typeof Ionicons.glyphMap = isOwner
+    const isExpired = Boolean(quest.starts_at && new Date(quest.starts_at).getTime() <= countdownNow);
+    const joinIcon: keyof typeof Ionicons.glyphMap = isOwner && isExpired
+      ? "refresh"
+      : isOwner
       ? "sparkles"
       : membershipStatus === "pending"
         ? "close"
@@ -5627,7 +5713,7 @@ function privateThreadIncludesUsers(
             ? "exit-outline"
             : "add";
     const joinLabel = isOwner
-      ? "Hosting"
+      ? isExpired ? "Make again" : "Hosting"
       : membershipStatus === "pending"
         ? "Cancel request"
         : isJoined
@@ -5640,7 +5726,7 @@ function privateThreadIncludesUsers(
     const category = getCategory(quest);
     const hostName = creator?.display_name || creator?.username || "QuestHat host";
     const totalJoined = joinCountByQuestId[quest.id] || 0;
-    const isJoinActionDisabled = isOwner;
+    const isJoinActionDisabled = isOwner && !isExpired;
     const joinButtonTone = membershipStatus === "pending"
       ? styles.feedJoinButtonPending
       : isJoined || isOwner
@@ -5663,11 +5749,32 @@ function privateThreadIncludesUsers(
         : "rgba(255,255,255,0.35)";
     const feedCountdown = quest.starts_at ? formatFeedCountdown(quest.starts_at, countdownNow) : null;
 
+    if (isOwner && isExpired && minimizedExpiredQuestIds.includes(quest.id)) {
+      return (
+        <View key={quest.id} style={[styles.expiredCompactCard, { backgroundColor: isLightTheme ? "#e5e7eb" : "#171922", borderColor: shellBorder }]}>
+          <View style={styles.expiredCompactIcon}><Ionicons name="time-outline" size={20} color="#9aa4b1" /></View>
+          <Pressable style={styles.expiredCompactCopy} onPress={() => void openQuestDetail(quest.id)}>
+            <Text style={[styles.expiredCompactEyebrow, { color: isLightTheme ? "#64748b" : "#9aa4b1" }]}>EXPIRED</Text>
+            <Text style={[styles.expiredCompactTitle, { color: shellText }]} numberOfLines={1}>{quest.title}</Text>
+            <Text style={[styles.expiredCompactDate, { color: shellMuted }]} numberOfLines={1}>{formatQuestTiming(quest.starts_at, quest.availability)}</Text>
+          </Pressable>
+          <Pressable style={styles.expiredCompactAction} onPress={() => void beginEditQuest(quest.id)}>
+            <Ionicons name="refresh" size={15} color="#082f3a" />
+            <Text style={styles.expiredCompactActionText}>Make again</Text>
+          </Pressable>
+          <Pressable hitSlop={8} style={styles.expiredCompactExpand} onPress={() => setMinimizedExpiredQuestIds((current) => current.filter((id) => id !== quest.id))} accessibilityLabel="Expand expired quest">
+            <Ionicons name="chevron-down" size={18} color="#9aa4b1" />
+          </Pressable>
+        </View>
+      );
+    }
+
     return (
       <View
         key={quest.id}
         style={[
           styles.feedCard,
+          isExpired && styles.feedCardExpired,
           {
             backgroundColor: isLightTheme ? "#ffffff" : "#12141d",
             borderColor: isLightTheme ? "rgba(15,23,42,0.09)" : "rgba(255,255,255,0.08)",
@@ -5686,6 +5793,7 @@ function privateThreadIncludesUsers(
             style={StyleSheet.absoluteFill}
             pointerEvents="none"
           />
+          {isExpired ? <View pointerEvents="none" style={styles.feedExpiredWash} /> : null}
           <View style={styles.feedTopOverlay} pointerEvents="box-none">
             <Pressable style={styles.feedCreatorPill} onPress={() => void openProfile(creator?.id)}>
               {creator?.avatar_url ? (
@@ -5719,6 +5827,18 @@ function privateThreadIncludesUsers(
             </View>
           </View>
           <View style={styles.feedBottomOverlay} pointerEvents="box-none">
+            {isExpired ? (
+              <View style={styles.feedExpiredBanner}>
+                <View style={styles.feedExpiredBannerCopy}>
+                  <Text style={styles.feedExpiredEyebrow}>EXPIRED</Text>
+                  <Text style={styles.feedExpiredMessage}>Only you can see this. Choose a new date to run it again.</Text>
+                </View>
+                <Pressable style={styles.feedExpiredMinimize} onPress={() => setMinimizedExpiredQuestIds((current) => current.includes(quest.id) ? current : [...current, quest.id])}>
+                  <Ionicons name="remove" size={16} color="#d8dee8" />
+                  <Text style={styles.feedExpiredMinimizeText}>Minimize</Text>
+                </Pressable>
+              </View>
+            ) : null}
             <View style={styles.feedCategoryPill}>
               <Text style={styles.feedCategory}>{category}</Text>
             </View>
@@ -5741,7 +5861,11 @@ function privateThreadIncludesUsers(
                     { backgroundColor: joinButtonSurface, borderColor: joinButtonBorder, borderWidth: 1 },
                   ]}
                   onPress={() => {
-                    if (!isJoinActionDisabled) void toggleJoinQuestMobile(quest);
+                    if (isOwner && isExpired) {
+                      void beginEditQuest(quest.id);
+                    } else if (!isJoinActionDisabled) {
+                      void toggleJoinQuestMobile(quest);
+                    }
                   }}
                   disabled={isJoinActionDisabled}
                   accessibilityLabel={joinLabel}
@@ -6152,7 +6276,7 @@ function privateThreadIncludesUsers(
         <>
           {renderHomeDiscoveryHeader(homeCategories, filteredHomeQuests.length)}
           {feedViewMode === "map" ? (
-            renderMapView(filteredHomeQuests)
+            renderMapView(filteredHomeQuests.filter((quest) => !quest.starts_at || new Date(quest.starts_at).getTime() > countdownNow))
           ) : filteredHomeQuests.length ? (
             <View
               style={styles.homeFeedStack}
@@ -6251,15 +6375,15 @@ function privateThreadIncludesUsers(
             <LinearGradient colors={["#174655", "#102c37"]} style={styles.createQuickHeader}>
               <View style={styles.createHeroMark}><Ionicons name="sparkles" size={18} color="#082f3a" /></View>
               <View style={styles.createQuickHeaderCopy}>
-                <Text style={styles.createHeroEyebrow}>NEW QUEST</Text>
-                <Text style={styles.createQuickHeaderTitle}>Make a plan</Text>
-                <Text style={styles.createQuickHeaderSubtitle}>Three details. Publish in under a minute.</Text>
+                <Text style={styles.createHeroEyebrow}>{editingQuestId ? "EDIT QUEST" : "NEW QUEST"}</Text>
+                <Text style={styles.createQuickHeaderTitle}>{editingQuestId ? "Update your plan" : "Make a plan"}</Text>
+                <Text style={styles.createQuickHeaderSubtitle}>{editingQuestId ? "Everything is editable. A future date keeps it active." : "Three details. Publish in under a minute."}</Text>
               </View>
               <View style={styles.createQuickProgress}>
                 <Text style={styles.createQuickProgressValue}>{requiredStepsComplete}/3</Text>
                 <Text style={styles.createQuickProgressLabel}>READY</Text>
               </View>
-              <Pressable accessibilityLabel="Close create quest" style={styles.createQuickClose} onPress={() => setActiveTab("home")}>
+              <Pressable accessibilityLabel="Close create quest" style={styles.createQuickClose} onPress={() => { resetQuestDrafts(); setActiveTab("home"); }}>
                 <Ionicons name="close" size={18} color="#dff7fb" />
               </Pressable>
             </LinearGradient>
@@ -6652,16 +6776,16 @@ function privateThreadIncludesUsers(
                 disabled={!canPublishQuest}
               >
                 {optimizingMedia || uploadingMedia || creatingQuest ? <ActivityIndicator size="small" color="#082f3a" /> : <Ionicons name="rocket-outline" size={19} color="#082f3a" />}
-                <Text style={styles.createPublishButtonText}>{optimizingMedia ? "Optimizing..." : creatingQuest ? "Creating..." : uploadingMedia ? "Uploading..." : "Publish quest"}</Text>
+                <Text style={styles.createPublishButtonText}>{optimizingMedia ? "Optimizing..." : creatingQuest ? (editingQuestId ? "Saving..." : "Creating...") : uploadingMedia ? "Uploading..." : editingQuestId ? "Save changes" : "Publish quest"}</Text>
               </Pressable>
               <Pressable
                 style={styles.createDiscardButton}
-                onPress={() => Alert.alert("Discard draft?", "This clears everything in this quest draft.", [
+                onPress={() => Alert.alert(editingQuestId ? "Cancel editing?" : "Discard draft?", editingQuestId ? "Your saved quest will not be changed." : "This clears everything in this quest draft.", [
                   { text: "Keep editing", style: "cancel" },
-                  { text: "Discard", style: "destructive", onPress: () => { resetQuestDrafts(); setActiveTab("home"); } },
+                  { text: editingQuestId ? "Cancel editing" : "Discard", style: "destructive", onPress: () => { resetQuestDrafts(); setActiveTab("home"); } },
                 ])}
               >
-                <Text style={styles.createDiscardText}>Discard draft</Text>
+                <Text style={styles.createDiscardText}>{editingQuestId ? "Cancel editing" : "Discard draft"}</Text>
               </Pressable>
             </View>
           </View>
@@ -7949,13 +8073,19 @@ function privateThreadIncludesUsers(
             </View>
             <View style={styles.detailDangerZone}>
               {isOwner ? (
-                <Pressable
-                  style={styles.detailDangerButton}
-                  onPress={() => void deleteQuestListing(selectedQuest.id)}
-                >
-                  <Ionicons name="trash-outline" size={17} color="#f87171" />
-                  <Text style={styles.detailDangerText}>Delete listing</Text>
-                </Pressable>
+                <>
+                  <Pressable style={styles.detailEditButton} onPress={() => void beginEditQuest(selectedQuest.id)}>
+                    <Ionicons name="create-outline" size={17} color="#9bd8e4" />
+                    <Text style={styles.detailEditText}>Edit quest</Text>
+                  </Pressable>
+                  <Pressable
+                    style={styles.detailDangerButton}
+                    onPress={() => void deleteQuestListing(selectedQuest.id)}
+                  >
+                    <Ionicons name="trash-outline" size={17} color="#f87171" />
+                    <Text style={styles.detailDangerText}>Delete listing</Text>
+                  </Pressable>
+                </>
               ) : (
                 <Pressable
                   style={styles.detailDangerButton}
@@ -8596,17 +8726,22 @@ function privateThreadIncludesUsers(
                 <Text style={styles.secondaryButtonText}>Share</Text>
               </Pressable>
               {isOwner ? (
-                <Pressable
-                  style={[styles.secondaryButton, { borderColor: "#ef4444" }]}
-                  onPress={() => {
-                    const target = questActionsTarget;
-                    closeQuestActionsMenu();
-                    if (!target) return;
-                    void deleteQuestListing(target.id);
-                  }}
-                >
-                  <Text style={[styles.secondaryButtonText, { color: "#ef4444" }]}>Delete</Text>
-                </Pressable>
+                <>
+                  <Pressable style={styles.secondaryButton} onPress={() => void beginEditQuest(questActionsTarget.id)}>
+                    <Text style={styles.secondaryButtonText}>Edit quest</Text>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.secondaryButton, { borderColor: "#ef4444" }]}
+                    onPress={() => {
+                      const target = questActionsTarget;
+                      closeQuestActionsMenu();
+                      if (!target) return;
+                      void deleteQuestListing(target.id);
+                    }}
+                  >
+                    <Text style={[styles.secondaryButtonText, { color: "#ef4444" }]}>Delete</Text>
+                  </Pressable>
+                </>
               ) : (
                 <Pressable
                   style={[styles.secondaryButton, { borderColor: "#ef4444" }]}
@@ -13396,8 +13531,22 @@ const styles = StyleSheet.create({
   },
   detailDangerZone: {
     alignItems: "center",
+    gap: 4,
     paddingBottom: 4,
     paddingTop: 2,
+  },
+  detailEditButton: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 7,
+    justifyContent: "center",
+    minHeight: 38,
+    paddingHorizontal: 14,
+  },
+  detailEditText: {
+    color: "#9bd8e4",
+    fontSize: 13,
+    fontWeight: "800",
   },
   detailDangerButton: {
     alignItems: "center",
@@ -15777,6 +15926,111 @@ const styles = StyleSheet.create({
     marginHorizontal: 14,
     overflow: "hidden",
     position: "relative",
+  },
+  feedCardExpired: {
+    borderColor: "rgba(148,163,184,0.35)",
+  },
+  feedExpiredWash: {
+    backgroundColor: "rgba(52,58,67,0.38)",
+    ...StyleSheet.absoluteFillObject,
+  },
+  feedExpiredBanner: {
+    alignItems: "center",
+    backgroundColor: "rgba(15,18,24,0.86)",
+    borderColor: "rgba(203,213,225,0.2)",
+    borderRadius: 14,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 10,
+    paddingHorizontal: 11,
+    paddingVertical: 9,
+  },
+  feedExpiredBannerCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  feedExpiredEyebrow: {
+    color: "#cbd5e1",
+    fontSize: 9,
+    fontWeight: "900",
+    letterSpacing: 1.2,
+  },
+  feedExpiredMessage: {
+    color: "#e2e8f0",
+    fontSize: 10,
+    fontWeight: "700",
+    lineHeight: 14,
+  },
+  feedExpiredMinimize: {
+    alignItems: "center",
+    borderColor: "rgba(203,213,225,0.2)",
+    borderRadius: 999,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 4,
+    paddingHorizontal: 9,
+    paddingVertical: 7,
+  },
+  feedExpiredMinimizeText: {
+    color: "#d8dee8",
+    fontSize: 9,
+    fontWeight: "800",
+  },
+  expiredCompactCard: {
+    alignItems: "center",
+    borderRadius: 20,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 10,
+    marginHorizontal: 14,
+    minHeight: 86,
+    padding: 12,
+  },
+  expiredCompactIcon: {
+    alignItems: "center",
+    backgroundColor: "rgba(148,163,184,0.16)",
+    borderRadius: 13,
+    height: 42,
+    justifyContent: "center",
+    width: 42,
+  },
+  expiredCompactCopy: {
+    flex: 1,
+    gap: 2,
+    minWidth: 0,
+  },
+  expiredCompactEyebrow: {
+    fontSize: 9,
+    fontWeight: "900",
+    letterSpacing: 1.1,
+  },
+  expiredCompactTitle: {
+    fontSize: 14,
+    fontWeight: "900",
+  },
+  expiredCompactDate: {
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  expiredCompactAction: {
+    alignItems: "center",
+    backgroundColor: "#9bd8e4",
+    borderRadius: 999,
+    flexDirection: "row",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+  },
+  expiredCompactActionText: {
+    color: "#082f3a",
+    fontSize: 10,
+    fontWeight: "900",
+  },
+  expiredCompactExpand: {
+    alignItems: "center",
+    height: 32,
+    justifyContent: "center",
+    width: 24,
   },
   feedMediaWrap: {
     height: 410,
