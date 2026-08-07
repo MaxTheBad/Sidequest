@@ -3144,6 +3144,9 @@ function privateThreadIncludesUsers(
     if (authMode === "signup") {
       if (!fullName.trim()) return setStatus("Enter your full name.");
       if (!dob.trim()) return setStatus("Enter your date of birth.");
+      const birthDate = new Date(dob);
+      const age = Math.floor((Date.now() - birthDate.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+      if (!Number.isFinite(age) || age < 13) return setStatus("You must be at least 13.");
       if (!acceptTerms) return setStatus("You must accept the Terms to continue.");
       if (!passwordChecks.minLength || !passwordChecks.uppercase || !passwordChecks.lowercase || !passwordChecks.number || !passwordChecks.special) {
         return setStatus("Your password does not meet the requirements.");
