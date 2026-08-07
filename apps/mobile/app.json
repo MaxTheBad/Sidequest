@@ -3,7 +3,7 @@
     "name": "QuestHat",
     "slug": "questhat",
     "scheme": "questhat",
-    "version": "0.1.0",
+    "version": "1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "icon": "./assets/icon.png",
@@ -19,7 +19,7 @@
         "NSMotionUsageDescription": "QuestHat uses motion data to support device and media interactions in the app.",
         "ITSAppUsesNonExemptEncryption": false
       },
-    "buildNumber": "83"
+    "buildNumber": "88"
     },
     "extra": {
       "supabaseUrl": "https://ipjewvmmzmxakoewqlfo.supabase.co/",
