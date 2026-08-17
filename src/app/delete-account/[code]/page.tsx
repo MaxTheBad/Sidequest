@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getServiceSupabase } from "@/lib/security-audit-server";
 
 export const dynamic = "force-dynamic";
+export const runtime = "edge";
 
 export default async function FacebookDeletionStatusPage({ params }: { params: Promise<{ code: string }> }) {
   const { code } = await params;
