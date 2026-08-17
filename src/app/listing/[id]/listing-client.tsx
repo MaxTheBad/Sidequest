@@ -401,6 +401,15 @@ export default function ListingPage() {
 
       if (error) return setStatus(error.message);
       if (!data) return setStatus("Listing not found.");
+      if (uid) {
+        const { data: privateLocation, error: privateLocationError } = await supabase
+          .from("quest_private_locations")
+          .select("exact_address")
+          .eq("quest_id", listingId)
+          .maybeSingle();
+        if (privateLocationError) return setStatus(privateLocationError.message);
+        if (privateLocation?.exact_address) data = { ...data, exact_address: privateLocation.exact_address };
+      }
       setListing(data || null);
       setStatus("");
 

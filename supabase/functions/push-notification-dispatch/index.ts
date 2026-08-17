@@ -8,9 +8,27 @@ function chunk<T>(array: T[], size: number): T[][] {
   return out;
 }
 
-const DISPATCH_SECRET = "questhat-push-dispatch-v1";
 const LIVE_ACTIVITY_TOPIC_SUFFIX = ".push-type.liveactivity";
+const FCM_SCOPE = "https://www.googleapis.com/auth/firebase.messaging";
 let cachedApnsJwt: { value: string; createdAt: number } | null = null;
+let cachedGoogleAccessToken: { value: string; createdAt: number; expiresAt: number; projectId: string } | null = null;
+
+type GoogleServiceAccount = {
+  client_email: string;
+  private_key: string;
+  project_id: string;
+};
+
+function constantTimeEqual(left: string, right: string): boolean {
+  const leftBytes = new TextEncoder().encode(left);
+  const rightBytes = new TextEncoder().encode(right);
+  const length = Math.max(leftBytes.length, rightBytes.length);
+  let mismatch = leftBytes.length ^ rightBytes.length;
+  for (let index = 0; index < length; index += 1) {
+    mismatch |= (leftBytes[index] || 0) ^ (rightBytes[index] || 0);
+  }
+  return mismatch === 0;
+}
 
 function base64Url(bytes: Uint8Array): string {
   let binary = "";
@@ -54,6 +72,140 @@ async function getApnsJwt(): Promise<string | null> {
   ));
   cachedApnsJwt = { value: `${signingInput}.${base64Url(signature)}`, createdAt: now };
   return cachedApnsJwt.value;
+}
+
+function readGoogleServiceAccount(): GoogleServiceAccount | null {
+  const raw = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_JSON")?.trim();
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw) as Partial<GoogleServiceAccount>;
+      if (typeof parsed.client_email === "string" && typeof parsed.private_key === "string" && typeof parsed.project_id === "string") {
+        return parsed as GoogleServiceAccount;
+      }
+    } catch {
+      return null;
+    }
+  }
+
+  const clientEmail = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_CLIENT_EMAIL")?.trim();
+  const privateKey = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY")?.trim();
+  const projectId = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_PROJECT_ID")?.trim();
+  if (!clientEmail || !privateKey || !projectId) return null;
+  return { client_email: clientEmail, private_key: privateKey, project_id: projectId };
+}
+
+async function getGoogleAccessToken(): Promise<{ accessToken: string; projectId: string } | null> {
+  const serviceAccount = readGoogleServiceAccount();
+  if (!serviceAccount) return null;
+
+  const now = Math.floor(Date.now() / 1000);
+  if (cachedGoogleAccessToken && cachedGoogleAccessToken.projectId === serviceAccount.project_id && cachedGoogleAccessToken.expiresAt > now + 30) {
+    const cached = cachedGoogleAccessToken;
+    return { accessToken: cached.value, projectId: cached.projectId };
+  }
+
+  const privateKey = serviceAccount.private_key.replace(/\\n/g, "\n");
+  const keyBody = privateKey
+    .replace(/-----BEGIN PRIVATE KEY-----/g, "")
+    .replace(/-----END PRIVATE KEY-----/g, "")
+    .replace(/\s/g, "");
+  const keyBytes = Uint8Array.from(atob(keyBody), (character) => character.charCodeAt(0));
+  const signingKey = await crypto.subtle.importKey(
+    "pkcs8",
+    keyBytes,
+    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+
+  const header = jsonBase64Url({ alg: "RS256", typ: "JWT" });
+  const claims = jsonBase64Url({
+    iss: serviceAccount.client_email,
+    scope: FCM_SCOPE,
+    aud: "https://oauth2.googleapis.com/token",
+    iat: now,
+    exp: now + 3600,
+  });
+  const signingInput = `${header}.${claims}`;
+  const signature = new Uint8Array(await crypto.subtle.sign(
+    "RSASSA-PKCS1-v1_5",
+    signingKey,
+    new TextEncoder().encode(signingInput),
+  ));
+  const assertion = `${signingInput}.${base64Url(signature)}`;
+  const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+      assertion,
+    }).toString(),
+  });
+
+  if (!tokenResponse.ok) return null;
+
+  const tokenJson = await tokenResponse.json().catch(() => null) as { access_token?: string; expires_in?: number } | null;
+  if (!tokenJson?.access_token) return null;
+
+  const expiresIn = Number(tokenJson.expires_in || 3600);
+  cachedGoogleAccessToken = {
+    value: tokenJson.access_token,
+    createdAt: now,
+    expiresAt: now + Math.max(60, expiresIn - 60),
+    projectId: serviceAccount.project_id,
+  };
+  return { accessToken: cachedGoogleAccessToken.value, projectId: cachedGoogleAccessToken.projectId };
+}
+
+function normalizeFcmData(data: Record<string, unknown>, unreadCount: number) {
+  const normalized: Record<string, string> = { unreadCount: String(unreadCount) };
+  for (const [key, value] of Object.entries(data)) {
+    if (value === undefined || value === null) continue;
+    normalized[key] = typeof value === "string" ? value : JSON.stringify(value);
+  }
+  return normalized;
+}
+
+async function sendAndroidPush(
+  accessToken: string,
+  projectId: string,
+  token: string,
+  title: string,
+  body: string,
+  unreadCount: number,
+  data: Record<string, unknown>,
+) {
+  const response = await fetch(`https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${accessToken}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      message: {
+        token,
+        notification: { title, body },
+        android: {
+          priority: "HIGH",
+          notification: {
+            channel_id: "questhat-updates",
+            icon: "notification_icon",
+            color: "#9BD8E4",
+            sound: "default",
+            notification_count: unreadCount,
+          },
+        },
+        data: normalizeFcmData(data, unreadCount),
+      },
+    }),
+  });
+
+  const responseJson = await response.json().catch(() => null) as { error?: { message?: string } } | null;
+  return {
+    ok: response.ok,
+    status: response.status,
+    error: responseJson?.error?.message ? String(responseJson.error.message) : undefined,
+  };
 }
 
 async function startLiveActivity(
@@ -166,9 +318,15 @@ async function startLiveActivity(
 Deno.serve(async (req) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  const dispatchSecret = Deno.env.get("PUSH_DISPATCH_SECRET")?.trim();
 
-  if (!supabaseUrl || !serviceRoleKey) {
-    return Response.json({ ok: false, error: "Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY." }, { status: 500 });
+  if (!supabaseUrl || !serviceRoleKey || !dispatchSecret) {
+    return Response.json({ ok: false, error: "Push dispatch is not configured." }, { status: 503 });
+  }
+
+  const incomingSecret = req.headers.get("x-push-dispatch-secret") || "";
+  if (!constantTimeEqual(incomingSecret, dispatchSecret)) {
+    return Response.json({ ok: false, error: "Unauthorized." }, { status: 401 });
   }
 
   const supabase = createClient(supabaseUrl, serviceRoleKey, {
@@ -195,19 +353,17 @@ Deno.serve(async (req) => {
     return Response.json({ ok: false, error: "Method not allowed." }, { status: 405 });
   }
 
-  const incomingSecret = req.headers.get("x-push-dispatch-secret");
-  if (incomingSecret !== DISPATCH_SECRET) {
-    return Response.json({ ok: false, error: "Unauthorized." }, { status: 401 });
-  }
-
   const payload = await req.json().catch(() => ({}));
-  const userId = payload.userId;
+  const userId = typeof payload.userId === "string" ? payload.userId : "";
   const title = String(payload.title || "").trim();
   const body = String(payload.body || "").trim();
   const data = payload.data && typeof payload.data === "object" ? payload.data : {};
 
-  if (!userId || !title || !body) {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(userId) || !title || !body) {
     return Response.json({ ok: false, error: "Missing userId, title, or body." }, { status: 400 });
+  }
+  if (title.length > 160 || body.length > 1000 || JSON.stringify(data).length > 8192) {
+    return Response.json({ ok: false, error: "Notification payload is too large." }, { status: 413 });
   }
 
   const notificationKind = String(data.kind || "");
@@ -275,7 +431,7 @@ Deno.serve(async (req) => {
 
   const { data: tokenRows, error: tokenError } = await supabase
     .from("push_tokens")
-    .select("id, expo_push_token")
+    .select("id, expo_push_token, platform")
     .eq("user_id", userId)
     .eq("active", true)
     .order("updated_at", { ascending: false })
@@ -285,27 +441,39 @@ Deno.serve(async (req) => {
     return Response.json({ ok: false, error: tokenError.message }, { status: 500 });
   }
 
-  const tokens = (tokenRows || []).map((row) => ({ id: row.id, token: row.expo_push_token })).filter((row) => row.token);
+  const tokens = (tokenRows || []).map((row) => ({
+    id: row.id as string,
+    platform: String((row as { platform?: string | null }).platform || "").toLowerCase(),
+    token: (row as { expo_push_token?: string | null }).expo_push_token,
+  })).filter((row) => row.token);
   if (!tokens.length) {
     return Response.json({ ok: true, sent: 0, skipped: true, reason: "no_active_tokens", liveActivity });
   }
 
-  const batches = chunk(tokens, 100);
-  const allResults: unknown[] = [];
   let sent = 0;
+  let androidAttempted = 0;
+  let expoAttempted = 0;
+  const results: unknown[] = [];
+  const googleAccess = await getGoogleAccessToken();
 
-  for (const batch of batches) {
-    const messages = batch.map((row) => ({
-      to: row.token,
-      sound: "default",
-      title,
-      body,
-      badge: unreadCount,
-      priority: "high",
-      _contentAvailable: true,
-      data: { ...data, unreadCount },
-    }));
+  for (const row of tokens) {
+    if (row.platform === "android") {
+      androidAttempted += 1;
+      if (!googleAccess) {
+        results.push({ platform: "android", error: "missing_google_service_account" });
+        continue;
+      }
+      const pushResult = await sendAndroidPush(googleAccess.accessToken, googleAccess.projectId, row.token!, title, body, unreadCount, data);
+      results.push({ platform: "android", ...pushResult });
+      if (pushResult.ok) {
+        sent += 1;
+      } else if ((pushResult.error || "").includes("UNREGISTERED") || (pushResult.error || "").includes("registration-token-not-registered")) {
+        await supabase.from("push_tokens").update({ active: false }).eq("id", row.id);
+      }
+      continue;
+    }
 
+    expoAttempted += 1;
     const expoResponse = await fetch("https://exp.host/--/api/v2/push/send", {
       method: "POST",
       headers: {
@@ -313,12 +481,22 @@ Deno.serve(async (req) => {
         "Accept-Encoding": "gzip, deflate",
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(messages),
+      body: JSON.stringify([
+        {
+          to: row.token,
+          sound: "default",
+          title,
+          body,
+          badge: unreadCount,
+          priority: "high",
+          _contentAvailable: true,
+          data: { ...data, unreadCount },
+        },
+      ]),
     });
 
     const expoJson = await expoResponse.json().catch(() => null);
-    allResults.push(expoJson);
-
+    results.push({ platform: row.platform || "expo", result: expoJson });
     const tickets = Array.isArray(expoJson?.data) ? expoJson.data : [];
     sent += tickets.filter((ticket: { status?: string }) => ticket?.status === "ok").length;
 
@@ -327,14 +505,11 @@ Deno.serve(async (req) => {
       if (ticket?.status === "error") {
         const errorMessage = String(ticket?.details?.error || ticket?.message || "");
         if (errorMessage.includes("DeviceNotRegistered") || errorMessage.includes("PushTokenNotRegistered")) {
-          const row = batch[i];
-          if (row?.id) {
-            await supabase.from("push_tokens").update({ active: false }).eq("id", row.id);
-          }
+          await supabase.from("push_tokens").update({ active: false }).eq("id", row.id);
         }
       }
     }
   }
 
-  return Response.json({ ok: true, sent, batches: batches.length, results: allResults, liveActivity });
+  return Response.json({ ok: true, sent, androidAttempted, expoAttempted, results, liveActivity });
 });

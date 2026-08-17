@@ -24,6 +24,19 @@ export default function AuthCallbackPage() {
         return;
       }
 
+      const code = params.get("code");
+      if (code) {
+        const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+        if (error) {
+          setStatus(`Auth callback failed: ${error.message}`);
+          return;
+        }
+        if (data.session?.user) {
+          router.replace("/");
+          return;
+        }
+      }
+
       const hash = new URLSearchParams(window.location.hash.slice(1));
       const accessToken = hash.get("access_token");
       const refreshToken = hash.get("refresh_token");

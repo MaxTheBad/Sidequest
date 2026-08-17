@@ -55,11 +55,19 @@ next-env.d.ts
 apps/mobile/.expo/
 apps/mobile/ios/Pods/
 apps/mobile/ios/DerivedData/
+apps/mobile/android/.gradle/
+apps/mobile/android/**/build/
+apps/mobile/modules/*/android/build/
 
 # local credentials and signing
 .signing/
 apps/mobile/credentials/
 apps/mobile/credentials.json
+apps/mobile/android/app/google-services.json
+*.jks
+*.keystore
+*firebase-adminsdk*.json
+*service-account*.json
 
 # local tool state and generated previews
 supabase/.temp/

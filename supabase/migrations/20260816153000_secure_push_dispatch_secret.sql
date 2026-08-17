@@ -1,35 +1,30 @@
--- Push dispatch trigger for QuestHat notifications
--- This makes notification inserts fan out to the push dispatcher so
--- joins, approvals, messages, and comments all follow the same server-side path.
-
-do $$
-begin
-  create extension if not exists pg_net;
-exception
-  when insufficient_privilege or feature_not_supported or undefined_file then
-    raise notice 'pg_net extension could not be enabled automatically. Push dispatch trigger will still be created, but HTTP delivery requires pg_net to be available in Supabase.';
-end $$;
-
+-- Store the push-dispatch credential in Supabase Vault instead of source code.
+-- Before applying this migration in production, create a strong secret named
+-- `questhat_push_dispatch_secret` in Vault and set the same value as the Edge
+-- Function secret `PUSH_DISPATCH_SECRET`.
 create or replace function public.dispatch_push_notification()
 returns trigger
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
 declare
   dispatch_secret text;
   dispatch_url constant text := 'https://ipjewvmmzmxakoewqlfo.functions.supabase.co/push-notification-dispatch';
 begin
   begin
-    select decrypted_secret into dispatch_secret
-    from vault.decrypted_secrets
-    where name = 'questhat_push_dispatch_secret'
-    order by created_at desc
-    limit 1;
+    select decrypted_secret
+      into dispatch_secret
+      from vault.decrypted_secrets
+     where name = 'questhat_push_dispatch_secret'
+     order by created_at desc
+     limit 1;
+
     if dispatch_secret is null or length(dispatch_secret) < 32 then
       raise warning 'Push dispatch skipped because questhat_push_dispatch_secret is not configured in Vault.';
       return new;
     end if;
+
     perform net.http_post(
       url := dispatch_url,
       headers := jsonb_build_object(
@@ -54,14 +49,9 @@ begin
     );
   exception
     when undefined_function or undefined_table or insufficient_privilege then
-      raise notice 'Push dispatch skipped because pg_net is unavailable or not permitted in this environment.';
+      raise warning 'Push dispatch skipped because Vault or pg_net is unavailable or not permitted.';
   end;
 
   return new;
 end;
 $$;
-
-drop trigger if exists trg_dispatch_push_notification on public.notifications;
-create trigger trg_dispatch_push_notification
-after insert on public.notifications
-for each row execute function public.dispatch_push_notification();

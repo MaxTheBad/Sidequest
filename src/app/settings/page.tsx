@@ -688,9 +688,15 @@ export default function SettingsPage() {
     e.preventDefault();
     if (!supabase) return;
 
-    const { error } = await supabase.auth.updateUser({ email: newEmail });
+    const addingRecoveryEmail = !email;
+    const { error } = await supabase.auth.updateUser(
+      { email: newEmail.trim().toLowerCase() },
+      { emailRedirectTo: `${window.location.origin}/auth/callback` },
+    );
     if (error) return setStatus(error.message);
-    setStatus("Email change requested ✅ Check both old and new inboxes to confirm.");
+    setStatus(addingRecoveryEmail
+      ? "Recovery email requested. Check your inbox to verify it."
+      : "Email change requested. Check your inboxes to confirm it.");
   }
 
   async function changePassword(e: FormEvent) {
@@ -755,6 +761,11 @@ export default function SettingsPage() {
       if (error) throw error;
       if (!data?.ok) throw new Error(data?.error || "Could not delete the account.");
       await supabase.auth.signOut();
+      if (data.appleRevocationRequired) {
+        window.alert("QuestHat deleted your account. To also stop Sign in with Apple access, open account.apple.com, choose Sign-In & Security → Sign in with Apple, then remove QuestHat.");
+        window.location.assign(data.appleAccountUrl || "https://account.apple.com/");
+        return;
+      }
       window.location.assign("/");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Could not delete the account.");
@@ -1043,12 +1054,12 @@ export default function SettingsPage() {
               <div className="space-y-5">
                 <form onSubmit={changeEmail} className="grid gap-2">
                   <label className="text-sm font-medium">Current email</label>
-                  <input className="border rounded px-3 py-2 bg-gray-50" value={email} disabled />
+                  <input className="border rounded px-3 py-2 bg-gray-50" value={email || "No recovery email added"} disabled />
 
-                  <label className="text-sm font-medium">New email</label>
+                  <label className="text-sm font-medium">{email ? "New email" : "Recovery email"}</label>
                   <input type="email" className="border rounded px-3 py-2" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} required />
 
-                  <button className="border rounded px-3 py-2">Change email</button>
+                  <button className="border rounded px-3 py-2">{email ? "Change email" : "Add recovery email"}</button>
                 </form>
 
                 <form onSubmit={changePassword} className="grid gap-2">

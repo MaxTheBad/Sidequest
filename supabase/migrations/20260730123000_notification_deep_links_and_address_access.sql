@@ -7,10 +7,19 @@ security definer
 set search_path = public
 as $$
 declare
-  dispatch_secret constant text := 'questhat-push-dispatch-v1';
+  dispatch_secret text;
   dispatch_url constant text := 'https://ipjewvmmzmxakoewqlfo.functions.supabase.co/push-notification-dispatch';
 begin
   begin
+    select decrypted_secret into dispatch_secret
+    from vault.decrypted_secrets
+    where name = 'questhat_push_dispatch_secret'
+    order by created_at desc
+    limit 1;
+    if dispatch_secret is null or length(dispatch_secret) < 32 then
+      raise warning 'Push dispatch skipped because questhat_push_dispatch_secret is not configured in Vault.';
+      return new;
+    end if;
     perform net.http_post(
       url := dispatch_url,
       headers := jsonb_build_object(

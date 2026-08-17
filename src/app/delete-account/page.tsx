@@ -6,22 +6,29 @@ export default function DeleteAccountPage() {
       <section className="max-w-3xl mx-auto rounded-2xl border bg-white p-6 space-y-4">
         <h1 className="text-2xl font-bold">QuestHat Data Deletion</h1>
         <p className="text-sm text-gray-700">
-          If you want your QuestHat account and personal data deleted, use this page as the public deletion request
-          path.
+          You can permanently delete your QuestHat account and associated personal data directly from the app or website.
         </p>
 
-        <h2 className="font-semibold">How to request deletion</h2>
+        <h2 className="font-semibold">Delete from QuestHat</h2>
         <ol className="list-decimal pl-6 text-sm text-gray-700 space-y-1">
-          <li>Send a deletion request from the email address tied to your QuestHat account.</li>
-          <li>Include the subject line <span className="font-medium">QuestHat data deletion request</span>.</li>
-          <li>Include your account email and confirm that you want your account and associated profile data removed.</li>
+          <li>Sign in to QuestHat on the website or in the mobile app.</li>
+          <li>Open <span className="font-medium">Settings → Account</span>.</li>
+          <li>Select <span className="font-medium">Delete permanently</span>, type DELETE, and confirm.</li>
         </ol>
+
+        <Link href="/settings" className="inline-flex rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white">Open account settings</Link>
+
+        <h2 className="font-semibold">Delete through Facebook</h2>
+        <p className="text-sm text-gray-700">
+          You can also remove QuestHat from Facebook&apos;s Apps and Websites settings and request deletion there. Facebook sends QuestHat a signed deletion request. We delete the matching QuestHat account and provide Facebook with a confirmation code and status link.
+        </p>
 
         <h2 className="font-semibold">What we delete</h2>
         <ul className="list-disc pl-6 text-sm text-gray-700 space-y-1">
           <li>Your profile information stored in QuestHat.</li>
           <li>Any public profile photo and profile metadata tied to your account.</li>
-          <li>Content you created in the app, where deletion is technically possible and permitted by law.</li>
+          <li>Quests, messages, comments, memberships, saved items, notifications, and uploaded media tied to your account.</li>
+          <li>Your QuestHat authentication account and connected Facebook identity.</li>
         </ul>
 
         <h2 className="font-semibold">What may remain</h2>
@@ -30,10 +37,14 @@ export default function DeleteAccountPage() {
           prevention.
         </p>
 
-        <h2 className="font-semibold">Where to send it</h2>
+        <h2 className="font-semibold">If you cannot sign in</h2>
         <p className="text-sm text-gray-700">
-          Send your request to the QuestHat support channel used for account help, and mention that you are requesting
-          deletion under the app&apos;s data deletion process.
+          Email <a href="mailto:support@questhat.com?subject=QuestHat%20data%20deletion%20request" className="font-medium underline">support@questhat.com</a>. Include your username, account email or connected phone/provider details, and state that you want the account permanently deleted. We may ask for verification before deleting data to prevent unauthorized requests.
+        </p>
+
+        <h2 className="font-semibold">Timing</h2>
+        <p className="text-sm text-gray-700">
+          Direct in-app requests are initiated immediately. Support-assisted requests are completed after identity verification. Residual backups and records retained for legal, fraud-prevention, or safety purposes are removed or anonymized according to our retention obligations.
         </p>
 
         <p className="text-xs text-gray-500">

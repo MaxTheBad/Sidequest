@@ -86,6 +86,16 @@ export default function EditListingPage() {
         return;
       }
 
+      const { data: privateLocation, error: privateLocationError } = await supabase
+        .from("quest_private_locations")
+        .select("exact_address")
+        .eq("quest_id", listingId)
+        .maybeSingle();
+      if (privateLocationError) {
+        setStatus("Could not load this listing's protected location.");
+        return;
+      }
+
       const hobbyName = Array.isArray(data.hobbies)
         ? data.hobbies[0]?.name
         : (data.hobbies as { name?: string } | null)?.name;
@@ -93,7 +103,7 @@ export default function EditListingPage() {
       setTitle(data.title || "");
       setDescription(data.description || "");
       setCity(data.city || "");
-      setExactAddress(data.exact_address || "");
+      setExactAddress(privateLocation?.exact_address || data.exact_address || "");
       setAvailability(data.availability || "");
       setSkillLevel(data.skill_level || "beginner");
       setGroupSize(data.group_size || 4);

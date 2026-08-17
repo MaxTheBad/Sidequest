@@ -776,9 +776,11 @@ export default function Home() {
       const blocked = Array.from(new Set(((blockRows || []) as Array<{ requester_id: string; addressee_id: string }>).flatMap((r) => [r.requester_id, r.addressee_id]).filter((id) => id !== uid)));
       setBlockedUserIds(blocked);
     }
-    const nowIso = new Date().toISOString();
+    const now = Date.now();
+    const nowIso = new Date(now).toISOString();
+    const completedCutoffIso = new Date(now - (7 * 24 * 60 * 60 * 1000)).toISOString();
     let q = supabase.from("quests").select("id,creator_id,created_at,title,description,city,skill_level,group_size,availability,starts_at,time_flexible,hobby_id,join_mode,exact_location_visibility,exact_address,media_video_url,media_source,media_items,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,username,avatar_url)").order("created_at", { ascending: false }).limit(24);
-    q = uid ? q.or(`starts_at.gt.${nowIso},creator_id.eq.${uid}`) : q.gt("starts_at", nowIso);
+    q = uid ? q.or(`starts_at.gt.${nowIso},and(creator_id.eq.${uid},starts_at.gte.${completedCutoffIso})`) : q.gt("starts_at", nowIso);
       const filterCategoryName = getFilterCategoryName(hobbyFilter);
       if (hobbyFilter !== "all") {
         if (filterCategoryName && hobbyFilter.startsWith("canonical:")) {
@@ -794,7 +796,7 @@ export default function Home() {
     // Backward compatibility if migration for media_items has not been applied yet
     if (error?.message?.includes("column quests.media_items does not exist")) {
       let fallback = supabase.from("quests").select("id,creator_id,created_at,title,description,city,skill_level,group_size,availability,starts_at,time_flexible,hobby_id,join_mode,exact_location_visibility,exact_address,media_video_url,media_source,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,username,avatar_url)").order("created_at", { ascending: false }).limit(24);
-      fallback = uid ? fallback.or(`starts_at.gt.${nowIso},creator_id.eq.${uid}`) : fallback.gt("starts_at", nowIso);
+      fallback = uid ? fallback.or(`starts_at.gt.${nowIso},and(creator_id.eq.${uid},starts_at.gte.${completedCutoffIso})`) : fallback.gt("starts_at", nowIso);
       if (hobbyFilter !== "all") {
         if (filterCategoryName && hobbyFilter.startsWith("canonical:")) {
           fallback = fallback.ilike("hobbies.name", filterCategoryName);
@@ -1045,7 +1047,13 @@ export default function Home() {
   async function socialLogin(provider: "google" | "facebook" | "apple") {
     if (!supabase) return;
     await recordSecurityAudit({ event_type: "oauth_started", metadata: { provider } });
-    const { error } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo } });
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo,
+        ...(provider === "facebook" ? { scopes: "public_profile,email" } : {}),
+      },
+    });
     if (error) {
       setStatus(`OAuth failed: ${error.message}`);
       window.alert(`OAuth failed: ${error.message}`);
@@ -2229,7 +2237,16 @@ export default function Home() {
     };
   }, [selectedThumbnailDragging, selectedMediaItem?.id, selectedMediaItem?.type, selectedMediaVideoDuration, selectedThumbnailPreviewTime]);
 
-  function openEditModal(q: Quest) {
+  async function openEditModal(q: Quest) {
+    let protectedAddress = q.exact_address || "";
+    if (supabase && q.exact_location_visibility !== "public") {
+      const { data: privateLocation } = await supabase
+        .from("quest_private_locations")
+        .select("exact_address")
+        .eq("quest_id", q.id)
+        .maybeSingle();
+      protectedAddress = privateLocation?.exact_address || protectedAddress;
+    }
     setEditingQuestId(q.id);
     setTitle(q.title || "");
     setDescription(q.description || "");
@@ -2237,9 +2254,9 @@ export default function Home() {
     const hobby = hobbies.find((h) => h.id === q.hobby_id);
     setCategoryInput(hobby?.name || "");
     setCity(q.city || "");
-    setExactAddress(q.exact_address || "");
+    setExactAddress(protectedAddress);
     setCitySuggestions([]);
-    setSelectedLocationSuggestion(q.exact_address || null);
+    setSelectedLocationSuggestion(protectedAddress || null);
     setSelectedPublicLocation(q.city || null);
     setLocationSearchLoading(false);
     setLocationSearchAttempted(false);
@@ -3753,15 +3770,17 @@ export default function Home() {
             return (
             <article key={q.id} className={`quest-card relative w-full bg-white border border-slate-200 shadow-[0_14px_40px_rgba(15,23,42,0.08)] overflow-hidden ${isExpired ? "grayscale-[0.65] opacity-80 ring-1 ring-slate-400/30" : ""} ${feedViewMode === "list" ? "rounded-none sm:rounded-[1.75rem] h-[calc(100svh-10.75rem)] min-h-[680px] flex flex-col sm:h-auto sm:min-h-[680px] md:h-[calc(100svh-9.25rem)] md:min-h-[720px] md:flex md:flex-col lg:h-[calc(100dvh-8.5rem)] lg:min-h-[760px] xl:h-[calc(100dvh-8.25rem)] xl:min-h-[820px] xl:flex xl:flex-col" : "rounded-[2rem]"}`}>
               {isExpired ? (
-                <div className="absolute left-1/2 top-16 z-50 flex w-[calc(100%-2rem)] -translate-x-1/2 items-center justify-between gap-3 rounded-2xl border border-white/15 bg-slate-950/85 px-3 py-2 text-white shadow-xl backdrop-blur">
-                  <div className="min-w-0">
-                    <p className="text-[10px] font-black tracking-[0.18em] text-slate-300">EXPIRED</p>
-                    <p className="truncate text-xs font-semibold">Only you can see this quest.</p>
+                <>
+                  <div className="pointer-events-none absolute left-1/2 top-[42%] z-50 -translate-x-1/2 -rotate-6 rounded-xl border-4 border-white/85 bg-slate-950/15 px-6 py-3 text-xl font-black tracking-[0.2em] text-white/90 shadow-xl">
+                    ✓ COMPLETED
                   </div>
-                  <button type="button" className="shrink-0 rounded-full bg-[#9bd8e4] px-3 py-2 text-xs font-black text-[#082f3a]" onClick={() => openEditModal(q)}>
-                    Make again
-                  </button>
-                </div>
+                  <div className="absolute bottom-24 right-4 z-50 flex items-center gap-2 rounded-full border border-white/20 bg-slate-950/80 p-1 pl-3 text-white shadow-lg backdrop-blur">
+                    <span className="text-[10px] font-bold text-slate-200">Visible to you for 7 days</span>
+                    <button type="button" className="rounded-full bg-[#9bd8e4] px-3 py-2 text-xs font-black text-[#082f3a]" onClick={() => openEditModal(q)}>
+                      Run again
+                    </button>
+                  </div>
+                </>
               ) : null}
               <div className={`p-3 flex items-center justify-between gap-2 ${feedViewMode === "list" ? "sm:p-4 absolute top-0 left-0 right-0 z-40 bg-gradient-to-b from-black/22 via-black/12 via-black/6 to-transparent py-2 sm:py-3 text-white border-0 backdrop-blur-[0.75px]" : ""}`}>
                 <Link href={`/profile/${q.creator_id}`} className="flex items-center gap-2 min-w-0">

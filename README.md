@@ -16,6 +16,7 @@ MVP app: find hobby partners/groups, post quests, join quests, and use a Surpris
   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
   - `NEXT_PUBLIC_SITE_URL` - set this to the canonical app URL, for example `https://questhat.com`
   - `SUPABASE_SERVICE_ROLE_KEY` (server-only; not exposed in browser)
+  - `FACEBOOK_APP_SECRET` (server-only; required for Meta data-deletion callback signature verification)
   - `NEXT_PUBLIC_TURNSTILE_SITE_KEY`
   - `TURNSTILE_SECRET_KEY`
   - For moderation email dispatch:
