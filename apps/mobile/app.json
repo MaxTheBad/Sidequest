@@ -19,7 +19,7 @@
         "NSMotionUsageDescription": "QuestHat uses motion data to support device and media interactions in the app.",
         "ITSAppUsesNonExemptEncryption": false
       },
-    "buildNumber": "89"
+    "buildNumber": "93"
     },
     "extra": {
       "supabaseUrl": "https://ipjewvmmzmxakoewqlfo.supabase.co/",

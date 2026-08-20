@@ -1044,7 +1044,7 @@ export default function Home() {
     );
   }
 
-  async function socialLogin(provider: "google" | "facebook" | "apple") {
+  async function socialLogin(provider: "google" | "facebook" | "apple" | "x") {
     if (!supabase) return;
     await recordSecurityAudit({ event_type: "oauth_started", metadata: { provider } });
     const { error } = await supabase.auth.signInWithOAuth({
@@ -4667,7 +4667,7 @@ export default function Home() {
             ) : null}
 
             <div className="pt-1 sm:pt-2 space-y-3">
-              <div className="grid gap-2 sm:gap-3 sm:grid-cols-3">
+              <div className="grid gap-2 sm:gap-3 sm:grid-cols-4">
                 <button type="button" className="group inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-[var(--border)] bg-[color:var(--surface)] px-4 py-2.5 text-sm font-semibold text-[color:var(--foreground)] shadow-sm transition hover:-translate-y-0.5 hover:border-[var(--border-strong)] hover:bg-[color:var(--muted)] active:translate-y-0" onClick={() => void socialLogin("apple")}>
                   <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 opacity-90 transition group-hover:opacity-100" aria-hidden="true" fill="currentColor">
                     <path d="M16.7 13.1c0-1.9 1-3.5 2.6-4.6-1-1.4-2.6-2.3-4.1-2.4-1.7-.2-3.2 1-4 .9-.9-.1-2.3-.9-3.8-.9-2 .1-3.8 1.1-4.8 2.7-2 3.3-.5 8.2 1.4 10.9 1 1.3 2.1 2.8 3.7 2.7 1.5-.1 2.1-1 4-1s2.5 1 4.1 1c1.6 0 2.6-1.3 3.6-2.7.8-1.2 1.2-2.4 1.2-2.5-.1 0-2.9-1.1-2.9-4.1ZM14.9 5.7c.8-1 1.3-2.3 1.1-3.6-1.2.1-2.6.8-3.4 1.8-.8.9-1.4 2.2-1.2 3.5 1.3.1 2.7-.7 3.5-1.7Z" />
@@ -4681,6 +4681,10 @@ export default function Home() {
                 <button type="button" className="group inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-[var(--border)] bg-[color:var(--surface)] px-4 py-2.5 text-sm font-semibold text-[color:var(--foreground)] shadow-sm transition hover:-translate-y-0.5 hover:border-[var(--border-strong)] hover:bg-[color:var(--muted)] active:translate-y-0" onClick={() => void socialLogin("facebook")}>
                   <img src="/facebook-f.svg" alt="Facebook" className="h-4 w-4 shrink-0" />
                   <span>Facebook</span>
+                </button>
+                <button type="button" className="group inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-[var(--border)] bg-[color:var(--surface)] px-4 py-2.5 text-sm font-semibold text-[color:var(--foreground)] shadow-sm transition hover:-translate-y-0.5 hover:border-[var(--border-strong)] hover:bg-[color:var(--muted)] active:translate-y-0" onClick={() => void socialLogin("x")}>
+                  <span aria-hidden="true" className="inline-flex h-4 w-4 shrink-0 items-center justify-center text-base font-black leading-none">X</span>
+                  <span>X</span>
                 </button>
               </div>
               {authMode === "login" && <button type="button" className="text-sm font-medium underline underline-offset-2" onClick={() => setShowTroubleModal(true)}>Trouble signing in?</button>}

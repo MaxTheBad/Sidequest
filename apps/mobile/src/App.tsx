@@ -74,7 +74,7 @@ type AuthState = "loading" | "signed-out" | "signed-in";
 type AuthMode = "login" | "signup";
 type AuthStep = "email" | "code";
 type TabKey = "home" | "create" | "saved" | "joined" | "inbox" | "notifications" | "profile" | "settings";
-type Provider = "apple" | "google" | "facebook";
+type Provider = "apple" | "google" | "facebook" | "x";
 type DeviceLocation = { lat: number; lon: number; accuracy?: number };
 type QuestMapPoint = { quest: QuestPreview; coords: DeviceLocation; distanceLabel: string | undefined };
 type SafetyPromptContext = "host" | "guest";
@@ -5244,6 +5244,12 @@ function privateThreadIncludesUsers(
                   <Ionicons name="logo-facebook" size={19} color="#ffffff" />
                 </View>
                 <Text style={styles.authOauthText}>Facebook</Text>
+              </Pressable>
+              <Pressable style={styles.authOauthButton} onPress={() => void socialLogin("x")} disabled={authBusy}>
+                <View style={[styles.authOauthLogo, styles.authOauthLogoX]}>
+                  <Text style={styles.authOauthLogoXText}>X</Text>
+                </View>
+                <Text style={styles.authOauthText}>X</Text>
               </Pressable>
             </View>
           </>
@@ -10517,6 +10523,14 @@ const styles = StyleSheet.create({
   },
   authOauthLogoFacebook: {
     backgroundColor: "#1877f2",
+  },
+  authOauthLogoX: {
+    backgroundColor: "#000000",
+  },
+  authOauthLogoXText: {
+    color: "#ffffff",
+    fontSize: 16,
+    fontWeight: "900",
   },
   authOauthText: {
     color: "#dbe5e9",
