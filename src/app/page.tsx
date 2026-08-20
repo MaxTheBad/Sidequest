@@ -592,6 +592,10 @@ export default function Home() {
   };
 
   useEffect(() => {
+    if (showAuthModal) setStatus("");
+  }, [showAuthModal]);
+
+  useEffect(() => {
     if (!supabase) return;
 
     const init = async () => {
@@ -4533,7 +4537,7 @@ export default function Home() {
                     : "Pick up where you left off and get back in."}
                 </p>
               </div>
-              <button onClick={() => setShowAuthModal(false)} className="rounded-full border border-[var(--border)] px-3 py-1.5 text-sm">
+              <button onClick={() => { setStatus(""); setShowAuthModal(false); }} className="rounded-full border border-[var(--border)] px-3 py-1.5 text-sm">
                 Close
               </button>
             </div>
@@ -4542,14 +4546,14 @@ export default function Home() {
               <button
                 type="button"
                 className={`rounded-full px-3 py-2 text-sm font-semibold transition ${authMode === "signup" ? "bg-[color:var(--accent-secondary)] text-white shadow-md" : "text-[color:var(--foreground)]/80"}`}
-                onClick={() => setAuthMode("signup")}
+                onClick={() => { setStatus(""); setAuthMode("signup"); }}
               >
                 Sign up
               </button>
               <button
                 type="button"
                 className={`rounded-full px-3 py-2 text-sm font-semibold transition ${authMode === "login" ? "bg-[color:var(--accent-secondary)] text-white shadow-md" : "text-[color:var(--foreground)]/80"}`}
-                onClick={() => setAuthMode("login")}
+                onClick={() => { setStatus(""); setAuthMode("login"); }}
               >
                 Sign in
               </button>
@@ -4560,7 +4564,7 @@ export default function Home() {
                 <button
                   type="button"
                   className="text-gray-600 dark:text-gray-400 underline underline-offset-2"
-                  onClick={() => setAuthMode("login")}
+                  onClick={() => { setStatus(""); setAuthMode("login"); }}
                 >
                   Already have an account?
                 </button>
@@ -4568,14 +4572,12 @@ export default function Home() {
                 <button
                   type="button"
                   className="text-gray-600 dark:text-gray-400 underline underline-offset-2"
-                  onClick={() => setAuthMode("signup")}
+                  onClick={() => { setStatus(""); setAuthMode("signup"); }}
                 >
                   New here?
                 </button>
               )}
             </div>
-
-            {status && <div className="text-sm rounded-xl border border-amber-300 bg-amber-100/90 text-amber-950 px-3 py-2">{status}</div>}
 
             {!!pendingVerifyEmail && authMode === "signup" && (
               <form ref={signupCodeRef} onSubmit={verifySignupCode} className="grid gap-2 rounded-xl border border-emerald-300 bg-emerald-50 p-3">
@@ -4610,7 +4612,13 @@ export default function Home() {
             {authMode !== "signup" || !pendingVerifyEmail ? (
               <form onSubmit={authMode === "signup" ? signUpWithPassword : signInWithPassword} className="grid gap-2 sm:gap-3" autoComplete="on">
                 <label className="text-xs font-medium text-gray-600">Email</label>
-                <input className="border rounded-xl px-3 py-3 text-slate-900 caret-slate-900 bg-white" placeholder="you@email.com" type="email" name="username" autoComplete="username email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+                <input className="border rounded-xl px-3 py-3 text-slate-900 caret-slate-900 bg-white" placeholder="you@email.com" type="email" name="username" autoComplete="username email" inputMode="email" value={email} onChange={(e) => { setEmail(e.target.value); if (status) setStatus(""); }} required />
+                {status ? (
+                  <div role="status" className="flex items-start gap-2 rounded-xl border border-amber-300/70 bg-amber-100/90 px-3 py-2.5 text-sm font-medium text-amber-950 shadow-sm">
+                    <span aria-hidden="true" className="mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-amber-700 text-[10px] font-black">!</span>
+                    <span>{status}</span>
+                  </div>
+                ) : null}
                 {authMode === "login" ? (
                   <>
                     <label className="text-xs font-medium text-gray-600">Password</label>
@@ -4667,24 +4675,35 @@ export default function Home() {
             ) : null}
 
             <div className="pt-1 sm:pt-2 space-y-3">
-              <div className="grid gap-2 sm:gap-3 sm:grid-cols-4">
-                <button type="button" className="group inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-[var(--border)] bg-[color:var(--surface)] px-4 py-2.5 text-sm font-semibold text-[color:var(--foreground)] shadow-sm transition hover:-translate-y-0.5 hover:border-[var(--border-strong)] hover:bg-[color:var(--muted)] active:translate-y-0" onClick={() => void socialLogin("apple")}>
-                  <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 opacity-90 transition group-hover:opacity-100" aria-hidden="true" fill="currentColor">
+              <div className="flex items-center gap-3 py-1" aria-hidden="true">
+                <span className="h-px flex-1 bg-[color:var(--border)]" />
+                <span className="text-[10px] font-black tracking-[0.18em] text-gray-500 dark:text-gray-400">OR CONTINUE WITH</span>
+                <span className="h-px flex-1 bg-[color:var(--border)]" />
+              </div>
+              <div className="grid gap-2.5">
+                <button type="button" className="group flex min-h-14 w-full items-center gap-3 rounded-2xl border border-white bg-white px-4 py-3 text-sm font-extrabold text-slate-950 shadow-md shadow-black/10 transition hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0 active:scale-[0.995]" onClick={() => void socialLogin("apple")}>
+                  <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white">
+                  <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true" fill="currentColor">
                     <path d="M16.7 13.1c0-1.9 1-3.5 2.6-4.6-1-1.4-2.6-2.3-4.1-2.4-1.7-.2-3.2 1-4 .9-.9-.1-2.3-.9-3.8-.9-2 .1-3.8 1.1-4.8 2.7-2 3.3-.5 8.2 1.4 10.9 1 1.3 2.1 2.8 3.7 2.7 1.5-.1 2.1-1 4-1s2.5 1 4.1 1c1.6 0 2.6-1.3 3.6-2.7.8-1.2 1.2-2.4 1.2-2.5-.1 0-2.9-1.1-2.9-4.1ZM14.9 5.7c.8-1 1.3-2.3 1.1-3.6-1.2.1-2.6.8-3.4 1.8-.8.9-1.4 2.2-1.2 3.5 1.3.1 2.7-.7 3.5-1.7Z" />
                   </svg>
-                  <span>Apple</span>
+                  </span>
+                  <span className="flex-1 text-left">Continue with Apple</span>
+                  <span aria-hidden="true" className="text-xl font-light text-slate-400">›</span>
                 </button>
-                <button type="button" className="group inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-[var(--border)] bg-[color:var(--surface)] px-4 py-2.5 text-sm font-semibold text-[color:var(--foreground)] shadow-sm transition hover:-translate-y-0.5 hover:border-[var(--border-strong)] hover:bg-[color:var(--muted)] active:translate-y-0" onClick={() => void socialLogin("google")}>
-                  <img src="/google-g.svg" alt="Google" className="h-4 w-4 shrink-0" />
-                  <span>Google</span>
+                <button type="button" className="group flex min-h-14 w-full items-center gap-3 rounded-2xl border border-[var(--border)] bg-[color:var(--surface)] px-4 py-3 text-sm font-extrabold text-[color:var(--foreground)] shadow-sm transition hover:-translate-y-0.5 hover:border-[var(--border-strong)] hover:shadow-md active:translate-y-0 active:scale-[0.995]" onClick={() => void socialLogin("google")}>
+                  <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white shadow-sm"><img src="/google-g.svg" alt="" className="h-5 w-5" /></span>
+                  <span className="flex-1 text-left">Continue with Google</span>
+                  <span aria-hidden="true" className="text-xl font-light text-gray-400">›</span>
                 </button>
-                <button type="button" className="group inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-[var(--border)] bg-[color:var(--surface)] px-4 py-2.5 text-sm font-semibold text-[color:var(--foreground)] shadow-sm transition hover:-translate-y-0.5 hover:border-[var(--border-strong)] hover:bg-[color:var(--muted)] active:translate-y-0" onClick={() => void socialLogin("facebook")}>
-                  <img src="/facebook-f.svg" alt="Facebook" className="h-4 w-4 shrink-0" />
-                  <span>Facebook</span>
+                <button type="button" className="group flex min-h-14 w-full items-center gap-3 rounded-2xl border border-[var(--border)] bg-[color:var(--surface)] px-4 py-3 text-sm font-extrabold text-[color:var(--foreground)] shadow-sm transition hover:-translate-y-0.5 hover:border-[var(--border-strong)] hover:shadow-md active:translate-y-0 active:scale-[0.995]" onClick={() => void socialLogin("facebook")}>
+                  <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#1877f2] shadow-sm"><img src="/facebook-f.svg" alt="" className="h-5 w-5 brightness-0 invert" /></span>
+                  <span className="flex-1 text-left">Continue with Facebook</span>
+                  <span aria-hidden="true" className="text-xl font-light text-gray-400">›</span>
                 </button>
-                <button type="button" className="group inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-[var(--border)] bg-[color:var(--surface)] px-4 py-2.5 text-sm font-semibold text-[color:var(--foreground)] shadow-sm transition hover:-translate-y-0.5 hover:border-[var(--border-strong)] hover:bg-[color:var(--muted)] active:translate-y-0" onClick={() => void socialLogin("x")}>
-                  <span aria-hidden="true" className="inline-flex h-4 w-4 shrink-0 items-center justify-center text-base font-black leading-none">X</span>
-                  <span>X</span>
+                <button type="button" className="group flex min-h-14 w-full items-center gap-3 rounded-2xl border border-white/15 bg-slate-950 px-4 py-3 text-sm font-extrabold text-white shadow-md shadow-black/15 transition hover:-translate-y-0.5 hover:bg-black hover:shadow-lg active:translate-y-0 active:scale-[0.995]" onClick={() => void socialLogin("x")}>
+                  <span aria-hidden="true" className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-black text-base font-black leading-none">X</span>
+                  <span className="flex-1 text-left">Continue with X</span>
+                  <span aria-hidden="true" className="text-xl font-light text-slate-500">›</span>
                 </button>
               </div>
               {authMode === "login" && <button type="button" className="text-sm font-medium underline underline-offset-2" onClick={() => setShowTroubleModal(true)}>Trouble signing in?</button>}
