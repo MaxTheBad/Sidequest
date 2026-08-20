@@ -5162,6 +5162,10 @@ function privateThreadIncludesUsers(
               <Ionicons name="document-text-outline" size={16} color="#9bc8d2" />
               <Text style={styles.legalLinkText}>Read the QuestHat EULA</Text>
             </Pressable>
+            <Pressable style={styles.legalLinkButton} onPress={() => void Linking.openURL(`${env.siteUrl.replace(/\/$/, "")}/privacy`)}>
+              <Ionicons name="shield-checkmark-outline" size={16} color="#9bc8d2" />
+              <Text style={styles.legalLinkText}>Read the Privacy Policy</Text>
+            </Pressable>
             <View style={styles.checkboxRow}>
               <Pressable style={styles.checkboxTouch} onPress={() => setMarketingOptIn((current) => !current)}>
                 <View style={[styles.checkbox, marketingOptIn && styles.checkboxChecked]}>

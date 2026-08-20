@@ -23,12 +23,17 @@ export default function DeleteAccountPage() {
           You can also remove QuestHat from Facebook&apos;s Apps and Websites settings and request deletion there. Facebook sends QuestHat a signed deletion request. We delete the matching QuestHat account and provide Facebook with a confirmation code and status link.
         </p>
 
+        <h2 className="font-semibold">Disconnect a social account</h2>
+        <p className="text-sm text-gray-700">
+          You can revoke QuestHat&apos;s future access without deleting your QuestHat account by removing it from the connected provider. Use the provider&apos;s connected-app settings for <a href="https://x.com/settings/connected_apps" target="_blank" rel="noreferrer" className="font-medium underline">X</a>, <a href="https://www.facebook.com/settings?tab=applications" target="_blank" rel="noreferrer" className="font-medium underline">Facebook and connected Instagram business assets</a>, <a href="https://www.instagram.com/accounts/manage_access/" target="_blank" rel="noreferrer" className="font-medium underline">Instagram</a>, <a href="https://myaccount.google.com/connections" target="_blank" rel="noreferrer" className="font-medium underline">Google</a>, or <a href="https://account.apple.com/" target="_blank" rel="noreferrer" className="font-medium underline">Apple</a>. Disconnecting stops future access but does not remove content already published on that platform; delete that content through the platform itself.
+        </p>
+
         <h2 className="font-semibold">What we delete</h2>
         <ul className="list-disc pl-6 text-sm text-gray-700 space-y-1">
           <li>Your profile information stored in QuestHat.</li>
           <li>Any public profile photo and profile metadata tied to your account.</li>
           <li>Quests, messages, comments, memberships, saved items, notifications, and uploaded media tied to your account.</li>
-          <li>Your QuestHat authentication account and connected Facebook identity.</li>
+          <li>Your QuestHat authentication account and connected social identities and authorization credentials.</li>
         </ul>
 
         <h2 className="font-semibold">What may remain</h2>
