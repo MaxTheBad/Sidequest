@@ -14,9 +14,23 @@ MVP app: find hobby partners/groups, post quests, join quests, and use a Surpris
 2. Add env vars in `.env.local`
   - `NEXT_PUBLIC_SUPABASE_URL`
   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-  - `NEXT_PUBLIC_SITE_URL` - set this to the canonical app URL, for example `https://questhat.com`
+ - `NEXT_PUBLIC_SITE_URL` - set this to the canonical app URL, for example `https://questhat.com`
   - `SUPABASE_SERVICE_ROLE_KEY` (server-only; not exposed in browser)
   - `FACEBOOK_APP_SECRET` (server-only; required for Meta data-deletion callback signature verification)
+  - Social publishing credentials if you are wiring a local publisher:
+    - `FACEBOOK_GRAPH_ACCESS_TOKEN`
+    - `FACEBOOK_PAGE_ID`
+    - `FACEBOOK_PAGE_ACCESS_TOKEN`
+    - `INSTAGRAM_BUSINESS_ACCOUNT_ID`
+    - `INSTAGRAM_GRAPH_ACCESS_TOKEN`
+    - `X_CONSUMER_KEY`
+    - `X_CONSUMER_SECRET`
+    - `X_BEARER_TOKEN`
+    - `X_OAUTH_ACCESS_TOKEN`
+    - `X_OAUTH_ACCESS_TOKEN_SECRET`
+    - `X_CLIENT_ID`
+    - `X_CLIENT_SECRET`
+    - `X_ACCOUNT_ID`
   - `NEXT_PUBLIC_TURNSTILE_SITE_KEY`
   - `TURNSTILE_SECRET_KEY`
   - For moderation email dispatch:
@@ -49,3 +63,5 @@ npm audit --audit-level=high
 - Auth is email magic link (`signInWithOtp`).
 - This is intentionally lean for v1 validation.
 - Next step: add dedicated chat screen + onboarding wizard + reliability score.
+- Meta page feed posting uses the Graph API. Instagram feed posting requires a professional account. Stories are supported for Facebook Pages and Instagram professional accounts only if the app has the right permissions and product access.
+- X posting on behalf of a user requires user-context OAuth credentials. A bearer token by itself is not enough for write actions.

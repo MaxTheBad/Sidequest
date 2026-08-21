@@ -58,9 +58,12 @@ struct QuestHatLiveActivityWidget: Widget {
           }
         }
       } compactLeading: {
-        compactQuestMark
+        compactStatusMark(status: context.state.status)
       } compactTrailing: {
-        countdown(to: Date(timeIntervalSince1970: context.state.startsAt), compact: true)
+        compactCountdown(
+          to: Date(timeIntervalSince1970: context.state.startsAt),
+          status: context.state.status
+        )
       } minimal: {
         compactQuestMark
       }
@@ -86,6 +89,34 @@ struct QuestHatLiveActivityWidget: Widget {
       .resizable()
       .scaledToFit()
       .frame(width: 22, height: 22)
+  }
+
+  private func compactStatusMark(status: String) -> some View {
+    HStack(spacing: 4) {
+      Image("QuestHatMark")
+        .resizable()
+        .scaledToFit()
+        .frame(width: 18, height: 18)
+      Text(status == "started" ? "LIVE" : "SOON")
+        .font(.system(size: 9, weight: .black, design: .rounded))
+        .tracking(0.5)
+        .foregroundStyle(Color(red: 0.61, green: 0.85, blue: 0.89))
+        .lineLimit(1)
+    }
+    .accessibilityElement(children: .combine)
+    .accessibilityLabel(status == "started" ? "Quest is live" : "Quest starting soon")
+  }
+
+  private func compactCountdown(to date: Date, status: String) -> some View {
+    VStack(alignment: .trailing, spacing: -1) {
+      Text(status == "started" || date <= Date() ? "HAPPENING" : "STARTS")
+        .font(.system(size: 7, weight: .bold, design: .rounded))
+        .tracking(0.35)
+        .foregroundStyle(Color(red: 0.43, green: 0.68, blue: 0.76))
+        .lineLimit(1)
+      countdown(to: date, compact: true)
+    }
+    .accessibilityElement(children: .combine)
   }
 
   @ViewBuilder

@@ -26,6 +26,7 @@ prepare_react_native_project!
 
 target 'QuestHat' do
   use_expo_modules!
+  pod 'MapLibre', '6.26.0'
 
   if ENV['EXPO_USE_COMMUNITY_AUTOLINKING'] == '1'
     config_command = ['node', '-e', "process.argv=['', '', 'config'];require('@react-native-community/cli').run()"];
@@ -63,5 +64,16 @@ target 'QuestHat' do
       :mac_catalyst_enabled => false,
       :ccache_enabled => ccache_enabled?(podfile_properties),
     )
+
+    maplibre_react_target = installer.pods_project.targets.find { |target| target.name == 'MapLibreReactNative' }
+    maplibre_target = installer.pods_project.targets.find { |target| target.name == 'MapLibre' }
+    if maplibre_react_target && maplibre_target
+      maplibre_react_target.add_dependency(maplibre_target)
+      maplibre_react_target.build_configurations.each do |build_config|
+        search_paths = Array(build_config.build_settings['FRAMEWORK_SEARCH_PATHS'] || '$(inherited)')
+        search_paths << '"${PODS_XCFRAMEWORKS_BUILD_DIR}/MapLibre"'
+        build_config.build_settings['FRAMEWORK_SEARCH_PATHS'] = search_paths.uniq
+      end
+    end
   end
 end

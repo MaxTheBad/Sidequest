@@ -14,6 +14,8 @@ type GeocodedAddress = {
 type NominatimResult = {
   display_name?: string;
   name?: string;
+  lat?: string;
+  lon?: string;
   address?: GeocodedAddress;
 };
 
@@ -107,8 +109,15 @@ export async function GET(request: Request) {
   const suggestions = Array.from(new Map(results.map((result) => {
     const label = (result.display_name || result.name || "").trim();
     if (!label) return null;
-    return [label.toLowerCase(), { label, publicLabel: publicLabel(result.address, countryCode) }] as const;
-  }).filter((entry): entry is readonly [string, { label: string; publicLabel: string }] => Boolean(entry))).values());
+    const resultLat = Number(result.lat);
+    const resultLon = Number(result.lon);
+    return [label.toLowerCase(), {
+      label,
+      publicLabel: publicLabel(result.address, countryCode),
+      lat: Number.isFinite(resultLat) ? resultLat : null,
+      lon: Number.isFinite(resultLon) ? resultLon : null,
+    }] as const;
+  }).filter((entry): entry is readonly [string, { label: string; publicLabel: string; lat: number | null; lon: number | null }] => Boolean(entry))).values());
 
   return Response.json(
     { suggestions },

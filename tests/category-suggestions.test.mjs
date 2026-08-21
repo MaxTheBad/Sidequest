@@ -5,6 +5,8 @@ import { CANONICAL_CATEGORIES, resolveCanonicalCategory, suggestCanonicalCategor
 test("resolves direct canonical categories", () => {
   assert.equal(resolveCanonicalCategory("Build"), "Build");
   assert.equal(resolveCanonicalCategory("creative"), "Creative");
+  assert.equal(resolveCanonicalCategory("Pickleball"), "Pickleball");
+  assert.equal(resolveCanonicalCategory("tennis"), "Tennis");
 });
 
 test("resolves alias categories", () => {
@@ -13,6 +15,8 @@ test("resolves alias categories", () => {
   assert.equal(resolveCanonicalCategory("photo walk"), "Creative");
   assert.equal(resolveCanonicalCategory("fishing trip"), "Fishing");
   assert.equal(resolveCanonicalCategory("painting session"), "Painting");
+  assert.equal(resolveCanonicalCategory("pickle ball doubles"), "Pickleball");
+  assert.equal(resolveCanonicalCategory("tennis partner"), "Tennis");
 });
 
 test("suggests canonical categories from partial input", () => {

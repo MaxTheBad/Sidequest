@@ -15,11 +15,40 @@
         "NSCameraUsageDescription": "QuestHat uses the camera so you can record short quest videos and add profile or quest photos.",
         "NSMicrophoneUsageDescription": "QuestHat uses the microphone to include sound in videos you record for a quest.",
         "NSPhotoLibraryUsageDescription": "QuestHat uses your photo library so you can attach media to quests.",
-        "NSLocationWhenInUseUsageDescription": "QuestHat uses your location to show nearby quests and estimate distance.",
+        "NSLocationWhenInUseUsageDescription": "QuestHat uses your location to show nearby quests, estimate distance, and verify check-ins. Your precise location is not shown to hosts or attendees unless you explicitly choose to share it in a feature that clearly asks first.",
         "NSMotionUsageDescription": "QuestHat uses motion data to support device and media interactions in the app.",
         "ITSAppUsesNonExemptEncryption": false
       },
-    "buildNumber": "93"
+    "buildNumber": "95"
+    },
+    "android": {
+      "package": "com.questhat.app",
+      "versionCode": 2,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#10111A"
+      },
+      "permissions": [
+        "CAMERA",
+        "RECORD_AUDIO",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "POST_NOTIFICATIONS"
+      ],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "questhat.com",
+              "pathPrefix": "/listing"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     "extra": {
       "supabaseUrl": "https://ipjewvmmzmxakoewqlfo.supabase.co/",
@@ -34,7 +63,10 @@
       [
         "expo-notifications",
         {
-          "enableBackgroundRemoteNotifications": true
+          "enableBackgroundRemoteNotifications": true,
+          "defaultChannel": "questhat-updates",
+          "icon": "./assets/notification-icon.png",
+          "color": "#9BD8E4"
         }
       ],
       "expo-video",

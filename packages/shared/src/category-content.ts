@@ -27,6 +27,20 @@ export const CATEGORY_FALLBACK_MEDIA = {
     note: "A workout, run, or wellness shot fits here.",
     gradient: "linear-gradient(135deg,#dcfce7,#ccfbf1)",
   },
+  Pickleball: {
+    imagePath: "/category-fallbacks/pickleball.jpg",
+    emoji: "🏓",
+    title: "Pickleball",
+    note: "A court, paddle, or casual match photo fits here.",
+    gradient: "linear-gradient(135deg,#0f766e,#67e8f9)",
+  },
+  Tennis: {
+    imagePath: "/category-fallbacks/tennis.jpg",
+    emoji: "🎾",
+    title: "Tennis",
+    note: "A court, racket, or practice session works best.",
+    gradient: "linear-gradient(135deg,#14532d,#bef264)",
+  },
   Outdoors: {
     imagePath: "/category-fallbacks/outdoors.jpg",
     emoji: "🏔️",
@@ -122,6 +136,8 @@ export const CATEGORY_FALLBACK_MEDIA = {
 
 export function getCategoryFallbackMedia(categoryRaw?: string | null) {
   const category = (categoryRaw || "").toLowerCase();
+  if (category.includes("pickleball") || category.includes("pickle ball")) return CATEGORY_FALLBACK_MEDIA.Pickleball;
+  if (category.includes("tennis")) return CATEGORY_FALLBACK_MEDIA.Tennis;
   if (category.includes("paint") || category.includes("canvas") || category.includes("brush") || category.includes("acrylic")) return CATEGORY_FALLBACK_MEDIA.Painting;
   if (category.includes("art") || category.includes("craft")) return CATEGORY_FALLBACK_MEDIA["Arts & Crafts"];
   if (category.includes("book") || category.includes("read")) return CATEGORY_FALLBACK_MEDIA["Book club"];
@@ -176,6 +192,8 @@ export const TITLE_SUGGESTIONS_BY_CATEGORY: Record<string, readonly string[]> = 
   fishing: ["Weekend shoreline session", "Early morning fishing run", "Cast, learn, repeat"],
   lifestyle: ["Reset your routine with a friend", "Build a better weekly rhythm", "Habit check-in and follow-through"],
   "healthy lifestyle": ["Lock in with a gym buddy", "Cardio accountability crew (3x/week)", "Healthy habits reset: sleep, food, movement"],
+  pickleball: ["Saturday morning pickleball", "Beginner-friendly pickleball game", "Need one more for doubles"],
+  tennis: ["Beginner tennis buddy this weekend", "Casual rally and practice session", "Need a partner for a few sets"],
   outdoors: ["Lock in for a sunrise hike", "Beginner-friendly trail day", "Weekend adventure squad"],
   social: ["Meet new people and actually follow through", "Communication skills practice circle", "Community hang + good vibes only"],
   money: ["Lock in and execute a money plan", "Budget reset sprint for this month", "Side hustle ideas to action"],

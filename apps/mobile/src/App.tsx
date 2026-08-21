@@ -12,7 +12,6 @@ import {
   PanResponder,
   RefreshControl,
   Modal,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
@@ -26,8 +25,9 @@ import {
   NativeEventEmitter,
   NativeModules,
 } from "react-native";
+import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import DateTimePicker from "@react-native-community/datetimepicker";
+import DateTimePicker, { DateTimePickerAndroid } from "@react-native-community/datetimepicker";
 import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Linking from "expo-linking";
@@ -37,7 +37,7 @@ import { StatusBar } from "expo-status-bar";
 import { requireOptionalNativeModule, useEvent } from "expo";
 import { useVideoPlayer, VideoView } from "expo-video";
 import * as WebBrowser from "expo-web-browser";
-import MapView, { Marker } from "react-native-maps";
+import { Camera, Map as MapLibreMap, Marker, type CameraRef } from "@maplibre/maplibre-react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
@@ -64,6 +64,13 @@ const QuestHatLiveActivity = NativeModules.QuestHatLiveActivity as undefined | {
   getPushToStartToken: () => Promise<LiveActivityPushToken>;
 };
 
+const QuestHatAndroidLiveActivity = Platform.OS === "android"
+  ? requireOptionalNativeModule<{
+      sync: (questId: string, title: string, startsAt: number, location: string) => Promise<boolean>;
+      end: () => Promise<boolean>;
+    }>("QuestHatLiveActivityAndroid")
+  : null;
+
 type LiveActivityPushToken = {
   supported: boolean;
   environment: "production" | "sandbox";
@@ -81,14 +88,36 @@ type SafetyPromptContext = "host" | "guest";
 type PendingSafetyJoin = { quest: QuestPreview; source: "selected" | "feed" };
 const FAR_AWAY_WARNING_MILES = 15;
 const HOME_QUEST_LIMIT = 200;
+const COMPLETED_FEED_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 const STORED_LOCATION_KEY = "questhat_device_location";
 const STORED_PUSH_PROMPT_DISMISSED_AT = "questhat_push_prompt_dismissed_at";
 const STORED_CONTEXTUAL_PUSH_PROMPT_AT = "questhat_contextual_push_prompt_at";
 const STORED_DISMISSED_EVENT_ANNOUNCEMENTS = "questhat_dismissed_event_announcements";
 const STORED_SAFETY_PROMPT_HIDDEN = "questhat_safety_prompt_hidden";
+const STORED_RECOVERY_EMAIL_PROMPTED_AT = "questhat_recovery_email_prompted_at";
+const RECOVERY_EMAIL_REMINDER_MS = 7 * 24 * 60 * 60 * 1000;
 const CURRENT_EULA_VERSION = "2026-07-30";
 const VIDEO_MAX_DURATION_SECONDS = 15;
 const VIDEO_MAX_SIZE_BYTES = 60 * 1024 * 1024;
+const OPEN_STREET_MAP_STYLE = {
+  version: 8,
+  name: "QuestHat Free Map",
+  sources: {
+    osm: {
+      type: "raster",
+      tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+      tileSize: 256,
+      attribution: "Map data © OpenStreetMap contributors",
+    },
+  },
+  layers: [
+    {
+      id: "osm-raster",
+      type: "raster",
+      source: "osm",
+    },
+  ],
+};
 const US_STATE_CODES: Record<string, string> = {
   alabama: "AL", alaska: "AK", arizona: "AZ", arkansas: "AR", california: "CA", colorado: "CO",
   connecticut: "CT", delaware: "DE", florida: "FL", georgia: "GA", hawaii: "HI", idaho: "ID",
@@ -203,7 +232,7 @@ type GeneratedThumbnailResult = {
   mimeType: string;
 };
 
-const videoCompressor = Platform.OS === "ios"
+const videoCompressor = Platform.OS === "ios" || Platform.OS === "android"
   ? requireOptionalNativeModule<{
       compress(source: string): Promise<CompressedVideoResult>;
       trim(source: string, startSeconds: number, endSeconds: number): Promise<CompressedVideoResult>;
@@ -321,6 +350,8 @@ type QuestDetail = QuestPreview & {
   join_mode?: string | null;
   exact_location_visibility?: string | null;
   exact_address?: string | null;
+  exact_lat?: number | null;
+  exact_lng?: number | null;
   media_video_url?: string | null;
   media_source?: string | null;
   host_coordination_reminders_disabled?: boolean | null;
@@ -335,6 +366,12 @@ type QuestMemberProfileRow = {
   avatar_url: string | null;
   role?: string | null;
   status?: "pending" | "approved" | "declined" | null;
+};
+
+type QuestCheckInRow = {
+  user_id: string;
+  checked_in_at: string;
+  profiles?: Array<{ id: string; display_name: string | null; username: string | null; avatar_url: string | null }> | { id: string; display_name: string | null; username: string | null; avatar_url: string | null } | null;
 };
 
 type ProfileDetail = Profile & {
@@ -432,6 +469,7 @@ function getCategory(quest: QuestPreview) {
 
 function getCategoryIcon(category: string): keyof typeof Ionicons.glyphMap {
   const normalized = category.toLowerCase();
+  if (normalized.includes("pickleball") || normalized.includes("tennis")) return "tennisball-outline";
   if (normalized.includes("book")) return "book-outline";
   if (normalized.includes("music")) return "musical-notes-outline";
   if (normalized.includes("art") || normalized.includes("craft")) return "color-palette-outline";
@@ -915,7 +953,7 @@ class AppErrorBoundary extends Component<{ children: ReactNode }, { hasError: bo
   }
 }
 
-export default function App() {
+function QuestHatApp() {
   const systemColorScheme = useColorScheme();
   const { height: windowHeight } = useWindowDimensions();
   const [authState, setAuthState] = useState<AuthState>(supabase ? "loading" : "signed-out");
@@ -925,6 +963,7 @@ export default function App() {
   const [authMode, setAuthMode] = useState<AuthMode>("login");
   const [authStep, setAuthStep] = useState<AuthStep>("email");
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showMoreAuthOptions, setShowMoreAuthOptions] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [fullName, setFullName] = useState("");
@@ -952,6 +991,7 @@ export default function App() {
   const [quests, setQuests] = useState<QuestPreview[]>([]);
   const [savedQuests, setSavedQuests] = useState<QuestPreview[]>([]);
   const [joinedQuests, setJoinedQuests] = useState<QuestPreview[]>([]);
+  const [questCollectionView, setQuestCollectionView] = useState<"active" | "completed">("active");
   const [messages, setMessages] = useState<MessageRow[]>([]);
   const [inboxProfilesById, setInboxProfilesById] = useState<Record<string, { id: string; display_name: string | null; username: string | null; avatar_url: string | null }>>({});
   const [notifications, setNotifications] = useState<NotificationRow[]>([]);
@@ -984,9 +1024,10 @@ export default function App() {
   const [selectedCountrySuggestion, setSelectedCountrySuggestion] = useState<string | null>(null);
   const [selectedCountryCode, setSelectedCountryCode] = useState<string | null>(null);
   const [draftExactAddress, setDraftExactAddress] = useState("");
-  const [locationSuggestions, setLocationSuggestions] = useState<Array<{ label: string; publicLabel: string }>>([]);
+  const [locationSuggestions, setLocationSuggestions] = useState<Array<{ label: string; publicLabel: string; lat: number | null; lon: number | null }>>([]);
   const [selectedLocationSuggestion, setSelectedLocationSuggestion] = useState<string | null>(null);
   const [selectedPublicLocation, setSelectedPublicLocation] = useState<string | null>(null);
+  const [selectedLocationCoordinates, setSelectedLocationCoordinates] = useState<{ lat: number; lon: number } | null>(null);
   const [locationSearchLoading, setLocationSearchLoading] = useState(false);
   const [locationSearchAttempted, setLocationSearchAttempted] = useState(false);
   const [draftJoinMode, setDraftJoinMode] = useState<"approval_required" | "open">("approval_required");
@@ -1017,6 +1058,11 @@ export default function App() {
   const [settingsDob, setSettingsDob] = useState("");
   const [showSettingsDobPicker, setShowSettingsDobPicker] = useState(false);
   const [settingsNewEmail, setSettingsNewEmail] = useState("");
+  const [accountEmail, setAccountEmail] = useState("");
+  const [showRecoveryEmailPrompt, setShowRecoveryEmailPrompt] = useState(false);
+  const [recoveryEmail, setRecoveryEmail] = useState("");
+  const [recoveryEmailStatus, setRecoveryEmailStatus] = useState("");
+  const [recoveryEmailSaving, setRecoveryEmailSaving] = useState(false);
   const [settingsOldPassword, setSettingsOldPassword] = useState("");
   const [settingsNewPassword, setSettingsNewPassword] = useState("");
   const [settingsConfirmPassword, setSettingsConfirmPassword] = useState("");
@@ -1055,6 +1101,8 @@ export default function App() {
   const [selectedQuestMembershipStatus, setSelectedQuestMembershipStatus] = useState<"pending" | "approved" | "declined" | null>(null);
   const [selectedQuestMembers, setSelectedQuestMembers] = useState<QuestMemberProfileRow[]>([]);
   const [selectedQuestPendingMembers, setSelectedQuestPendingMembers] = useState<QuestMemberProfileRow[]>([]);
+  const [selectedQuestCheckIns, setSelectedQuestCheckIns] = useState<QuestCheckInRow[]>([]);
+  const [checkInAction, setCheckInAction] = useState<"check-in" | "leave" | null>(null);
   const [membershipActionKey, setMembershipActionKey] = useState<string | null>(null);
   const [coordinationReminderAction, setCoordinationReminderAction] = useState<"snooze" | "disable" | "enable" | null>(null);
   const [selectedQuestExactAccessUserIds, setSelectedQuestExactAccessUserIds] = useState<string[]>([]);
@@ -1127,7 +1175,7 @@ export default function App() {
   const [eulaRequired, setEulaRequired] = useState(false);
   const [eulaConsentChecked, setEulaConsentChecked] = useState(false);
   const [eulaSaving, setEulaSaving] = useState(false);
-  const homeMapRef = useRef<MapView | null>(null);
+  const homeCameraRef = useRef<CameraRef | null>(null);
   const questionScrollRef = useRef<ScrollView | null>(null);
   const questDetailScrollRef = useRef<ScrollView | null>(null);
   const joinRequestsOffsetRef = useRef(0);
@@ -1264,6 +1312,7 @@ export default function App() {
       setSelectedCountryCode(null);
       setSelectedLocationSuggestion(null);
       setSelectedPublicLocation(null);
+      setSelectedLocationCoordinates(null);
       setLocationSearchLoading(false);
       setLocationSearchAttempted(false);
       return;
@@ -1323,7 +1372,7 @@ export default function App() {
         params.set("lon", String(deviceLocation.lon));
       }
       const response = await fetch(`${env.siteUrl.replace(/\/$/, "")}/api/location-search?${params.toString()}`);
-      const payload = await response.json() as { suggestions?: Array<{ label: string; publicLabel: string }>; error?: string };
+      const payload = await response.json() as { suggestions?: Array<{ label: string; publicLabel: string; lat: number | null; lon: number | null }>; error?: string };
       if (!response.ok) throw new Error(payload.error || "Location search failed.");
       setLocationSuggestions(payload.suggestions || []);
       setLocationSearchAttempted(true);
@@ -1442,6 +1491,15 @@ export default function App() {
 
   async function handleAuthUrl(url: string) {
     if (!supabase) return;
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(url);
+    } catch {
+      return;
+    }
+    if (parsedUrl.protocol !== "questhat:" || parsedUrl.hostname !== "auth" || parsedUrl.pathname !== "/callback") {
+      return;
+    }
     const params = getQueryParams(url);
     const error = params.get("error_description") || params.get("error");
     if (error) {
@@ -1489,15 +1547,37 @@ export default function App() {
     if (!supabase) return;
     const client = supabase;
 
+    const syncAccountEmail = async (id?: string | null, nextEmail?: string | null) => {
+      const cleanEmail = nextEmail?.trim() || "";
+      setAccountEmail(cleanEmail);
+      if (!id) {
+        setShowRecoveryEmailPrompt(false);
+        return;
+      }
+      const storageKey = `${STORED_RECOVERY_EMAIL_PROMPTED_AT}:${id}`;
+      if (cleanEmail) {
+        await AsyncStorage.removeItem(storageKey);
+        setShowRecoveryEmailPrompt(false);
+        return;
+      }
+      const raw = await AsyncStorage.getItem(storageKey);
+      const lastPromptedAt = raw ? Number(raw) : 0;
+      if (!Number.isFinite(lastPromptedAt) || Date.now() - lastPromptedAt >= RECOVERY_EMAIL_REMINDER_MS) {
+        setShowRecoveryEmailPrompt(true);
+      }
+    };
+
     void client.auth.getSession().then(({ data }) => {
       setUserId(data.session?.user?.id ?? null);
       setAuthState(data.session?.user ? "signed-in" : "signed-out");
+      void syncAccountEmail(data.session?.user?.id, data.session?.user?.email);
       if (data.session?.access_token) void sendWelcomeEmail(data.session.access_token);
     });
 
     const { data } = client.auth.onAuthStateChange((_event, session) => {
       setUserId(session?.user?.id ?? null);
       setAuthState(session?.user ? "signed-in" : "signed-out");
+      void syncAccountEmail(session?.user?.id, session?.user?.email);
       if (session?.user) setActiveTab((current) => (current === "home" ? current : current));
       if (session?.access_token) void sendWelcomeEmail(session.access_token);
     });
@@ -1533,6 +1613,7 @@ export default function App() {
 
   useEffect(() => {
     if (signedIn) {
+      setStatus("");
       setShowAuthModal(false);
     } else {
       setJoinedQuestIds([]);
@@ -1726,6 +1807,7 @@ export default function App() {
       setUpcomingQuestAnnouncement(null);
       shownUpcomingQuestIdRef.current = null;
       if (Platform.OS === "ios") void QuestHatLiveActivity?.end().catch(() => {});
+      if (Platform.OS === "android") void QuestHatAndroidLiveActivity?.end().catch(() => {});
       return;
     }
     if (!dismissedUpcomingQuestsLoaded) return;
@@ -1738,7 +1820,8 @@ export default function App() {
       })
       .sort((a, b) => +new Date(a.starts_at || 0) - +new Date(b.starts_at || 0))[0];
     if (!nextQuest) {
-      if (shownUpcomingQuestIdRef.current && Platform.OS === "ios") void QuestHatLiveActivity?.end().catch(() => {});
+      if (Platform.OS === "ios") void QuestHatLiveActivity?.end().catch(() => {});
+      if (Platform.OS === "android") void QuestHatAndroidLiveActivity?.end().catch(() => {});
       shownUpcomingQuestIdRef.current = null;
       return;
     }
@@ -1750,6 +1833,18 @@ export default function App() {
         formatQuestCityState(nextQuest.city),
       ).catch((error) => console.warn("live activity sync failed", error instanceof Error ? error.message : String(error)));
     }
+    if (Platform.OS === "android" && nextQuest.starts_at) {
+      if (pushPermissionStatus === "granted") {
+        void QuestHatAndroidLiveActivity?.sync(
+          nextQuest.id,
+          nextQuest.title,
+          new Date(nextQuest.starts_at).getTime(),
+          formatQuestCityState(nextQuest.city),
+        ).catch((error) => console.warn("ongoing quest notification sync failed", error instanceof Error ? error.message : String(error)));
+      } else {
+        void QuestHatAndroidLiveActivity?.end().catch(() => {});
+      }
+    }
     if (dismissedUpcomingQuestIds.includes(nextQuest.id)) {
       shownUpcomingQuestIdRef.current = nextQuest.id;
       setUpcomingQuestAnnouncement(null);
@@ -1759,7 +1854,7 @@ export default function App() {
     shownUpcomingQuestIdRef.current = nextQuest.id;
     setCountdownNow(now);
     setUpcomingQuestAnnouncement(nextQuest);
-  }, [dismissedUpcomingQuestIds, dismissedUpcomingQuestsLoaded, joinedQuests, signedIn]);
+  }, [dismissedUpcomingQuestIds, dismissedUpcomingQuestsLoaded, joinedQuests, pushPermissionStatus, signedIn]);
 
   useEffect(() => {
     const hasFeedCountdown = quests.some((quest) => {
@@ -1906,7 +2001,7 @@ export default function App() {
 
     const nextNotifications = (data || []) as NotificationRow[];
     setNotifications(nextNotifications);
-    if (Platform.OS === "ios") {
+    if (Platform.OS !== "web") {
       const unreadCount = nextNotifications.filter((item) => !item.read_at).length;
       void Notifications.setBadgeCountAsync(unreadCount).catch((badgeError) => {
         console.warn("notification refresh badge failed", badgeError instanceof Error ? badgeError.message : String(badgeError));
@@ -1937,9 +2032,11 @@ export default function App() {
       .select("id,creator_id,title,description,city,availability,starts_at,time_flexible,group_size,hobby_id,skill_level,join_mode,created_at,media_items,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,username,avatar_url)")
       .order("created_at", { ascending: false })
       .limit(HOME_QUEST_LIMIT);
-    const nowIso = new Date().toISOString();
+    const now = Date.now();
+    const nowIso = new Date(now).toISOString();
+    const completedCutoffIso = new Date(now - COMPLETED_FEED_WINDOW_MS).toISOString();
     query = userId
-      ? query.or(`starts_at.gt.${nowIso},creator_id.eq.${userId}`)
+      ? query.or(`starts_at.gt.${nowIso},and(creator_id.eq.${userId},starts_at.gte.${completedCutoffIso})`)
       : query.gt("starts_at", nowIso);
     const { data, error } = await query;
     if (error) throw error;
@@ -2093,7 +2190,7 @@ export default function App() {
     setMessages(dedupedPrivate);
     const nextNotifications = ((notificationRows || []) as NotificationRow[]).filter((row) => !row.source_user_id || !privateMessageBlockedIds.includes(row.source_user_id));
     setNotifications(nextNotifications);
-    if (Platform.OS === "ios") {
+    if (Platform.OS !== "web") {
       const unreadCount = nextNotifications.filter((item) => !item.read_at).length;
       void Notifications.setBadgeCountAsync(unreadCount).catch((badgeError) => {
         console.warn("authenticated refresh badge failed", badgeError instanceof Error ? badgeError.message : String(badgeError));
@@ -2211,13 +2308,27 @@ export default function App() {
 
   async function loadSelectedQuestDetails(questId: string) {
     if (!supabase) return null;
-    const { data, error } = await supabase
-      .from("quests")
-      .select("id,creator_id,title,description,city,availability,starts_at,time_flexible,group_size,hobby_id,skill_level,created_at,join_mode,exact_location_visibility,exact_address,media_video_url,media_source,media_items,host_coordination_reminders_disabled,host_coordination_reminders_snoozed_until,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,username,city,bio,avatar_url)")
-      .eq("id", questId)
-      .maybeSingle();
+    const [{ data, error }, { data: privateLocation, error: privateLocationError }] = await Promise.all([
+      supabase
+        .from("quests")
+        .select("id,creator_id,title,description,city,availability,starts_at,time_flexible,group_size,hobby_id,skill_level,created_at,join_mode,exact_location_visibility,exact_address,exact_lat,exact_lng,media_video_url,media_source,media_items,host_coordination_reminders_disabled,host_coordination_reminders_snoozed_until,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,username,city,bio,avatar_url)")
+        .eq("id", questId)
+        .maybeSingle(),
+      supabase
+        .from("quest_private_locations")
+        .select("exact_address,exact_lat,exact_lng")
+        .eq("quest_id", questId)
+        .maybeSingle(),
+    ]);
     if (error) throw error;
-    return (data || null) as QuestDetail | null;
+    if (privateLocationError) throw privateLocationError;
+    if (!data) return null;
+    return {
+      ...data,
+      exact_address: privateLocation?.exact_address ?? data.exact_address ?? null,
+      exact_lat: privateLocation?.exact_lat ?? data.exact_lat ?? null,
+      exact_lng: privateLocation?.exact_lng ?? data.exact_lng ?? null,
+    } as QuestDetail;
   }
 
 function normalizeMessageBody(body: string | null | undefined) {
@@ -2393,6 +2504,7 @@ function privateThreadIncludesUsers(
     setSelectedQuestLoading(true);
     setSelectedQuestMembers([]);
     setSelectedQuestPendingMembers([]);
+    setSelectedQuestCheckIns([]);
     setSelectedQuestExactAccessUserIds([]);
     setSelectedQuestManager(false);
     setSelectedQuestMembershipStatus(null);
@@ -2419,10 +2531,11 @@ function privateThreadIncludesUsers(
         setSelectedQuestJoined(membershipStatus === "approved");
         setSelectedQuestMembershipStatus(membershipStatus);
         setSelectedQuestManager(isManager);
-        const [{ data: memberRows }, { data: commentRows }, { data: accessRows }] = await Promise.all([
+        const [{ data: memberRows }, { data: commentRows }, { data: accessRows }, { data: checkInRows }] = await Promise.all([
           supabase.from("quest_members").select("user_id,role,status,profiles:profiles!quest_members_user_id_fkey(id,display_name,username,avatar_url)").eq("quest_id", questId),
           supabase.from("messages").select("id,sender_id,body,created_at,profiles:profiles!messages_sender_id_fkey(id,display_name,avatar_url)").eq("quest_id", questId).like("body", "[PUBLIC] %").order("created_at", { ascending: false }).limit(100),
           supabase.from("quest_exact_location_access").select("user_id").eq("quest_id", questId),
+          supabase.from("quest_checkins").select("user_id,checked_in_at,profiles:profiles!quest_checkins_user_id_fkey(id,display_name,username,avatar_url)").eq("quest_id", questId).order("checked_in_at", { ascending: true }),
         ]);
         const allMembers = ((memberRows || []) as Array<{ user_id: string; role?: string | null; status?: "pending" | "approved" | "declined" | null; profiles?: Array<{ id: string; display_name: string | null; username: string | null; avatar_url: string | null }> | { id: string; display_name: string | null; username: string | null; avatar_url: string | null } | null }>)
           .map((row) => {
@@ -2436,6 +2549,7 @@ function privateThreadIncludesUsers(
         const canViewMembers = isManager || membershipStatus === "approved";
         setSelectedQuestMembers(canViewMembers ? allMembers.filter((member) => member.status === "approved") : []);
         setSelectedQuestPendingMembers(isManager ? allMembers.filter((member) => member.status === "pending") : []);
+        setSelectedQuestCheckIns(canViewMembers ? (checkInRows || []) as QuestCheckInRow[] : []);
         setSelectedQuestExactAccessUserIds(((accessRows || []) as Array<{ user_id: string | null }>).map((row) => row.user_id).filter((value): value is string => Boolean(value)));
         setSelectedQuestComments((commentRows || []) as MessageRow[]);
       } else {
@@ -2443,6 +2557,7 @@ function privateThreadIncludesUsers(
         setSelectedQuestJoined(false);
         setSelectedQuestMembers([]);
         setSelectedQuestPendingMembers([]);
+        setSelectedQuestCheckIns([]);
         const { data: commentRows } = await supabase.from("messages").select("id,sender_id,body,created_at,profiles:profiles!messages_sender_id_fkey(id,display_name,avatar_url)").eq("quest_id", questId).like("body", "[PUBLIC] %").order("created_at", { ascending: false }).limit(100);
         setSelectedQuestComments((commentRows || []) as MessageRow[]);
       }
@@ -2450,6 +2565,74 @@ function privateThreadIncludesUsers(
       setStatus(error instanceof Error ? error.message : "Could not load quest.");
     } finally {
       setSelectedQuestLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    const questId = selectedQuest?.id;
+    const canSeePresence = Boolean(
+      questId && userId && (selectedQuestManager || selectedQuestMembershipStatus === "approved"),
+    );
+    if (!supabase || !questId || !canSeePresence) return undefined;
+
+    const refreshPresence = async () => {
+      const { data, error } = await supabase
+        .from("quest_checkins")
+        .select("user_id,checked_in_at,profiles:profiles!quest_checkins_user_id_fkey(id,display_name,username,avatar_url)")
+        .eq("quest_id", questId)
+        .order("checked_in_at", { ascending: true });
+      if (!error) setSelectedQuestCheckIns((data || []) as QuestCheckInRow[]);
+    };
+
+    const channel = supabase
+      .channel(`quest-checkins-${questId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "quest_checkins", filter: `quest_id=eq.${questId}` }, () => {
+        void refreshPresence();
+      })
+      .subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }, [selectedQuest?.id, selectedQuestManager, selectedQuestMembershipStatus, userId]);
+
+  async function checkInToSelectedQuest() {
+    if (!supabase || !userId || !selectedQuest || checkInAction) return;
+    setCheckInAction("check-in");
+    setStatus("Verifying that you're near the meetup...");
+    try {
+      const location = await requestDeviceLocation("Location access is required to verify that you're near the meetup.");
+      if (!location) return;
+      const { error } = await supabase.rpc("check_in_to_quest", {
+        p_quest_id: selectedQuest.id,
+        p_lat: location.lat,
+        p_lng: location.lon,
+        p_accuracy_m: location.accuracy ?? null,
+      });
+      if (error) throw error;
+      const { data } = await supabase
+        .from("quest_checkins")
+        .select("user_id,checked_in_at,profiles:profiles!quest_checkins_user_id_fkey(id,display_name,username,avatar_url)")
+        .eq("quest_id", selectedQuest.id)
+        .order("checked_in_at", { ascending: true });
+      setSelectedQuestCheckIns((data || []) as QuestCheckInRow[]);
+      setStatus("You're checked in. Your precise location was not shared.");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not check in. Try again.");
+    } finally {
+      setCheckInAction(null);
+    }
+  }
+
+  async function leaveSelectedQuestCheckIn() {
+    if (!supabase || !userId || !selectedQuest || checkInAction) return;
+    setCheckInAction("leave");
+    try {
+      const { error } = await supabase.rpc("leave_quest_check_in", { p_quest_id: selectedQuest.id });
+      if (error) throw error;
+      setSelectedQuestCheckIns((current) => current.filter((row) => row.user_id !== userId));
+      setStatus("Check-in removed.");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not remove your check-in.");
+    } finally {
+      setCheckInAction(null);
     }
   }
 
@@ -3046,7 +3229,8 @@ function privateThreadIncludesUsers(
       }
     };
     Alert.alert("Open directions", destination, [
-      { text: "Apple Maps", onPress: () => void openMapUrl(`http://maps.apple.com/?daddr=${encodedDestination}&dirflg=d`) },
+      ...(Platform.OS === "ios" ? [{ text: "Apple Maps", onPress: () => void openMapUrl(`http://maps.apple.com/?daddr=${encodedDestination}&dirflg=d`) }] : []),
+      ...(Platform.OS === "android" ? [{ text: "Maps", onPress: () => void openMapUrl(`geo:0,0?q=${encodedDestination}`) }] : []),
       { text: "Google Maps", onPress: () => void openMapUrl(`https://www.google.com/maps/dir/?api=1&destination=${encodedDestination}&travelmode=driving`) },
       { text: "Waze", onPress: () => void openMapUrl(`https://waze.com/ul?q=${encodedDestination}&navigate=yes`) },
       { text: "Cancel", style: "cancel" },
@@ -3153,6 +3337,7 @@ function privateThreadIncludesUsers(
   async function passwordAuth() {
     if (!supabase) return;
     const cleanEmail = email.trim();
+    if (!cleanEmail) return setStatus("Enter your email first.");
     if (authMode === "signup") {
       if (!fullName.trim()) return setStatus("Enter your full name.");
       if (!dob.trim()) return setStatus("Enter your date of birth.");
@@ -3285,6 +3470,7 @@ function privateThreadIncludesUsers(
         options: {
           redirectTo,
           skipBrowserRedirect: true,
+          ...(provider === "facebook" ? { scopes: "public_profile,email" } : {}),
         },
       });
       if (error) {
@@ -3301,6 +3487,7 @@ function privateThreadIncludesUsers(
         return;
       }
       if (result.type === "dismiss" || result.type === "cancel") {
+        setStatus("");
         await supabase.auth.getSession().then(({ data }) => {
           if (data.session?.user) {
             setUserId(data.session.user.id);
@@ -3561,6 +3748,11 @@ function privateThreadIncludesUsers(
     setDraftExactAddress(exactLocation);
     setSelectedLocationSuggestion(exactLocation || null);
     setSelectedPublicLocation(quest.city || null);
+    setSelectedLocationCoordinates(
+      quest.exact_lat !== null && quest.exact_lat !== undefined && quest.exact_lng !== null && quest.exact_lng !== undefined
+        ? { lat: quest.exact_lat, lon: quest.exact_lng }
+        : null,
+    );
     setDraftCountryQuery(isRemote ? "" : countryLabel);
     setSelectedCountrySuggestion(isRemote ? null : countryLabel);
     setSelectedCountryCode(null);
@@ -3734,6 +3926,8 @@ function privateThreadIncludesUsers(
           join_mode: draftJoinMode,
           exact_location_visibility: draftLocationVisibility,
           exact_address: draftExactAddress.trim() || null,
+          exact_lat: locationMode === "in_person" ? selectedLocationCoordinates?.lat ?? null : null,
+          exact_lng: locationMode === "in_person" ? selectedLocationCoordinates?.lon ?? null : null,
           media_items: mediaItems,
           media_source: mediaItems.length ? "upload" : null,
           media_video_url: null,
@@ -3778,6 +3972,7 @@ function privateThreadIncludesUsers(
     setSelectedCountryCode(null);
     setSelectedLocationSuggestion(null);
     setSelectedPublicLocation(null);
+    setSelectedLocationCoordinates(null);
     setLocationSearchLoading(false);
     setLocationSearchAttempted(false);
     setSkillLevel("any");
@@ -3988,7 +4183,7 @@ function privateThreadIncludesUsers(
     } catch (error) {
       const rawMessage = error instanceof Error ? error.message : "";
       const message = rawMessage.includes("VideoCompressionError") || rawMessage.includes("UnexpectedException")
-        ? "This iPhone video could not be trimmed. Try selecting it again or record a new clip."
+        ? `This ${Platform.OS === "android" ? "Android" : "iPhone"} video could not be trimmed. Try selecting it again or record a new clip.`
         : rawMessage || "Could not trim this video.";
       setStatus(message);
       Alert.alert("Could not trim video", message);
@@ -4000,12 +4195,14 @@ function privateThreadIncludesUsers(
   async function pickQuestMedia() {
     if (uploadingMedia || optimizingMedia) return;
     if (draftMediaItems.length >= 3) return setStatus("A quest can include up to 3 media items.");
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      const message = "Allow photo access in iPhone Settings, then try again.";
-      setStatus(message);
-      Alert.alert("Photo access needed", message);
-      return;
+    if (Platform.OS === "ios") {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        const message = "Allow photo access in iPhone Settings, then try again.";
+        setStatus(message);
+        Alert.alert("Photo access needed", message);
+        return;
+      }
     }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.All,
@@ -4021,7 +4218,7 @@ function privateThreadIncludesUsers(
     if (draftMediaItems.length >= 3) return setStatus("A quest can include up to 3 media items.");
     const permission = await ImagePicker.requestCameraPermissionsAsync();
     if (!permission.granted) {
-      const message = "Allow camera and microphone access in iPhone Settings, then try again.";
+      const message = `Allow camera and microphone access in ${Platform.OS === "android" ? "Android" : "iPhone"} Settings, then try again.`;
       setStatus(message);
       Alert.alert("Camera access needed", message, [
         { text: "Not now", style: "cancel" },
@@ -4242,16 +4439,23 @@ function privateThreadIncludesUsers(
 
   async function changeEmail() {
     if (!supabase) return;
-    const { error } = await supabase.auth.updateUser({ email: settingsNewEmail });
-    setStatus(error ? error.message : "Email change requested ✅ Check both inboxes to confirm.");
+    const cleanEmail = settingsNewEmail.trim().toLowerCase();
+    if (!cleanEmail) return setStatus("Enter an email address.");
+    const addingRecoveryEmail = !accountEmail;
+    const { error } = await supabase.auth.updateUser({ email: cleanEmail }, { emailRedirectTo: getRedirectUrl() });
+    setStatus(error
+      ? error.message
+      : addingRecoveryEmail
+        ? "Recovery email requested. Check your inbox to verify it."
+        : "Email change requested. Check your inboxes to confirm it.");
   }
 
   async function changePassword() {
-    if (!supabase || !email) return;
+    if (!supabase || !accountEmail) return;
     if (!settingsOldPassword) return setStatus("Enter your current password.");
     if (settingsNewPassword.length < 8) return setStatus("Password must be at least 8 characters.");
     if (settingsNewPassword !== settingsConfirmPassword) return setStatus("Passwords do not match.");
-    const { error: verifyError } = await supabase.auth.signInWithPassword({ email, password: settingsOldPassword });
+    const { error: verifyError } = await supabase.auth.signInWithPassword({ email: accountEmail, password: settingsOldPassword });
     if (verifyError) return setStatus("Current password is incorrect.");
     const { error } = await supabase.auth.updateUser({ password: settingsNewPassword });
     if (error) return setStatus(error.message);
@@ -4345,9 +4549,24 @@ function privateThreadIncludesUsers(
         },
         body: JSON.stringify({ confirmation: deleteAccountConfirmation }),
       });
-      const result = (await response.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+      const result = (await response.json().catch(() => ({}))) as {
+        ok?: boolean;
+        error?: string;
+        appleRevocationRequired?: boolean;
+        appleAccountUrl?: string;
+      };
       if (!response.ok || !result.ok) throw new Error(result.error || "Could not delete the account.");
       await signOut();
+      if (result.appleRevocationRequired) {
+        Alert.alert(
+          "Account deleted",
+          "QuestHat deleted your account. To also stop Sign in with Apple access, open account.apple.com, choose Sign-In & Security → Sign in with Apple, then remove QuestHat.",
+          [
+            { text: "Later", style: "cancel" },
+            { text: "Open Apple", onPress: () => void RNLinking.openURL(result.appleAccountUrl || "https://account.apple.com/") },
+          ],
+        );
+      }
       setStatus("Your account was permanently deleted.");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Could not delete the account.");
@@ -4703,10 +4922,12 @@ function privateThreadIncludesUsers(
 
   async function uploadProfilePhoto() {
     if (!supabase || !userId) return;
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      setStatus("Photo library permission is required.");
-      return;
+    if (Platform.OS === "ios") {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        setStatus("Photo library permission is required.");
+        return;
+      }
     }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -4787,6 +5008,7 @@ function privateThreadIncludesUsers(
 
   function promptAuth(mode: AuthMode = "login") {
     signedOutAuthPromptShownRef.current = true;
+    setStatus("");
     setAuthMode(mode);
     setAuthStep("email");
     setOtpCode("");
@@ -4822,7 +5044,7 @@ function privateThreadIncludesUsers(
   );
 
   useEffect(() => {
-    if (Platform.OS !== "ios") return;
+    if (Platform.OS === "web") return;
     void Notifications.setBadgeCountAsync(unreadNotificationCount).catch((error) => {
       console.warn("setBadgeCountAsync failed", error instanceof Error ? error.message : String(error));
     });
@@ -4907,7 +5129,7 @@ function privateThreadIncludesUsers(
     if (error) {
       console.warn("markNotificationsSeen failed", error.message);
     }
-    if (Platform.OS === "ios") {
+    if (Platform.OS !== "web") {
       void Notifications.setBadgeCountAsync(0).catch((badgeError) => {
         console.warn("clear badge failed", badgeError instanceof Error ? badgeError.message : String(badgeError));
       });
@@ -4985,20 +5207,62 @@ function privateThreadIncludesUsers(
     return `${year}-${month}-${day}`;
   }
 
+  function openStartDateTimePicker() {
+    if (Platform.OS !== "android") {
+      setShowStartAtPicker(true);
+      return;
+    }
+
+    const fallback = new Date(Date.now() + 60 * 60 * 1000);
+    const parsed = startAt ? new Date(startAt) : fallback;
+    const initial = Number.isFinite(parsed.getTime()) ? parsed : fallback;
+
+    DateTimePickerAndroid.open({
+      value: initial,
+      mode: "date",
+      minimumDate: new Date(),
+      onValueChange: (_event, selectedDate) => {
+        const selectedDay = new Date(selectedDate);
+        selectedDay.setHours(initial.getHours(), initial.getMinutes(), 0, 0);
+
+        // Let Android finish closing the date dialog before opening the time dialog.
+        setTimeout(() => {
+          DateTimePickerAndroid.open({
+            value: selectedDay,
+            mode: "time",
+            is24Hour: false,
+            onValueChange: (_timeEvent, selectedTime) => {
+              const combined = new Date(selectedDay);
+              combined.setHours(selectedTime.getHours(), selectedTime.getMinutes(), 0, 0);
+              if (combined.getTime() <= Date.now()) {
+                setStatus("Choose a future start time.");
+                return;
+              }
+              setStartAt(combined.toISOString());
+              setStatus("");
+            },
+          });
+        }, 150);
+      },
+    });
+  }
+
   function renderAuthCard() {
     const authBusy = Boolean(authActionLoading);
+    const authNotice = !authBusy ? status.trim() : "";
+    const authNoticeIsSuccess = /check your email|confirm your account|verified|welcome/i.test(authNotice);
     return (
       <View style={styles.authCard}>
         <View style={styles.authSegment}>
           <Pressable
             style={[styles.authSegmentButton, authMode === "login" && styles.authSegmentButtonActive]}
-            onPress={() => { setAuthMode("login"); setAuthStep("email"); }}
+            onPress={() => { setStatus(""); setAuthMode("login"); setAuthStep("email"); }}
           >
             <Text style={[styles.authSegmentText, authMode === "login" && styles.authSegmentTextActive]}>Log in</Text>
           </Pressable>
           <Pressable
             style={[styles.authSegmentButton, authMode === "signup" && styles.authSegmentButtonActive]}
-            onPress={() => { setAuthMode("signup"); setAuthStep("email"); }}
+            onPress={() => { setStatus(""); setAuthMode("signup"); setAuthStep("email"); }}
           >
             <Text style={[styles.authSegmentText, authMode === "signup" && styles.authSegmentTextActive]}>Sign up</Text>
           </Pressable>
@@ -5012,6 +5276,7 @@ function privateThreadIncludesUsers(
             keyboardType="email-address"
             onChangeText={(value) => {
               setEmail(value);
+              if (status) setStatus("");
               if (authStep === "code") setAuthStep("email");
             }}
             placeholder="Email address"
@@ -5021,6 +5286,12 @@ function privateThreadIncludesUsers(
             value={email}
           />
         </View>
+        {authNotice ? (
+          <View style={[styles.authInlineNotice, authNoticeIsSuccess ? styles.authInlineNoticeSuccess : styles.authInlineNoticeError]}>
+            <Ionicons name={authNoticeIsSuccess ? "checkmark-circle-outline" : "alert-circle-outline"} size={17} color={authNoticeIsSuccess ? "#86d9b0" : "#f4a7a7"} />
+            <Text style={[styles.authInlineNoticeText, authNoticeIsSuccess ? styles.authInlineNoticeTextSuccess : styles.authInlineNoticeTextError]}>{authNotice}</Text>
+          </View>
+        ) : null}
         {authBusy ? (
           <View style={styles.authLoadingRow}>
             <ActivityIndicator size="small" color="#6daec2" />
@@ -5230,32 +5501,59 @@ function privateThreadIncludesUsers(
               <Text style={styles.authDividerText}>OR CONTINUE WITH</Text>
               <View style={styles.authDividerLine} />
             </View>
-            <View style={styles.authOauthGrid}>
-              <Pressable style={styles.authOauthButton} onPress={() => void socialLogin("apple")} disabled={authBusy}>
+            <View style={styles.authOauthStack}>
+              {Platform.OS !== "android" ? <Pressable accessibilityRole="button" accessibilityLabel="Continue with Apple" style={({ pressed }) => [styles.authOauthButton, styles.authOauthButtonApple, pressed && styles.authOauthButtonPressed]} onPress={() => void socialLogin("apple")} disabled={authBusy}>
                 <View style={[styles.authOauthLogo, styles.authOauthLogoApple]}>
                   <Ionicons name="logo-apple" size={20} color="#111111" />
                 </View>
-                <Text style={styles.authOauthText}>Apple</Text>
-              </Pressable>
-              <Pressable style={styles.authOauthButton} onPress={() => void socialLogin("google")} disabled={authBusy}>
+                <Text style={[styles.authOauthText, styles.authOauthTextApple]}>Continue with Apple</Text>
+                <Ionicons name="chevron-forward" size={17} color="#7b8492" />
+              </Pressable> : null}
+              <Pressable accessibilityRole="button" accessibilityLabel="Continue with Google" style={({ pressed }) => [styles.authOauthButton, pressed && styles.authOauthButtonPressed]} onPress={() => void socialLogin("google")} disabled={authBusy}>
                 <View style={[styles.authOauthLogo, styles.authOauthLogoGoogle]}>
                   <Ionicons name="logo-google" size={19} color="#4285f4" />
                 </View>
-                <Text style={styles.authOauthText}>Google</Text>
+                <Text style={styles.authOauthText}>Continue with Google</Text>
+                <Ionicons name="chevron-forward" size={17} color="#647184" />
               </Pressable>
-              <Pressable style={styles.authOauthButton} onPress={() => void socialLogin("facebook")} disabled={authBusy}>
+              <Pressable accessibilityRole="button" accessibilityLabel="Continue with Facebook" style={({ pressed }) => [styles.authOauthButton, pressed && styles.authOauthButtonPressed]} onPress={() => void socialLogin("facebook")} disabled={authBusy}>
                 <View style={[styles.authOauthLogo, styles.authOauthLogoFacebook]}>
                   <Ionicons name="logo-facebook" size={19} color="#ffffff" />
                 </View>
-                <Text style={styles.authOauthText}>Facebook</Text>
+                <Text style={styles.authOauthText}>Continue with Facebook</Text>
+                <Ionicons name="chevron-forward" size={17} color="#647184" />
               </Pressable>
-              <Pressable style={styles.authOauthButton} onPress={() => void socialLogin("x")} disabled={authBusy}>
+              <Pressable accessibilityRole="button" accessibilityLabel="Continue with X" style={({ pressed }) => [styles.authOauthButton, styles.authOauthButtonX, pressed && styles.authOauthButtonPressed]} onPress={() => void socialLogin("x")} disabled={authBusy}>
                 <View style={[styles.authOauthLogo, styles.authOauthLogoX]}>
                   <Text style={styles.authOauthLogoXText}>X</Text>
                 </View>
-                <Text style={styles.authOauthText}>X</Text>
+                <Text style={styles.authOauthText}>Continue with X</Text>
+                <Ionicons name="chevron-forward" size={17} color="#647184" />
               </Pressable>
             </View>
+            {Platform.OS === "android" ? (
+              <>
+                <Pressable
+                  style={styles.authMoreOptionsButton}
+                  onPress={() => setShowMoreAuthOptions((current) => !current)}
+                  disabled={authBusy}
+                  accessibilityRole="button"
+                  accessibilityState={{ expanded: showMoreAuthOptions }}
+                >
+                  <Text style={styles.authMoreOptionsText}>{showMoreAuthOptions ? "Fewer login options" : "More login options"}</Text>
+                  <Ionicons name={showMoreAuthOptions ? "chevron-up" : "chevron-down"} size={15} color="#9bc8d2" />
+                </Pressable>
+                {showMoreAuthOptions ? (
+                  <Pressable accessibilityRole="button" accessibilityLabel="Continue with Apple" style={({ pressed }) => [styles.authOauthButton, styles.authOauthButtonApple, pressed && styles.authOauthButtonPressed]} onPress={() => void socialLogin("apple")} disabled={authBusy}>
+                    <View style={[styles.authOauthLogo, styles.authOauthLogoApple]}>
+                      <Ionicons name="logo-apple" size={20} color="#111111" />
+                    </View>
+                    <Text style={[styles.authOauthText, styles.authOauthTextApple]}>Continue with Apple</Text>
+                    <Ionicons name="chevron-forward" size={17} color="#7b8492" />
+                  </Pressable>
+                ) : null}
+              </>
+            ) : null}
           </>
         ) : null}
         <View style={styles.authSafetyNote}>
@@ -5269,9 +5567,9 @@ function privateThreadIncludesUsers(
   function renderAuthModal() {
     if (!showAuthModal || signedIn) return null;
     return (
-      <Modal visible transparent animationType="fade" onRequestClose={() => setShowAuthModal(false)}>
+      <Modal visible transparent animationType="fade" onRequestClose={() => { setStatus(""); setShowAuthModal(false); }}>
         <KeyboardAvoidingView style={styles.modalBackdrop} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-          <Pressable style={styles.modalBackdropPressable} onPress={() => setShowAuthModal(false)} />
+          <Pressable style={styles.modalBackdropPressable} onPress={() => { setStatus(""); setShowAuthModal(false); }} />
           <View style={[styles.modalSheet, styles.authModalSheet]}>
             <LinearGradient colors={["#172632", "#10121b", "#10111a"]} locations={[0, 0.34, 1]} style={styles.authModalGradient}>
             <View style={styles.authModalHeader}>
@@ -5283,7 +5581,7 @@ function privateThreadIncludesUsers(
                 <Text style={styles.authModalTitle}>{authMode === "login" ? "Plans are waiting." : "Make plans happen."}</Text>
                 <Text style={styles.authModalSubtitle}>{authMode === "login" ? "Log in to message, join, and create quests." : "Create an account and find people ready to show up."}</Text>
               </View>
-              <Pressable style={styles.authCloseButton} onPress={() => setShowAuthModal(false)}>
+              <Pressable style={styles.authCloseButton} onPress={() => { setStatus(""); setShowAuthModal(false); }}>
                 <Ionicons name="close" size={21} color="#aab5c6" />
               </Pressable>
             </View>
@@ -5365,8 +5663,12 @@ function privateThreadIncludesUsers(
                 <Ionicons name={promptContent.icon} size={28} color={shellPrimary} />
               </View>
               <Text style={[styles.pushPromptCopy, { color: shellMuted }]}>
-                {permissionWasDenied ? `${promptContent.copy} Notifications are currently blocked in iPhone Settings.` : promptContent.copy}
+                {permissionWasDenied ? `${promptContent.copy} Notifications are currently blocked in ${Platform.OS === "android" ? "Android" : "iPhone"} Settings.` : promptContent.copy}
               </Text>
+              <View style={[styles.pushPrivacyRow, { borderColor: shellBorder }]}>
+                <Ionicons name="shield-checkmark-outline" size={16} color={shellPrimary} />
+                <Text style={[styles.pushPrivacyText, { color: shellMuted }]}>Turning on notifications does not share your precise location.</Text>
+              </View>
             </View>
             <View style={styles.pushPromptActions}>
               <Pressable
@@ -5762,9 +6064,9 @@ function privateThreadIncludesUsers(
     if (isOwner && isExpired && minimizedExpiredQuestIds.includes(quest.id)) {
       return (
         <View key={quest.id} style={[styles.expiredCompactCard, { backgroundColor: isLightTheme ? "#e5e7eb" : "#171922", borderColor: shellBorder }]}>
-          <View style={styles.expiredCompactIcon}><Ionicons name="time-outline" size={20} color="#9aa4b1" /></View>
+          <View style={styles.expiredCompactIcon}><Ionicons name="checkmark-done" size={20} color="#9aa4b1" /></View>
           <Pressable style={styles.expiredCompactCopy} onPress={() => void openQuestDetail(quest.id)}>
-            <Text style={[styles.expiredCompactEyebrow, { color: isLightTheme ? "#64748b" : "#9aa4b1" }]}>EXPIRED</Text>
+            <Text style={[styles.expiredCompactEyebrow, { color: isLightTheme ? "#64748b" : "#9aa4b1" }]}>COMPLETED</Text>
             <Text style={[styles.expiredCompactTitle, { color: shellText }]} numberOfLines={1}>{quest.title}</Text>
             <Text style={[styles.expiredCompactDate, { color: shellMuted }]} numberOfLines={1}>{formatQuestTiming(quest.starts_at, quest.availability)}</Text>
           </Pressable>
@@ -5772,7 +6074,7 @@ function privateThreadIncludesUsers(
             <Ionicons name="refresh" size={15} color="#082f3a" />
             <Text style={styles.expiredCompactActionText}>Make again</Text>
           </Pressable>
-          <Pressable hitSlop={8} style={styles.expiredCompactExpand} onPress={() => setMinimizedExpiredQuestIds((current) => current.filter((id) => id !== quest.id))} accessibilityLabel="Expand expired quest">
+          <Pressable hitSlop={8} style={styles.expiredCompactExpand} onPress={() => setMinimizedExpiredQuestIds((current) => current.filter((id) => id !== quest.id))} accessibilityLabel="Expand completed quest">
             <Ionicons name="chevron-down" size={18} color="#9aa4b1" />
           </Pressable>
         </View>
@@ -5804,6 +6106,12 @@ function privateThreadIncludesUsers(
             pointerEvents="none"
           />
           {isExpired ? <View pointerEvents="none" style={styles.feedExpiredWash} /> : null}
+          {isExpired ? (
+            <View pointerEvents="none" style={styles.feedCompletedStamp}>
+              <Ionicons name="checkmark-done" size={19} color="rgba(244,248,250,0.9)" />
+              <Text style={styles.feedCompletedStampText}>COMPLETED</Text>
+            </View>
+          ) : null}
           <View style={styles.feedTopOverlay} pointerEvents="box-none">
             <Pressable style={styles.feedCreatorPill} onPress={() => void openProfile(creator?.id)}>
               {creator?.avatar_url ? (
@@ -5838,11 +6146,8 @@ function privateThreadIncludesUsers(
           </View>
           <View style={styles.feedBottomOverlay} pointerEvents="box-none">
             {isExpired ? (
-              <View style={styles.feedExpiredBanner}>
-                <View style={styles.feedExpiredBannerCopy}>
-                  <Text style={styles.feedExpiredEyebrow}>EXPIRED</Text>
-                  <Text style={styles.feedExpiredMessage}>Only you can see this. Choose a new date to run it again.</Text>
-                </View>
+              <View style={styles.feedCompletedControls}>
+                <Text style={styles.feedCompletedNote}>Visible only to you for 7 days</Text>
                 <Pressable style={styles.feedExpiredMinimize} onPress={() => setMinimizedExpiredQuestIds((current) => current.includes(quest.id) ? current : [...current, quest.id])}>
                   <Ionicons name="remove" size={16} color="#d8dee8" />
                   <Text style={styles.feedExpiredMinimizeText}>Minimize</Text>
@@ -5953,27 +6258,13 @@ function privateThreadIncludesUsers(
       return aMiles - bMiles;
     });
     const selectedPoint = sortedPoints.find((point) => point.quest.id === selectedMapQuestId) || sortedPoints[0] || null;
-    const mapPoints = [
-      ...points.map((point) => point.coords),
-      ...(deviceLocation ? [deviceLocation] : []),
-    ];
+    const mapPoints = [...points.map((point) => point.coords), ...(deviceLocation ? [deviceLocation] : [])];
     const center = deviceLocation || (mapPoints.length
       ? {
           lat: mapPoints.reduce((sum, point) => sum + point.lat, 0) / mapPoints.length,
           lon: mapPoints.reduce((sum, point) => sum + point.lon, 0) / mapPoints.length,
         }
       : null);
-    const localMapDelta = Math.max(0.12, Math.min(2.5, (settingsRadiusKm / 111) * 2.5));
-    const latDelta = deviceLocation
-      ? localMapDelta
-      : mapPoints.length
-        ? Math.max(0.08, (Math.max(...mapPoints.map((point) => point.lat)) - Math.min(...mapPoints.map((point) => point.lat))) * 1.8 || 0.12)
-        : 0.12;
-    const lonDelta = deviceLocation
-      ? localMapDelta
-      : mapPoints.length
-        ? Math.max(0.08, (Math.max(...mapPoints.map((point) => point.lon)) - Math.min(...mapPoints.map((point) => point.lon))) * 1.8 || 0.12)
-        : 0.12;
 
     if (!center || !points.length) {
       return (
@@ -5999,31 +6290,36 @@ function privateThreadIncludesUsers(
 
     function focusMapPoint(point: QuestMapPoint) {
       setSelectedMapQuestId(point.quest.id);
-      homeMapRef.current?.animateToRegion({
-        latitude: point.coords.lat,
-        longitude: point.coords.lon,
-        latitudeDelta: 0.045,
-        longitudeDelta: 0.045,
-      }, 320);
+      homeCameraRef.current?.flyTo({
+        center: [point.coords.lon, point.coords.lat],
+        zoom: 15,
+        duration: 320,
+      });
     }
 
     function fitAllMapPoints() {
-      const coordinates = [
-        ...points.map((point) => ({ latitude: point.coords.lat, longitude: point.coords.lon })),
-        ...(deviceLocation ? [{ latitude: deviceLocation.lat, longitude: deviceLocation.lon }] : []),
-      ];
+      const coordinates = [...points.map((point) => point.coords), ...(deviceLocation ? [deviceLocation] : [])];
       if (coordinates.length === 1) {
-        homeMapRef.current?.animateToRegion({
-          ...coordinates[0],
-          latitudeDelta: 0.06,
-          longitudeDelta: 0.06,
-        }, 320);
+        homeCameraRef.current?.flyTo({
+          center: [coordinates[0].lon, coordinates[0].lat],
+          zoom: 14,
+          duration: 320,
+        });
         return;
       }
-      homeMapRef.current?.fitToCoordinates(coordinates, {
-        animated: true,
-        edgePadding: { top: 80, right: 54, bottom: 220, left: 54 },
-      });
+      const west = Math.min(...coordinates.map((point) => point.lon));
+      const east = Math.max(...coordinates.map((point) => point.lon));
+      const south = Math.min(...coordinates.map((point) => point.lat));
+      const north = Math.max(...coordinates.map((point) => point.lat));
+      const lonPadding = Math.max(0.015, (east - west) * 0.15 || 0.015);
+      const latPadding = Math.max(0.015, (north - south) * 0.15 || 0.015);
+      homeCameraRef.current?.fitBounds(
+        [west - lonPadding, south - latPadding, east + lonPadding, north + latPadding],
+        {
+          padding: { top: 80, right: 54, bottom: 220, left: 54 },
+          duration: 320,
+        },
+      );
     }
 
     const selectedQuest = selectedPoint?.quest || null;
@@ -6051,45 +6347,47 @@ function privateThreadIncludesUsers(
     return (
       <View style={styles.mapStack}>
         <View style={[styles.mapStage, { borderColor: isLightTheme ? "rgba(15,23,42,0.11)" : "rgba(255,255,255,0.08)" }]}>
-          <MapView
+          <MapLibreMap
             key={points.map((point) => point.quest.id).sort().join("|")}
-            ref={homeMapRef}
             style={styles.nativeMap}
-            initialRegion={{
-              latitude: center.lat,
-              longitude: center.lon,
-              latitudeDelta: latDelta,
-              longitudeDelta: lonDelta,
-            }}
-            userInterfaceStyle={isLightTheme ? "light" : "dark"}
-            showsUserLocation={Boolean(deviceLocation)}
-            showsMyLocationButton={false}
-            showsCompass={false}
-            mapPadding={{ top: 58, right: 12, bottom: 190, left: 12 }}
+            mapStyle={OPEN_STREET_MAP_STYLE}
           >
+            <Camera
+              ref={homeCameraRef}
+              initialViewState={{
+                center: [center.lon, center.lat],
+                zoom: deviceLocation ? 11 : 10,
+              }}
+            />
+            {deviceLocation ? (
+              <Marker id="device-location" lngLat={[deviceLocation.lon, deviceLocation.lat]} anchor="center">
+                <View style={styles.mapLocationMarker}>
+                  <View style={styles.mapLocationMarkerInner} />
+                </View>
+              </Marker>
+            ) : null}
             {points.map((point) => {
               const { quest, coords } = point;
               const isSelected = selectedPoint?.quest.id === quest.id;
               const category = getCategory(quest);
               return (
-              <Marker
-                key={quest.id}
-                coordinate={{ latitude: coords.lat, longitude: coords.lon }}
-                anchor={{ x: 0.5, y: 1 }}
-                zIndex={isSelected ? 2 : 1}
-                onPress={() => focusMapPoint(point)}
-                tracksViewChanges={isSelected}
-              >
-                <View style={styles.mapMarkerShell}>
-                  <View style={[styles.mapMarker, isSelected && styles.mapMarkerSelected]}>
-                    <Ionicons name={getCategoryIcon(category)} size={isSelected ? 18 : 16} color={isSelected ? "#082f3a" : "#ffffff"} />
+                <Marker
+                  key={quest.id}
+                  id={quest.id}
+                  lngLat={[coords.lon, coords.lat]}
+                  anchor="bottom"
+                  onPress={() => focusMapPoint(point)}
+                >
+                  <View style={styles.mapMarkerShell}>
+                    <View style={[styles.mapMarker, isSelected && styles.mapMarkerSelected]}>
+                      <Ionicons name={getCategoryIcon(category)} size={isSelected ? 18 : 16} color={isSelected ? "#082f3a" : "#ffffff"} />
+                    </View>
+                    <View style={[styles.mapMarkerTip, isSelected && styles.mapMarkerTipSelected]} />
                   </View>
-                  <View style={[styles.mapMarkerTip, isSelected && styles.mapMarkerTipSelected]} />
-                </View>
-              </Marker>
+                </Marker>
               );
             })}
-          </MapView>
+          </MapLibreMap>
           <View style={styles.mapTopOverlay} pointerEvents="box-none">
             <View style={styles.mapActivityPill}>
               <View style={styles.mapActivityDot} />
@@ -6103,21 +6401,19 @@ function privateThreadIncludesUsers(
                 style={[styles.mapControlButton, deviceLocation && styles.mapControlButtonActive]}
                 onPress={() => {
                   if (deviceLocation) {
-                    homeMapRef.current?.animateToRegion({
-                      latitude: deviceLocation.lat,
-                      longitude: deviceLocation.lon,
-                      latitudeDelta: 0.05,
-                      longitudeDelta: 0.05,
-                    }, 320);
+                    homeCameraRef.current?.flyTo({
+                      center: [deviceLocation.lon, deviceLocation.lat],
+                      zoom: 15,
+                      duration: 320,
+                    });
                   } else {
                     void requestDeviceLocation("Turn on location to calculate exact distance from nearby quests.").then((location) => {
                       if (!location) return;
-                      homeMapRef.current?.animateToRegion({
-                        latitude: location.lat,
-                        longitude: location.lon,
-                        latitudeDelta: 0.05,
-                        longitudeDelta: 0.05,
-                      }, 320);
+                      homeCameraRef.current?.flyTo({
+                        center: [location.lon, location.lat],
+                        zoom: 15,
+                        duration: 320,
+                      });
                     });
                   }
                 }}
@@ -6137,6 +6433,9 @@ function privateThreadIncludesUsers(
               <Ionicons name="chevron-forward" size={13} color="#9bd8e4" />
             </Pressable>
           ) : null}
+          <View style={styles.mapAttributionWrap} pointerEvents="none">
+            <Text style={[styles.mapAttributionText, { color: isLightTheme ? "#334155" : "#d7dee8" }]}>Map data © OpenStreetMap contributors</Text>
+          </View>
           {selectedQuest && selectedPoint ? (
             <View style={styles.mapPreviewCard}>
               <Pressable style={styles.mapPreviewMain} onPress={() => void openQuestDetail(selectedQuest.id)}>
@@ -6208,11 +6507,11 @@ function privateThreadIncludesUsers(
               <Pressable
                 key={quest.id}
                 style={[
-                  styles.mapQuestTile,
-                  {
-                    backgroundColor: isLightTheme ? "#ffffff" : "#151722",
-                    borderColor: active ? "#6daec2" : isLightTheme ? "rgba(15,23,42,0.09)" : "rgba(255,255,255,0.07)",
-                  },
+              styles.mapQuestTile,
+              {
+                backgroundColor: isLightTheme ? "#ffffff" : "#151722",
+                borderColor: active ? "#6daec2" : isLightTheme ? "rgba(15,23,42,0.09)" : "rgba(255,255,255,0.07)",
+              },
                   active && styles.mapQuestTileActive,
                 ]}
                 onPress={() => focusMapPoint(point)}
@@ -6237,14 +6536,11 @@ function privateThreadIncludesUsers(
   function renderScreen() {
     if (authState === "loading") {
       return (
-        <View style={[styles.centerPanel, styles.loadingShell, { backgroundColor: shellBackground }]}>
-          <View style={[styles.loadingCard, { backgroundColor: shellSurface, borderColor: shellBorder }]}>
-            <View style={[styles.loadingIconWrap, { backgroundColor: shellPrimary }]}>
-              <Ionicons name="location-outline" size={26} color="#fff" />
-            </View>
-            <Text style={[styles.loadingTitle, { color: shellText }]}>{APP_NAME}</Text>
-            <Text style={[styles.loadingSubtitle, { color: shellMuted }]}>Loading your feed and account…</Text>
-            <ActivityIndicator size="small" color={shellPrimary} />
+        <View style={styles.launchScreen}>
+          <Image source={require("../assets/launch-logo.png")} style={styles.launchLogo} resizeMode="contain" />
+          <View style={styles.launchBrandFooter}>
+            <Text style={styles.launchBrandTitle}>QUESTHAT</Text>
+            <Text style={styles.launchBrandSubtitle}>Real plans. Real people.</Text>
           </View>
         </View>
       );
@@ -6455,7 +6751,7 @@ function privateThreadIncludesUsers(
             <View style={styles.createQuickDivider} />
             <View style={styles.createQuickSection}>
               {renderCreateSectionHeader("02", "When?", "Every quest needs a date and start time.", "calendar-outline", scheduleReady, true)}
-              <Pressable style={styles.createSelectField} onPress={() => setShowStartAtPicker(true)}>
+              <Pressable style={styles.createSelectField} onPress={openStartDateTimePicker}>
                 <View style={styles.createFieldLeading}><Ionicons name="calendar-clear-outline" size={17} color="#0f5f73" /></View>
                 <Text style={[styles.createSelectValue, !startAt && styles.dropdownPlaceholder]} numberOfLines={1}>
                   {startAt ? formatQuestDateTime(startAt) : "Choose date and time"}
@@ -6504,6 +6800,7 @@ function privateThreadIncludesUsers(
                         setDraftExactAddress("");
                         setSelectedLocationSuggestion(null);
                         setSelectedPublicLocation(null);
+                        setSelectedLocationCoordinates(null);
                         setLocationSuggestions([]);
                         setLocationSearchAttempted(false);
                       }}
@@ -6526,6 +6823,7 @@ function privateThreadIncludesUsers(
                             setDraftExactAddress("");
                             setSelectedLocationSuggestion(null);
                             setSelectedPublicLocation(null);
+                            setSelectedLocationCoordinates(null);
                             setLocationSearchAttempted(false);
                           }}
                         >
@@ -6551,6 +6849,7 @@ function privateThreadIncludesUsers(
                       setLocationSuggestions([]);
                       setSelectedLocationSuggestion(null);
                       setSelectedPublicLocation(null);
+                      setSelectedLocationCoordinates(null);
                       setLocationSearchAttempted(false);
                     }}
                     autoCapitalize="none"
@@ -6581,7 +6880,13 @@ function privateThreadIncludesUsers(
                   ) : null}
                 </View>
                 {locationMode === "in_person" && locationSuggestions.length > 0 ? (
-                  <View style={styles.locationSuggestionsMenu}>
+                  <ScrollView
+                    style={styles.locationSuggestionsScroll}
+                    contentContainerStyle={styles.locationSuggestionsScrollContent}
+                    nestedScrollEnabled
+                    keyboardShouldPersistTaps="handled"
+                    showsVerticalScrollIndicator
+                  >
                     {locationSuggestions.map((suggestion) => (
                       <Pressable
                         key={suggestion.label}
@@ -6590,6 +6895,11 @@ function privateThreadIncludesUsers(
                           setDraftExactAddress(suggestion.label);
                           setSelectedLocationSuggestion(suggestion.label);
                           setSelectedPublicLocation(suggestion.publicLabel || deriveCityFromLocation(suggestion.label));
+                          setSelectedLocationCoordinates(
+                            suggestion.lat !== null && suggestion.lon !== null
+                              ? { lat: suggestion.lat, lon: suggestion.lon }
+                              : null,
+                          );
                           setLocationSearchLoading(false);
                           setLocationSuggestions([]);
                         }}
@@ -6598,7 +6908,7 @@ function privateThreadIncludesUsers(
                         <Text style={styles.locationSuggestionText} numberOfLines={3}>{suggestion.label}</Text>
                       </Pressable>
                     ))}
-                  </View>
+                  </ScrollView>
                 ) : null}
                 <Text style={styles.createHelperText}>
                   {locationMode === "remote"
@@ -6851,7 +7161,7 @@ function privateThreadIncludesUsers(
             </View>
           </Modal>
 
-          <Modal visible={showStartAtPicker} transparent animationType="fade" onRequestClose={() => setShowStartAtPicker(false)}>
+          {Platform.OS === "ios" ? <Modal visible={showStartAtPicker} transparent animationType="fade" onRequestClose={() => setShowStartAtPicker(false)}>
             <View style={styles.pickerModalOverlay}>
               <Pressable style={styles.modalBackdropPressable} onPress={() => setShowStartAtPicker(false)} />
               <View style={[styles.pickerModalCard, styles.createPickerModalCard]}>
@@ -6864,21 +7174,20 @@ function privateThreadIncludesUsers(
                     value={startAt ? new Date(startAt) : new Date(Date.now() + 60 * 60 * 1000)}
                     minimumDate={new Date()}
                     mode="datetime"
-                    display={Platform.OS === "ios" ? "spinner" : "default"}
+                    display="spinner"
                     themeVariant="dark"
                     textColor="#f8fafc"
                     accentColor="#9bd8e4"
                     style={styles.createDatePicker}
                     onChange={(_, selectedDate) => {
                       if (selectedDate) setStartAt(selectedDate.toISOString());
-                      if (Platform.OS !== "ios") setShowStartAtPicker(false);
                     }}
                   />
                 </View>
                 <Pressable style={styles.primaryButton} onPress={() => setShowStartAtPicker(false)}><Text style={styles.primaryButtonText}>Done</Text></Pressable>
               </View>
             </View>
-          </Modal>
+          </Modal> : null}
           <Modal visible={showCategoryPicker} transparent animationType="fade" onRequestClose={() => setShowCategoryPicker(false)}>
             <View style={styles.pickerModalOverlay}>
               <Pressable style={styles.modalBackdropPressable} onPress={() => setShowCategoryPicker(false)} />
@@ -6936,43 +7245,69 @@ function privateThreadIncludesUsers(
     if (activeTab === "saved") return <><ScreenHeader title="Saved" subtitle="Quests you bookmarked." />{renderQuestList(savedQuests, "No saved quests yet.")}</>;
     if (activeTab === "joined") {
       const normalizedJoinedSearch = joinedSearchQuery.trim().toLowerCase();
-      const filteredJoinedQuests = joinedQuests.filter((quest) => !normalizedJoinedSearch || [quest.title, quest.city, getCategory(quest)]
+      const collectionNow = countdownNow;
+      const activeQuests = joinedQuests.filter((quest) => !quest.starts_at || new Date(quest.starts_at).getTime() > collectionNow);
+      const completedQuests = joinedQuests.filter((quest) => Boolean(quest.starts_at && new Date(quest.starts_at).getTime() <= collectionNow));
+      const selectedCollection = questCollectionView === "completed" ? completedQuests : activeQuests;
+      const filteredJoinedQuests = selectedCollection.filter((quest) => !normalizedJoinedSearch || [quest.title, quest.city, getCategory(quest)]
         .some((value) => (value || "").toLowerCase().includes(normalizedJoinedSearch)));
+      const selectedCollectionCount = selectedCollection.length;
       return (
         <>
           <ScreenHeader title="Your quests" subtitle="Everything you’re hosting or joining." titleColor={shellText} subtitleColor={shellMuted} />
           <View style={styles.collectionScreenShell}>
             <View style={[styles.collectionSummaryCard, { backgroundColor: isLightTheme ? "#dff3f6" : "#142a34", borderColor: shellBorder }]}>
-              <View style={styles.collectionSummaryIcon}><Ionicons name="people" size={21} color="#082f3a" /></View>
+              <View style={styles.collectionSummaryIcon}><Ionicons name={questCollectionView === "completed" ? "checkmark-done" : "people"} size={21} color="#082f3a" /></View>
               <View style={styles.collectionSummaryCopy}>
-                <Text style={[styles.collectionSummaryValue, { color: shellText }]}>{joinedQuests.length}</Text>
-                <Text style={[styles.collectionSummaryLabel, { color: shellMuted }]}>active {joinedQuests.length === 1 ? "quest" : "quests"}</Text>
+                <Text style={[styles.collectionSummaryValue, { color: shellText }]}>{selectedCollectionCount}</Text>
+                <Text style={[styles.collectionSummaryLabel, { color: shellMuted }]}>{questCollectionView} {selectedCollectionCount === 1 ? "quest" : "quests"}</Text>
               </View>
               <Pressable style={styles.collectionCreateButton} onPress={() => setActiveTab("create")}>
                 <Ionicons name="add" size={17} color="#082f3a" />
                 <Text style={styles.collectionCreateButtonText}>New quest</Text>
               </Pressable>
             </View>
+            <View style={[styles.collectionModeSwitch, { backgroundColor: isLightTheme ? "#e7edf2" : "#171923", borderColor: shellBorder }]}>
+              {(["active", "completed"] as const).map((mode) => {
+                const selected = questCollectionView === mode;
+                const count = mode === "active" ? activeQuests.length : completedQuests.length;
+                return (
+                  <Pressable key={mode} style={[styles.collectionModeButton, selected && styles.collectionModeButtonActive]} onPress={() => setQuestCollectionView(mode)}>
+                    <Ionicons name={mode === "active" ? "calendar-outline" : "checkmark-done-outline"} size={15} color={selected ? "#082f3a" : shellMuted} />
+                    <Text style={[styles.collectionModeButtonText, { color: selected ? "#082f3a" : shellMuted }]}>{mode === "active" ? "Active" : "Completed"}</Text>
+                    <View style={[styles.collectionModeCount, { backgroundColor: selected ? "rgba(8,47,58,0.1)" : "rgba(148,163,184,0.12)" }]}><Text style={[styles.collectionModeCountText, { color: selected ? "#082f3a" : shellMuted }]}>{count}</Text></View>
+                  </Pressable>
+                );
+              })}
+            </View>
             <View style={[styles.collectionSearch, { backgroundColor: isLightTheme ? "#ffffff" : "#171923", borderColor: shellBorder }]}>
               <Ionicons name="search" size={18} color={shellMuted} />
               <TextInput value={joinedSearchQuery} onChangeText={setJoinedSearchQuery} placeholder="Search your quests" placeholderTextColor={shellMuted} style={[styles.collectionSearchInput, { color: shellText }]} clearButtonMode="while-editing" />
             </View>
-            {!filteredJoinedQuests.length ? <EmptyState label={joinedSearchQuery ? "No joined quests match that search." : "No joined quests yet."} /> : (
+            {!filteredJoinedQuests.length ? <EmptyState label={joinedSearchQuery ? `No ${questCollectionView} quests match that search.` : questCollectionView === "completed" ? "Completed quests will appear here." : "No active quests yet."} /> : (
               <View style={styles.joinedQuestGrid}>
                 {filteredJoinedQuests.map((quest) => {
                   const media = (quest.media_items || []).find((item) => item?.type === "image" && item.url);
                   const fallback = `https://questhat.com${getCategoryFallbackMedia(getCategory(quest)).imagePath}`;
                   const isHost = quest.creator_id === userId;
+                  const isCompleted = Boolean(quest.starts_at && new Date(quest.starts_at).getTime() <= collectionNow);
                   return (
-                    <Pressable key={quest.id} style={[styles.joinedQuestCard, { backgroundColor: isLightTheme ? "#ffffff" : "#151722", borderColor: shellBorder }]} onPress={() => void openQuestDetail(quest.id)}>
+                    <Pressable key={quest.id} style={[styles.joinedQuestCard, isCompleted && styles.joinedQuestCardCompleted, { backgroundColor: isLightTheme ? "#ffffff" : "#151722", borderColor: shellBorder }]} onPress={() => void openQuestDetail(quest.id)}>
                       <Image source={{ uri: media?.url || fallback }} style={styles.joinedQuestImage} />
                       <LinearGradient colors={["transparent", "rgba(5,10,15,0.84)"]} style={StyleSheet.absoluteFill} pointerEvents="none" />
-                      <View style={styles.joinedQuestRolePill}><Ionicons name={isHost ? "sparkles" : "checkmark-circle"} size={12} color="#082f3a" /><Text style={styles.joinedQuestRoleText}>{isHost ? "Hosting" : "Joined"}</Text></View>
+                      <View style={styles.joinedQuestRolePill}><Ionicons name={isCompleted ? "checkmark-done" : isHost ? "sparkles" : "checkmark-circle"} size={12} color="#082f3a" /><Text style={styles.joinedQuestRoleText}>{isCompleted ? "Completed" : isHost ? "Hosting" : "Joined"}</Text></View>
+                      {isCompleted ? <View pointerEvents="none" style={styles.joinedQuestCompletedStamp}><Text style={styles.joinedQuestCompletedStampText}>COMPLETED</Text></View> : null}
                       <View style={styles.joinedQuestCopy}>
                         <Text style={styles.joinedQuestCategory}>{getCategory(quest)}</Text>
                         <Text style={styles.joinedQuestTitle} numberOfLines={2}>{quest.title}</Text>
                         <View style={styles.joinedQuestMeta}><Ionicons name="location-outline" size={13} color="#dff7fb" /><Text style={styles.joinedQuestMetaText} numberOfLines={1}>{formatQuestCityState(quest.city)}</Text></View>
                       </View>
+                      {isCompleted && isHost ? (
+                        <Pressable style={styles.joinedQuestRunAgain} onPress={(event) => { event.stopPropagation(); void beginEditQuest(quest.id); }}>
+                          <Ionicons name="refresh" size={13} color="#082f3a" />
+                          <Text style={styles.joinedQuestRunAgainText}>Run again</Text>
+                        </Pressable>
+                      ) : null}
                     </Pressable>
                   );
                 })}
@@ -7596,9 +7931,9 @@ function privateThreadIncludesUsers(
                   <View style={styles.settingsCardIcon}><Ionicons name="mail-outline" size={19} color="#9bd8e4" /></View>
                   <View style={styles.settingsCardHeadingCopy}><Text style={styles.settingsCardTitle}>Email address</Text><Text style={styles.settingsCardSubtitle}>Used for sign-in and account recovery.</Text></View>
                 </View>
-                <View style={styles.settingsCurrentValue}><Ionicons name="checkmark-circle" size={17} color="#34d399" /><Text style={styles.settingsCurrentValueText} numberOfLines={1}>{email}</Text><Text style={styles.settingsVerifiedText}>Verified</Text></View>
-                <View style={styles.settingsField}><Text style={styles.settingsFieldLabel}>New email</Text><TextInput autoCapitalize="none" keyboardType="email-address" placeholder="name@example.com" placeholderTextColor="#718096" style={styles.settingsInput} value={settingsNewEmail} onChangeText={setSettingsNewEmail} /></View>
-                <Pressable style={styles.settingsOutlineButton} onPress={() => void changeEmail()}><Text style={styles.settingsOutlineButtonText}>Update email</Text><Ionicons name="arrow-forward" size={17} color="#dff7fb" /></Pressable>
+                <View style={styles.settingsCurrentValue}><Ionicons name={accountEmail ? "checkmark-circle" : "alert-circle-outline"} size={17} color={accountEmail ? "#34d399" : "#fbbf24"} /><Text style={styles.settingsCurrentValueText} numberOfLines={1}>{accountEmail || "No recovery email added"}</Text><Text style={styles.settingsVerifiedText}>{accountEmail ? "Verified" : "Missing"}</Text></View>
+                <View style={styles.settingsField}><Text style={styles.settingsFieldLabel}>{accountEmail ? "New email" : "Recovery email"}</Text><TextInput autoCapitalize="none" keyboardType="email-address" placeholder="name@example.com" placeholderTextColor="#718096" style={styles.settingsInput} value={settingsNewEmail} onChangeText={setSettingsNewEmail} /></View>
+                <Pressable style={styles.settingsOutlineButton} onPress={() => void changeEmail()}><Text style={styles.settingsOutlineButtonText}>{accountEmail ? "Update email" : "Add recovery email"}</Text><Ionicons name="arrow-forward" size={17} color="#dff7fb" /></Pressable>
               </View>
 
               <View style={styles.settingsCard}>
@@ -7613,6 +7948,12 @@ function privateThreadIncludesUsers(
               </View>
 
               <View style={styles.settingsUtilityCard}>
+                <Pressable style={styles.settingsUtilityRow} onPress={() => void Linking.openURL(`${env.siteUrl.replace(/\/$/, "")}/privacy`)}><View style={styles.settingsUtilityIcon}><Ionicons name="shield-checkmark-outline" size={18} color="#dbe7ec" /></View><View style={styles.settingsControlCopy}><Text style={styles.settingsControlTitle}>Privacy Policy</Text><Text style={styles.settingsControlSubtitle}>How QuestHat handles your data.</Text></View><Ionicons name="open-outline" size={18} color="#64748b" /></Pressable>
+                <View style={styles.settingsDivider} />
+                <Pressable style={styles.settingsUtilityRow} onPress={() => void Linking.openURL(`${env.siteUrl.replace(/\/$/, "")}/terms`)}><View style={styles.settingsUtilityIcon}><Ionicons name="reader-outline" size={18} color="#dbe7ec" /></View><View style={styles.settingsControlCopy}><Text style={styles.settingsControlTitle}>Terms and EULA</Text><Text style={styles.settingsControlSubtitle}>Rules for using QuestHat safely.</Text></View><Ionicons name="open-outline" size={18} color="#64748b" /></Pressable>
+                <View style={styles.settingsDivider} />
+                <Pressable style={styles.settingsUtilityRow} onPress={() => void Linking.openURL(`${env.siteUrl.replace(/\/$/, "")}/delete-account`)}><View style={styles.settingsUtilityIcon}><Ionicons name="document-text-outline" size={18} color="#dbe7ec" /></View><View style={styles.settingsControlCopy}><Text style={styles.settingsControlTitle}>Data deletion information</Text><Text style={styles.settingsControlSubtitle}>Deletion options for QuestHat and connected logins.</Text></View><Ionicons name="open-outline" size={18} color="#64748b" /></Pressable>
+                <View style={styles.settingsDivider} />
                 <Pressable style={styles.settingsUtilityRow} onPress={() => void openSupportEmail()}><View style={styles.settingsUtilityIcon}><Ionicons name="help-buoy-outline" size={18} color="#dbe7ec" /></View><View style={styles.settingsControlCopy}><Text style={styles.settingsControlTitle}>Contact support</Text><Text style={styles.settingsControlSubtitle}>{supportEmails[0]}</Text></View><Ionicons name="chevron-forward" size={18} color="#64748b" /></Pressable>
                 <View style={styles.settingsDivider} />
                 <Pressable style={styles.settingsUtilityRow} onPress={() => Alert.alert("Sign out", "Sign out of QuestHat on this phone?", [{ text: "Cancel" }, { text: "Sign out", onPress: signOut }])}><View style={styles.settingsUtilityIcon}><Ionicons name="log-out-outline" size={18} color="#dbe7ec" /></View><View style={styles.settingsControlCopy}><Text style={styles.settingsControlTitle}>Sign out</Text><Text style={styles.settingsControlSubtitle}>Sign out on this device only.</Text></View><Ionicons name="chevron-forward" size={18} color="#64748b" /></Pressable>
@@ -7695,6 +8036,20 @@ function privateThreadIncludesUsers(
     const fallbackImageUrl = `https://questhat.com${fallbackVisual.imagePath}`;
     const mediaItems = selectedQuest.media_items || [];
     const startsAtTime = selectedQuest.starts_at ? new Date(selectedQuest.starts_at).getTime() : 0;
+    const isInPersonQuest = !/^virtual$/i.test(selectedQuest.city || "");
+    const checkInWindowOpen = Boolean(
+      isInPersonQuest
+      && startsAtTime
+      && Date.now() >= startsAtTime - 4 * 60 * 60 * 1000
+      && Date.now() <= startsAtTime + 12 * 60 * 60 * 1000,
+    );
+    const myCheckIn = userId ? selectedQuestCheckIns.find((row) => row.user_id === userId) : null;
+    const hostCheckIn = selectedQuestCheckIns.find((row) => row.user_id === selectedQuest.creator_id);
+    const checkedInNames = selectedQuestCheckIns
+      .map((row) => getRelationOne(row.profiles))
+      .map((person) => person?.display_name || person?.username || null)
+      .filter((name): name is string => Boolean(name));
+    const showCheckIn = Boolean((isManager || isJoined) && isInPersonQuest && (checkInWindowOpen || myCheckIn));
     const startsWithinDay = startsAtTime > Date.now() && startsAtTime <= Date.now() + 24 * 60 * 60 * 1000;
     const guestsMissingLocation = selectedQuest.exact_address && selectedQuest.exact_location_visibility !== "public" && startsWithinDay
       ? visibleGuests.filter((member) => !selectedQuestExactAccessUserIds.includes(member.id))
@@ -7786,6 +8141,41 @@ function privateThreadIncludesUsers(
                 </View>
               </View>
             </View>
+            {showCheckIn ? (
+              <View style={styles.checkInCard}>
+                <View style={styles.checkInHeader}>
+                  <View style={[styles.checkInIcon, myCheckIn && styles.checkInIconActive]}>
+                    <Ionicons name={myCheckIn ? "checkmark" : "navigate-outline"} size={20} color={myCheckIn ? "#082f3a" : "#9bd8e4"} />
+                  </View>
+                  <View style={styles.checkInHeaderCopy}>
+                    <Text style={styles.checkInEyebrow}>QUEST PRESENCE</Text>
+                    <Text style={styles.checkInTitle}>
+                      {hostCheckIn ? "Your host is here" : selectedQuestCheckIns.length ? `${selectedQuestCheckIns.length} ${selectedQuestCheckIns.length === 1 ? "person is" : "people are"} here` : "Let everyone know you arrived"}
+                    </Text>
+                    {checkedInNames.length ? <Text style={styles.checkInNames} numberOfLines={2}>{checkedInNames.join(" · ")}</Text> : null}
+                  </View>
+                </View>
+                <Text style={styles.checkInCopy}>
+                  Check-in works only within one mile of the meetup. Your precise location is used to verify distance and is not shown to the host or attendees.
+                </Text>
+                {myCheckIn ? (
+                  <View style={styles.checkInConfirmedRow}>
+                    <View style={styles.checkInConfirmedPill}>
+                      <Ionicons name="checkmark-circle" size={17} color="#86efac" />
+                      <Text style={styles.checkInConfirmedText}>You’re checked in</Text>
+                    </View>
+                    <Pressable disabled={Boolean(checkInAction)} onPress={() => void leaveSelectedQuestCheckIn()}>
+                      <Text style={styles.checkInUndoText}>{checkInAction === "leave" ? "Removing…" : "Undo"}</Text>
+                    </Pressable>
+                  </View>
+                ) : (
+                  <Pressable style={styles.checkInButton} disabled={Boolean(checkInAction)} onPress={() => void checkInToSelectedQuest()}>
+                    {checkInAction === "check-in" ? <ActivityIndicator size="small" color="#082f3a" /> : <Ionicons name="location" size={18} color="#082f3a" />}
+                    <Text style={styles.checkInButtonText}>{checkInAction === "check-in" ? "Verifying…" : "I’m here"}</Text>
+                  </Pressable>
+                )}
+              </View>
+            ) : null}
             {showHostChecklist ? (
               <View style={styles.hostChecklistCard}>
                 <View style={styles.hostChecklistHeader}>
@@ -7893,7 +8283,7 @@ function privateThreadIncludesUsers(
               ) : (
                 <View style={styles.detailMediaFallbackCard}>
                   <Image source={{ uri: fallbackImageUrl }} style={styles.detailMediaImage} />
-                  <Text style={styles.detailMuted}>No media attached yet. Placeholder pulled from the same category fallback as the website.</Text>
+                  <Text style={styles.detailMuted}>No media attached yet.</Text>
                 </View>
               )}
             </View>
@@ -7961,7 +8351,7 @@ function privateThreadIncludesUsers(
                 }) : (
                   <View style={styles.emptyPeopleRow}>
                     <Ionicons name="people-outline" size={20} color="#788295" />
-                    <Text style={styles.detailMuted}>No guests have joined yet.</Text>
+                    <Text style={styles.detailMuted}>This quest is ready for its first guest.</Text>
                   </View>
                 )}
               </View>
@@ -8041,7 +8431,7 @@ function privateThreadIncludesUsers(
                     </View>
                   </Pressable>
                 );
-              }) : <Text style={styles.detailMuted}>No comments yet.</Text>}
+              }) : <Text style={styles.detailMuted}>Comments will appear here.</Text>}
             </View>
             <View style={styles.detailActionTray}>
               <Pressable style={styles.detailActionItem} onPress={() => void toggleSaveSelectedQuest()}>
@@ -8257,14 +8647,14 @@ function privateThreadIncludesUsers(
         .some((value) => (value || "").toLowerCase().includes(normalizedConversationSearch));
     });
     return (
-      <View style={styles.modalOverlay} pointerEvents="box-none">
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.modalOverlay}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 72 : 0}
+        pointerEvents="box-none"
+      >
         <Pressable style={styles.modalBackdropPressable} onPress={() => closeQuestionModal()} />
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={{ width: "100%" }}
-          keyboardVerticalOffset={72}
-        >
-          <View style={[styles.modalCard, styles.modalCardKeyboard, styles.modalCardKeyboardRaised, styles.conversationModalCard, { height: Math.min(Math.max(windowHeight - 80, 520), 760) }]}>
+        <View style={[styles.modalCard, styles.modalCardKeyboard, styles.modalCardKeyboardRaised, styles.conversationModalCard, { height: Math.min(Math.max(windowHeight - 80, 520), 760) }]}>
             <View style={[styles.modalContent, styles.modalContentKeyboard, styles.conversationLayout]}>
               <View style={styles.conversationHeader}>
                 <View style={styles.conversationHeaderTop}>
@@ -8368,6 +8758,7 @@ function privateThreadIncludesUsers(
                     style={[styles.input, styles.textArea, styles.questionInput, styles.commentComposerInput]}
                     value={questionText}
                     onChangeText={setQuestionText}
+                    onFocus={() => setTimeout(() => questionScrollRef.current?.scrollToEnd({ animated: true }), 120)}
                     maxLength={500}
                   />
                   <Pressable style={styles.commentSendButton} onPress={() => void sendQuestionFromModal()} disabled={sendingQuestion}>
@@ -8382,8 +8773,7 @@ function privateThreadIncludesUsers(
               </View>
             </View>
           </View>
-        </KeyboardAvoidingView>
-      </View>
+      </KeyboardAvoidingView>
     );
   }
 
@@ -8818,9 +9208,9 @@ function privateThreadIncludesUsers(
               <View style={[styles.settingsStatusDot, pushPermissionStatus === "granted" && styles.settingsStatusDotOn]} />
               <View style={styles.notificationSystemCopy}>
                 <Text style={styles.notificationSystemTitle}>
-                  {pushPermissionStatus === "granted" ? "Allowed by iPhone" : pushPermissionStatus === "denied" ? "Blocked by iPhone" : "Not enabled on iPhone"}
+                  {pushPermissionStatus === "granted" ? `Allowed by ${Platform.OS === "android" ? "Android" : "iPhone"}` : pushPermissionStatus === "denied" ? `Blocked by ${Platform.OS === "android" ? "Android" : "iPhone"}` : `Not enabled on ${Platform.OS === "android" ? "Android" : "iPhone"}`}
                 </Text>
-                <Text style={styles.notificationSystemSubtitle}>QuestHat categories cannot override your iOS permission.</Text>
+                <Text style={styles.notificationSystemSubtitle}>QuestHat categories cannot override your {Platform.OS === "android" ? "Android" : "iOS"} permission.</Text>
               </View>
               <Pressable
                 style={styles.notificationSystemButton}
@@ -8954,6 +9344,105 @@ function privateThreadIncludesUsers(
     );
   }
 
+  async function dismissRecoveryEmailPrompt() {
+    if (userId) {
+      await AsyncStorage.setItem(`${STORED_RECOVERY_EMAIL_PROMPTED_AT}:${userId}`, String(Date.now()));
+    }
+    setShowRecoveryEmailPrompt(false);
+    setRecoveryEmailStatus("");
+  }
+
+  async function submitRecoveryEmail() {
+    if (!supabase || !userId || recoveryEmailSaving) return;
+    const cleanEmail = recoveryEmail.trim().toLowerCase();
+    if (!cleanEmail) {
+      setRecoveryEmailStatus("Enter an email address.");
+      return;
+    }
+
+    setRecoveryEmailSaving(true);
+    setRecoveryEmailStatus("");
+    const { error } = await supabase.auth.updateUser(
+      { email: cleanEmail },
+      { emailRedirectTo: getRedirectUrl() },
+    );
+    setRecoveryEmailSaving(false);
+    if (error) {
+      setRecoveryEmailStatus(error.message);
+      return;
+    }
+
+    await AsyncStorage.setItem(`${STORED_RECOVERY_EMAIL_PROMPTED_AT}:${userId}`, String(Date.now()));
+    setRecoveryEmailStatus("Check your inbox and verify this email. After that, it can help you recover your account.");
+  }
+
+  function renderRecoveryEmailModal() {
+    if (
+      !signedIn
+      || !showRecoveryEmailPrompt
+      || accountEmail
+      || eulaRequired
+      || showOnboardingWizard
+      || accountDeactivatedAt
+      || showDeleteAccountModal
+    ) return null;
+
+    const verificationSent = recoveryEmailStatus.startsWith("Check your inbox");
+    return (
+      <Modal visible transparent animationType="fade" onRequestClose={() => void dismissRecoveryEmailPrompt()}>
+        <KeyboardAvoidingView style={styles.modalBackdrop} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+          <Pressable style={styles.modalBackdropPressable} onPress={() => void dismissRecoveryEmailPrompt()} />
+          <View style={[styles.modalSheet, styles.recoveryEmailSheet]}>
+            <LinearGradient colors={["#123d49", "#122b34", "#11131c"]} style={styles.recoveryEmailHero}>
+              <View style={styles.recoveryEmailTopRow}>
+                <View style={styles.recoveryEmailIconWrap}>
+                  <Ionicons name="mail-outline" size={24} color="#b8edf5" />
+                </View>
+                <Pressable style={styles.recoveryEmailDismiss} onPress={() => void dismissRecoveryEmailPrompt()}>
+                  <Text style={styles.recoveryEmailDismissText}>Not now</Text>
+                </Pressable>
+              </View>
+              <Text style={styles.recoveryEmailEyebrow}>ACCOUNT RECOVERY</Text>
+              <Text style={styles.recoveryEmailTitle}>Don&apos;t lose your QuestHat account</Text>
+              <Text style={styles.recoveryEmailBody}>Add a verified recovery email to keep access to your quests, messages, and connections if your social login changes.</Text>
+            </LinearGradient>
+            <View style={styles.recoveryEmailForm}>
+              <Text style={styles.recoveryEmailLabel}>Recovery email</Text>
+              <View style={styles.recoveryEmailInputWrap}>
+                <Ionicons name="at-outline" size={19} color="#79c6d5" />
+                <TextInput
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType="email-address"
+                  placeholder="you@example.com"
+                  placeholderTextColor="#657080"
+                  style={styles.recoveryEmailInput}
+                  value={recoveryEmail}
+                  onChangeText={setRecoveryEmail}
+                  editable={!recoveryEmailSaving && !verificationSent}
+                />
+              </View>
+              {recoveryEmailStatus ? (
+                <View style={[styles.recoveryEmailStatus, verificationSent && styles.recoveryEmailStatusSuccess]}>
+                  <Text style={[styles.recoveryEmailStatusText, verificationSent && styles.recoveryEmailStatusTextSuccess]}>{recoveryEmailStatus}</Text>
+                </View>
+              ) : null}
+              <Pressable
+                style={[styles.primaryButton, (recoveryEmailSaving || verificationSent) && styles.primaryButtonDisabled]}
+                onPress={() => void submitRecoveryEmail()}
+                disabled={recoveryEmailSaving || verificationSent}
+              >
+                {recoveryEmailSaving ? <ActivityIndicator size="small" color="#082f3a" /> : <Ionicons name={verificationSent ? "checkmark-circle-outline" : "shield-checkmark-outline"} size={19} color="#082f3a" />}
+                <Text style={styles.primaryButtonText}>{recoveryEmailSaving ? "Sending verification..." : verificationSent ? "Verification sent" : "Add recovery email"}</Text>
+              </Pressable>
+              <Text style={styles.recoveryEmailPrivacy}>We&apos;ll only use it for account access and the notification choices you make.</Text>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+    );
+  }
+
   function renderEulaModal() {
     if (!signedIn || !eulaRequired || accountDeactivatedAt || showDeleteAccountModal) return null;
     return (
@@ -9021,8 +9510,11 @@ function privateThreadIncludesUsers(
 
   return (
     <AppErrorBoundary>
-      <SafeAreaView style={[styles.safeArea, { backgroundColor: shellBackground }]}>
-        <StatusBar style={isLightTheme ? "dark" : "light"} />
+      <SafeAreaView
+        edges={["top", "right", "bottom", "left"]}
+        style={[styles.safeArea, { backgroundColor: authState === "loading" ? "#ffffff" : shellBackground }]}
+      >
+        <StatusBar style={authState === "loading" || isLightTheme ? "dark" : "light"} />
         <KeyboardAvoidingView style={[styles.app, { backgroundColor: shellBackground }]} behavior={Platform.OS === "ios" ? "padding" : undefined}>
           <Animated.View
             style={[
@@ -9088,6 +9580,9 @@ function privateThreadIncludesUsers(
 
           <ScrollView
             contentContainerStyle={[styles.screen, { backgroundColor: shellBackground }]}
+            nestedScrollEnabled
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="interactive"
             onScroll={(event) => {
               const nextY = event.nativeEvent.contentOffset.y;
               const delta = nextY - scrollPositionRef.current;
@@ -9138,7 +9633,7 @@ function privateThreadIncludesUsers(
             }
           >
             {renderScreen()}
-            {status ? <Text style={[styles.status, { color: isLightTheme ? "#b45309" : "#f9d46a" }]}>{status}</Text> : null}
+            {status && !showAuthModal ? <Text style={[styles.status, { color: isLightTheme ? "#b45309" : "#f9d46a" }]}>{status}</Text> : null}
           </ScrollView>
           {renderProfileModal()}
           {renderReportProfileModal()}
@@ -9162,6 +9657,7 @@ function privateThreadIncludesUsers(
           {renderNotificationPreferencesModal()}
           {renderAuthModal()}
           {renderEulaModal()}
+          {renderRecoveryEmailModal()}
           {renderAccountLifecycleModal()}
 
           {activeTab !== "create" ? <Animated.View
@@ -9210,6 +9706,14 @@ function privateThreadIncludesUsers(
         </KeyboardAvoidingView>
       </SafeAreaView>
     </AppErrorBoundary>
+  );
+}
+
+export default function App() {
+  return (
+    <SafeAreaProvider>
+      <QuestHatApp />
+    </SafeAreaProvider>
   );
 }
 
@@ -10158,6 +10662,33 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     textAlign: "center",
   },
+  launchScreen: {
+    alignItems: "center",
+    backgroundColor: "#ffffff",
+    flex: 1,
+    justifyContent: "center",
+    position: "relative",
+  },
+  launchLogo: {
+    height: 120,
+    width: 120,
+  },
+  launchBrandFooter: {
+    alignItems: "center",
+    bottom: 27,
+    gap: 4,
+    position: "absolute",
+  },
+  launchBrandTitle: {
+    color: "#0c5f6c",
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  launchBrandSubtitle: {
+    color: "#74747d",
+    fontSize: 11,
+    fontWeight: "500",
+  },
   modalBackdrop: {
     ...StyleSheet.absoluteFill,
     alignItems: "center",
@@ -10205,6 +10736,22 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     textAlign: "center",
+  },
+  pushPrivacyRow: {
+    alignItems: "center",
+    borderRadius: 12,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 7,
+    marginTop: 2,
+    paddingHorizontal: 11,
+    paddingVertical: 9,
+  },
+  pushPrivacyText: {
+    flex: 1,
+    fontSize: 11,
+    fontWeight: "700",
+    lineHeight: 16,
   },
   pushPromptActions: {
     flexDirection: "row",
@@ -10432,6 +10979,36 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     width: 32,
   },
+  authInlineNotice: {
+    alignItems: "center",
+    borderRadius: 13,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 8,
+    marginTop: -4,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  authInlineNoticeError: {
+    backgroundColor: "rgba(127,29,29,0.18)",
+    borderColor: "rgba(248,113,113,0.28)",
+  },
+  authInlineNoticeSuccess: {
+    backgroundColor: "rgba(6,95,70,0.18)",
+    borderColor: "rgba(52,211,153,0.25)",
+  },
+  authInlineNoticeText: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: "800",
+    lineHeight: 17,
+  },
+  authInlineNoticeTextError: {
+    color: "#f7c2c2",
+  },
+  authInlineNoticeTextSuccess: {
+    color: "#b9efd3",
+  },
   authForgotButton: {
     alignSelf: "flex-end",
     marginTop: -4,
@@ -10495,27 +11072,51 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     letterSpacing: 1.1,
   },
-  authOauthGrid: {
-    flexDirection: "row",
-    gap: 8,
+  authOauthStack: {
+    gap: 9,
   },
   authOauthButton: {
     alignItems: "center",
-    backgroundColor: "rgba(255,255,255,0.055)",
-    borderColor: "rgba(255,255,255,0.09)",
-    borderRadius: 15,
+    backgroundColor: "rgba(255,255,255,0.065)",
+    borderColor: "rgba(155,216,228,0.16)",
+    borderRadius: 16,
     borderWidth: 1,
-    flex: 1,
+    flexDirection: "row",
+    gap: 12,
+    minHeight: 54,
+    paddingHorizontal: 14,
+  },
+  authOauthButtonApple: {
+    backgroundColor: "#f7f8fa",
+    borderColor: "#ffffff",
+  },
+  authOauthButtonX: {
+    backgroundColor: "rgba(0,0,0,0.5)",
+    borderColor: "rgba(255,255,255,0.13)",
+  },
+  authOauthButtonPressed: {
+    opacity: 0.78,
+    transform: [{ scale: 0.99 }],
+  },
+  authMoreOptionsButton: {
+    alignItems: "center",
+    alignSelf: "center",
+    flexDirection: "row",
     gap: 5,
-    justifyContent: "center",
-    minHeight: 55,
+    minHeight: 32,
+    paddingHorizontal: 10,
+  },
+  authMoreOptionsText: {
+    color: "#9bc8d2",
+    fontSize: 11,
+    fontWeight: "800",
   },
   authOauthLogo: {
     alignItems: "center",
-    borderRadius: 999,
-    height: 29,
+    borderRadius: 11,
+    height: 32,
     justifyContent: "center",
-    width: 29,
+    width: 32,
   },
   authOauthLogoApple: {
     backgroundColor: "#ffffff",
@@ -10537,9 +11138,13 @@ const styles = StyleSheet.create({
     fontWeight: "900",
   },
   authOauthText: {
-    color: "#dbe5e9",
-    fontSize: 11,
-    fontWeight: "800",
+    color: "#edf5f7",
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "900",
+  },
+  authOauthTextApple: {
+    color: "#111318",
   },
   authSafetyNote: {
     alignItems: "center",
@@ -12096,6 +12701,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 12,
   },
+  locationSuggestionsScroll: {
+    backgroundColor: "#ffffff",
+    borderColor: "rgba(8,18,26,0.12)",
+    borderRadius: 16,
+    borderWidth: 1,
+    maxHeight: 220,
+  },
+  locationSuggestionsScrollContent: {
+    gap: 2,
+  },
   locationSuggestionText: {
     color: "#0f172a",
     fontSize: 14,
@@ -12413,6 +13028,101 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 10,
     lineHeight: 15,
+  },
+  checkInCard: {
+    backgroundColor: "#10212a",
+    borderColor: "rgba(155,216,228,0.3)",
+    borderRadius: 18,
+    borderWidth: 1,
+    gap: 12,
+    overflow: "hidden",
+    padding: 14,
+  },
+  checkInHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 11,
+  },
+  checkInIcon: {
+    alignItems: "center",
+    backgroundColor: "rgba(155,216,228,0.12)",
+    borderColor: "rgba(155,216,228,0.22)",
+    borderRadius: 13,
+    borderWidth: 1,
+    height: 42,
+    justifyContent: "center",
+    width: 42,
+  },
+  checkInIconActive: {
+    backgroundColor: "#9bd8e4",
+  },
+  checkInHeaderCopy: {
+    flex: 1,
+    gap: 2,
+    minWidth: 0,
+  },
+  checkInEyebrow: {
+    color: "#6daec2",
+    fontSize: 9,
+    fontWeight: "900",
+    letterSpacing: 1,
+  },
+  checkInTitle: {
+    color: "#f4f8fa",
+    fontSize: 16,
+    fontWeight: "900",
+  },
+  checkInNames: {
+    color: "#a7c8d0",
+    fontSize: 10,
+    fontWeight: "700",
+    lineHeight: 14,
+  },
+  checkInCopy: {
+    color: "#91a6af",
+    fontSize: 11,
+    lineHeight: 16,
+  },
+  checkInButton: {
+    alignItems: "center",
+    backgroundColor: "#9bd8e4",
+    borderRadius: 13,
+    flexDirection: "row",
+    gap: 8,
+    justifyContent: "center",
+    minHeight: 46,
+  },
+  checkInButtonText: {
+    color: "#082f3a",
+    fontSize: 14,
+    fontWeight: "900",
+  },
+  checkInConfirmedRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  checkInConfirmedPill: {
+    alignItems: "center",
+    backgroundColor: "rgba(34,197,94,0.1)",
+    borderColor: "rgba(134,239,172,0.24)",
+    borderRadius: 999,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 6,
+    paddingHorizontal: 11,
+    paddingVertical: 8,
+  },
+  checkInConfirmedText: {
+    color: "#bbf7d0",
+    fontSize: 11,
+    fontWeight: "900",
+  },
+  checkInUndoText: {
+    color: "#9bd8e4",
+    fontSize: 11,
+    fontWeight: "900",
+    padding: 8,
   },
   hostChecklistCard: {
     backgroundColor: "#121c24",
@@ -12816,6 +13526,42 @@ const styles = StyleSheet.create({
     fontSize: 14,
     minHeight: 48,
   },
+  collectionModeSwitch: {
+    borderRadius: 17,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 5,
+    padding: 5,
+  },
+  collectionModeButton: {
+    alignItems: "center",
+    borderRadius: 13,
+    flex: 1,
+    flexDirection: "row",
+    gap: 6,
+    justifyContent: "center",
+    minHeight: 42,
+    paddingHorizontal: 10,
+  },
+  collectionModeButtonActive: {
+    backgroundColor: "#9bd8e4",
+  },
+  collectionModeButtonText: {
+    fontSize: 12,
+    fontWeight: "900",
+  },
+  collectionModeCount: {
+    alignItems: "center",
+    borderRadius: 999,
+    justifyContent: "center",
+    minHeight: 21,
+    minWidth: 21,
+    paddingHorizontal: 5,
+  },
+  collectionModeCountText: {
+    fontSize: 9,
+    fontWeight: "900",
+  },
   joinedQuestGrid: {
     gap: 11,
   },
@@ -12825,6 +13571,9 @@ const styles = StyleSheet.create({
     height: 210,
     overflow: "hidden",
     position: "relative",
+  },
+  joinedQuestCardCompleted: {
+    opacity: 0.76,
   },
   joinedQuestImage: {
     height: "100%",
@@ -12879,6 +13628,43 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 11,
     fontWeight: "700",
+  },
+  joinedQuestCompletedStamp: {
+    alignItems: "center",
+    alignSelf: "center",
+    borderColor: "rgba(255,255,255,0.82)",
+    borderRadius: 8,
+    borderWidth: 3,
+    justifyContent: "center",
+    paddingHorizontal: 15,
+    paddingVertical: 7,
+    position: "absolute",
+    top: 72,
+    transform: [{ rotate: "-7deg" }],
+  },
+  joinedQuestCompletedStampText: {
+    color: "rgba(255,255,255,0.9)",
+    fontSize: 16,
+    fontWeight: "900",
+    letterSpacing: 2,
+  },
+  joinedQuestRunAgain: {
+    alignItems: "center",
+    backgroundColor: "#9bd8e4",
+    borderRadius: 999,
+    flexDirection: "row",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    position: "absolute",
+    right: 12,
+    top: 12,
+  },
+  joinedQuestRunAgainText: {
+    color: "#082f3a",
+    fontSize: 9,
+    fontWeight: "900",
+    textTransform: "uppercase",
   },
   questMeta: {
     color: "#aeb6c6",
@@ -13959,6 +14745,7 @@ const styles = StyleSheet.create({
     padding: 13,
   },
   conversationModalCard: {
+    flexShrink: 1,
     maxHeight: "92%",
   },
   conversationLayout: {
@@ -14526,6 +15313,120 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 24,
     zIndex: 40,
+  },
+  recoveryEmailSheet: {
+    backgroundColor: "#11131c",
+    borderColor: "rgba(255,255,255,0.1)",
+    borderRadius: 28,
+    maxWidth: 440,
+    overflow: "hidden",
+    padding: 0,
+    width: "100%",
+  },
+  recoveryEmailHero: {
+    paddingBottom: 22,
+    paddingHorizontal: 22,
+    paddingTop: 22,
+  },
+  recoveryEmailTopRow: {
+    alignItems: "flex-start",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 20,
+  },
+  recoveryEmailIconWrap: {
+    alignItems: "center",
+    backgroundColor: "rgba(155,216,228,0.12)",
+    borderColor: "rgba(155,216,228,0.25)",
+    borderRadius: 16,
+    borderWidth: 1,
+    height: 50,
+    justifyContent: "center",
+    width: 50,
+  },
+  recoveryEmailDismiss: {
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderColor: "rgba(255,255,255,0.1)",
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 13,
+    paddingVertical: 8,
+  },
+  recoveryEmailDismissText: {
+    color: "#cbd5e1",
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  recoveryEmailEyebrow: {
+    color: "#9bd8e4",
+    fontSize: 11,
+    fontWeight: "900",
+    letterSpacing: 2,
+  },
+  recoveryEmailTitle: {
+    color: "#f8fafc",
+    fontSize: 24,
+    fontWeight: "900",
+    letterSpacing: -0.5,
+    lineHeight: 29,
+    marginTop: 7,
+  },
+  recoveryEmailBody: {
+    color: "#c4ccd8",
+    fontSize: 14,
+    lineHeight: 21,
+    marginTop: 8,
+  },
+  recoveryEmailForm: {
+    gap: 12,
+    padding: 22,
+  },
+  recoveryEmailLabel: {
+    color: "#e2e8f0",
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  recoveryEmailInputWrap: {
+    alignItems: "center",
+    backgroundColor: "#0b0d14",
+    borderColor: "rgba(255,255,255,0.1)",
+    borderRadius: 16,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 10,
+    minHeight: 52,
+    paddingHorizontal: 14,
+  },
+  recoveryEmailInput: {
+    color: "#f8fafc",
+    flex: 1,
+    fontSize: 16,
+    minHeight: 50,
+  },
+  recoveryEmailStatus: {
+    backgroundColor: "rgba(245,158,11,0.1)",
+    borderColor: "rgba(245,158,11,0.22)",
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 11,
+  },
+  recoveryEmailStatusSuccess: {
+    backgroundColor: "rgba(52,211,153,0.1)",
+    borderColor: "rgba(52,211,153,0.22)",
+  },
+  recoveryEmailStatusText: {
+    color: "#fde68a",
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  recoveryEmailStatusTextSuccess: {
+    color: "#a7f3d0",
+  },
+  recoveryEmailPrivacy: {
+    color: "#64748b",
+    fontSize: 11,
+    lineHeight: 16,
+    textAlign: "center",
   },
   modalOverlayRaised: {
     zIndex: 80,
@@ -15706,8 +16607,40 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: "900",
   },
+  mapAttributionWrap: {
+    bottom: 192,
+    left: 14,
+    position: "absolute",
+    right: 14,
+  },
+  mapAttributionText: {
+    backgroundColor: "rgba(255,255,255,0.82)",
+    borderRadius: 999,
+    fontSize: 9,
+    fontWeight: "800",
+    overflow: "hidden",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    textAlign: "center",
+  },
   mapMarkerShell: {
     alignItems: "center",
+  },
+  mapLocationMarker: {
+    alignItems: "center",
+    backgroundColor: "rgba(105, 202, 255, 0.22)",
+    borderColor: "#dff7fb",
+    borderRadius: 999,
+    borderWidth: 2,
+    height: 18,
+    justifyContent: "center",
+    width: 18,
+  },
+  mapLocationMarkerInner: {
+    backgroundColor: "#dff7fb",
+    borderRadius: 999,
+    height: 6,
+    width: 6,
   },
   mapMarker: {
     alignItems: "center",
@@ -15952,32 +16885,45 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(52,58,67,0.38)",
     ...StyleSheet.absoluteFillObject,
   },
-  feedExpiredBanner: {
+  feedCompletedStamp: {
     alignItems: "center",
-    backgroundColor: "rgba(15,18,24,0.86)",
-    borderColor: "rgba(203,213,225,0.2)",
-    borderRadius: 14,
+    alignSelf: "center",
+    backgroundColor: "rgba(15,18,24,0.16)",
+    borderColor: "rgba(244,248,250,0.86)",
+    borderRadius: 12,
+    borderWidth: 4,
+    flexDirection: "row",
+    gap: 8,
+    paddingHorizontal: 22,
+    paddingVertical: 11,
+    position: "absolute",
+    top: "42%",
+    transform: [{ rotate: "-8deg" }],
+    zIndex: 4,
+  },
+  feedCompletedStampText: {
+    color: "rgba(244,248,250,0.92)",
+    fontSize: 19,
+    fontWeight: "900",
+    letterSpacing: 2.4,
+  },
+  feedCompletedControls: {
+    alignItems: "center",
+    alignSelf: "flex-end",
+    backgroundColor: "rgba(15,18,24,0.76)",
+    borderColor: "rgba(203,213,225,0.18)",
+    borderRadius: 999,
     borderWidth: 1,
     flexDirection: "row",
-    gap: 10,
-    paddingHorizontal: 11,
-    paddingVertical: 9,
+    gap: 8,
+    paddingLeft: 10,
+    paddingRight: 4,
+    paddingVertical: 4,
   },
-  feedExpiredBannerCopy: {
-    flex: 1,
-    gap: 2,
-  },
-  feedExpiredEyebrow: {
-    color: "#cbd5e1",
+  feedCompletedNote: {
+    color: "#d8dee8",
     fontSize: 9,
-    fontWeight: "900",
-    letterSpacing: 1.2,
-  },
-  feedExpiredMessage: {
-    color: "#e2e8f0",
-    fontSize: 10,
-    fontWeight: "700",
-    lineHeight: 14,
+    fontWeight: "800",
   },
   feedExpiredMinimize: {
     alignItems: "center",

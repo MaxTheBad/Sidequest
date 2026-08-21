@@ -26,7 +26,7 @@ export default function PrivacyPage() {
             <li><strong>Account and identity:</strong> email address, user ID, authentication method, login metadata, and account status.</li>
             <li><strong>Profile and social information:</strong> name, username, profile photo, bio, city or region, friend relationships, blocks, and the visibility choices you make.</li>
             <li><strong>Content and communications:</strong> quests, comments, direct messages, join requests, reports, photos, videos, audio, and other content you submit.</li>
-            <li><strong>Meetup and location information:</strong> city or region, meeting links, and exact meetup locations you submit. When you grant location permission, precise device location is ordinarily processed and cached on your device to calculate distance and apply location-based safety controls rather than stored in your QuestHat profile. Exact meetup locations are stored and limited according to the host&apos;s selected access controls.</li>
+            <li><strong>Meetup and location information:</strong> city or region, meeting links, exact meetup locations you submit, and event check-in status and time. When you grant location permission, precise device location is ordinarily processed and cached on your device to calculate distance and apply location-based safety controls rather than stored in your QuestHat profile. When you check in, your current coordinates are transmitted securely and used transiently to verify that you are within the permitted radius; we store the check-in status and time, not the coordinates submitted for that verification. Exact meetup locations are stored and limited according to the host&apos;s selected access controls.</li>
             <li><strong>Device and usage information:</strong> IP address, browser or user-agent, device and operating-system type, app version, timestamps, security events, local preferences, crash or diagnostic information, and interactions needed to operate and protect the service.</li>
             <li><strong>Notifications:</strong> push token, notification preferences, delivery information, and Live Activity token or state when you enable those features.</li>
             <li><strong>Support and safety:</strong> correspondence, reports, evidence you submit, moderation decisions, and records used to investigate abuse, fraud, or safety incidents.</li>
@@ -84,7 +84,7 @@ export default function PrivacyPage() {
           <h2 className="font-semibold">When we share information</h2>
           <p className={bodyClass}>We do not sell personal information. We share it only in these circumstances:</p>
           <ul className={listClass}>
-            <li><strong>Other users:</strong> according to the feature and privacy settings you select. Private messages and restricted meetup details are shown only to authorized participants.</li>
+            <li><strong>Other users:</strong> according to the feature and privacy settings you select. Private messages and restricted meetup details are shown only to authorized participants. Approved quest participants may see that you checked in and when, but they do not receive the precise coordinates used to verify your arrival.</li>
             <li><strong>At your direction:</strong> with Meta or X when you expressly choose to publish or perform another disclosed action.</li>
             <li><strong>Service providers:</strong> with vendors that provide authentication, database hosting and storage, email, notifications, maps and geocoding, media delivery, bot protection, security, and app distribution. They may use data only to provide services to us and must protect it consistently with this policy and applicable platform rules.</li>
             <li><strong>Legal and safety:</strong> when reasonably necessary to comply with law, protect rights or safety, investigate abuse, or enforce our agreements.</li>
@@ -98,7 +98,9 @@ export default function PrivacyPage() {
             Camera, microphone, photo-library, location, and notification access are requested only when relevant to a
             feature. You can deny or revoke them in iOS, Android, or browser settings, although the related feature may
             stop working. Some preferences and a recent location used for distance estimates may be stored locally on
-            your device. Cloudflare Turnstile processes technical and interaction signals on protected forms to detect
+            your device. Enabling notifications does not itself share your precise location. A feature that shares live
+            or precise location with another user would require a separate, clear choice before that sharing begins.
+            Cloudflare Turnstile processes technical and interaction signals on protected forms to detect
             automated abuse.
           </p>
         </div>
