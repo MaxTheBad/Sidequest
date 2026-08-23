@@ -123,6 +123,8 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
+  - QuestHatApplePlaces (1.0.0):
+    - ExpoModulesCore
   - QuestHatVideoCompressor (1.0.0):
     - ExpoModulesCore
   - RCTDeprecation (0.86.2)
@@ -2135,6 +2137,7 @@ DEPENDENCIES:
   - hermes-engine (from `../../../node_modules/react-native/sdks/hermes-engine/hermes-engine.podspec`)
   - MapLibre (= 6.26.0)
   - "MapLibreReactNative (from `../../../node_modules/@maplibre/maplibre-react-native`)"
+  - QuestHatApplePlaces (from `../modules/questhat-apple-places/ios`)
   - QuestHatVideoCompressor (from `../modules/questhat-video-compressor/ios`)
   - RCTDeprecation (from `../../../node_modules/react-native/ReactApple/Libraries/RCTFoundation/RCTDeprecation`)
   - RCTRequired (from `../../../node_modules/react-native/Libraries/Required`)
@@ -2276,6 +2279,8 @@ EXTERNAL SOURCES:
     :tag: hermes-v250829098.0.16
   MapLibreReactNative:
     :path: "../../../node_modules/@maplibre/maplibre-react-native"
+  QuestHatApplePlaces:
+    :path: "../modules/questhat-apple-places/ios"
   QuestHatVideoCompressor:
     :path: "../modules/questhat-video-compressor/ios"
   RCTDeprecation:
@@ -2464,6 +2469,7 @@ SPEC CHECKSUMS:
   hermes-engine: efb2961275697e4aaff51902df9d84d677504f72
   MapLibre: b7ef5623a1a61468c4266a048e494181c10173ad
   MapLibreReactNative: 9f1f16d5f5f522309ad1f2afc483a34cfc56fe6e
+  QuestHatApplePlaces: d35ffaabceb9ab60ed908036c39325139fc2d741
   QuestHatVideoCompressor: a94baddef217b0e5bd2073e0013b81d92b6f3039
   RCTDeprecation: bccb6545c26db881ecddfd83a3f9ea82aba1605f
   RCTRequired: b2f74764d596fc0051f00fee94b49bf41a6f7f5a

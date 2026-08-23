@@ -11,7 +11,7 @@ export default function PrivacyPage() {
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-800">Privacy notice</p>
           <h1 className="mt-1 text-2xl font-bold">QuestHat Privacy Policy</h1>
-          <p className="mt-2 text-sm text-gray-700">Effective and last updated August 20, 2026.</p>
+          <p className="mt-2 text-sm text-gray-700">Effective and last updated August 21, 2026.</p>
         </div>
 
         <p className={bodyClass}>
@@ -26,7 +26,7 @@ export default function PrivacyPage() {
             <li><strong>Account and identity:</strong> email address, user ID, authentication method, login metadata, and account status.</li>
             <li><strong>Profile and social information:</strong> name, username, profile photo, bio, city or region, friend relationships, blocks, and the visibility choices you make.</li>
             <li><strong>Content and communications:</strong> quests, comments, direct messages, join requests, reports, photos, videos, audio, and other content you submit.</li>
-            <li><strong>Meetup and location information:</strong> city or region, meeting links, exact meetup locations you submit, and event check-in status and time. When you grant location permission, precise device location is ordinarily processed and cached on your device to calculate distance and apply location-based safety controls rather than stored in your QuestHat profile. When you check in, your current coordinates are transmitted securely and used transiently to verify that you are within the permitted radius; we store the check-in status and time, not the coordinates submitted for that verification. Exact meetup locations are stored and limited according to the host&apos;s selected access controls.</li>
+            <li><strong>Meetup and location information:</strong> city or region, meeting links, exact meetup locations and optional meeting instructions you submit, and event check-in status and time. Meeting instructions use the same visibility control as the exact address. When you grant location permission, precise device location is ordinarily processed and cached on your device to calculate distance and apply location-based safety controls rather than stored in your QuestHat profile. When you check in, your current coordinates are transmitted securely and used transiently to verify that you are within the permitted radius; we store the check-in status and time, not the coordinates submitted for that verification. Exact meetup locations and protected meeting instructions are stored and limited according to the host&apos;s selected access controls.</li>
             <li><strong>Device and usage information:</strong> IP address, browser or user-agent, device and operating-system type, app version, timestamps, security events, local preferences, crash or diagnostic information, and interactions needed to operate and protect the service.</li>
             <li><strong>Notifications:</strong> push token, notification preferences, delivery information, and Live Activity token or state when you enable those features.</li>
             <li><strong>Support and safety:</strong> correspondence, reports, evidence you submit, moderation decisions, and records used to investigate abuse, fraud, or safety incidents.</li>
@@ -90,6 +90,17 @@ export default function PrivacyPage() {
             <li><strong>Legal and safety:</strong> when reasonably necessary to comply with law, protect rights or safety, investigate abuse, or enforce our agreements.</li>
             <li><strong>Business changes:</strong> as part of a merger, financing, acquisition, or sale, subject to appropriate confidentiality and notice where required.</li>
           </ul>
+        </div>
+
+        <div className={sectionClass}>
+          <h2 className="font-semibold">Maps and address search</h2>
+          <p className={bodyClass}>
+            Address search runs only when you press Search. On iOS, the app uses Apple MapKit on the device; on
+            Android and the website, QuestHat sends the address search text and limited context, such as country,
+            city, and an approximate location when available, to Apple&apos;s Maps service. QuestHat does not send the
+            optional meeting-instructions field with an address search. We record your account ID, provider type, and
+            search time to enforce anti-abuse limits, but not the search text in that quota record.
+          </p>
         </div>
 
         <div className={sectionClass}>

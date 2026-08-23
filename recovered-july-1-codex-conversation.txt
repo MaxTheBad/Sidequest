@@ -1,0 +1,65 @@
+RECOVERED CODEX CONVERSATION — JULY 1, 2026
+
+Conversation ID: 019f1f0f-d7b6-7650-b66e-7bc4e8c6c4e1
+Topic: QuestHat iOS push notifications, Supabase, and TestFlight
+
+RECOVERY NOTE
+This is not the complete conversation. The original Codex session log was
+deleted. The user messages below survived in Codex's prompt-history cache.
+The assistant replies, tool output, screenshots, and detailed execution
+history could not be recovered.
+
+USER MESSAGES
+
+1. just tell me when it’s done
+
+2. my phone didn’t get a push notification for anything
+
+3. are push/device tokens setup enabled?
+
+4. permission is gtanted
+
+5. check
+
+6. how do we know/confirm this is setup with apple
+
+   e.g.
+
+   this is something you told me to do, how i know if its setup correctly
+
+7. on asc or asdeve
+
+8. both tabs are open in chrome, you do it click by click
+
+9. take controll of browser n check
+
+10. how do i connect you or my device to supabase to see
+
+11. Failed to run sql query: ERROR:  42703: column p.email does not exist
+    LINE 11: where p.email = 'your-email-here@example.com'
+                   ^
+    Note: A limit of 100 was applied to your query. If this was the cause of
+    a syntax error, try selecting "No limit" instead and re-run the query.
+
+12. seems something wrong with the refresh
+    so i see the iccon badge updates which lets me know where wired, but it
+    doesnt update until i open the app
+
+13. just check all possible problems
+
+14. yea fix it
+
+15. send here
+
+16. Failed to run sql query: ERROR:  42601: syntax error at or near "not"
+    LINE 15: alter publication supabase_realtime add table if not exists public.notifications;
+                                                              ^
+
+17. did you update archoive n send to testflight?
+
+18. yes do it
+
+19. testflight never got the update
+
+20. should be build 58 or later
+

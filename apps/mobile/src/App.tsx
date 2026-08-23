@@ -35,6 +35,7 @@ import * as Location from "expo-location";
 import * as Notifications from "expo-notifications";
 import { StatusBar } from "expo-status-bar";
 import { requireOptionalNativeModule, useEvent } from "expo";
+import { requireNativeViewManager } from "expo-modules-core";
 import { useVideoPlayer, VideoView } from "expo-video";
 import * as WebBrowser from "expo-web-browser";
 import { Camera, Map as MapLibreMap, Marker, type CameraRef } from "@maplibre/maplibre-react-native";
@@ -71,6 +72,10 @@ const QuestHatAndroidLiveActivity = Platform.OS === "android"
     }>("QuestHatLiveActivityAndroid")
   : null;
 
+const AppleMapNativeView = Platform.OS === "ios"
+  ? requireNativeViewManager("QuestHatApplePlaces", "QuestHatAppleMapView")
+  : View;
+
 type LiveActivityPushToken = {
   supported: boolean;
   environment: "production" | "sandbox";
@@ -83,7 +88,12 @@ type AuthStep = "email" | "code";
 type TabKey = "home" | "create" | "saved" | "joined" | "inbox" | "notifications" | "profile" | "settings";
 type Provider = "apple" | "google" | "facebook" | "x";
 type DeviceLocation = { lat: number; lon: number; accuracy?: number };
+type LocationSuggestion = { id?: string | null; label: string; publicLabel: string; lat: number | null; lon: number | null };
 type QuestMapPoint = { quest: QuestPreview; coords: DeviceLocation; distanceLabel: string | undefined };
+type AppleMapNativeRef = {
+  focusCoordinate: (latitude: number, longitude: number, delta: number) => Promise<void>;
+  fitAll: () => Promise<void>;
+};
 type SafetyPromptContext = "host" | "guest";
 type PendingSafetyJoin = { quest: QuestPreview; source: "selected" | "feed" };
 const FAR_AWAY_WARNING_MILES = 15;
@@ -172,6 +182,7 @@ type QuestPreview = {
   skill_level: string | null;
   join_mode?: string | null;
   exact_address?: string | null;
+  location_details?: string | null;
   created_at?: string | null;
   media_items?: Array<{ url: string; type: "image" | "video"; label?: string | null; thumbnailUrl?: string | null }> | null;
   hobbies?: { name: string | null; category: string | null }[] | { name: string | null; category: string | null } | null;
@@ -239,6 +250,19 @@ const videoCompressor = Platform.OS === "ios" || Platform.OS === "android"
       deleteTemporary(source: string): Promise<boolean>;
       thumbnail(source: string, atSeconds: number): Promise<GeneratedThumbnailResult>;
     }>("QuestHatVideoCompressor")
+  : null;
+
+const applePlaces = Platform.OS === "ios"
+  ? requireOptionalNativeModule<{
+      search(
+        query: string,
+        countryName: string | null,
+        countryCode: string | null,
+        city: string | null,
+        latitude: number | null,
+        longitude: number | null,
+      ): Promise<LocationSuggestion[]>;
+    }>("QuestHatApplePlaces")
   : null;
 
 async function uploadLocalFileToStorage(params: {
@@ -352,6 +376,7 @@ type QuestDetail = QuestPreview & {
   exact_address?: string | null;
   exact_lat?: number | null;
   exact_lng?: number | null;
+  location_details?: string | null;
   media_video_url?: string | null;
   media_source?: string | null;
   host_coordination_reminders_disabled?: boolean | null;
@@ -1024,7 +1049,10 @@ function QuestHatApp() {
   const [selectedCountrySuggestion, setSelectedCountrySuggestion] = useState<string | null>(null);
   const [selectedCountryCode, setSelectedCountryCode] = useState<string | null>(null);
   const [draftExactAddress, setDraftExactAddress] = useState("");
-  const [locationSuggestions, setLocationSuggestions] = useState<Array<{ label: string; publicLabel: string; lat: number | null; lon: number | null }>>([]);
+  const [draftLocationDetails, setDraftLocationDetails] = useState("");
+  const [showLocationDetails, setShowLocationDetails] = useState(false);
+  const [locationSuggestions, setLocationSuggestions] = useState<LocationSuggestion[]>([]);
+  const [locationSearchRemaining, setLocationSearchRemaining] = useState<number | null>(null);
   const [selectedLocationSuggestion, setSelectedLocationSuggestion] = useState<string | null>(null);
   const [selectedPublicLocation, setSelectedPublicLocation] = useState<string | null>(null);
   const [selectedLocationCoordinates, setSelectedLocationCoordinates] = useState<{ lat: number; lon: number } | null>(null);
@@ -1176,6 +1204,7 @@ function QuestHatApp() {
   const [eulaConsentChecked, setEulaConsentChecked] = useState(false);
   const [eulaSaving, setEulaSaving] = useState(false);
   const homeCameraRef = useRef<CameraRef | null>(null);
+  const appleMapRef = useRef<AppleMapNativeRef | null>(null);
   const questionScrollRef = useRef<ScrollView | null>(null);
   const questDetailScrollRef = useRef<ScrollView | null>(null);
   const joinRequestsOffsetRef = useRef(0);
@@ -1313,6 +1342,8 @@ function QuestHatApp() {
       setSelectedLocationSuggestion(null);
       setSelectedPublicLocation(null);
       setSelectedLocationCoordinates(null);
+      setDraftLocationDetails("");
+      setShowLocationDetails(false);
       setLocationSearchLoading(false);
       setLocationSearchAttempted(false);
       return;
@@ -1360,21 +1391,43 @@ function QuestHatApp() {
     setLocationSuggestions([]);
     try {
       const cityContext = [profile?.city, profile?.region].filter(Boolean).join(", ");
-      const params = new URLSearchParams({
-        q: query,
-        city: cityContext,
-        country: selectedCountrySuggestion,
-        countryCode: selectedCountryCode,
-        v: "2",
+      const { data: sessionData } = await supabase?.auth.getSession() || { data: { session: null } };
+      const accessToken = sessionData.session?.access_token;
+      if (!accessToken) throw new Error("Your session expired. Sign in again.");
+      const provider = Platform.OS === "ios" ? "apple_native" : "apple_server";
+      const response = await fetch(`${env.siteUrl.replace(/\/$/, "")}/api/location-search`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          provider,
+          query: provider === "apple_server" ? query : undefined,
+          city: cityContext,
+          countryName: selectedCountrySuggestion,
+          countryCode: selectedCountryCode,
+          lat: deviceLocation?.lat,
+          lon: deviceLocation?.lon,
+        }),
       });
-      if (deviceLocation) {
-        params.set("lat", String(deviceLocation.lat));
-        params.set("lon", String(deviceLocation.lon));
-      }
-      const response = await fetch(`${env.siteUrl.replace(/\/$/, "")}/api/location-search?${params.toString()}`);
-      const payload = await response.json() as { suggestions?: Array<{ label: string; publicLabel: string; lat: number | null; lon: number | null }>; error?: string };
+      const payload = await response.json() as { suggestions?: LocationSuggestion[]; error?: string; remaining?: number };
       if (!response.ok) throw new Error(payload.error || "Location search failed.");
-      setLocationSuggestions(payload.suggestions || []);
+      setLocationSearchRemaining(typeof payload.remaining === "number" ? payload.remaining : null);
+      if (provider === "apple_native") {
+        if (!applePlaces) throw new Error("Apple Maps search is unavailable in this build.");
+        const suggestions = await applePlaces.search(
+          query,
+          selectedCountrySuggestion,
+          selectedCountryCode,
+          cityContext || null,
+          deviceLocation?.lat ?? null,
+          deviceLocation?.lon ?? null,
+        );
+        setLocationSuggestions(suggestions || []);
+      } else {
+        setLocationSuggestions(payload.suggestions || []);
+      }
       setLocationSearchAttempted(true);
     } catch (error) {
       setLocationSuggestions([]);
@@ -2311,12 +2364,12 @@ function QuestHatApp() {
     const [{ data, error }, { data: privateLocation, error: privateLocationError }] = await Promise.all([
       supabase
         .from("quests")
-        .select("id,creator_id,title,description,city,availability,starts_at,time_flexible,group_size,hobby_id,skill_level,created_at,join_mode,exact_location_visibility,exact_address,exact_lat,exact_lng,media_video_url,media_source,media_items,host_coordination_reminders_disabled,host_coordination_reminders_snoozed_until,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,username,city,bio,avatar_url)")
+        .select("id,creator_id,title,description,city,availability,starts_at,time_flexible,group_size,hobby_id,skill_level,created_at,join_mode,exact_location_visibility,exact_address,exact_lat,exact_lng,location_details,media_video_url,media_source,media_items,host_coordination_reminders_disabled,host_coordination_reminders_snoozed_until,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,username,city,bio,avatar_url)")
         .eq("id", questId)
         .maybeSingle(),
       supabase
         .from("quest_private_locations")
-        .select("exact_address,exact_lat,exact_lng")
+        .select("exact_address,exact_lat,exact_lng,location_details")
         .eq("quest_id", questId)
         .maybeSingle(),
     ]);
@@ -2328,6 +2381,7 @@ function QuestHatApp() {
       exact_address: privateLocation?.exact_address ?? data.exact_address ?? null,
       exact_lat: privateLocation?.exact_lat ?? data.exact_lat ?? null,
       exact_lng: privateLocation?.exact_lng ?? data.exact_lng ?? null,
+      location_details: privateLocation?.location_details ?? data.location_details ?? null,
     } as QuestDetail;
   }
 
@@ -3700,7 +3754,7 @@ function privateThreadIncludesUsers(
     const loc = await getDeviceLocation(action === "join" ? "Location access is required to request or join this quest." : "Location access is required to create an in-person quest.");
     if (!loc) return false;
     const coords = action === "create"
-      ? await fetchQuestCoordinates(draftExactAddress || quest.city || "")
+      ? selectedLocationCoordinates || await fetchQuestCoordinates(draftExactAddress || quest.city || "")
       : await getQuestCoordinates(quest);
     if (!coords) {
       if (action === "create") setStatus("Location enabled. We could not estimate distance for this address.");
@@ -3746,6 +3800,8 @@ function privateThreadIncludesUsers(
     setTimeFlexible(quest.time_flexible === true);
     setLocationMode(isRemote ? "remote" : "in_person");
     setDraftExactAddress(exactLocation);
+    setDraftLocationDetails(quest.location_details || "");
+    setShowLocationDetails(Boolean(quest.location_details));
     setSelectedLocationSuggestion(exactLocation || null);
     setSelectedPublicLocation(quest.city || null);
     setSelectedLocationCoordinates(
@@ -3928,6 +3984,7 @@ function privateThreadIncludesUsers(
           exact_address: draftExactAddress.trim() || null,
           exact_lat: locationMode === "in_person" ? selectedLocationCoordinates?.lat ?? null : null,
           exact_lng: locationMode === "in_person" ? selectedLocationCoordinates?.lon ?? null : null,
+          location_details: locationMode === "in_person" ? draftLocationDetails.trim().slice(0, 240) || null : null,
           media_items: mediaItems,
           media_source: mediaItems.length ? "upload" : null,
           media_video_url: null,
@@ -3960,6 +4017,8 @@ function privateThreadIncludesUsers(
     setDraftTitle("");
     setDraftDescription("");
     setDraftExactAddress("");
+    setDraftLocationDetails("");
+    setShowLocationDetails(false);
     setLocationSuggestions([]);
     setCategoryInput("");
     setCategoryIsCustom(false);
@@ -3975,6 +4034,7 @@ function privateThreadIncludesUsers(
     setSelectedLocationCoordinates(null);
     setLocationSearchLoading(false);
     setLocationSearchAttempted(false);
+    setLocationSearchRemaining(null);
     setSkillLevel("any");
     setGroupSizeChoice("any");
     setGroupSizeCustom("");
@@ -6290,6 +6350,10 @@ function privateThreadIncludesUsers(
 
     function focusMapPoint(point: QuestMapPoint) {
       setSelectedMapQuestId(point.quest.id);
+      if (Platform.OS === "ios") {
+        void appleMapRef.current?.focusCoordinate(point.coords.lat, point.coords.lon, 0.035);
+        return;
+      }
       homeCameraRef.current?.flyTo({
         center: [point.coords.lon, point.coords.lat],
         zoom: 15,
@@ -6300,11 +6364,19 @@ function privateThreadIncludesUsers(
     function fitAllMapPoints() {
       const coordinates = [...points.map((point) => point.coords), ...(deviceLocation ? [deviceLocation] : [])];
       if (coordinates.length === 1) {
+        if (Platform.OS === "ios") {
+          void appleMapRef.current?.focusCoordinate(coordinates[0].lat, coordinates[0].lon, 0.06);
+          return;
+        }
         homeCameraRef.current?.flyTo({
           center: [coordinates[0].lon, coordinates[0].lat],
           zoom: 14,
           duration: 320,
         });
+        return;
+      }
+      if (Platform.OS === "ios") {
+        void appleMapRef.current?.fitAll();
         return;
       }
       const west = Math.min(...coordinates.map((point) => point.lon));
@@ -6347,11 +6419,35 @@ function privateThreadIncludesUsers(
     return (
       <View style={styles.mapStack}>
         <View style={[styles.mapStage, { borderColor: isLightTheme ? "rgba(15,23,42,0.11)" : "rgba(255,255,255,0.08)" }]}>
-          <MapLibreMap
-            key={points.map((point) => point.quest.id).sort().join("|")}
-            style={styles.nativeMap}
-            mapStyle={OPEN_STREET_MAP_STYLE}
-          >
+          {Platform.OS === "ios" ? (
+            <AppleMapNativeView
+              ref={appleMapRef}
+              key={`apple-${points.map((point) => point.quest.id).sort().join("|")}`}
+              style={styles.nativeMap}
+              center={{ latitude: center.lat, longitude: center.lon, delta: deviceLocation ? 0.18 : 0.28 }}
+              points={[
+                ...points.map((point) => ({
+                  id: point.quest.id,
+                  latitude: point.coords.lat,
+                  longitude: point.coords.lon,
+                  title: point.quest.title,
+                  category: getCategory(point.quest),
+                  selected: selectedPoint?.quest.id === point.quest.id,
+                  kind: "quest",
+                })),
+                ...(deviceLocation ? [{ id: "device-location", latitude: deviceLocation.lat, longitude: deviceLocation.lon, title: "Your location", category: "", selected: false, kind: "device" }] : []),
+              ]}
+              onMarkerPress={(event: { nativeEvent: { id?: string } }) => {
+                const point = points.find((candidate) => candidate.quest.id === event.nativeEvent.id);
+                if (point) focusMapPoint(point);
+              }}
+            />
+          ) : (
+            <MapLibreMap
+              key={points.map((point) => point.quest.id).sort().join("|")}
+              style={styles.nativeMap}
+              mapStyle={OPEN_STREET_MAP_STYLE}
+            >
             <Camera
               ref={homeCameraRef}
               initialViewState={{
@@ -6387,7 +6483,8 @@ function privateThreadIncludesUsers(
                 </Marker>
               );
             })}
-          </MapLibreMap>
+            </MapLibreMap>
+          )}
           <View style={styles.mapTopOverlay} pointerEvents="box-none">
             <View style={styles.mapActivityPill}>
               <View style={styles.mapActivityDot} />
@@ -6401,6 +6498,10 @@ function privateThreadIncludesUsers(
                 style={[styles.mapControlButton, deviceLocation && styles.mapControlButtonActive]}
                 onPress={() => {
                   if (deviceLocation) {
+                    if (Platform.OS === "ios") {
+                      void appleMapRef.current?.focusCoordinate(deviceLocation.lat, deviceLocation.lon, 0.035);
+                      return;
+                    }
                     homeCameraRef.current?.flyTo({
                       center: [deviceLocation.lon, deviceLocation.lat],
                       zoom: 15,
@@ -6409,6 +6510,10 @@ function privateThreadIncludesUsers(
                   } else {
                     void requestDeviceLocation("Turn on location to calculate exact distance from nearby quests.").then((location) => {
                       if (!location) return;
+                      if (Platform.OS === "ios") {
+                        void appleMapRef.current?.focusCoordinate(location.lat, location.lon, 0.035);
+                        return;
+                      }
                       homeCameraRef.current?.flyTo({
                         center: [location.lon, location.lat],
                         zoom: 15,
@@ -6433,9 +6538,11 @@ function privateThreadIncludesUsers(
               <Ionicons name="chevron-forward" size={13} color="#9bd8e4" />
             </Pressable>
           ) : null}
-          <View style={styles.mapAttributionWrap} pointerEvents="none">
-            <Text style={[styles.mapAttributionText, { color: isLightTheme ? "#334155" : "#d7dee8" }]}>Map data © OpenStreetMap contributors</Text>
-          </View>
+          {Platform.OS !== "ios" ? (
+            <View style={styles.mapAttributionWrap} pointerEvents="none">
+              <Text style={[styles.mapAttributionText, { color: isLightTheme ? "#334155" : "#d7dee8" }]}>Map data © OpenStreetMap contributors</Text>
+            </View>
+          ) : null}
           {selectedQuest && selectedPoint ? (
             <View style={styles.mapPreviewCard}>
               <Pressable style={styles.mapPreviewMain} onPress={() => void openQuestDetail(selectedQuest.id)}>
@@ -6801,6 +6908,8 @@ function privateThreadIncludesUsers(
                         setSelectedLocationSuggestion(null);
                         setSelectedPublicLocation(null);
                         setSelectedLocationCoordinates(null);
+                        setDraftLocationDetails("");
+                        setShowLocationDetails(false);
                         setLocationSuggestions([]);
                         setLocationSearchAttempted(false);
                       }}
@@ -6824,6 +6933,8 @@ function privateThreadIncludesUsers(
                             setSelectedLocationSuggestion(null);
                             setSelectedPublicLocation(null);
                             setSelectedLocationCoordinates(null);
+                            setDraftLocationDetails("");
+                            setShowLocationDetails(false);
                             setLocationSearchAttempted(false);
                           }}
                         >
@@ -6850,6 +6961,8 @@ function privateThreadIncludesUsers(
                       setSelectedLocationSuggestion(null);
                       setSelectedPublicLocation(null);
                       setSelectedLocationCoordinates(null);
+                      setDraftLocationDetails("");
+                      setShowLocationDetails(false);
                       setLocationSearchAttempted(false);
                     }}
                     autoCapitalize="none"
@@ -6919,7 +7032,49 @@ function privateThreadIncludesUsers(
                         ? "No exact matches yet. Try without a suite number or use the venue's shorter name."
                       : "Select a result from the list so QuestHat can publish it."}
                 </Text>
+                {locationMode === "in_person" && locationSearchRemaining !== null && locationSearchRemaining <= 20 ? (
+                  <Text style={styles.locationSearchRemaining}>{locationSearchRemaining} address searches remaining today</Text>
+                ) : null}
               </View>
+              {locationMode === "in_person" && selectedLocationSuggestion ? (
+                <View style={styles.locationDetailsWrap}>
+                  <Pressable
+                    style={styles.locationDetailsToggle}
+                    onPress={() => setShowLocationDetails((current) => !current)}
+                    accessibilityRole="button"
+                    accessibilityLabel={showLocationDetails ? "Hide meeting details" : "Add meeting details"}
+                  >
+                    <View style={styles.locationDetailsToggleIcon}><Ionicons name="information-circle-outline" size={18} color="#9bd8e4" /></View>
+                    <Text style={styles.locationDetailsToggleText}>{showLocationDetails ? "Hide meeting details" : "+ Add meeting details"}</Text>
+                    <Ionicons name={showLocationDetails ? "chevron-up" : "chevron-down"} size={17} color="#9bd8e4" />
+                  </Pressable>
+                  {showLocationDetails ? (
+                    <View style={styles.locationDetailsPanel}>
+                      <View style={styles.createFieldLabelRow}>
+                        <Text style={styles.createFieldLabel}>Meeting details</Text>
+                        <Text style={styles.createOptionalLabel}>{draftLocationDetails.length}/240</Text>
+                      </View>
+                      <TextInput
+                        multiline
+                        value={draftLocationDetails}
+                        onChangeText={(value) => setDraftLocationDetails(value.slice(0, 240))}
+                        placeholder="Court number, table location, entrance, suite, or parking instructions"
+                        placeholderTextColor="#94a3b8"
+                        style={[styles.createInput, styles.locationDetailsInput]}
+                        textAlignVertical="top"
+                      />
+                      <View style={styles.locationDetailsPrivacyRow}>
+                        <Ionicons name={draftLocationVisibility === "public" ? "warning-outline" : "shield-checkmark-outline"} size={15} color={draftLocationVisibility === "public" ? "#f5c76b" : "#9bd8e4"} />
+                        <Text style={[styles.locationDetailsPrivacyText, draftLocationVisibility === "public" && styles.locationDetailsPrivacyWarning]}>
+                          {draftLocationVisibility === "public"
+                            ? "These details will be public. Don’t include door codes or sensitive personal information."
+                            : "These details stay protected with your exact address. Don’t include door codes or sensitive personal information."}
+                        </Text>
+                      </View>
+                    </View>
+                  ) : null}
+                </View>
+              ) : null}
               {showAdvancedSettings ? <View style={styles.createFieldGroup}>
                 <Text style={styles.createFieldLabel}>{locationMode === "remote" ? "Who sees the link?" : "Who sees the exact address?"}</Text>
                 <View style={styles.createVisibilityStack}>
@@ -8114,6 +8269,12 @@ function privateThreadIncludesUsers(
                 <View style={styles.questDetailFactCopy}>
                   <Text style={styles.questDetailFactLabel}>LOCATION</Text>
                   <Text style={styles.questDetailFactValue}>{`${selectedQuest.city || "City to be decided"}${canViewExactAddress && selectedQuest.exact_address ? ` · ${selectedQuest.exact_address}` : ""}`}</Text>
+                  {canViewExactAddress && selectedQuest.location_details ? (
+                    <View style={styles.questLocationDetailsBox}>
+                      <Text style={styles.questLocationDetailsLabel}>MEETING DETAILS</Text>
+                      <Text style={styles.questLocationDetailsText}>{selectedQuest.location_details}</Text>
+                    </View>
+                  ) : null}
                   {canViewExactAddress && selectedQuest.exact_address ? <Text style={styles.questDetailDirectionsHint}>Tap to choose a map</Text> : null}
                 </View>
                 {canViewExactAddress && selectedQuest.exact_address ? <Ionicons name="navigate-circle" size={24} color="#9bd8e4" /> : null}
@@ -8321,7 +8482,7 @@ function privateThreadIncludesUsers(
                               style={[styles.guestLocationButton, hasExactAccess ? styles.guestLocationButtonShared : styles.guestLocationButtonUnshared]}
                               onPress={() => void setQuestExactAddressAccess(selectedQuest.id, member.id, !hasExactAccess)}
                               disabled={memberActionPending}
-                              accessibilityLabel={hasExactAccess ? "Stop sharing the exact address" : "Share the exact address"}
+                              accessibilityLabel={hasExactAccess ? "Stop sharing the exact address and meeting details" : "Share the exact address and meeting details"}
                             >
                               {memberActionPending ? <ActivityIndicator size="small" color={hasExactAccess ? "#08121a" : "#fecdd3"} /> : <Ionicons name={hasExactAccess ? "location" : "location-outline"} size={15} color={hasExactAccess ? "#08121a" : "#fecdd3"} />}
                               <Text style={[styles.guestLocationButtonText, !hasExactAccess && styles.guestLocationButtonTextUnshared]}>
@@ -10292,6 +10453,66 @@ const styles = StyleSheet.create({
     color: "#ffffff",
     fontSize: 12,
     fontWeight: "800",
+  },
+  locationSearchRemaining: {
+    color: "#9bd8e4",
+    fontSize: 10,
+    fontWeight: "700",
+    paddingHorizontal: 2,
+  },
+  locationDetailsWrap: {
+    gap: 8,
+  },
+  locationDetailsToggle: {
+    alignItems: "center",
+    backgroundColor: "rgba(155,216,228,0.07)",
+    borderColor: "rgba(155,216,228,0.2)",
+    borderRadius: 14,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 9,
+    minHeight: 46,
+    paddingHorizontal: 12,
+  },
+  locationDetailsToggleIcon: {
+    alignItems: "center",
+    backgroundColor: "rgba(155,216,228,0.1)",
+    borderRadius: 9,
+    height: 30,
+    justifyContent: "center",
+    width: 30,
+  },
+  locationDetailsToggleText: {
+    color: "#dff7fb",
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  locationDetailsPanel: {
+    backgroundColor: "rgba(255,255,255,0.025)",
+    borderColor: "rgba(255,255,255,0.07)",
+    borderRadius: 15,
+    borderWidth: 1,
+    gap: 8,
+    padding: 11,
+  },
+  locationDetailsInput: {
+    minHeight: 84,
+    paddingTop: 12,
+  },
+  locationDetailsPrivacyRow: {
+    alignItems: "flex-start",
+    flexDirection: "row",
+    gap: 7,
+  },
+  locationDetailsPrivacyText: {
+    color: "#9bc8d2",
+    flex: 1,
+    fontSize: 10,
+    lineHeight: 15,
+  },
+  locationDetailsPrivacyWarning: {
+    color: "#d9bc7d",
   },
   createHelperText: {
     color: "#8993a6",
@@ -13005,6 +13226,27 @@ const styles = StyleSheet.create({
     color: "#9bd8e4",
     fontSize: 10,
     fontWeight: "800",
+  },
+  questLocationDetailsBox: {
+    backgroundColor: "rgba(155,216,228,0.07)",
+    borderColor: "rgba(155,216,228,0.16)",
+    borderRadius: 11,
+    borderWidth: 1,
+    gap: 3,
+    marginTop: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  questLocationDetailsLabel: {
+    color: "#9bd8e4",
+    fontSize: 8,
+    fontWeight: "900",
+    letterSpacing: 0.75,
+  },
+  questLocationDetailsText: {
+    color: "#dce8ec",
+    fontSize: 11,
+    lineHeight: 16,
   },
   questDetailFactDivider: {
     backgroundColor: "rgba(255,255,255,0.06)",

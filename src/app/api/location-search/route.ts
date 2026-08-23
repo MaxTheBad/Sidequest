@@ -1,126 +1,210 @@
+import { appleMapsServerIsConfigured, getAppleMapsAccessToken } from "@/lib/apple-maps-server";
+import { getServiceSupabase } from "@/lib/security-audit-server";
+
 export const runtime = "edge";
 
-type GeocodedAddress = {
-  city?: string;
-  town?: string;
-  village?: string;
-  municipality?: string;
-  city_district?: string;
-  state?: string;
-  country?: string;
-  country_code?: string;
+type SearchProvider = "apple_native" | "apple_server";
+type SearchBody = {
+  provider?: unknown;
+  query?: unknown;
+  countryCode?: unknown;
+  countryName?: unknown;
+  city?: unknown;
+  lat?: unknown;
+  lon?: unknown;
 };
 
-type NominatimResult = {
-  display_name?: string;
+type StructuredAddress = {
+  locality?: string;
+  administrativeArea?: string;
+  administrativeAreaCode?: string;
+};
+
+type ApplePlace = {
+  id?: string;
   name?: string;
-  lat?: string;
-  lon?: string;
-  address?: GeocodedAddress;
+  country?: string;
+  countryCode?: string;
+  formattedAddressLines?: string[];
+  coordinate?: { latitude?: number; longitude?: number };
+  structuredAddress?: StructuredAddress;
 };
 
-const US_STATE_CODES: Record<string, string> = {
-  alabama: "AL", alaska: "AK", arizona: "AZ", arkansas: "AR", california: "CA", colorado: "CO",
-  connecticut: "CT", delaware: "DE", florida: "FL", georgia: "GA", hawaii: "HI", idaho: "ID",
-  illinois: "IL", indiana: "IN", iowa: "IA", kansas: "KS", kentucky: "KY", louisiana: "LA",
-  maine: "ME", maryland: "MD", massachusetts: "MA", michigan: "MI", minnesota: "MN",
-  mississippi: "MS", missouri: "MO", montana: "MT", nebraska: "NE", nevada: "NV",
-  "new hampshire": "NH", "new jersey": "NJ", "new mexico": "NM", "new york": "NY",
-  "north carolina": "NC", "north dakota": "ND", ohio: "OH", oklahoma: "OK", oregon: "OR",
-  pennsylvania: "PA", "rhode island": "RI", "south carolina": "SC", "south dakota": "SD",
-  tennessee: "TN", texas: "TX", utah: "UT", vermont: "VT", virginia: "VA", washington: "WA",
-  "west virginia": "WV", wisconsin: "WI", wyoming: "WY", "district of columbia": "DC",
+type AppleSearchResponse = { results?: ApplePlace[] };
+type QuotaResult = {
+  allowed: boolean;
+  daily_used: number;
+  daily_remaining: number;
+  retry_after_seconds: number;
+  reason: string | null;
 };
 
-function getSearchVariants(value: string) {
-  const raw = value.trim();
-  const withoutUnit = raw
-    .replace(/\s*(?:#\s*[\w-]+|(?:suite|ste|unit|apt|apartment|floor)\s*#?\s*[\w-]+)\s*,?/gi, ", ")
-    .replace(/,\s*,+/g, ", ")
-    .replace(/\s+,/g, ",")
-    .replace(/\s{2,}/g, " ")
-    .replace(/,\s*$/, "")
-    .trim();
-  const simplifiedVenue = raw
-    .replace(/^the\s+(?:shops?|mall|plaza)\s+at\s+/i, "")
-    .replace(/^(?:shops?|mall|plaza)\s+at\s+/i, "")
-    .trim();
-  return Array.from(new Set([raw, withoutUnit, simplifiedVenue].filter((query) => query.length >= 3)));
+const DAILY_LIMIT = 30;
+const BURST_LIMIT = 5;
+const resultCache = new Map<string, { expiresAt: number; suggestions: LocationSuggestion[] }>();
+
+type LocationSuggestion = {
+  id: string | null;
+  label: string;
+  publicLabel: string;
+  lat: number | null;
+  lon: number | null;
+};
+
+function cleanString(value: unknown, maxLength: number) {
+  if (typeof value !== "string") return "";
+  return value.trim().replace(/\s+/g, " ").slice(0, maxLength);
 }
 
-function publicLabel(address: GeocodedAddress | undefined, fallbackCountryCode: string) {
-  if (!address) return "";
-  const city = address.city || address.town || address.village || address.municipality || address.city_district || "";
+function publicLabel(place: ApplePlace, fallbackCountryCode: string) {
+  const address = place.structuredAddress;
+  const city = cleanString(address?.locality, 100);
   if (!city) return "";
-  const countryCode = (address.country_code || fallbackCountryCode).toUpperCase();
-  if (countryCode === "US") {
-    const state = (address.state || "").trim();
-    const stateCode = US_STATE_CODES[state.toLowerCase()] || (/^[A-Z]{2}$/.test(state) ? state : "");
-    return stateCode ? `${city}, ${stateCode}` : city;
-  }
-  return countryCode ? `${city}, ${countryCode.slice(0, 3)}` : city;
+  const countryCode = cleanString(place.countryCode || fallbackCountryCode, 3).toUpperCase();
+  const state = cleanString(address?.administrativeAreaCode || address?.administrativeArea, 100);
+  if (countryCode === "US") return state ? `${city}, ${state}` : city;
+  return countryCode ? `${city}, ${countryCode}` : city;
 }
 
-export async function GET(request: Request) {
-  const url = new URL(request.url);
-  const query = (url.searchParams.get("q") || "").trim().slice(0, 180);
-  const city = (url.searchParams.get("city") || "").trim().slice(0, 100);
-  const countryName = (url.searchParams.get("country") || "").trim().slice(0, 80);
-  const countryCode = (url.searchParams.get("countryCode") || "").trim().toUpperCase();
-  const lat = Number(url.searchParams.get("lat"));
-  const lon = Number(url.searchParams.get("lon"));
+function normalizePlaces(results: ApplePlace[], fallbackCountryCode: string) {
+  const seen = new Set<string>();
+  const suggestions: LocationSuggestion[] = [];
+  for (const place of results.slice(0, 12)) {
+    const address = (place.formattedAddressLines || []).map((line) => cleanString(line, 160)).filter(Boolean).join(", ");
+    const name = cleanString(place.name, 160);
+    const label = name && address && !address.toLowerCase().startsWith(name.toLowerCase())
+      ? `${name}, ${address}`
+      : address || name;
+    const key = label.toLowerCase();
+    if (!label || seen.has(key)) continue;
+    seen.add(key);
+    const latitude = Number(place.coordinate?.latitude);
+    const longitude = Number(place.coordinate?.longitude);
+    suggestions.push({
+      id: cleanString(place.id, 300) || null,
+      label,
+      publicLabel: publicLabel(place, fallbackCountryCode),
+      lat: Number.isFinite(latitude) ? latitude : null,
+      lon: Number.isFinite(longitude) ? longitude : null,
+    });
+  }
+  return suggestions;
+}
 
-  if (query.length < 3) return Response.json({ suggestions: [] });
+function quotaError(result: QuotaResult) {
+  const isDailyLimit = result.reason === "daily_limit";
+  return Response.json({
+    suggestions: [],
+    error: isDailyLimit
+      ? "You’ve reached today’s 30 address searches. Try again tomorrow."
+      : "Too many searches at once. Wait a moment and try again.",
+    remaining: result.daily_remaining,
+    retryAfterSeconds: result.retry_after_seconds,
+  }, {
+    status: 429,
+    headers: {
+      "Cache-Control": "private, no-store",
+      "Retry-After": String(Math.max(1, result.retry_after_seconds)),
+    },
+  });
+}
+
+export async function POST(request: Request) {
+  const supabase = getServiceSupabase();
+  if (!supabase) return Response.json({ error: "Location search is unavailable." }, { status: 503 });
+
+  const authHeader = request.headers.get("authorization") || "";
+  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+  if (!token) return Response.json({ error: "Sign in to search for a location." }, { status: 401 });
+  const { data: authData, error: authError } = await supabase.auth.getUser(token);
+  const userId = authData.user?.id || null;
+  if (authError || !userId) return Response.json({ error: "Your session expired. Sign in again." }, { status: 401 });
+
+  const body = await request.json().catch(() => null) as SearchBody | null;
+  const provider: SearchProvider = body?.provider === "apple_native" ? "apple_native" : "apple_server";
+  const query = cleanString(body?.query, 180);
+  const countryCode = cleanString(body?.countryCode, 2).toUpperCase();
+  const countryName = cleanString(body?.countryName, 80);
+  const city = cleanString(body?.city, 100);
+
+  if (provider === "apple_server" && !appleMapsServerIsConfigured()) {
+    return Response.json({ suggestions: [], error: "Apple address search is not configured yet." }, {
+      status: 503,
+      headers: { "Cache-Control": "private, no-store" },
+    });
+  }
+  if (provider === "apple_server" && query.length < 3) {
+    return Response.json({ suggestions: [], error: "Enter at least 3 characters." }, { status: 400 });
+  }
   if (countryCode && !/^[A-Z]{2}$/.test(countryCode)) {
-    return Response.json({ suggestions: [], error: "Invalid country." }, { status: 400 });
+    return Response.json({ suggestions: [], error: "Choose a valid country." }, { status: 400 });
   }
 
-  const locationBias = Number.isFinite(lat) && Number.isFinite(lon)
-    ? `&viewbox=${lon - 1.5},${lat + 1},${lon + 1.5},${lat - 1}`
+  const { data: quotaRows, error: quotaRpcError } = await supabase.rpc("consume_location_search_quota", {
+    p_user_id: userId,
+    p_provider: provider,
+    p_daily_limit: DAILY_LIMIT,
+    p_burst_limit: BURST_LIMIT,
+  });
+  const quota = (Array.isArray(quotaRows) ? quotaRows[0] : quotaRows) as QuotaResult | null;
+  if (quotaRpcError || !quota) {
+    return Response.json({ suggestions: [], error: "Couldn’t verify the search limit. Try again." }, { status: 503 });
+  }
+  if (!quota.allowed) return quotaError(quota);
+
+  if (provider === "apple_native") {
+    return Response.json({ ok: true, remaining: quota.daily_remaining }, {
+      headers: { "Cache-Control": "private, no-store" },
+    });
+  }
+
+  const latitude = Number(body?.lat);
+  const longitude = Number(body?.lon);
+  const roundedLocation = Number.isFinite(latitude) && Number.isFinite(longitude)
+    ? `${latitude.toFixed(2)},${longitude.toFixed(2)}`
     : "";
-  let results: NominatimResult[] = [];
+  const contextualQuery = [query, city && !query.toLowerCase().includes(city.toLowerCase()) ? city : "", countryName].filter(Boolean).join(", ");
+  const cacheKey = JSON.stringify([contextualQuery.toLowerCase(), countryCode, roundedLocation]);
+  const cached = resultCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    return Response.json({ suggestions: cached.suggestions, remaining: quota.daily_remaining }, {
+      headers: { "Cache-Control": "private, no-store", "X-QuestHat-Search-Cache": "hit" },
+    });
+  }
 
   try {
-    for (const variant of getSearchVariants(query)) {
-      const contextualQueries = [
-        variant,
-        city && !variant.toLowerCase().includes(city.toLowerCase()) ? `${variant}, ${city}` : "",
-      ].filter(Boolean);
-      for (const contextualQuery of contextualQueries) {
-        const searchParts = [contextualQuery];
-        if (countryName && !contextualQuery.toLowerCase().includes(countryName.toLowerCase())) searchParts.push(countryName);
-        const upstreamUrl = `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&dedupe=1&limit=10&accept-language=en&q=${encodeURIComponent(searchParts.join(", "))}${countryCode ? `&countrycodes=${countryCode.toLowerCase()}` : ""}${locationBias}`;
-        const response = await fetch(upstreamUrl, {
-          headers: {
-            Accept: "application/json",
-            "User-Agent": "QuestHat/1.0 (support@questhat.com)",
-          },
-        });
-        if (!response.ok) continue;
-        results = await response.json() as NominatimResult[];
-        if (results.length) break;
-      }
-      if (results.length) break;
+    const accessToken = await getAppleMapsAccessToken();
+    const params = new URLSearchParams({ q: contextualQuery, lang: "en-US" });
+    if (countryCode) params.set("limitToCountries", countryCode);
+    if (roundedLocation) params.set("searchLocation", roundedLocation);
+    const appleResponse = await fetch(`https://maps-api.apple.com/v1/search?${params.toString()}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      cache: "no-store",
+    });
+    const appleBody = await appleResponse.json().catch(() => null) as AppleSearchResponse | null;
+    if (!appleResponse.ok) {
+      const status = appleResponse.status === 429 ? 503 : 502;
+      return Response.json({ suggestions: [], error: appleResponse.status === 429 ? "Address search is busy. Try again later." : "Address search failed. Try again." }, { status });
     }
+    const suggestions = normalizePlaces(appleBody?.results || [], countryCode);
+    resultCache.set(cacheKey, { suggestions, expiresAt: Date.now() + 5 * 60_000 });
+    if (resultCache.size > 200) {
+      for (const [key, value] of resultCache) if (value.expiresAt <= Date.now()) resultCache.delete(key);
+    }
+    return Response.json({ suggestions, remaining: quota.daily_remaining }, {
+      headers: { "Cache-Control": "private, no-store", "X-QuestHat-Search-Provider": "apple" },
+    });
   } catch {
-    return Response.json({ suggestions: [], error: "Location search is temporarily unavailable." }, { status: 502 });
+    return Response.json({ suggestions: [], error: "Address search is temporarily unavailable." }, {
+      status: 502,
+      headers: { "Cache-Control": "private, no-store" },
+    });
   }
+}
 
-  const suggestions = Array.from(new Map(results.map((result) => {
-    const label = (result.display_name || result.name || "").trim();
-    if (!label) return null;
-    const resultLat = Number(result.lat);
-    const resultLon = Number(result.lon);
-    return [label.toLowerCase(), {
-      label,
-      publicLabel: publicLabel(result.address, countryCode),
-      lat: Number.isFinite(resultLat) ? resultLat : null,
-      lon: Number.isFinite(resultLon) ? resultLon : null,
-    }] as const;
-  }).filter((entry): entry is readonly [string, { label: string; publicLabel: string; lat: number | null; lon: number | null }] => Boolean(entry))).values());
-
-  return Response.json(
-    { suggestions },
-    { headers: { "Cache-Control": suggestions.length ? "public, max-age=300, s-maxage=86400, stale-while-revalidate=604800" : "public, max-age=30, s-maxage=300" } },
-  );
+export async function GET() {
+  return Response.json({ error: "Use the Search button in QuestHat." }, {
+    status: 405,
+    headers: { Allow: "POST", "Cache-Control": "private, no-store" },
+  });
 }

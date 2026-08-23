@@ -31,8 +31,11 @@ type QuestMediaItem = {
 type UploadedQuestMediaItem = QuestMediaItem & { audit?: MediaAuditInput };
 
 type LocationSuggestion = {
+  id?: string | null;
   label: string;
   publicLabel: string;
+  lat?: number | null;
+  lon?: number | null;
 };
 
 function normalizeLocationQuery(value?: string | null) {
@@ -63,6 +66,7 @@ type Quest = {
   join_mode?: "open" | "approval_required";
   exact_location_visibility?: "private" | "public" | "approved_members";
   exact_address?: string | null;
+  location_details?: string | null;
   title: string;
   description: string | null;
   city: string | null;
@@ -367,6 +371,8 @@ export default function Home() {
   const [countryQuery, setCountryQuery] = useState("United States");
   const [city, setCity] = useState("");
   const [exactAddress, setExactAddress] = useState("");
+  const [locationDetails, setLocationDetails] = useState("");
+  const [showLocationDetails, setShowLocationDetails] = useState(false);
   const [joinMode, setJoinMode] = useState<"open" | "approval_required">("open");
   const [exactLocationVisibility, setExactLocationVisibility] = useState<"private" | "public" | "approved_members">("approved_members");
   const [citySuggestions, setCitySuggestions] = useState<LocationSuggestion[]>([]);
@@ -374,6 +380,7 @@ export default function Home() {
   const [selectedPublicLocation, setSelectedPublicLocation] = useState<string | null>(null);
   const [locationSearchLoading, setLocationSearchLoading] = useState(false);
   const [locationSearchAttempted, setLocationSearchAttempted] = useState(false);
+  const [locationSearchRemaining, setLocationSearchRemaining] = useState<number | null>(null);
   const [restoreScrollY, setRestoreScrollY] = useState<number | null>(null);
   const [availability, setAvailability] = useState("");
   const [startAt, setStartAt] = useState("");
@@ -747,13 +754,24 @@ export default function Home() {
     setLocationSearchAttempted(false);
     setCitySuggestions([]);
     try {
-      const params = new URLSearchParams({ q, city, country: countryQuery, countryCode, v: "2" });
-      if (userLocation) {
-        params.set("lat", String(userLocation.lat));
-        params.set("lon", String(userLocation.lon));
-      }
-      const response = await fetch(`/api/location-search?${params.toString()}`);
-      const payload = await response.json() as { suggestions?: LocationSuggestion[]; error?: string };
+      if (!supabase) throw new Error("Sign in to search for a meetup location.");
+      const { data: auth } = await supabase.auth.getSession();
+      const token = auth.session?.access_token;
+      if (!token) throw new Error("Sign in to search for a meetup location.");
+      const response = await fetch("/api/location-search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          provider: "apple_server",
+          query: q,
+          city,
+          countryName: countryQuery,
+          countryCode,
+          ...(userLocation ? { lat: userLocation.lat, lon: userLocation.lon } : {}),
+        }),
+      });
+      const payload = await response.json() as { suggestions?: LocationSuggestion[]; remaining?: number; error?: string };
+      if (typeof payload.remaining === "number") setLocationSearchRemaining(payload.remaining);
       if (!response.ok) throw new Error(payload.error || "Location search failed.");
       setCitySuggestions(payload.suggestions || []);
       setLocationSearchAttempted(true);
@@ -783,7 +801,7 @@ export default function Home() {
     const now = Date.now();
     const nowIso = new Date(now).toISOString();
     const completedCutoffIso = new Date(now - (7 * 24 * 60 * 60 * 1000)).toISOString();
-    let q = supabase.from("quests").select("id,creator_id,created_at,title,description,city,skill_level,group_size,availability,starts_at,time_flexible,hobby_id,join_mode,exact_location_visibility,exact_address,media_video_url,media_source,media_items,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,username,avatar_url)").order("created_at", { ascending: false }).limit(24);
+    let q = supabase.from("quests").select("id,creator_id,created_at,title,description,city,skill_level,group_size,availability,starts_at,time_flexible,hobby_id,join_mode,exact_location_visibility,exact_address,location_details,media_video_url,media_source,media_items,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,username,avatar_url)").order("created_at", { ascending: false }).limit(24);
     q = uid ? q.or(`starts_at.gt.${nowIso},and(creator_id.eq.${uid},starts_at.gte.${completedCutoffIso})`) : q.gt("starts_at", nowIso);
       const filterCategoryName = getFilterCategoryName(hobbyFilter);
       if (hobbyFilter !== "all") {
@@ -799,7 +817,7 @@ export default function Home() {
 
     // Backward compatibility if migration for media_items has not been applied yet
     if (error?.message?.includes("column quests.media_items does not exist")) {
-      let fallback = supabase.from("quests").select("id,creator_id,created_at,title,description,city,skill_level,group_size,availability,starts_at,time_flexible,hobby_id,join_mode,exact_location_visibility,exact_address,media_video_url,media_source,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,username,avatar_url)").order("created_at", { ascending: false }).limit(24);
+      let fallback = supabase.from("quests").select("id,creator_id,created_at,title,description,city,skill_level,group_size,availability,starts_at,time_flexible,hobby_id,join_mode,exact_location_visibility,exact_address,location_details,media_video_url,media_source,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,username,avatar_url)").order("created_at", { ascending: false }).limit(24);
       fallback = uid ? fallback.or(`starts_at.gt.${nowIso},and(creator_id.eq.${uid},starts_at.gte.${completedCutoffIso})`) : fallback.gt("starts_at", nowIso);
       if (hobbyFilter !== "all") {
         if (filterCategoryName && hobbyFilter.startsWith("canonical:")) {
@@ -1747,11 +1765,14 @@ export default function Home() {
     setCategoryDropdownOpen(false);
     setLocationMode("in_person");
     setExactAddress("");
+    setLocationDetails("");
+    setShowLocationDetails(false);
     setCitySuggestions([]);
     setSelectedLocationSuggestion(null);
     setSelectedPublicLocation(null);
     setLocationSearchLoading(false);
     setLocationSearchAttempted(false);
+    setLocationSearchRemaining(null);
     setJoinMode("open");
     setExactLocationVisibility("approved_members");
     setSkillLevel("any");
@@ -2243,13 +2264,15 @@ export default function Home() {
 
   async function openEditModal(q: Quest) {
     let protectedAddress = q.exact_address || "";
+    let protectedLocationDetails = q.location_details || "";
     if (supabase && q.exact_location_visibility !== "public") {
       const { data: privateLocation } = await supabase
         .from("quest_private_locations")
-        .select("exact_address")
+        .select("exact_address,location_details")
         .eq("quest_id", q.id)
         .maybeSingle();
       protectedAddress = privateLocation?.exact_address || protectedAddress;
+      protectedLocationDetails = privateLocation?.location_details || protectedLocationDetails;
     }
     setEditingQuestId(q.id);
     setTitle(q.title || "");
@@ -2259,6 +2282,8 @@ export default function Home() {
     setCategoryInput(hobby?.name || "");
     setCity(q.city || "");
     setExactAddress(protectedAddress);
+    setLocationDetails(protectedLocationDetails);
+    setShowLocationDetails(Boolean(protectedLocationDetails));
     setCitySuggestions([]);
     setSelectedLocationSuggestion(protectedAddress || null);
     setSelectedPublicLocation(q.city || null);
@@ -2855,6 +2880,7 @@ export default function Home() {
           description: finalDescription,
           city: derivedCity,
           exact_address: exactAddress || null,
+          location_details: locationMode === "in_person" ? locationDetails.trim().slice(0, 240) || null : null,
           join_mode: joinMode,
           exact_location_visibility: locationMode === "remote" ? "private" : exactLocationVisibility,
           availability: avail,
@@ -2921,6 +2947,7 @@ export default function Home() {
           description: finalDescription,
           city: derivedCity,
           exact_address: exactAddress || null,
+          location_details: locationMode === "in_person" ? locationDetails.trim().slice(0, 240) || null : null,
           join_mode: joinMode,
           exact_location_visibility: locationMode === "remote" ? "private" : exactLocationVisibility,
           availability: avail,
@@ -4959,6 +4986,8 @@ export default function Home() {
                         setCitySuggestions([]);
                         setSelectedLocationSuggestion(null);
                         setSelectedPublicLocation(null);
+                        setLocationDetails("");
+                        setShowLocationDetails(false);
                         setLocationSearchAttempted(false);
                         setPublicVisibilityConfirmed(false);
                         clearFieldError("location");
@@ -5009,6 +5038,8 @@ export default function Home() {
                         setCountryQuery(next);
                         setCountryCode(resolveCountryCodeByName(next));
                         setExactAddress("");
+                        setLocationDetails("");
+                        setShowLocationDetails(false);
                         setCitySuggestions([]);
                         setSelectedLocationSuggestion(null);
                         setSelectedPublicLocation(null);
@@ -5029,6 +5060,8 @@ export default function Home() {
                       value={exactAddress}
                       onChange={(e) => {
                         setExactAddress(e.target.value);
+                        setLocationDetails("");
+                        setShowLocationDetails(false);
                         setCitySuggestions([]);
                         setSelectedLocationSuggestion(null);
                         setSelectedPublicLocation(null);
@@ -5085,7 +5118,44 @@ export default function Home() {
                           ? "No exact matches yet. Try the street address without a suite number or use the venue's shorter name."
                         : "Select a result from the list so QuestHat can save the location."}
                   </p>
+                  {locationMode === "in_person" && locationSearchRemaining !== null && locationSearchRemaining <= 20 ? (
+                    <p className="text-[10px] font-medium text-[#0c5063] sm:text-xs">{locationSearchRemaining} address searches remaining today</p>
+                  ) : null}
                 </div>
+                {locationMode === "in_person" && selectedLocationSuggestion ? (
+                  <div className="grid gap-2 rounded-xl border border-[#0c5063]/15 bg-[#0c5063]/[0.03] p-2.5 sm:p-3">
+                    <button
+                      type="button"
+                      className="flex w-full items-center gap-2 text-left text-sm font-semibold text-[#0c5063]"
+                      onClick={() => setShowLocationDetails((current) => !current)}
+                      aria-expanded={showLocationDetails}
+                    >
+                      <AppIcon name="shield" className="h-4 w-4" />
+                      <span className="flex-1">{showLocationDetails ? "Hide meeting details" : "+ Add meeting details"}</span>
+                      <span aria-hidden>{showLocationDetails ? "−" : "+"}</span>
+                    </button>
+                    {showLocationDetails ? (
+                      <div className="grid gap-1.5">
+                        <div className="flex items-center justify-between gap-3">
+                          <label className="text-[11px] font-medium uppercase tracking-wide text-slate-600">Meeting details</label>
+                          <span className="text-[10px] text-slate-500">{locationDetails.length}/240</span>
+                        </div>
+                        <textarea
+                          className="min-h-24 w-full resize-y rounded-xl border bg-white px-3 py-2 text-sm"
+                          maxLength={240}
+                          value={locationDetails}
+                          onChange={(event) => setLocationDetails(event.target.value.slice(0, 240))}
+                          placeholder="Court number, table location, entrance, suite, or parking instructions"
+                        />
+                        <p className={`text-[10px] leading-4 sm:text-xs ${exactLocationVisibility === "public" ? "text-amber-700" : "text-slate-500"}`}>
+                          {exactLocationVisibility === "public"
+                            ? "These details will be public. Don’t include door codes or sensitive personal information."
+                            : "These details stay protected with your exact address. Don’t include door codes or sensitive personal information."}
+                        </p>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
 
               <div className="flex items-center justify-between gap-3">

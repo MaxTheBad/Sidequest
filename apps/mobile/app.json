@@ -19,7 +19,7 @@
         "NSMotionUsageDescription": "QuestHat uses motion data to support device and media interactions in the app.",
         "ITSAppUsesNonExemptEncryption": false
       },
-    "buildNumber": "95"
+    "buildNumber": "96"
     },
     "android": {
       "package": "com.questhat.app",

@@ -1,0 +1,1267 @@
+2026-08-21 13:18:38 +0000 [MT] Initial pipeline context: <IDEDistributionProcessingPipelineContext: 0x8c30c9b00; archive(resolved)="<IDEArchive: 0x8c2423e20>", distributionTask(resolved)="2", distributionDestination(resolved)="1", distributionMethod(resolved)="<IDEDistributionMethodiOSAppStoreDistribution: 0x8c2756120>", team(resolved)="<IDEProvisioningBasicTeam: 0x8c30e46c0; teamID='3258CL32QP', teamName='(null)'>">
+	Chain (15, self inclusive):
+	<IDEDistributionProcessingPipelineContext: 0x8c30c9b00; archive = "<IDEArchive: 0x8c2423e20>", distributionMethod="<IDEDistributionMethodiOSAppStoreDistribution: 0x8c2756120>", team="<IDEProvisioningBasicTeam: 0x8c30e46c0; teamID='3258CL32QP', teamName='(null)'>">
+	<IDEDistributionProcessingPipelineContext: 0x8c30c9800; archive = "<IDEArchive: 0x8c2423e20>", distributionMethod="<IDEDistributionMethodiOSAppStoreDistribution: 0x8c2756120>", team="<IDEProvisioningBasicTeam: 0x8c30e46c0; teamID='3258CL32QP', teamName='(null)'>">
+	<IDEDistributionContext: 0x8c0765e00; archive = "<IDEArchive: 0x8c2423e20>", distributionMethod="<IDEDistributionMethodiOSAppStoreDistribution: 0x8c2756120>", team="<IDEProvisioningBasicTeam: 0x8c30e46c0; teamID='3258CL32QP', teamName='(null)'>">
+	<IDEDistributionContext: 0x8c0765b80; archive = "<IDEArchive: 0x8c2423e20>", distributionMethod="<IDEDistributionMethodiOSAppStoreDistribution: 0x8c2756120>", team="<IDEProvisioningBasicTeam: 0x8c30e46c0; teamID='3258CL32QP', teamName='(null)'>">
+	<IDEDistributionContext: 0x8c0765900; archive = "<IDEArchive: 0x8c2423e20>", distributionMethod="<IDEDistributionMethodiOSAppStoreDistribution: 0x8c2756120>", team="<IDEProvisioningBasicTeam: 0x8c30e46c0; teamID='3258CL32QP', teamName='(null)'>">
+	<IDEDistributionContext: 0x8c0765680; archive = "<IDEArchive: 0x8c2423e20>", distributionMethod="<IDEDistributionMethodiOSAppStoreDistribution: 0x8c2756120>", team="<IDEProvisioningBasicTeam: 0x8c30e46c0; teamID='3258CL32QP', teamName='(null)'>">
+	<IDEDistributionContext: 0x8c0765400; archive = "<IDEArchive: 0x8c2423e20>", distributionMethod="<IDEDistributionMethodiOSAppStoreDistribution: 0x8c2756120>", team="<IDEProvisioningBasicTeam: 0x8c30e46c0; teamID='3258CL32QP', teamName='(null)'>">
+	<IDEDistributionContext: 0x8c0765180; archive = "<IDEArchive: 0x8c2423e20>", distributionMethod="<IDEDistributionMethodiOSAppStoreDistribution: 0x8c2756120>", team="<IDEProvisioningBasicTeam: 0x8c30e46c0; teamID='3258CL32QP', teamName='(null)'>">
+	<IDEDistributionContext: 0x8c0764f00; archive = "<IDEArchive: 0x8c2423e20>", distributionMethod="<IDEDistributionMethodiOSAppStoreDistribution: 0x8c2756120>", team="<IDEProvisioningBasicTeam: 0x8c30e46c0; teamID='3258CL32QP', teamName='(null)'>">
+	<IDEDistributionContext: 0x8c0764c80; archive = "<IDEArchive: 0x8c2423e20>", distributionMethod="<IDEDistributionMethodiOSAppStoreDistribution: 0x8c2756120>", team="<IDEProvisioningBasicTeam: 0x8c30e46c0; teamID='3258CL32QP', teamName='(null)'>">
+	<IDEDistributionContext: 0x8c0764a00; archive = "<IDEArchive: 0x8c2423e20>", distributionMethod="<IDEDistributionMethodiOSAppStoreDistribution: 0x8c2756120>", team="<IDEProvisioningBasicTeam: 0x8c30e46c0; teamID='3258CL32QP', teamName='(null)'>">
+	<IDEDistributionContext: 0x8c0764780; archive = "<IDEArchive: 0x8c2423e20>", distributionMethod="<IDEDistributionMethodiOSAppStoreDistribution: 0x8c2756120>", team="<IDEProvisioningBasicTeam: 0x8c30e46c0; teamID='3258CL32QP', teamName='(null)'>">
+	<IDEDistributionContext: 0x8c0764500; archive = "<IDEArchive: 0x8c2423e20>", distributionMethod="<IDEDistributionMethodiOSAppStoreDistribution: 0x8c2756120>", team="(null)">
+	<IDEDistributionContext: 0x8c0764280; archive = "<IDEArchive: 0x8c2423e20>", distributionMethod="<IDEDistributionMethodiOSAppStoreDistribution: 0x8c2756120>", team="(null)">
+	<IDEDistributionContext: 0x1056f3f90; archive = "<IDEArchive: 0x8c2423e20>", distributionMethod="(null)", team="(null)">
+</IDEDistributionProcessingPipelineContext: 0x8c30c9b00>
+2026-08-21 13:18:38 +0000 [MT] Processing step: IDEDistributionCreateDestRootStep
+2026-08-21 13:18:38 +0000 [MT] Processing step: IDEDistributionCopyItemStep
+2026-08-21 13:18:38 +0000 [MT] Running /usr/bin/ditto '-V' '/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app' '/var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Root/Payload/QuestHat.app'
+2026-08-21 13:18:38 +0000  >>> Copying /Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app 
+2026-08-21 13:18:38 +0000  copying file ./React-timing_privacy.bundle/PrivacyInfo.xcprivacy ... 
+2026-08-21 13:18:38 +0000  553 bytes for ./React-timing_privacy.bundle/PrivacyInfo.xcprivacy
+2026-08-21 13:18:38 +0000  copying file ./React-timing_privacy.bundle/Info.plist ... 
+2026-08-21 13:18:38 +0000  787 bytes for ./React-timing_privacy.bundle/Info.plist
+2026-08-21 13:18:38 +0000  copying file ./_CodeSignature/CodeResources ... 
+2026-08-21 13:18:38 +0000  50367 bytes for ./_CodeSignature/CodeResources
+2026-08-21 13:18:38 +0000  copying file ./SplashScreen.storyboardc/EXPO-VIEWCONTROLLER-1-view-EXPO-ContainerView.nib ... 
+2026-08-21 13:18:38 +0000  4792 bytes for ./SplashScreen.storyboardc/EXPO-VIEWCONTROLLER-1-view-EXPO-ContainerView.nib
+2026-08-21 13:18:38 +0000  copying file ./SplashScreen.storyboardc/SplashScreenViewController.nib ... 
+2026-08-21 13:18:38 +0000  1004 bytes for ./SplashScreen.storyboardc/SplashScreenViewController.nib
+2026-08-21 13:18:38 +0000  copying file ./SplashScreen.storyboardc/Info.plist ... 
+2026-08-21 13:18:38 +0000  225 bytes for ./SplashScreen.storyboardc/Info.plist
+2026-08-21 13:18:38 +0000  copying file ./QuestHat ... 
+2026-08-21 13:18:38 +0000  2298192 bytes for ./QuestHat
+2026-08-21 13:18:38 +0000  copying file ./PlugIns/QuestHatLiveActivity.appex/_CodeSignature/CodeResources ... 
+2026-08-21 13:18:38 +0000  2246 bytes for ./PlugIns/QuestHatLiveActivity.appex/_CodeSignature/CodeResources
+2026-08-21 13:18:38 +0000  copying file ./PlugIns/QuestHatLiveActivity.appex/QuestHatLiveActivity ... 
+2026-08-21 13:18:38 +0000  132128 bytes for ./PlugIns/QuestHatLiveActivity.appex/QuestHatLiveActivity
+2026-08-21 13:18:38 +0000  copying file ./PlugIns/QuestHatLiveActivity.appex/Assets.car ... 
+2026-08-21 13:18:38 +0000  37288 bytes for ./PlugIns/QuestHatLiveActivity.appex/Assets.car
+2026-08-21 13:18:38 +0000  copying file ./PlugIns/QuestHatLiveActivity.appex/embedded.mobileprovision ... 
+2026-08-21 13:18:38 +0000  12191 bytes for ./PlugIns/QuestHatLiveActivity.appex/embedded.mobileprovision
+2026-08-21 13:18:38 +0000  copying file ./PlugIns/QuestHatLiveActivity.appex/Info.plist ... 
+2026-08-21 13:18:38 +0000  882 bytes for ./PlugIns/QuestHatLiveActivity.appex/Info.plist
+2026-08-21 13:18:38 +0000  copying file ./AppIcon60x60@2x.png ... 
+2026-08-21 13:18:38 +0000  6395 bytes for ./AppIcon60x60@2x.png
+2026-08-21 13:18:38 +0000  copying file ./ExpoConstants_privacy.bundle/PrivacyInfo.xcprivacy ... 
+2026-08-21 13:18:38 +0000  607 bytes for ./ExpoConstants_privacy.bundle/PrivacyInfo.xcprivacy
+2026-08-21 13:18:38 +0000  copying file ./ExpoConstants_privacy.bundle/Info.plist ... 
+2026-08-21 13:18:38 +0000  790 bytes for ./ExpoConstants_privacy.bundle/Info.plist
+2026-08-21 13:18:38 +0000  copying file ./React-cxxreact_privacy.bundle/PrivacyInfo.xcprivacy ... 
+2026-08-21 13:18:38 +0000  552 bytes for ./React-cxxreact_privacy.bundle/PrivacyInfo.xcprivacy
+2026-08-21 13:18:38 +0000  copying file ./React-cxxreact_privacy.bundle/Info.plist ... 
+2026-08-21 13:18:38 +0000  791 bytes for ./React-cxxreact_privacy.bundle/Info.plist
+2026-08-21 13:18:38 +0000  copying file ./ExpoApplication_privacy.bundle/PrivacyInfo.xcprivacy ... 
+2026-08-21 13:18:38 +0000  608 bytes for ./ExpoApplication_privacy.bundle/PrivacyInfo.xcprivacy
+2026-08-21 13:18:38 +0000  copying file ./ExpoApplication_privacy.bundle/Info.plist ... 
+2026-08-21 13:18:38 +0000  793 bytes for ./ExpoApplication_privacy.bundle/Info.plist
+2026-08-21 13:18:38 +0000  copying file ./Assets.car ... 
+2026-08-21 13:18:38 +0000  345848 bytes for ./Assets.car
+2026-08-21 13:18:38 +0000  copying file ./AppIcon76x76@2x~ipad.png ... 
+2026-08-21 13:18:38 +0000  8826 bytes for ./AppIcon76x76@2x~ipad.png
+2026-08-21 13:18:38 +0000  copying file ./main.jsbundle ... 
+2026-08-21 13:18:38 +0000  3542191 bytes for ./main.jsbundle
+2026-08-21 13:18:38 +0000  copying file ./EXConstants.bundle/app.config ... 
+2026-08-21 13:18:38 +0000  2165 bytes for ./EXConstants.bundle/app.config
+2026-08-21 13:18:38 +0000  copying file ./EXConstants.bundle/Info.plist ... 
+2026-08-21 13:18:38 +0000  768 bytes for ./EXConstants.bundle/Info.plist
+2026-08-21 13:18:38 +0000  copying file ./ExpoTaskManager_privacy.bundle/PrivacyInfo.xcprivacy ... 
+2026-08-21 13:18:38 +0000  607 bytes for ./ExpoTaskManager_privacy.bundle/PrivacyInfo.xcprivacy
+2026-08-21 13:18:38 +0000  copying file ./ExpoTaskManager_privacy.bundle/Info.plist ... 
+2026-08-21 13:18:38 +0000  793 bytes for ./ExpoTaskManager_privacy.bundle/Info.plist
+2026-08-21 13:18:38 +0000  copying file ./ExpoDevice_privacy.bundle/PrivacyInfo.xcprivacy ... 
+2026-08-21 13:18:38 +0000  609 bytes for ./ExpoDevice_privacy.bundle/PrivacyInfo.xcprivacy
+2026-08-21 13:18:38 +0000  copying file ./ExpoDevice_privacy.bundle/Info.plist ... 
+2026-08-21 13:18:38 +0000  783 bytes for ./ExpoDevice_privacy.bundle/Info.plist
+2026-08-21 13:18:38 +0000  copying file ./PrivacyInfo.xcprivacy ... 
+2026-08-21 13:18:38 +0000  5261 bytes for ./PrivacyInfo.xcprivacy
+2026-08-21 13:18:38 +0000  copying file ./ExpoNotifications_privacy.bundle/PrivacyInfo.xcprivacy ... 
+2026-08-21 13:18:38 +0000  607 bytes for ./ExpoNotifications_privacy.bundle/PrivacyInfo.xcprivacy
+2026-08-21 13:18:38 +0000  copying file ./ExpoNotifications_privacy.bundle/Info.plist ... 
+2026-08-21 13:18:38 +0000  797 bytes for ./ExpoNotifications_privacy.bundle/Info.plist
+2026-08-21 13:18:38 +0000  copying file ./ExpoFileSystem_privacy.bundle/Info.plist ... 
+2026-08-21 13:18:38 +0000  791 bytes for ./ExpoFileSystem_privacy.bundle/Info.plist
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/ExpoModulesJSI.framework/_CodeSignature/CodeResources ... 
+2026-08-21 13:18:38 +0000  1798 bytes for ./Frameworks/ExpoModulesJSI.framework/_CodeSignature/CodeResources
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/ExpoModulesJSI.framework/ExpoModulesJSI ... 
+2026-08-21 13:18:38 +0000  1437216 bytes for ./Frameworks/ExpoModulesJSI.framework/ExpoModulesJSI
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/ExpoModulesJSI.framework/Info.plist ... 
+2026-08-21 13:18:38 +0000  756 bytes for ./Frameworks/ExpoModulesJSI.framework/Info.plist
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/hermesvm.framework/_CodeSignature/CodeResources ... 
+2026-08-21 13:18:38 +0000  1798 bytes for ./Frameworks/hermesvm.framework/_CodeSignature/CodeResources
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/hermesvm.framework/hermesvm ... 
+2026-08-21 13:18:38 +0000  5090336 bytes for ./Frameworks/hermesvm.framework/hermesvm
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/hermesvm.framework/Info.plist ... 
+2026-08-21 13:18:38 +0000  859 bytes for ./Frameworks/hermesvm.framework/Info.plist
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/ExpoFont.framework/_CodeSignature/CodeResources ... 
+2026-08-21 13:18:38 +0000  1798 bytes for ./Frameworks/ExpoFont.framework/_CodeSignature/CodeResources
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/ExpoFont.framework/ExpoFont ... 
+2026-08-21 13:18:38 +0000  222608 bytes for ./Frameworks/ExpoFont.framework/ExpoFont
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/ExpoFont.framework/Info.plist ... 
+2026-08-21 13:18:38 +0000  748 bytes for ./Frameworks/ExpoFont.framework/Info.plist
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/ExpoVideo.framework/_CodeSignature/CodeResources ... 
+2026-08-21 13:18:38 +0000  1798 bytes for ./Frameworks/ExpoVideo.framework/_CodeSignature/CodeResources
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/ExpoVideo.framework/ExpoVideo ... 
+2026-08-21 13:18:38 +0000  1572720 bytes for ./Frameworks/ExpoVideo.framework/ExpoVideo
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/ExpoVideo.framework/Info.plist ... 
+2026-08-21 13:18:38 +0000  751 bytes for ./Frameworks/ExpoVideo.framework/Info.plist
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/ExpoModulesCore.framework/_CodeSignature/CodeResources ... 
+2026-08-21 13:18:38 +0000  1798 bytes for ./Frameworks/ExpoModulesCore.framework/_CodeSignature/CodeResources
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/ExpoModulesCore.framework/ExpoModulesCore ... 
+2026-08-21 13:18:38 +0000  3772656 bytes for ./Frameworks/ExpoModulesCore.framework/ExpoModulesCore
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/ExpoModulesCore.framework/Info.plist ... 
+2026-08-21 13:18:38 +0000  771 bytes for ./Frameworks/ExpoModulesCore.framework/Info.plist
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/React.framework/_CodeSignature/CodeResources ... 
+2026-08-21 13:18:38 +0000  1798 bytes for ./Frameworks/React.framework/_CodeSignature/CodeResources
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/React.framework/React ... 
+2026-08-21 13:18:38 +0000  12056720 bytes for ./Frameworks/React.framework/React
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/React.framework/Info.plist ... 
+2026-08-21 13:18:38 +0000  744 bytes for ./Frameworks/React.framework/Info.plist
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/ExpoLocation.framework/_CodeSignature/CodeResources ... 
+2026-08-21 13:18:38 +0000  1798 bytes for ./Frameworks/ExpoLocation.framework/_CodeSignature/CodeResources
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/ExpoLocation.framework/ExpoLocation ... 
+2026-08-21 13:18:38 +0000  459280 bytes for ./Frameworks/ExpoLocation.framework/ExpoLocation
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/ExpoLocation.framework/Info.plist ... 
+2026-08-21 13:18:38 +0000  760 bytes for ./Frameworks/ExpoLocation.framework/Info.plist
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/ReactNativeDependencies.framework/_CodeSignature/CodeResources ... 
+2026-08-21 13:18:38 +0000  3548 bytes for ./Frameworks/ReactNativeDependencies.framework/_CodeSignature/CodeResources
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/ReactNativeDependencies.framework/ReactNativeDependencies_folly.bundle/PrivacyInfo.xcprivacy ... 
+2026-08-21 13:18:38 +0000  552 bytes for ./Frameworks/ReactNativeDependencies.framework/ReactNativeDependencies_folly.bundle/PrivacyInfo.xcprivacy
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/ReactNativeDependencies.framework/ReactNativeDependencies_folly.bundle/Info.plist ... 
+2026-08-21 13:18:38 +0000  689 bytes for ./Frameworks/ReactNativeDependencies.framework/ReactNativeDependencies_folly.bundle/Info.plist
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/ReactNativeDependencies.framework/ReactNativeDependencies ... 
+2026-08-21 13:18:38 +0000  1256528 bytes for ./Frameworks/ReactNativeDependencies.framework/ReactNativeDependencies
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/ReactNativeDependencies.framework/ReactNativeDependencies_glog.bundle/PrivacyInfo.xcprivacy ... 
+2026-08-21 13:18:38 +0000  552 bytes for ./Frameworks/ReactNativeDependencies.framework/ReactNativeDependencies_glog.bundle/PrivacyInfo.xcprivacy
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/ReactNativeDependencies.framework/ReactNativeDependencies_glog.bundle/Info.plist ... 
+2026-08-21 13:18:38 +0000  687 bytes for ./Frameworks/ReactNativeDependencies.framework/ReactNativeDependencies_glog.bundle/Info.plist
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/ReactNativeDependencies.framework/ReactNativeDependencies_boost.bundle/PrivacyInfo.xcprivacy ... 
+2026-08-21 13:18:38 +0000  776 bytes for ./Frameworks/ReactNativeDependencies.framework/ReactNativeDependencies_boost.bundle/PrivacyInfo.xcprivacy
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/ReactNativeDependencies.framework/ReactNativeDependencies_boost.bundle/Info.plist ... 
+2026-08-21 13:18:38 +0000  689 bytes for ./Frameworks/ReactNativeDependencies.framework/ReactNativeDependencies_boost.bundle/Info.plist
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/ReactNativeDependencies.framework/Info.plist ... 
+2026-08-21 13:18:38 +0000  781 bytes for ./Frameworks/ReactNativeDependencies.framework/Info.plist
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/MapLibre.framework/de.lproj/Localizable.strings ... 
+2026-08-21 13:18:38 +0000  2461 bytes for ./Frameworks/MapLibre.framework/de.lproj/Localizable.strings
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/MapLibre.framework/de.lproj/Localizable.stringsdict ... 
+2026-08-21 13:18:38 +0000  344 bytes for ./Frameworks/MapLibre.framework/de.lproj/Localizable.stringsdict
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/MapLibre.framework/_CodeSignature/CodeResources ... 
+2026-08-21 13:18:38 +0000  17319 bytes for ./Frameworks/MapLibre.framework/_CodeSignature/CodeResources
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/MapLibre.framework/he.lproj/Localizable.strings ... 
+2026-08-21 13:18:38 +0000  2628 bytes for ./Frameworks/MapLibre.framework/he.lproj/Localizable.strings
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/MapLibre.framework/ar.lproj/Localizable.stringsdict ... 
+2026-08-21 13:18:38 +0000  818 bytes for ./Frameworks/MapLibre.framework/ar.lproj/Localizable.stringsdict
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/MapLibre.framework/zh-Hans.lproj/Localizable.strings ... 
+2026-08-21 13:18:38 +0000  1805 bytes for ./Frameworks/MapLibre.framework/zh-Hans.lproj/Localizable.strings
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/MapLibre.framework/ja.lproj/Localizable.strings ... 
+2026-08-21 13:18:38 +0000  1388 bytes for ./Frameworks/MapLibre.framework/ja.lproj/Localizable.strings
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/MapLibre.framework/en.lproj/Localizable.stringsdict ... 
+2026-08-21 13:18:38 +0000  470 bytes for ./Frameworks/MapLibre.framework/en.lproj/Localizable.stringsdict
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/MapLibre.framework/uk.lproj/Localizable.strings ... 
+2026-08-21 13:18:38 +0000  3322 bytes for ./Frameworks/MapLibre.framework/uk.lproj/Localizable.strings
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/MapLibre.framework/uk.lproj/Localizable.stringsdict ... 
+2026-08-21 13:18:38 +0000  640 bytes for ./Frameworks/MapLibre.framework/uk.lproj/Localizable.stringsdict
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/MapLibre.framework/es.lproj/Localizable.strings ... 
+2026-08-21 13:18:38 +0000  2833 bytes for ./Frameworks/MapLibre.framework/es.lproj/Localizable.strings
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/MapLibre.framework/es.lproj/Localizable.stringsdict ... 
+2026-08-21 13:18:38 +0000  495 bytes for ./Frameworks/MapLibre.framework/es.lproj/Localizable.stringsdict
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/MapLibre.framework/da.lproj/Localizable.strings ... 
+2026-08-21 13:18:38 +0000  2675 bytes for ./Frameworks/MapLibre.framework/da.lproj/Localizable.strings
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/MapLibre.framework/da.lproj/Localizable.stringsdict ... 
+2026-08-21 13:18:38 +0000  479 bytes for ./Frameworks/MapLibre.framework/da.lproj/Localizable.stringsdict
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/MapLibre.framework/gl.lproj/Localizable.strings ... 
+2026-08-21 13:18:38 +0000  2767 bytes for ./Frameworks/MapLibre.framework/gl.lproj/Localizable.strings
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/MapLibre.framework/gl.lproj/Localizable.stringsdict ... 
+2026-08-21 13:18:38 +0000  565 bytes for ./Frameworks/MapLibre.framework/gl.lproj/Localizable.stringsdict
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/MapLibre.framework/metal-cpp-ignores.txt ... 
+2026-08-21 13:18:38 +0000  265 bytes for ./Frameworks/MapLibre.framework/metal-cpp-ignores.txt
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/MapLibre.framework/bg.lproj/Localizable.strings ... 
+2026-08-21 13:18:38 +0000  2772 bytes for ./Frameworks/MapLibre.framework/bg.lproj/Localizable.strings
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/MapLibre.framework/bg.lproj/Localizable.stringsdict ... 
+2026-08-21 13:18:38 +0000  503 bytes for ./Frameworks/MapLibre.framework/bg.lproj/Localizable.stringsdict
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/MapLibre.framework/MapLibre ... 
+2026-08-21 13:18:38 +0000  7788960 bytes for ./Frameworks/MapLibre.framework/MapLibre
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/MapLibre.framework/sv.lproj/Localizable.strings ... 
+2026-08-21 13:18:38 +0000  2740 bytes for ./Frameworks/MapLibre.framework/sv.lproj/Localizable.strings
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/MapLibre.framework/sv.lproj/Localizable.stringsdict ... 
+2026-08-21 13:18:38 +0000  496 bytes for ./Frameworks/MapLibre.framework/sv.lproj/Localizable.stringsdict
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/MapLibre.framework/cs.lproj/Localizable.strings ... 
+2026-08-21 13:18:38 +0000  2140 bytes for ./Frameworks/MapLibre.framework/cs.lproj/Localizable.strings
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/MapLibre.framework/cs.lproj/Localizable.stringsdict ... 
+2026-08-21 13:18:38 +0000  470 bytes for ./Frameworks/MapLibre.framework/cs.lproj/Localizable.stringsdict
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/MapLibre.framework/ko.lproj/Localizable.strings ... 
+2026-08-21 13:18:38 +0000  2119 bytes for ./Frameworks/MapLibre.framework/ko.lproj/Localizable.strings
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/MapLibre.framework/ko.lproj/Localizable.stringsdict ... 
+2026-08-21 13:18:38 +0000  410 bytes for ./Frameworks/MapLibre.framework/ko.lproj/Localizable.stringsdict
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/MapLibre.framework/Base.lproj/Localizable.strings ... 
+2026-08-21 13:18:38 +0000  2155 bytes for ./Frameworks/MapLibre.framework/Base.lproj/Localizable.strings
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/MapLibre.framework/zh-Hant.lproj/Localizable.strings ... 
+2026-08-21 13:18:38 +0000  1597 bytes for ./Frameworks/MapLibre.framework/zh-Hant.lproj/Localizable.strings
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/MapLibre.framework/zh-Hant.lproj/Localizable.stringsdict ... 
+2026-08-21 13:18:38 +0000  282 bytes for ./Frameworks/MapLibre.framework/zh-Hant.lproj/Localizable.stringsdict
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/MapLibre.framework/hu.lproj/Localizable.strings ... 
+2026-08-21 13:18:38 +0000  2460 bytes for ./Frameworks/MapLibre.framework/hu.lproj/Localizable.strings
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/MapLibre.framework/hu.lproj/Localizable.stringsdict ... 
+2026-08-21 13:18:38 +0000  466 bytes for ./Frameworks/MapLibre.framework/hu.lproj/Localizable.stringsdict
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/MapLibre.framework/Assets.car ... 
+2026-08-21 13:18:38 +0000  202735 bytes for ./Frameworks/MapLibre.framework/Assets.car
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/MapLibre.framework/pt-BR.lproj/Localizable.strings ... 
+2026-08-21 13:18:38 +0000  2597 bytes for ./Frameworks/MapLibre.framework/pt-BR.lproj/Localizable.strings
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/MapLibre.framework/pt-BR.lproj/Localizable.stringsdict ... 
+2026-08-21 13:18:38 +0000  376 bytes for ./Frameworks/MapLibre.framework/pt-BR.lproj/Localizable.stringsdict
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/MapLibre.framework/vi.lproj/Localizable.strings ... 
+2026-08-21 13:18:38 +0000  3390 bytes for ./Frameworks/MapLibre.framework/vi.lproj/Localizable.strings
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/MapLibre.framework/vi.lproj/Localizable.stringsdict ... 
+2026-08-21 13:18:38 +0000  516 bytes for ./Frameworks/MapLibre.framework/vi.lproj/Localizable.stringsdict
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/MapLibre.framework/PrivacyInfo.xcprivacy ... 
+2026-08-21 13:18:38 +0000  1105 bytes for ./Frameworks/MapLibre.framework/PrivacyInfo.xcprivacy
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/MapLibre.framework/lt.lproj/Localizable.strings ... 
+2026-08-21 13:18:38 +0000  2861 bytes for ./Frameworks/MapLibre.framework/lt.lproj/Localizable.strings
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/MapLibre.framework/lt.lproj/Localizable.stringsdict ... 
+2026-08-21 13:18:38 +0000  399 bytes for ./Frameworks/MapLibre.framework/lt.lproj/Localizable.stringsdict
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/MapLibre.framework/ru.lproj/Localizable.strings ... 
+2026-08-21 13:18:38 +0000  3254 bytes for ./Frameworks/MapLibre.framework/ru.lproj/Localizable.strings
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/MapLibre.framework/ru.lproj/Localizable.stringsdict ... 
+2026-08-21 13:18:38 +0000  677 bytes for ./Frameworks/MapLibre.framework/ru.lproj/Localizable.stringsdict
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/MapLibre.framework/fr.lproj/Localizable.strings ... 
+2026-08-21 13:18:38 +0000  3226 bytes for ./Frameworks/MapLibre.framework/fr.lproj/Localizable.strings
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/MapLibre.framework/fr.lproj/Localizable.stringsdict ... 
+2026-08-21 13:18:38 +0000  482 bytes for ./Frameworks/MapLibre.framework/fr.lproj/Localizable.stringsdict
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/MapLibre.framework/pt-PT.lproj/Localizable.strings ... 
+2026-08-21 13:18:38 +0000  3264 bytes for ./Frameworks/MapLibre.framework/pt-PT.lproj/Localizable.strings
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/MapLibre.framework/pt-PT.lproj/Localizable.stringsdict ... 
+2026-08-21 13:18:38 +0000  578 bytes for ./Frameworks/MapLibre.framework/pt-PT.lproj/Localizable.stringsdict
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/MapLibre.framework/Info.plist ... 
+2026-08-21 13:18:38 +0000  813 bytes for ./Frameworks/MapLibre.framework/Info.plist
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/MapLibre.framework/ca.lproj/Localizable.strings ... 
+2026-08-21 13:18:38 +0000  2769 bytes for ./Frameworks/MapLibre.framework/ca.lproj/Localizable.strings
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/MapLibre.framework/ca.lproj/Localizable.stringsdict ... 
+2026-08-21 13:18:38 +0000  356 bytes for ./Frameworks/MapLibre.framework/ca.lproj/Localizable.stringsdict
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/ExpoModulesWorklets.framework/_CodeSignature/CodeResources ... 
+2026-08-21 13:18:38 +0000  1798 bytes for ./Frameworks/ExpoModulesWorklets.framework/_CodeSignature/CodeResources
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/ExpoModulesWorklets.framework/ExpoModulesWorklets ... 
+2026-08-21 13:18:38 +0000  182016 bytes for ./Frameworks/ExpoModulesWorklets.framework/ExpoModulesWorklets
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/ExpoModulesWorklets.framework/Info.plist ... 
+2026-08-21 13:18:38 +0000  783 bytes for ./Frameworks/ExpoModulesWorklets.framework/Info.plist
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/ExpoFileSystem.framework/_CodeSignature/CodeResources ... 
+2026-08-21 13:18:38 +0000  1798 bytes for ./Frameworks/ExpoFileSystem.framework/_CodeSignature/CodeResources
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/ExpoFileSystem.framework/ExpoFileSystem ... 
+2026-08-21 13:18:38 +0000  1153184 bytes for ./Frameworks/ExpoFileSystem.framework/ExpoFileSystem
+2026-08-21 13:18:38 +0000  copying file ./Frameworks/ExpoFileSystem.framework/Info.plist ... 
+2026-08-21 13:18:38 +0000  766 bytes for ./Frameworks/ExpoFileSystem.framework/Info.plist
+2026-08-21 13:18:38 +0000  copying file ./embedded.mobileprovision ... 
+2026-08-21 13:18:38 +0000  12370 bytes for ./embedded.mobileprovision
+2026-08-21 13:18:38 +0000  copying file ./assets/__node_modules/@maplibre/maplibre-react-native/lib/module/assets/heading.png ... 
+2026-08-21 13:18:38 +0000  258 bytes for ./assets/__node_modules/@maplibre/maplibre-react-native/lib/module/assets/heading.png
+2026-08-21 13:18:38 +0000  copying file ./assets/__node_modules/@maplibre/maplibre-react-native/lib/module/assets/heading@3x.png ... 
+2026-08-21 13:18:38 +0000  687 bytes for ./assets/__node_modules/@maplibre/maplibre-react-native/lib/module/assets/heading@3x.png
+2026-08-21 13:18:38 +0000  copying file ./assets/__node_modules/@maplibre/maplibre-react-native/lib/module/assets/heading@2x.png ... 
+2026-08-21 13:18:38 +0000  405 bytes for ./assets/__node_modules/@maplibre/maplibre-react-native/lib/module/assets/heading@2x.png
+2026-08-21 13:18:38 +0000  copying file ./assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Fontisto.ttf ... 
+2026-08-21 13:18:38 +0000  313528 bytes for ./assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Fontisto.ttf
+2026-08-21 13:18:38 +0000  copying file ./assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Octicons.ttf ... 
+2026-08-21 13:18:38 +0000  69436 bytes for ./assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Octicons.ttf
+2026-08-21 13:18:38 +0000  copying file ./assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Feather.ttf ... 
+2026-08-21 13:18:38 +0000  55596 bytes for ./assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Feather.ttf
+2026-08-21 13:18:38 +0000  copying file ./assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/FontAwesome6_Regular.ttf ... 
+2026-08-21 13:18:38 +0000  67976 bytes for ./assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/FontAwesome6_Regular.ttf
+2026-08-21 13:18:38 +0000  copying file ./assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Entypo.ttf ... 
+2026-08-21 13:18:38 +0000  66200 bytes for ./assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Entypo.ttf
+2026-08-21 13:18:38 +0000  copying file ./assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/FontAwesome5_Brands.ttf ... 
+2026-08-21 13:18:38 +0000  134040 bytes for ./assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/FontAwesome5_Brands.ttf
+2026-08-21 13:18:38 +0000  copying file ./assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/MaterialCommunityIcons.ttf ... 
+2026-08-21 13:18:38 +0000  1307660 bytes for ./assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/MaterialCommunityIcons.ttf
+2026-08-21 13:18:38 +0000  copying file ./assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/AntDesign.ttf ... 
+2026-08-21 13:18:38 +0000  130484 bytes for ./assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/AntDesign.ttf
+2026-08-21 13:18:38 +0000  copying file ./assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Foundation.ttf ... 
+2026-08-21 13:18:38 +0000  56976 bytes for ./assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Foundation.ttf
+2026-08-21 13:18:38 +0000  copying file ./assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Ionicons.ttf ... 
+2026-08-21 13:18:38 +0000  389724 bytes for ./assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Ionicons.ttf
+2026-08-21 13:18:38 +0000  copying file ./assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/FontAwesome5_Solid.ttf ... 
+2026-08-21 13:18:38 +0000  202744 bytes for ./assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/FontAwesome5_Solid.ttf
+2026-08-21 13:18:38 +0000  copying file ./assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/FontAwesome5_Regular.ttf ... 
+2026-08-21 13:18:38 +0000  33736 bytes for ./assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/FontAwesome5_Regular.ttf
+2026-08-21 13:18:38 +0000  copying file ./assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/FontAwesome.ttf ... 
+2026-08-21 13:18:38 +0000  165548 bytes for ./assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/FontAwesome.ttf
+2026-08-21 13:18:38 +0000  copying file ./assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Zocial.ttf ... 
+2026-08-21 13:18:38 +0000  25788 bytes for ./assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Zocial.ttf
+2026-08-21 13:18:38 +0000  copying file ./assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/EvilIcons.ttf ... 
+2026-08-21 13:18:38 +0000  13456 bytes for ./assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/EvilIcons.ttf
+2026-08-21 13:18:38 +0000  copying file ./assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/FontAwesome6_Solid.ttf ... 
+2026-08-21 13:18:38 +0000  423676 bytes for ./assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/FontAwesome6_Solid.ttf
+2026-08-21 13:18:38 +0000  copying file ./assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/SimpleLineIcons.ttf ... 
+2026-08-21 13:18:38 +0000  54056 bytes for ./assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/SimpleLineIcons.ttf
+2026-08-21 13:18:38 +0000  copying file ./assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/FontAwesome6_Brands.ttf ... 
+2026-08-21 13:18:38 +0000  209376 bytes for ./assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/FontAwesome6_Brands.ttf
+2026-08-21 13:18:38 +0000  copying file ./assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/MaterialIcons.ttf ... 
+2026-08-21 13:18:38 +0000  356840 bytes for ./assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/MaterialIcons.ttf
+2026-08-21 13:18:38 +0000  copying file ./assets/assets/launch-logo.png ... 
+2026-08-21 13:18:38 +0000  55311 bytes for ./assets/assets/launch-logo.png
+2026-08-21 13:18:38 +0000  copying file ./Info.plist ... 
+2026-08-21 13:18:38 +0000  2560 bytes for ./Info.plist
+2026-08-21 13:18:38 +0000  copying file ./Expo.plist ... 
+2026-08-21 13:18:38 +0000  173 bytes for ./Expo.plist
+2026-08-21 13:18:38 +0000  copying file ./RNCAsyncStorage_resources.bundle/PrivacyInfo.xcprivacy ... 
+2026-08-21 13:18:38 +0000  512 bytes for ./RNCAsyncStorage_resources.bundle/PrivacyInfo.xcprivacy
+2026-08-21 13:18:38 +0000  copying file ./RNCAsyncStorage_resources.bundle/Info.plist ... 
+2026-08-21 13:18:38 +0000  796 bytes for ./RNCAsyncStorage_resources.bundle/Info.plist
+2026-08-21 13:18:38 +0000  copying file ./PkgInfo ... 
+2026-08-21 13:18:38 +0000  8 bytes for ./PkgInfo
+2026-08-21 13:18:38 +0000  copying file ./React-Core_privacy.bundle/PrivacyInfo.xcprivacy ... 
+2026-08-21 13:18:38 +0000  768 bytes for ./React-Core_privacy.bundle/PrivacyInfo.xcprivacy
+2026-08-21 13:18:38 +0000  copying file ./React-Core_privacy.bundle/Info.plist ... 
+2026-08-21 13:18:38 +0000  783 bytes for ./React-Core_privacy.bundle/Info.plist
+2026-08-21 13:18:38 +0000 [MT] /usr/bin/ditto exited with 0
+2026-08-21 13:18:38 +0000 [MT] Processing step: IDEDistributionEmbedProfileStep
+2026-08-21 13:18:38 +0000 [MT] Skipping profile for item: <IDEDistributionItem: 0x8c27a8a80; bundleID='expofilesystem.ExpoFileSystem', path='<DVTFilePath:0x8c2780cb0:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoFileSystem.framework'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x8c27a8ae0; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x8c07980c0; name='Apple Distribution: Anlvio LLC (3258CL32QP)', hash='71B23F4F6408E3C508BF3C2452F9507C7348F316', serialNumber='4A72650B8B1E98C67C5920985BBA879D', certificateKinds='(
+    "1.2.840.113635.100.6.1.7",
+    "1.2.840.113635.100.6.1.4"
+), issueDate='2026-07-24 00:05:43 +0000''>', entitlements='(null)', teamID='3258CL32QP', identifier='expofilesystem.ExpoFileSystem', executablePath='<DVTFilePath:0x8c2772100:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoFileSystem.framework/ExpoFileSystem'>', hardenedRuntime='0'>'>
+2026-08-21 13:18:38 +0000 [MT] Skipping profile for item: <IDEDistributionItem: 0x8c27a8cc0; bundleID='expofont.ExpoFont', path='<DVTFilePath:0x8c260a680:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoFont.framework'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x8c27a8d80; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x8c07980c0; name='Apple Distribution: Anlvio LLC (3258CL32QP)', hash='71B23F4F6408E3C508BF3C2452F9507C7348F316', serialNumber='4A72650B8B1E98C67C5920985BBA879D', certificateKinds='(
+    "1.2.840.113635.100.6.1.7",
+    "1.2.840.113635.100.6.1.4"
+), issueDate='2026-07-24 00:05:43 +0000''>', entitlements='(null)', teamID='3258CL32QP', identifier='expofont.ExpoFont', executablePath='<DVTFilePath:0x8c26f4e40:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoFont.framework/ExpoFont'>', hardenedRuntime='0'>'>
+2026-08-21 13:18:38 +0000 [MT] Skipping profile for item: <IDEDistributionItem: 0x8c27a9500; bundleID='expolocation.ExpoLocation', path='<DVTFilePath:0x8c260abc0:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoLocation.framework'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x8c27a9560; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x8c07980c0; name='Apple Distribution: Anlvio LLC (3258CL32QP)', hash='71B23F4F6408E3C508BF3C2452F9507C7348F316', serialNumber='4A72650B8B1E98C67C5920985BBA879D', certificateKinds='(
+    "1.2.840.113635.100.6.1.7",
+    "1.2.840.113635.100.6.1.4"
+), issueDate='2026-07-24 00:05:43 +0000''>', entitlements='(null)', teamID='3258CL32QP', identifier='expolocation.ExpoLocation', executablePath='<DVTFilePath:0x8c26f5f20:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoLocation.framework/ExpoLocation'>', hardenedRuntime='0'>'>
+2026-08-21 13:18:38 +0000 [MT] Skipping profile for item: <IDEDistributionItem: 0x8c27a9020; bundleID='expomodulescore.ExpoModulesCore', path='<DVTFilePath:0x8c260a990:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoModulesCore.framework'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x8c27a9080; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x8c07980c0; name='Apple Distribution: Anlvio LLC (3258CL32QP)', hash='71B23F4F6408E3C508BF3C2452F9507C7348F316', serialNumber='4A72650B8B1E98C67C5920985BBA879D', certificateKinds='(
+    "1.2.840.113635.100.6.1.7",
+    "1.2.840.113635.100.6.1.4"
+), issueDate='2026-07-24 00:05:43 +0000''>', entitlements='(null)', teamID='3258CL32QP', identifier='expomodulescore.ExpoModulesCore', executablePath='<DVTFilePath:0x8c26f5680:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoModulesCore.framework/ExpoModulesCore'>', hardenedRuntime='0'>'>
+2026-08-21 13:18:38 +0000 [MT] Skipping profile for item: <IDEDistributionItem: 0x8c27a92c0; bundleID='apple.ExpoModulesJSI', path='<DVTFilePath:0x8c260a3e0:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoModulesJSI.framework'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x8c27a9320; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x8c07980c0; name='Apple Distribution: Anlvio LLC (3258CL32QP)', hash='71B23F4F6408E3C508BF3C2452F9507C7348F316', serialNumber='4A72650B8B1E98C67C5920985BBA879D', certificateKinds='(
+    "1.2.840.113635.100.6.1.7",
+    "1.2.840.113635.100.6.1.4"
+), issueDate='2026-07-24 00:05:43 +0000''>', entitlements='(null)', teamID='3258CL32QP', identifier='apple.ExpoModulesJSI', executablePath='<DVTFilePath:0x8c26f4600:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoModulesJSI.framework/ExpoModulesJSI'>', hardenedRuntime='0'>'>
+2026-08-21 13:18:38 +0000 [MT] Skipping profile for item: <IDEDistributionItem: 0x8c27a8fc0; bundleID='expomodulesworklets.ExpoModulesWorklets', path='<DVTFilePath:0x8c2780b60:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoModulesWorklets.framework'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x8c27a8f60; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x8c07980c0; name='Apple Distribution: Anlvio LLC (3258CL32QP)', hash='71B23F4F6408E3C508BF3C2452F9507C7348F316', serialNumber='4A72650B8B1E98C67C5920985BBA879D', certificateKinds='(
+    "1.2.840.113635.100.6.1.7",
+    "1.2.840.113635.100.6.1.4"
+), issueDate='2026-07-24 00:05:43 +0000''>', entitlements='(null)', teamID='3258CL32QP', identifier='expomodulesworklets.ExpoModulesWorklets', executablePath='<DVTFilePath:0x8c2780bd0:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoModulesWorklets.framework/ExpoModulesWorklets'>', hardenedRuntime='0'>'>
+2026-08-21 13:18:38 +0000 [MT] Skipping profile for item: <IDEDistributionItem: 0x8c27a88a0; bundleID='expovideo.ExpoVideo', path='<DVTFilePath:0x8c260a7d0:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoVideo.framework'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x8c27a8960; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x8c07980c0; name='Apple Distribution: Anlvio LLC (3258CL32QP)', hash='71B23F4F6408E3C508BF3C2452F9507C7348F316', serialNumber='4A72650B8B1E98C67C5920985BBA879D', certificateKinds='(
+    "1.2.840.113635.100.6.1.7",
+    "1.2.840.113635.100.6.1.4"
+), issueDate='2026-07-24 00:05:43 +0000''>', entitlements='(null)', teamID='3258CL32QP', identifier='expovideo.ExpoVideo', executablePath='<DVTFilePath:0x8c26f5260:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoVideo.framework/ExpoVideo'>', hardenedRuntime='0'>'>
+2026-08-21 13:18:38 +0000 [MT] Skipping profile for item: <IDEDistributionItem: 0x8c27a9380; bundleID='com.maplibre.mapbox', path='<DVTFilePath:0x8c260b020:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/MapLibre.framework'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x8c27a93e0; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x8c07980c0; name='Apple Distribution: Anlvio LLC (3258CL32QP)', hash='71B23F4F6408E3C508BF3C2452F9507C7348F316', serialNumber='4A72650B8B1E98C67C5920985BBA879D', certificateKinds='(
+    "1.2.840.113635.100.6.1.7",
+    "1.2.840.113635.100.6.1.4"
+), issueDate='2026-07-24 00:05:43 +0000''>', entitlements='(null)', teamID='3258CL32QP', identifier='com.maplibre.mapbox', executablePath='<DVTFilePath:0x8c2770000:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/MapLibre.framework/MapLibre'>', hardenedRuntime='0'>'>
+2026-08-21 13:18:38 +0000 [MT] Skipping profile for item: <IDEDistributionItem: 0x8c27a8f00; bundleID='react-native.React', path='<DVTFilePath:0x8c26f5860:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/React.framework'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x8c27a8ea0; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x8c07980c0; name='Apple Distribution: Anlvio LLC (3258CL32QP)', hash='71B23F4F6408E3C508BF3C2452F9507C7348F316', serialNumber='4A72650B8B1E98C67C5920985BBA879D', certificateKinds='(
+    "1.2.840.113635.100.6.1.7",
+    "1.2.840.113635.100.6.1.4"
+), issueDate='2026-07-24 00:05:43 +0000''>', entitlements='(null)', teamID='3258CL32QP', identifier='react-native.React', executablePath='<DVTFilePath:0x8c26f5b00:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/React.framework/React'>', hardenedRuntime='0'>'>
+2026-08-21 13:18:38 +0000 [MT] Skipping profile for item: <IDEDistributionItem: 0x8c27a8b40; bundleID='third-party.ReactNativeDependencies', path='<DVTFilePath:0x8c0731e80:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ReactNativeDependencies.framework'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x8c27a89c0; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x8c07980c0; name='Apple Distribution: Anlvio LLC (3258CL32QP)', hash='71B23F4F6408E3C508BF3C2452F9507C7348F316', serialNumber='4A72650B8B1E98C67C5920985BBA879D', certificateKinds='(
+    "1.2.840.113635.100.6.1.7",
+    "1.2.840.113635.100.6.1.4"
+), issueDate='2026-07-24 00:05:43 +0000''>', entitlements='(null)', teamID='3258CL32QP', identifier='third-party.ReactNativeDependencies', executablePath='<DVTFilePath:0x8c260adf0:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ReactNativeDependencies.framework/ReactNativeDependencies'>', hardenedRuntime='0'>'>
+2026-08-21 13:18:38 +0000 [MT] Skipping profile for item: <IDEDistributionItem: 0x8c27a9440; bundleID='dev.hermesengine.iphoneos', path='<DVTFilePath:0x8c260a530:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/hermesvm.framework'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x8c27a94a0; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x8c07980c0; name='Apple Distribution: Anlvio LLC (3258CL32QP)', hash='71B23F4F6408E3C508BF3C2452F9507C7348F316', serialNumber='4A72650B8B1E98C67C5920985BBA879D', certificateKinds='(
+    "1.2.840.113635.100.6.1.7",
+    "1.2.840.113635.100.6.1.4"
+), issueDate='2026-07-24 00:05:43 +0000''>', entitlements='(null)', teamID='3258CL32QP', identifier='dev.hermesengine.iphoneos', executablePath='<DVTFilePath:0x8c26f4a20:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/hermesvm.framework/hermesvm'>', hardenedRuntime='0'>'>
+2026-08-21 13:18:38 +0000 [MT] Processing step: IDEDistributionInfoPlistStep
+2026-08-21 13:18:38 +0000 [MT] Skipping Info.plist step because item: <IDEDistributionItem: 0x8c27a8a80; bundleID='expofilesystem.ExpoFileSystem', path='<DVTFilePath:0x8c2780cb0:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoFileSystem.framework'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x8c27a8ae0; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x8c07980c0; name='Apple Distribution: Anlvio LLC (3258CL32QP)', hash='71B23F4F6408E3C508BF3C2452F9507C7348F316', serialNumber='4A72650B8B1E98C67C5920985BBA879D', certificateKinds='(
+    "1.2.840.113635.100.6.1.7",
+    "1.2.840.113635.100.6.1.4"
+), issueDate='2026-07-24 00:05:43 +0000''>', entitlements='(null)', teamID='3258CL32QP', identifier='expofilesystem.ExpoFileSystem', executablePath='<DVTFilePath:0x8c2772100:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoFileSystem.framework/ExpoFileSystem'>', hardenedRuntime='0'>'> is a framework or embedded in a framework.
+2026-08-21 13:18:38 +0000 [MT] Skipping Info.plist step because item: <IDEDistributionItem: 0x8c27a8cc0; bundleID='expofont.ExpoFont', path='<DVTFilePath:0x8c260a680:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoFont.framework'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x8c27a8d80; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x8c07980c0; name='Apple Distribution: Anlvio LLC (3258CL32QP)', hash='71B23F4F6408E3C508BF3C2452F9507C7348F316', serialNumber='4A72650B8B1E98C67C5920985BBA879D', certificateKinds='(
+    "1.2.840.113635.100.6.1.7",
+    "1.2.840.113635.100.6.1.4"
+), issueDate='2026-07-24 00:05:43 +0000''>', entitlements='(null)', teamID='3258CL32QP', identifier='expofont.ExpoFont', executablePath='<DVTFilePath:0x8c26f4e40:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoFont.framework/ExpoFont'>', hardenedRuntime='0'>'> is a framework or embedded in a framework.
+2026-08-21 13:18:38 +0000 [MT] Skipping Info.plist step because item: <IDEDistributionItem: 0x8c27a9500; bundleID='expolocation.ExpoLocation', path='<DVTFilePath:0x8c260abc0:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoLocation.framework'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x8c27a9560; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x8c07980c0; name='Apple Distribution: Anlvio LLC (3258CL32QP)', hash='71B23F4F6408E3C508BF3C2452F9507C7348F316', serialNumber='4A72650B8B1E98C67C5920985BBA879D', certificateKinds='(
+    "1.2.840.113635.100.6.1.7",
+    "1.2.840.113635.100.6.1.4"
+), issueDate='2026-07-24 00:05:43 +0000''>', entitlements='(null)', teamID='3258CL32QP', identifier='expolocation.ExpoLocation', executablePath='<DVTFilePath:0x8c26f5f20:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoLocation.framework/ExpoLocation'>', hardenedRuntime='0'>'> is a framework or embedded in a framework.
+2026-08-21 13:18:38 +0000 [MT] Skipping Info.plist step because item: <IDEDistributionItem: 0x8c27a9020; bundleID='expomodulescore.ExpoModulesCore', path='<DVTFilePath:0x8c260a990:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoModulesCore.framework'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x8c27a9080; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x8c07980c0; name='Apple Distribution: Anlvio LLC (3258CL32QP)', hash='71B23F4F6408E3C508BF3C2452F9507C7348F316', serialNumber='4A72650B8B1E98C67C5920985BBA879D', certificateKinds='(
+    "1.2.840.113635.100.6.1.7",
+    "1.2.840.113635.100.6.1.4"
+), issueDate='2026-07-24 00:05:43 +0000''>', entitlements='(null)', teamID='3258CL32QP', identifier='expomodulescore.ExpoModulesCore', executablePath='<DVTFilePath:0x8c26f5680:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoModulesCore.framework/ExpoModulesCore'>', hardenedRuntime='0'>'> is a framework or embedded in a framework.
+2026-08-21 13:18:38 +0000 [MT] Skipping Info.plist step because item: <IDEDistributionItem: 0x8c27a92c0; bundleID='apple.ExpoModulesJSI', path='<DVTFilePath:0x8c260a3e0:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoModulesJSI.framework'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x8c27a9320; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x8c07980c0; name='Apple Distribution: Anlvio LLC (3258CL32QP)', hash='71B23F4F6408E3C508BF3C2452F9507C7348F316', serialNumber='4A72650B8B1E98C67C5920985BBA879D', certificateKinds='(
+    "1.2.840.113635.100.6.1.7",
+    "1.2.840.113635.100.6.1.4"
+), issueDate='2026-07-24 00:05:43 +0000''>', entitlements='(null)', teamID='3258CL32QP', identifier='apple.ExpoModulesJSI', executablePath='<DVTFilePath:0x8c26f4600:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoModulesJSI.framework/ExpoModulesJSI'>', hardenedRuntime='0'>'> is a framework or embedded in a framework.
+2026-08-21 13:18:38 +0000 [MT] Skipping Info.plist step because item: <IDEDistributionItem: 0x8c27a8fc0; bundleID='expomodulesworklets.ExpoModulesWorklets', path='<DVTFilePath:0x8c2780b60:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoModulesWorklets.framework'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x8c27a8f60; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x8c07980c0; name='Apple Distribution: Anlvio LLC (3258CL32QP)', hash='71B23F4F6408E3C508BF3C2452F9507C7348F316', serialNumber='4A72650B8B1E98C67C5920985BBA879D', certificateKinds='(
+    "1.2.840.113635.100.6.1.7",
+    "1.2.840.113635.100.6.1.4"
+), issueDate='2026-07-24 00:05:43 +0000''>', entitlements='(null)', teamID='3258CL32QP', identifier='expomodulesworklets.ExpoModulesWorklets', executablePath='<DVTFilePath:0x8c2780bd0:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoModulesWorklets.framework/ExpoModulesWorklets'>', hardenedRuntime='0'>'> is a framework or embedded in a framework.
+2026-08-21 13:18:38 +0000 [MT] Skipping Info.plist step because item: <IDEDistributionItem: 0x8c27a88a0; bundleID='expovideo.ExpoVideo', path='<DVTFilePath:0x8c260a7d0:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoVideo.framework'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x8c27a8960; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x8c07980c0; name='Apple Distribution: Anlvio LLC (3258CL32QP)', hash='71B23F4F6408E3C508BF3C2452F9507C7348F316', serialNumber='4A72650B8B1E98C67C5920985BBA879D', certificateKinds='(
+    "1.2.840.113635.100.6.1.7",
+    "1.2.840.113635.100.6.1.4"
+), issueDate='2026-07-24 00:05:43 +0000''>', entitlements='(null)', teamID='3258CL32QP', identifier='expovideo.ExpoVideo', executablePath='<DVTFilePath:0x8c26f5260:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoVideo.framework/ExpoVideo'>', hardenedRuntime='0'>'> is a framework or embedded in a framework.
+2026-08-21 13:18:38 +0000 [MT] Skipping Info.plist step because item: <IDEDistributionItem: 0x8c27a9380; bundleID='com.maplibre.mapbox', path='<DVTFilePath:0x8c260b020:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/MapLibre.framework'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x8c27a93e0; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x8c07980c0; name='Apple Distribution: Anlvio LLC (3258CL32QP)', hash='71B23F4F6408E3C508BF3C2452F9507C7348F316', serialNumber='4A72650B8B1E98C67C5920985BBA879D', certificateKinds='(
+    "1.2.840.113635.100.6.1.7",
+    "1.2.840.113635.100.6.1.4"
+), issueDate='2026-07-24 00:05:43 +0000''>', entitlements='(null)', teamID='3258CL32QP', identifier='com.maplibre.mapbox', executablePath='<DVTFilePath:0x8c2770000:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/MapLibre.framework/MapLibre'>', hardenedRuntime='0'>'> is a framework or embedded in a framework.
+2026-08-21 13:18:38 +0000 [MT] Skipping Info.plist step because item: <IDEDistributionItem: 0x8c27a8f00; bundleID='react-native.React', path='<DVTFilePath:0x8c26f5860:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/React.framework'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x8c27a8ea0; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x8c07980c0; name='Apple Distribution: Anlvio LLC (3258CL32QP)', hash='71B23F4F6408E3C508BF3C2452F9507C7348F316', serialNumber='4A72650B8B1E98C67C5920985BBA879D', certificateKinds='(
+    "1.2.840.113635.100.6.1.7",
+    "1.2.840.113635.100.6.1.4"
+), issueDate='2026-07-24 00:05:43 +0000''>', entitlements='(null)', teamID='3258CL32QP', identifier='react-native.React', executablePath='<DVTFilePath:0x8c26f5b00:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/React.framework/React'>', hardenedRuntime='0'>'> is a framework or embedded in a framework.
+2026-08-21 13:18:38 +0000 [MT] Skipping Info.plist step because item: <IDEDistributionItem: 0x8c27a8b40; bundleID='third-party.ReactNativeDependencies', path='<DVTFilePath:0x8c0731e80:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ReactNativeDependencies.framework'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x8c27a89c0; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x8c07980c0; name='Apple Distribution: Anlvio LLC (3258CL32QP)', hash='71B23F4F6408E3C508BF3C2452F9507C7348F316', serialNumber='4A72650B8B1E98C67C5920985BBA879D', certificateKinds='(
+    "1.2.840.113635.100.6.1.7",
+    "1.2.840.113635.100.6.1.4"
+), issueDate='2026-07-24 00:05:43 +0000''>', entitlements='(null)', teamID='3258CL32QP', identifier='third-party.ReactNativeDependencies', executablePath='<DVTFilePath:0x8c260adf0:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ReactNativeDependencies.framework/ReactNativeDependencies'>', hardenedRuntime='0'>'> is a framework or embedded in a framework.
+2026-08-21 13:18:38 +0000 [MT] Skipping Info.plist step because item: <IDEDistributionItem: 0x8c27a9440; bundleID='dev.hermesengine.iphoneos', path='<DVTFilePath:0x8c260a530:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/hermesvm.framework'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x8c27a94a0; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x8c07980c0; name='Apple Distribution: Anlvio LLC (3258CL32QP)', hash='71B23F4F6408E3C508BF3C2452F9507C7348F316', serialNumber='4A72650B8B1E98C67C5920985BBA879D', certificateKinds='(
+    "1.2.840.113635.100.6.1.7",
+    "1.2.840.113635.100.6.1.4"
+), issueDate='2026-07-24 00:05:43 +0000''>', entitlements='(null)', teamID='3258CL32QP', identifier='dev.hermesengine.iphoneos', executablePath='<DVTFilePath:0x8c26f4a20:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/hermesvm.framework/hermesvm'>', hardenedRuntime='0'>'> is a framework or embedded in a framework.
+2026-08-21 13:18:38 +0000 [MT] Skipping setting DTXcodeBuildDistribution because toolsBuildVersionName was nil.
+2026-08-21 13:18:38 +0000 [MT] Skipping setting DTXcodeBuildDistribution because toolsBuildVersionName was nil.
+2026-08-21 13:18:38 +0000 [MT] Processing step: IDEDistributionItemRemovalStep
+2026-08-21 13:18:38 +0000 [MT] Processing step: IDEDistributionAppThinningPlistStep
+2026-08-21 13:18:38 +0000 [MT] Skipping step: IDEDistributionAppThinningPlistStep because it said so
+2026-08-21 13:18:38 +0000 [MT] Processing step: IDEDistributionSymbolsStep
+2026-08-21 13:18:38 +0000 [MT] Writing /var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Symbols/78BB5D65-15A6-3FE5-B93C-91F62E14AD20.symbols
+2026-08-21 13:18:38 +0000 [MT] Writing /var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Symbols/D5125F60-E6E4-3200-B818-0B91781F1A51.symbols
+2026-08-21 13:18:38 +0000 [MT] Writing /var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Symbols/154A708D-4C97-3216-AD93-9830609DBC29.symbols
+2026-08-21 13:18:38 +0000 [MT] Writing /var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Symbols/47BB5244-DDB3-32D7-B1B9-47730EB2B2AA.symbols
+2026-08-21 13:18:38 +0000 [MT] Writing /var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Symbols/CFFF0ACD-9CD8-37A3-8127-F128196D16F2.symbols
+2026-08-21 13:18:38 +0000 [MT] Writing /var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Symbols/72596765-BDC2-3DD2-B676-D7E777AF07BA.symbols
+2026-08-21 13:18:38 +0000 [MT] Writing /var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Symbols/EA3AF269-9DC7-3041-BFF9-0BD60D1DA3B2.symbols
+2026-08-21 13:18:38 +0000 [MT] Writing /var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Symbols/D816C8DB-66BE-3A3D-8E9B-51158CCFBB64.symbols
+2026-08-21 13:18:38 +0000 [MT] Upload Symbols Failed
+2026-08-21 13:18:38 +0000 [MT] Upload Symbols Failed
+2026-08-21 13:18:38 +0000 [MT] Upload Symbols Failed
+2026-08-21 13:18:38 +0000 [MT] Upload Symbols Failed
+2026-08-21 13:18:38 +0000 [MT] Writing /var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Symbols/8EB39B85-805E-3427-847A-E35374989157.symbols
+2026-08-21 13:18:38 +0000 [MT] Processing step: IDEDistributionCopyAppleProvidedContentStep
+2026-08-21 13:18:38 +0000 [MT] Processing step: IDEDistributionAppThinningStep
+2026-08-21 13:18:38 +0000 [MT] Skipping step: IDEDistributionAppThinningStep because it said so
+2026-08-21 13:18:38 +0000 [MT] Processing step: IDEDistributionArchThinningStep
+2026-08-21 13:18:38 +0000 [MT] Archs to thin for item /Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoFileSystem.framework are []
+2026-08-21 13:18:38 +0000 [MT] Archs to thin for item /Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoFont.framework are []
+2026-08-21 13:18:38 +0000 [MT] Archs to thin for item /Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoLocation.framework are []
+2026-08-21 13:18:38 +0000 [MT] Archs to thin for item /Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoModulesCore.framework are []
+2026-08-21 13:18:38 +0000 [MT] Archs to thin for item /Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoModulesJSI.framework are []
+2026-08-21 13:18:38 +0000 [MT] Archs to thin for item /Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoModulesWorklets.framework are []
+2026-08-21 13:18:38 +0000 [MT] Archs to thin for item /Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoVideo.framework are []
+2026-08-21 13:18:38 +0000 [MT] Archs to thin for item /Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/MapLibre.framework are []
+2026-08-21 13:18:38 +0000 [MT] Archs to thin for item /Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/React.framework are []
+2026-08-21 13:18:38 +0000 [MT] Archs to thin for item /Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ReactNativeDependencies.framework are []
+2026-08-21 13:18:38 +0000 [MT] Archs to thin for item /Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/hermesvm.framework are []
+2026-08-21 13:18:38 +0000 [MT] Archs to thin for item /Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/PlugIns/QuestHatLiveActivity.appex are []
+2026-08-21 13:18:38 +0000 [MT] Archs to thin for item /Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app are []
+2026-08-21 13:18:38 +0000 [MT] Processing step: IDEDistributionODRStep
+2026-08-21 13:18:38 +0000 [MT] Processing step: IDEDistributionStripXattrsStep
+2026-08-21 13:18:38 +0000 [MT] Skipping stripping extended attributes because the codesign step will strip them.
+2026-08-21 13:18:38 +0000 [MT] Skipping stripping extended attributes because the codesign step will strip them.
+2026-08-21 13:18:38 +0000 [MT] Skipping stripping extended attributes because the codesign step will strip them.
+2026-08-21 13:18:38 +0000 [MT] Skipping stripping extended attributes because the codesign step will strip them.
+2026-08-21 13:18:38 +0000 [MT] Skipping stripping extended attributes because the codesign step will strip them.
+2026-08-21 13:18:38 +0000 [MT] Skipping stripping extended attributes because the codesign step will strip them.
+2026-08-21 13:18:38 +0000 [MT] Skipping stripping extended attributes because the codesign step will strip them.
+2026-08-21 13:18:38 +0000 [MT] Skipping stripping extended attributes because the codesign step will strip them.
+2026-08-21 13:18:38 +0000 [MT] Skipping stripping extended attributes because the codesign step will strip them.
+2026-08-21 13:18:38 +0000 [MT] Skipping stripping extended attributes because the codesign step will strip them.
+2026-08-21 13:18:38 +0000 [MT] Skipping stripping extended attributes because the codesign step will strip them.
+2026-08-21 13:18:38 +0000 [MT] Skipping stripping extended attributes because the codesign step will strip them.
+2026-08-21 13:18:38 +0000 [MT] Skipping stripping extended attributes because the codesign step will strip them.
+2026-08-21 13:18:38 +0000 [MT] Processing step: IDEDistributionCodesignStep
+2026-08-21 13:18:38 +0000 [MT] Entitlements for <IDEDistributionItem: 0x8c27a8a80; bundleID='expofilesystem.ExpoFileSystem', path='<DVTFilePath:0x8c2780cb0:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoFileSystem.framework'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x8c27a8ae0; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x8c07980c0; name='Apple Distribution: Anlvio LLC (3258CL32QP)', hash='71B23F4F6408E3C508BF3C2452F9507C7348F316', serialNumber='4A72650B8B1E98C67C5920985BBA879D', certificateKinds='(
+    "1.2.840.113635.100.6.1.7",
+    "1.2.840.113635.100.6.1.4"
+), issueDate='2026-07-24 00:05:43 +0000''>', entitlements='(null)', teamID='3258CL32QP', identifier='expofilesystem.ExpoFileSystem', executablePath='<DVTFilePath:0x8c2772100:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoFileSystem.framework/ExpoFileSystem'>', hardenedRuntime='0'>'>: {
+}
+2026-08-21 13:18:38 +0000 [MT] Associated App Clip Identifiers Filter: Skipping because "com.apple.developer.associated-appclip-app-identifiers" is not present
+2026-08-21 13:18:38 +0000 [MT] Entitlements for <IDEDistributionItem: 0x8c27a8a80; bundleID='expofilesystem.ExpoFileSystem', path='<DVTFilePath:0x8c2780cb0:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoFileSystem.framework'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x8c27a8ae0; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x8c0798000; name='Apple Distribution: Anlvio LLC (3258CL32QP)', hash='71B23F4F6408E3C508BF3C2452F9507C7348F316', serialNumber='4A72650B8B1E98C67C5920985BBA879D', certificateKinds='(
+    "1.2.840.113635.100.6.1.7",
+    "1.2.840.113635.100.6.1.4"
+), issueDate='2026-07-24 00:05:43 +0000''>', entitlements='(null)', teamID='3258CL32QP', identifier='expofilesystem.ExpoFileSystem', executablePath='<DVTFilePath:0x8c2772100:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoFileSystem.framework/ExpoFileSystem'>', hardenedRuntime='0'>'> are: {
+}
+2026-08-21 13:18:38 +0000 [MT] Writing entitlements for <IDEDistributionItem: 0x8c27a8a80; bundleID='expofilesystem.ExpoFileSystem', path='<DVTFilePath:0x8c2780cb0:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoFileSystem.framework'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x8c27a8ae0; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x8c0798000; name='Apple Distribution: Anlvio LLC (3258CL32QP)', hash='71B23F4F6408E3C508BF3C2452F9507C7348F316', serialNumber='4A72650B8B1E98C67C5920985BBA879D', certificateKinds='(
+    "1.2.840.113635.100.6.1.7",
+    "1.2.840.113635.100.6.1.4"
+), issueDate='2026-07-24 00:05:43 +0000''>', entitlements='(null)', teamID='3258CL32QP', identifier='expofilesystem.ExpoFileSystem', executablePath='<DVTFilePath:0x8c2772100:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoFileSystem.framework/ExpoFileSystem'>', hardenedRuntime='0'>'> to: /var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/entitlements~~~ya3evX
+2026-08-21 13:18:38 +0000 [MT] invoking codesign: <NSConcreteTask: 0x8c40d35c0; launchPath='/usr/bin/codesign', arguments='(
+    "-f",
+    "-s",
+    71B23F4F6408E3C508BF3C2452F9507C7348F316,
+    "--entitlements",
+    "/var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/entitlements~~~ya3evX",
+    "--preserve-metadata=identifier,flags,runtime,launch-constraints,library-constraints",
+    "--generate-entitlement-der",
+    "--strip-disallowed-xattrs",
+    "-vvv",
+    "/var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Root/Payload/QuestHat.app/Frameworks/ExpoFileSystem.framework"
+)'>
+2026-08-21 13:18:38 +0000 [MT] codesign output: /var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Root/Payload/QuestHat.app/Frameworks/ExpoFileSystem.framework: replacing existing signature
+/var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Root/Payload/QuestHat.app/Frameworks/ExpoFileSystem.framework: signed bundle with Mach-O thin (arm64) [expofilesystem.ExpoFileSystem]
+2026-08-21 13:18:38 +0000 [MT] Entitlements for <IDEDistributionItem: 0x8c27a8cc0; bundleID='expofont.ExpoFont', path='<DVTFilePath:0x8c260a680:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoFont.framework'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x8c27a8d80; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x8c07980c0; name='Apple Distribution: Anlvio LLC (3258CL32QP)', hash='71B23F4F6408E3C508BF3C2452F9507C7348F316', serialNumber='4A72650B8B1E98C67C5920985BBA879D', certificateKinds='(
+    "1.2.840.113635.100.6.1.7",
+    "1.2.840.113635.100.6.1.4"
+), issueDate='2026-07-24 00:05:43 +0000''>', entitlements='(null)', teamID='3258CL32QP', identifier='expofont.ExpoFont', executablePath='<DVTFilePath:0x8c26f4e40:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoFont.framework/ExpoFont'>', hardenedRuntime='0'>'>: {
+}
+2026-08-21 13:18:38 +0000 [MT] Associated App Clip Identifiers Filter: Skipping because "com.apple.developer.associated-appclip-app-identifiers" is not present
+2026-08-21 13:18:38 +0000 [MT] Entitlements for <IDEDistributionItem: 0x8c27a8cc0; bundleID='expofont.ExpoFont', path='<DVTFilePath:0x8c260a680:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoFont.framework'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x8c27a8d80; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x8c0798000; name='Apple Distribution: Anlvio LLC (3258CL32QP)', hash='71B23F4F6408E3C508BF3C2452F9507C7348F316', serialNumber='4A72650B8B1E98C67C5920985BBA879D', certificateKinds='(
+    "1.2.840.113635.100.6.1.7",
+    "1.2.840.113635.100.6.1.4"
+), issueDate='2026-07-24 00:05:43 +0000''>', entitlements='(null)', teamID='3258CL32QP', identifier='expofont.ExpoFont', executablePath='<DVTFilePath:0x8c26f4e40:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoFont.framework/ExpoFont'>', hardenedRuntime='0'>'> are: {
+}
+2026-08-21 13:18:38 +0000 [MT] Writing entitlements for <IDEDistributionItem: 0x8c27a8cc0; bundleID='expofont.ExpoFont', path='<DVTFilePath:0x8c260a680:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoFont.framework'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x8c27a8d80; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x8c0798000; name='Apple Distribution: Anlvio LLC (3258CL32QP)', hash='71B23F4F6408E3C508BF3C2452F9507C7348F316', serialNumber='4A72650B8B1E98C67C5920985BBA879D', certificateKinds='(
+    "1.2.840.113635.100.6.1.7",
+    "1.2.840.113635.100.6.1.4"
+), issueDate='2026-07-24 00:05:43 +0000''>', entitlements='(null)', teamID='3258CL32QP', identifier='expofont.ExpoFont', executablePath='<DVTFilePath:0x8c26f4e40:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoFont.framework/ExpoFont'>', hardenedRuntime='0'>'> to: /var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/entitlements~~~y5Cu4i
+2026-08-21 13:18:38 +0000 [MT] invoking codesign: <NSConcreteTask: 0x8c40d3700; launchPath='/usr/bin/codesign', arguments='(
+    "-f",
+    "-s",
+    71B23F4F6408E3C508BF3C2452F9507C7348F316,
+    "--entitlements",
+    "/var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/entitlements~~~y5Cu4i",
+    "--preserve-metadata=identifier,flags,runtime,launch-constraints,library-constraints",
+    "--generate-entitlement-der",
+    "--strip-disallowed-xattrs",
+    "-vvv",
+    "/var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Root/Payload/QuestHat.app/Frameworks/ExpoFont.framework"
+)'>
+2026-08-21 13:18:38 +0000 [MT] codesign output: /var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Root/Payload/QuestHat.app/Frameworks/ExpoFont.framework: replacing existing signature
+/var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Root/Payload/QuestHat.app/Frameworks/ExpoFont.framework: signed bundle with Mach-O thin (arm64) [expofont.ExpoFont]
+2026-08-21 13:18:38 +0000 [MT] Entitlements for <IDEDistributionItem: 0x8c27a9500; bundleID='expolocation.ExpoLocation', path='<DVTFilePath:0x8c260abc0:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoLocation.framework'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x8c27a9560; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x8c07980c0; name='Apple Distribution: Anlvio LLC (3258CL32QP)', hash='71B23F4F6408E3C508BF3C2452F9507C7348F316', serialNumber='4A72650B8B1E98C67C5920985BBA879D', certificateKinds='(
+    "1.2.840.113635.100.6.1.7",
+    "1.2.840.113635.100.6.1.4"
+), issueDate='2026-07-24 00:05:43 +0000''>', entitlements='(null)', teamID='3258CL32QP', identifier='expolocation.ExpoLocation', executablePath='<DVTFilePath:0x8c26f5f20:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoLocation.framework/ExpoLocation'>', hardenedRuntime='0'>'>: {
+}
+2026-08-21 13:18:38 +0000 [MT] Associated App Clip Identifiers Filter: Skipping because "com.apple.developer.associated-appclip-app-identifiers" is not present
+2026-08-21 13:18:38 +0000 [MT] Entitlements for <IDEDistributionItem: 0x8c27a9500; bundleID='expolocation.ExpoLocation', path='<DVTFilePath:0x8c260abc0:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoLocation.framework'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x8c27a9560; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x8c0798000; name='Apple Distribution: Anlvio LLC (3258CL32QP)', hash='71B23F4F6408E3C508BF3C2452F9507C7348F316', serialNumber='4A72650B8B1E98C67C5920985BBA879D', certificateKinds='(
+    "1.2.840.113635.100.6.1.7",
+    "1.2.840.113635.100.6.1.4"
+), issueDate='2026-07-24 00:05:43 +0000''>', entitlements='(null)', teamID='3258CL32QP', identifier='expolocation.ExpoLocation', executablePath='<DVTFilePath:0x8c26f5f20:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoLocation.framework/ExpoLocation'>', hardenedRuntime='0'>'> are: {
+}
+2026-08-21 13:18:38 +0000 [MT] Writing entitlements for <IDEDistributionItem: 0x8c27a9500; bundleID='expolocation.ExpoLocation', path='<DVTFilePath:0x8c260abc0:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoLocation.framework'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x8c27a9560; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x8c0798000; name='Apple Distribution: Anlvio LLC (3258CL32QP)', hash='71B23F4F6408E3C508BF3C2452F9507C7348F316', serialNumber='4A72650B8B1E98C67C5920985BBA879D', certificateKinds='(
+    "1.2.840.113635.100.6.1.7",
+    "1.2.840.113635.100.6.1.4"
+), issueDate='2026-07-24 00:05:43 +0000''>', entitlements='(null)', teamID='3258CL32QP', identifier='expolocation.ExpoLocation', executablePath='<DVTFilePath:0x8c26f5f20:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoLocation.framework/ExpoLocation'>', hardenedRuntime='0'>'> to: /var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/entitlements~~~tghyN9
+2026-08-21 13:18:38 +0000 [MT] invoking codesign: <NSConcreteTask: 0x8c40d3700; launchPath='/usr/bin/codesign', arguments='(
+    "-f",
+    "-s",
+    71B23F4F6408E3C508BF3C2452F9507C7348F316,
+    "--entitlements",
+    "/var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/entitlements~~~tghyN9",
+    "--preserve-metadata=identifier,flags,runtime,launch-constraints,library-constraints",
+    "--generate-entitlement-der",
+    "--strip-disallowed-xattrs",
+    "-vvv",
+    "/var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Root/Payload/QuestHat.app/Frameworks/ExpoLocation.framework"
+)'>
+2026-08-21 13:18:39 +0000 [MT] codesign output: /var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Root/Payload/QuestHat.app/Frameworks/ExpoLocation.framework: replacing existing signature
+/var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Root/Payload/QuestHat.app/Frameworks/ExpoLocation.framework: signed bundle with Mach-O thin (arm64) [expolocation.ExpoLocation]
+2026-08-21 13:18:39 +0000 [MT] Entitlements for <IDEDistributionItem: 0x8c27a9020; bundleID='expomodulescore.ExpoModulesCore', path='<DVTFilePath:0x8c260a990:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoModulesCore.framework'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x8c27a9080; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x8c07980c0; name='Apple Distribution: Anlvio LLC (3258CL32QP)', hash='71B23F4F6408E3C508BF3C2452F9507C7348F316', serialNumber='4A72650B8B1E98C67C5920985BBA879D', certificateKinds='(
+    "1.2.840.113635.100.6.1.7",
+    "1.2.840.113635.100.6.1.4"
+), issueDate='2026-07-24 00:05:43 +0000''>', entitlements='(null)', teamID='3258CL32QP', identifier='expomodulescore.ExpoModulesCore', executablePath='<DVTFilePath:0x8c26f5680:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoModulesCore.framework/ExpoModulesCore'>', hardenedRuntime='0'>'>: {
+}
+2026-08-21 13:18:39 +0000 [MT] Associated App Clip Identifiers Filter: Skipping because "com.apple.developer.associated-appclip-app-identifiers" is not present
+2026-08-21 13:18:39 +0000 [MT] Entitlements for <IDEDistributionItem: 0x8c27a9020; bundleID='expomodulescore.ExpoModulesCore', path='<DVTFilePath:0x8c260a990:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoModulesCore.framework'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x8c27a9080; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x8c0798000; name='Apple Distribution: Anlvio LLC (3258CL32QP)', hash='71B23F4F6408E3C508BF3C2452F9507C7348F316', serialNumber='4A72650B8B1E98C67C5920985BBA879D', certificateKinds='(
+    "1.2.840.113635.100.6.1.7",
+    "1.2.840.113635.100.6.1.4"
+), issueDate='2026-07-24 00:05:43 +0000''>', entitlements='(null)', teamID='3258CL32QP', identifier='expomodulescore.ExpoModulesCore', executablePath='<DVTFilePath:0x8c26f5680:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoModulesCore.framework/ExpoModulesCore'>', hardenedRuntime='0'>'> are: {
+}
+2026-08-21 13:18:39 +0000 [MT] Writing entitlements for <IDEDistributionItem: 0x8c27a9020; bundleID='expomodulescore.ExpoModulesCore', path='<DVTFilePath:0x8c260a990:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoModulesCore.framework'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x8c27a9080; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x8c0798000; name='Apple Distribution: Anlvio LLC (3258CL32QP)', hash='71B23F4F6408E3C508BF3C2452F9507C7348F316', serialNumber='4A72650B8B1E98C67C5920985BBA879D', certificateKinds='(
+    "1.2.840.113635.100.6.1.7",
+    "1.2.840.113635.100.6.1.4"
+), issueDate='2026-07-24 00:05:43 +0000''>', entitlements='(null)', teamID='3258CL32QP', identifier='expomodulescore.ExpoModulesCore', executablePath='<DVTFilePath:0x8c26f5680:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoModulesCore.framework/ExpoModulesCore'>', hardenedRuntime='0'>'> to: /var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/entitlements~~~123Uwy
+2026-08-21 13:18:39 +0000 [MT] invoking codesign: <NSConcreteTask: 0x8c40d3700; launchPath='/usr/bin/codesign', arguments='(
+    "-f",
+    "-s",
+    71B23F4F6408E3C508BF3C2452F9507C7348F316,
+    "--entitlements",
+    "/var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/entitlements~~~123Uwy",
+    "--preserve-metadata=identifier,flags,runtime,launch-constraints,library-constraints",
+    "--generate-entitlement-der",
+    "--strip-disallowed-xattrs",
+    "-vvv",
+    "/var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Root/Payload/QuestHat.app/Frameworks/ExpoModulesCore.framework"
+)'>
+2026-08-21 13:18:39 +0000 [MT] codesign output: /var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Root/Payload/QuestHat.app/Frameworks/ExpoModulesCore.framework: replacing existing signature
+/var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Root/Payload/QuestHat.app/Frameworks/ExpoModulesCore.framework: signed bundle with Mach-O thin (arm64) [expomodulescore.ExpoModulesCore]
+2026-08-21 13:18:39 +0000 [MT] Entitlements for <IDEDistributionItem: 0x8c27a92c0; bundleID='apple.ExpoModulesJSI', path='<DVTFilePath:0x8c260a3e0:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoModulesJSI.framework'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x8c27a9320; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x8c07980c0; name='Apple Distribution: Anlvio LLC (3258CL32QP)', hash='71B23F4F6408E3C508BF3C2452F9507C7348F316', serialNumber='4A72650B8B1E98C67C5920985BBA879D', certificateKinds='(
+    "1.2.840.113635.100.6.1.7",
+    "1.2.840.113635.100.6.1.4"
+), issueDate='2026-07-24 00:05:43 +0000''>', entitlements='(null)', teamID='3258CL32QP', identifier='apple.ExpoModulesJSI', executablePath='<DVTFilePath:0x8c26f4600:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoModulesJSI.framework/ExpoModulesJSI'>', hardenedRuntime='0'>'>: {
+}
+2026-08-21 13:18:39 +0000 [MT] Associated App Clip Identifiers Filter: Skipping because "com.apple.developer.associated-appclip-app-identifiers" is not present
+2026-08-21 13:18:39 +0000 [MT] Entitlements for <IDEDistributionItem: 0x8c27a92c0; bundleID='apple.ExpoModulesJSI', path='<DVTFilePath:0x8c260a3e0:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoModulesJSI.framework'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x8c27a9320; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x8c0798000; name='Apple Distribution: Anlvio LLC (3258CL32QP)', hash='71B23F4F6408E3C508BF3C2452F9507C7348F316', serialNumber='4A72650B8B1E98C67C5920985BBA879D', certificateKinds='(
+    "1.2.840.113635.100.6.1.7",
+    "1.2.840.113635.100.6.1.4"
+), issueDate='2026-07-24 00:05:43 +0000''>', entitlements='(null)', teamID='3258CL32QP', identifier='apple.ExpoModulesJSI', executablePath='<DVTFilePath:0x8c26f4600:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoModulesJSI.framework/ExpoModulesJSI'>', hardenedRuntime='0'>'> are: {
+}
+2026-08-21 13:18:39 +0000 [MT] Writing entitlements for <IDEDistributionItem: 0x8c27a92c0; bundleID='apple.ExpoModulesJSI', path='<DVTFilePath:0x8c260a3e0:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoModulesJSI.framework'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x8c27a9320; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x8c0798000; name='Apple Distribution: Anlvio LLC (3258CL32QP)', hash='71B23F4F6408E3C508BF3C2452F9507C7348F316', serialNumber='4A72650B8B1E98C67C5920985BBA879D', certificateKinds='(
+    "1.2.840.113635.100.6.1.7",
+    "1.2.840.113635.100.6.1.4"
+), issueDate='2026-07-24 00:05:43 +0000''>', entitlements='(null)', teamID='3258CL32QP', identifier='apple.ExpoModulesJSI', executablePath='<DVTFilePath:0x8c26f4600:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoModulesJSI.framework/ExpoModulesJSI'>', hardenedRuntime='0'>'> to: /var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/entitlements~~~XyXnPy
+2026-08-21 13:18:39 +0000 [MT] invoking codesign: <NSConcreteTask: 0x8c40d3700; launchPath='/usr/bin/codesign', arguments='(
+    "-f",
+    "-s",
+    71B23F4F6408E3C508BF3C2452F9507C7348F316,
+    "--entitlements",
+    "/var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/entitlements~~~XyXnPy",
+    "--preserve-metadata=identifier,flags,runtime,launch-constraints,library-constraints",
+    "--generate-entitlement-der",
+    "--strip-disallowed-xattrs",
+    "-vvv",
+    "/var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Root/Payload/QuestHat.app/Frameworks/ExpoModulesJSI.framework"
+)'>
+2026-08-21 13:18:39 +0000 [MT] codesign output: /var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Root/Payload/QuestHat.app/Frameworks/ExpoModulesJSI.framework: replacing existing signature
+/var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Root/Payload/QuestHat.app/Frameworks/ExpoModulesJSI.framework: signed bundle with Mach-O thin (arm64) [apple.ExpoModulesJSI]
+2026-08-21 13:18:39 +0000 [MT] Entitlements for <IDEDistributionItem: 0x8c27a8fc0; bundleID='expomodulesworklets.ExpoModulesWorklets', path='<DVTFilePath:0x8c2780b60:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoModulesWorklets.framework'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x8c27a8f60; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x8c07980c0; name='Apple Distribution: Anlvio LLC (3258CL32QP)', hash='71B23F4F6408E3C508BF3C2452F9507C7348F316', serialNumber='4A72650B8B1E98C67C5920985BBA879D', certificateKinds='(
+    "1.2.840.113635.100.6.1.7",
+    "1.2.840.113635.100.6.1.4"
+), issueDate='2026-07-24 00:05:43 +0000''>', entitlements='(null)', teamID='3258CL32QP', identifier='expomodulesworklets.ExpoModulesWorklets', executablePath='<DVTFilePath:0x8c2780bd0:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoModulesWorklets.framework/ExpoModulesWorklets'>', hardenedRuntime='0'>'>: {
+}
+2026-08-21 13:18:39 +0000 [MT] Associated App Clip Identifiers Filter: Skipping because "com.apple.developer.associated-appclip-app-identifiers" is not present
+2026-08-21 13:18:39 +0000 [MT] Entitlements for <IDEDistributionItem: 0x8c27a8fc0; bundleID='expomodulesworklets.ExpoModulesWorklets', path='<DVTFilePath:0x8c2780b60:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoModulesWorklets.framework'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x8c27a8f60; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x8c0798000; name='Apple Distribution: Anlvio LLC (3258CL32QP)', hash='71B23F4F6408E3C508BF3C2452F9507C7348F316', serialNumber='4A72650B8B1E98C67C5920985BBA879D', certificateKinds='(
+    "1.2.840.113635.100.6.1.7",
+    "1.2.840.113635.100.6.1.4"
+), issueDate='2026-07-24 00:05:43 +0000''>', entitlements='(null)', teamID='3258CL32QP', identifier='expomodulesworklets.ExpoModulesWorklets', executablePath='<DVTFilePath:0x8c2780bd0:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoModulesWorklets.framework/ExpoModulesWorklets'>', hardenedRuntime='0'>'> are: {
+}
+2026-08-21 13:18:39 +0000 [MT] Writing entitlements for <IDEDistributionItem: 0x8c27a8fc0; bundleID='expomodulesworklets.ExpoModulesWorklets', path='<DVTFilePath:0x8c2780b60:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoModulesWorklets.framework'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x8c27a8f60; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x8c0798000; name='Apple Distribution: Anlvio LLC (3258CL32QP)', hash='71B23F4F6408E3C508BF3C2452F9507C7348F316', serialNumber='4A72650B8B1E98C67C5920985BBA879D', certificateKinds='(
+    "1.2.840.113635.100.6.1.7",
+    "1.2.840.113635.100.6.1.4"
+), issueDate='2026-07-24 00:05:43 +0000''>', entitlements='(null)', teamID='3258CL32QP', identifier='expomodulesworklets.ExpoModulesWorklets', executablePath='<DVTFilePath:0x8c2780bd0:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoModulesWorklets.framework/ExpoModulesWorklets'>', hardenedRuntime='0'>'> to: /var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/entitlements~~~wTfckN
+2026-08-21 13:18:39 +0000 [MT] invoking codesign: <NSConcreteTask: 0x8c40d3700; launchPath='/usr/bin/codesign', arguments='(
+    "-f",
+    "-s",
+    71B23F4F6408E3C508BF3C2452F9507C7348F316,
+    "--entitlements",
+    "/var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/entitlements~~~wTfckN",
+    "--preserve-metadata=identifier,flags,runtime,launch-constraints,library-constraints",
+    "--generate-entitlement-der",
+    "--strip-disallowed-xattrs",
+    "-vvv",
+    "/var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Root/Payload/QuestHat.app/Frameworks/ExpoModulesWorklets.framework"
+)'>
+2026-08-21 13:18:39 +0000 [MT] codesign output: /var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Root/Payload/QuestHat.app/Frameworks/ExpoModulesWorklets.framework: replacing existing signature
+/var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Root/Payload/QuestHat.app/Frameworks/ExpoModulesWorklets.framework: signed bundle with Mach-O thin (arm64) [expomodulesworklets.ExpoModulesWorklets]
+2026-08-21 13:18:39 +0000 [MT] Entitlements for <IDEDistributionItem: 0x8c27a88a0; bundleID='expovideo.ExpoVideo', path='<DVTFilePath:0x8c260a7d0:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoVideo.framework'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x8c27a8960; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x8c07980c0; name='Apple Distribution: Anlvio LLC (3258CL32QP)', hash='71B23F4F6408E3C508BF3C2452F9507C7348F316', serialNumber='4A72650B8B1E98C67C5920985BBA879D', certificateKinds='(
+    "1.2.840.113635.100.6.1.7",
+    "1.2.840.113635.100.6.1.4"
+), issueDate='2026-07-24 00:05:43 +0000''>', entitlements='(null)', teamID='3258CL32QP', identifier='expovideo.ExpoVideo', executablePath='<DVTFilePath:0x8c26f5260:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoVideo.framework/ExpoVideo'>', hardenedRuntime='0'>'>: {
+}
+2026-08-21 13:18:39 +0000 [MT] Associated App Clip Identifiers Filter: Skipping because "com.apple.developer.associated-appclip-app-identifiers" is not present
+2026-08-21 13:18:39 +0000 [MT] Entitlements for <IDEDistributionItem: 0x8c27a88a0; bundleID='expovideo.ExpoVideo', path='<DVTFilePath:0x8c260a7d0:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoVideo.framework'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x8c27a8960; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x8c0798000; name='Apple Distribution: Anlvio LLC (3258CL32QP)', hash='71B23F4F6408E3C508BF3C2452F9507C7348F316', serialNumber='4A72650B8B1E98C67C5920985BBA879D', certificateKinds='(
+    "1.2.840.113635.100.6.1.7",
+    "1.2.840.113635.100.6.1.4"
+), issueDate='2026-07-24 00:05:43 +0000''>', entitlements='(null)', teamID='3258CL32QP', identifier='expovideo.ExpoVideo', executablePath='<DVTFilePath:0x8c26f5260:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoVideo.framework/ExpoVideo'>', hardenedRuntime='0'>'> are: {
+}
+2026-08-21 13:18:39 +0000 [MT] Writing entitlements for <IDEDistributionItem: 0x8c27a88a0; bundleID='expovideo.ExpoVideo', path='<DVTFilePath:0x8c260a7d0:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoVideo.framework'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x8c27a8960; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x8c0798000; name='Apple Distribution: Anlvio LLC (3258CL32QP)', hash='71B23F4F6408E3C508BF3C2452F9507C7348F316', serialNumber='4A72650B8B1E98C67C5920985BBA879D', certificateKinds='(
+    "1.2.840.113635.100.6.1.7",
+    "1.2.840.113635.100.6.1.4"
+), issueDate='2026-07-24 00:05:43 +0000''>', entitlements='(null)', teamID='3258CL32QP', identifier='expovideo.ExpoVideo', executablePath='<DVTFilePath:0x8c26f5260:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ExpoVideo.framework/ExpoVideo'>', hardenedRuntime='0'>'> to: /var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/entitlements~~~RwYJLc
+2026-08-21 13:18:39 +0000 [MT] invoking codesign: <NSConcreteTask: 0x8c40d3700; launchPath='/usr/bin/codesign', arguments='(
+    "-f",
+    "-s",
+    71B23F4F6408E3C508BF3C2452F9507C7348F316,
+    "--entitlements",
+    "/var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/entitlements~~~RwYJLc",
+    "--preserve-metadata=identifier,flags,runtime,launch-constraints,library-constraints",
+    "--generate-entitlement-der",
+    "--strip-disallowed-xattrs",
+    "-vvv",
+    "/var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Root/Payload/QuestHat.app/Frameworks/ExpoVideo.framework"
+)'>
+2026-08-21 13:18:39 +0000 [MT] codesign output: /var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Root/Payload/QuestHat.app/Frameworks/ExpoVideo.framework: replacing existing signature
+/var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Root/Payload/QuestHat.app/Frameworks/ExpoVideo.framework: signed bundle with Mach-O thin (arm64) [expovideo.ExpoVideo]
+2026-08-21 13:18:39 +0000 [MT] Entitlements for <IDEDistributionItem: 0x8c27a9380; bundleID='com.maplibre.mapbox', path='<DVTFilePath:0x8c260b020:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/MapLibre.framework'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x8c27a93e0; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x8c07980c0; name='Apple Distribution: Anlvio LLC (3258CL32QP)', hash='71B23F4F6408E3C508BF3C2452F9507C7348F316', serialNumber='4A72650B8B1E98C67C5920985BBA879D', certificateKinds='(
+    "1.2.840.113635.100.6.1.7",
+    "1.2.840.113635.100.6.1.4"
+), issueDate='2026-07-24 00:05:43 +0000''>', entitlements='(null)', teamID='3258CL32QP', identifier='com.maplibre.mapbox', executablePath='<DVTFilePath:0x8c2770000:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/MapLibre.framework/MapLibre'>', hardenedRuntime='0'>'>: {
+}
+2026-08-21 13:18:39 +0000 [MT] Associated App Clip Identifiers Filter: Skipping because "com.apple.developer.associated-appclip-app-identifiers" is not present
+2026-08-21 13:18:39 +0000 [MT] Entitlements for <IDEDistributionItem: 0x8c27a9380; bundleID='com.maplibre.mapbox', path='<DVTFilePath:0x8c260b020:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/MapLibre.framework'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x8c27a93e0; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x8c0798000; name='Apple Distribution: Anlvio LLC (3258CL32QP)', hash='71B23F4F6408E3C508BF3C2452F9507C7348F316', serialNumber='4A72650B8B1E98C67C5920985BBA879D', certificateKinds='(
+    "1.2.840.113635.100.6.1.7",
+    "1.2.840.113635.100.6.1.4"
+), issueDate='2026-07-24 00:05:43 +0000''>', entitlements='(null)', teamID='3258CL32QP', identifier='com.maplibre.mapbox', executablePath='<DVTFilePath:0x8c2770000:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/MapLibre.framework/MapLibre'>', hardenedRuntime='0'>'> are: {
+}
+2026-08-21 13:18:39 +0000 [MT] Writing entitlements for <IDEDistributionItem: 0x8c27a9380; bundleID='com.maplibre.mapbox', path='<DVTFilePath:0x8c260b020:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/MapLibre.framework'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x8c27a93e0; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x8c0798000; name='Apple Distribution: Anlvio LLC (3258CL32QP)', hash='71B23F4F6408E3C508BF3C2452F9507C7348F316', serialNumber='4A72650B8B1E98C67C5920985BBA879D', certificateKinds='(
+    "1.2.840.113635.100.6.1.7",
+    "1.2.840.113635.100.6.1.4"
+), issueDate='2026-07-24 00:05:43 +0000''>', entitlements='(null)', teamID='3258CL32QP', identifier='com.maplibre.mapbox', executablePath='<DVTFilePath:0x8c2770000:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/MapLibre.framework/MapLibre'>', hardenedRuntime='0'>'> to: /var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/entitlements~~~8M4EsW
+2026-08-21 13:18:39 +0000 [MT] invoking codesign: <NSConcreteTask: 0x8c40d3700; launchPath='/usr/bin/codesign', arguments='(
+    "-f",
+    "-s",
+    71B23F4F6408E3C508BF3C2452F9507C7348F316,
+    "--entitlements",
+    "/var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/entitlements~~~8M4EsW",
+    "--preserve-metadata=identifier,flags,runtime,launch-constraints,library-constraints",
+    "--generate-entitlement-der",
+    "--strip-disallowed-xattrs",
+    "-vvv",
+    "/var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Root/Payload/QuestHat.app/Frameworks/MapLibre.framework"
+)'>
+2026-08-21 13:18:39 +0000 [MT] codesign output: /var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Root/Payload/QuestHat.app/Frameworks/MapLibre.framework: replacing existing signature
+/var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Root/Payload/QuestHat.app/Frameworks/MapLibre.framework: signed bundle with Mach-O thin (arm64) [com.maplibre.mapbox]
+2026-08-21 13:18:39 +0000 [MT] Entitlements for <IDEDistributionItem: 0x8c27a8f00; bundleID='react-native.React', path='<DVTFilePath:0x8c26f5860:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/React.framework'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x8c27a8ea0; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x8c07980c0; name='Apple Distribution: Anlvio LLC (3258CL32QP)', hash='71B23F4F6408E3C508BF3C2452F9507C7348F316', serialNumber='4A72650B8B1E98C67C5920985BBA879D', certificateKinds='(
+    "1.2.840.113635.100.6.1.7",
+    "1.2.840.113635.100.6.1.4"
+), issueDate='2026-07-24 00:05:43 +0000''>', entitlements='(null)', teamID='3258CL32QP', identifier='react-native.React', executablePath='<DVTFilePath:0x8c26f5b00:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/React.framework/React'>', hardenedRuntime='0'>'>: {
+}
+2026-08-21 13:18:39 +0000 [MT] Associated App Clip Identifiers Filter: Skipping because "com.apple.developer.associated-appclip-app-identifiers" is not present
+2026-08-21 13:18:39 +0000 [MT] Entitlements for <IDEDistributionItem: 0x8c27a8f00; bundleID='react-native.React', path='<DVTFilePath:0x8c26f5860:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/React.framework'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x8c27a8ea0; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x8c0798000; name='Apple Distribution: Anlvio LLC (3258CL32QP)', hash='71B23F4F6408E3C508BF3C2452F9507C7348F316', serialNumber='4A72650B8B1E98C67C5920985BBA879D', certificateKinds='(
+    "1.2.840.113635.100.6.1.7",
+    "1.2.840.113635.100.6.1.4"
+), issueDate='2026-07-24 00:05:43 +0000''>', entitlements='(null)', teamID='3258CL32QP', identifier='react-native.React', executablePath='<DVTFilePath:0x8c26f5b00:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/React.framework/React'>', hardenedRuntime='0'>'> are: {
+}
+2026-08-21 13:18:39 +0000 [MT] Writing entitlements for <IDEDistributionItem: 0x8c27a8f00; bundleID='react-native.React', path='<DVTFilePath:0x8c26f5860:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/React.framework'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x8c27a8ea0; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x8c0798000; name='Apple Distribution: Anlvio LLC (3258CL32QP)', hash='71B23F4F6408E3C508BF3C2452F9507C7348F316', serialNumber='4A72650B8B1E98C67C5920985BBA879D', certificateKinds='(
+    "1.2.840.113635.100.6.1.7",
+    "1.2.840.113635.100.6.1.4"
+), issueDate='2026-07-24 00:05:43 +0000''>', entitlements='(null)', teamID='3258CL32QP', identifier='react-native.React', executablePath='<DVTFilePath:0x8c26f5b00:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/React.framework/React'>', hardenedRuntime='0'>'> to: /var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/entitlements~~~XhVaBX
+2026-08-21 13:18:39 +0000 [MT] invoking codesign: <NSConcreteTask: 0x8c40d3700; launchPath='/usr/bin/codesign', arguments='(
+    "-f",
+    "-s",
+    71B23F4F6408E3C508BF3C2452F9507C7348F316,
+    "--entitlements",
+    "/var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/entitlements~~~XhVaBX",
+    "--preserve-metadata=identifier,flags,runtime,launch-constraints,library-constraints",
+    "--generate-entitlement-der",
+    "--strip-disallowed-xattrs",
+    "-vvv",
+    "/var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Root/Payload/QuestHat.app/Frameworks/React.framework"
+)'>
+2026-08-21 13:18:39 +0000 [MT] codesign output: /var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Root/Payload/QuestHat.app/Frameworks/React.framework: replacing existing signature
+/var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Root/Payload/QuestHat.app/Frameworks/React.framework: signed bundle with Mach-O thin (arm64) [react-native.React]
+2026-08-21 13:18:39 +0000 [MT] Entitlements for <IDEDistributionItem: 0x8c27a8b40; bundleID='third-party.ReactNativeDependencies', path='<DVTFilePath:0x8c0731e80:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ReactNativeDependencies.framework'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x8c27a89c0; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x8c07980c0; name='Apple Distribution: Anlvio LLC (3258CL32QP)', hash='71B23F4F6408E3C508BF3C2452F9507C7348F316', serialNumber='4A72650B8B1E98C67C5920985BBA879D', certificateKinds='(
+    "1.2.840.113635.100.6.1.7",
+    "1.2.840.113635.100.6.1.4"
+), issueDate='2026-07-24 00:05:43 +0000''>', entitlements='(null)', teamID='3258CL32QP', identifier='third-party.ReactNativeDependencies', executablePath='<DVTFilePath:0x8c260adf0:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ReactNativeDependencies.framework/ReactNativeDependencies'>', hardenedRuntime='0'>'>: {
+}
+2026-08-21 13:18:39 +0000 [MT] Associated App Clip Identifiers Filter: Skipping because "com.apple.developer.associated-appclip-app-identifiers" is not present
+2026-08-21 13:18:39 +0000 [MT] Entitlements for <IDEDistributionItem: 0x8c27a8b40; bundleID='third-party.ReactNativeDependencies', path='<DVTFilePath:0x8c0731e80:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ReactNativeDependencies.framework'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x8c27a89c0; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x8c0798000; name='Apple Distribution: Anlvio LLC (3258CL32QP)', hash='71B23F4F6408E3C508BF3C2452F9507C7348F316', serialNumber='4A72650B8B1E98C67C5920985BBA879D', certificateKinds='(
+    "1.2.840.113635.100.6.1.7",
+    "1.2.840.113635.100.6.1.4"
+), issueDate='2026-07-24 00:05:43 +0000''>', entitlements='(null)', teamID='3258CL32QP', identifier='third-party.ReactNativeDependencies', executablePath='<DVTFilePath:0x8c260adf0:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ReactNativeDependencies.framework/ReactNativeDependencies'>', hardenedRuntime='0'>'> are: {
+}
+2026-08-21 13:18:39 +0000 [MT] Writing entitlements for <IDEDistributionItem: 0x8c27a8b40; bundleID='third-party.ReactNativeDependencies', path='<DVTFilePath:0x8c0731e80:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ReactNativeDependencies.framework'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x8c27a89c0; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x8c0798000; name='Apple Distribution: Anlvio LLC (3258CL32QP)', hash='71B23F4F6408E3C508BF3C2452F9507C7348F316', serialNumber='4A72650B8B1E98C67C5920985BBA879D', certificateKinds='(
+    "1.2.840.113635.100.6.1.7",
+    "1.2.840.113635.100.6.1.4"
+), issueDate='2026-07-24 00:05:43 +0000''>', entitlements='(null)', teamID='3258CL32QP', identifier='third-party.ReactNativeDependencies', executablePath='<DVTFilePath:0x8c260adf0:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/ReactNativeDependencies.framework/ReactNativeDependencies'>', hardenedRuntime='0'>'> to: /var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/entitlements~~~WsHoWZ
+2026-08-21 13:18:39 +0000 [MT] invoking codesign: <NSConcreteTask: 0x8c40d3700; launchPath='/usr/bin/codesign', arguments='(
+    "-f",
+    "-s",
+    71B23F4F6408E3C508BF3C2452F9507C7348F316,
+    "--entitlements",
+    "/var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/entitlements~~~WsHoWZ",
+    "--preserve-metadata=identifier,flags,runtime,launch-constraints,library-constraints",
+    "--generate-entitlement-der",
+    "--strip-disallowed-xattrs",
+    "-vvv",
+    "/var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Root/Payload/QuestHat.app/Frameworks/ReactNativeDependencies.framework"
+)'>
+2026-08-21 13:18:39 +0000 [MT] codesign output: /var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Root/Payload/QuestHat.app/Frameworks/ReactNativeDependencies.framework: replacing existing signature
+/var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Root/Payload/QuestHat.app/Frameworks/ReactNativeDependencies.framework: signed bundle with Mach-O thin (arm64) [third-party.ReactNativeDependencies]
+2026-08-21 13:18:39 +0000 [MT] Entitlements for <IDEDistributionItem: 0x8c27a9440; bundleID='dev.hermesengine.iphoneos', path='<DVTFilePath:0x8c260a530:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/hermesvm.framework'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x8c27a94a0; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x8c07980c0; name='Apple Distribution: Anlvio LLC (3258CL32QP)', hash='71B23F4F6408E3C508BF3C2452F9507C7348F316', serialNumber='4A72650B8B1E98C67C5920985BBA879D', certificateKinds='(
+    "1.2.840.113635.100.6.1.7",
+    "1.2.840.113635.100.6.1.4"
+), issueDate='2026-07-24 00:05:43 +0000''>', entitlements='(null)', teamID='3258CL32QP', identifier='dev.hermesengine.iphoneos', executablePath='<DVTFilePath:0x8c26f4a20:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/hermesvm.framework/hermesvm'>', hardenedRuntime='0'>'>: {
+}
+2026-08-21 13:18:39 +0000 [MT] Associated App Clip Identifiers Filter: Skipping because "com.apple.developer.associated-appclip-app-identifiers" is not present
+2026-08-21 13:18:39 +0000 [MT] Entitlements for <IDEDistributionItem: 0x8c27a9440; bundleID='dev.hermesengine.iphoneos', path='<DVTFilePath:0x8c260a530:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/hermesvm.framework'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x8c27a94a0; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x8c0798000; name='Apple Distribution: Anlvio LLC (3258CL32QP)', hash='71B23F4F6408E3C508BF3C2452F9507C7348F316', serialNumber='4A72650B8B1E98C67C5920985BBA879D', certificateKinds='(
+    "1.2.840.113635.100.6.1.7",
+    "1.2.840.113635.100.6.1.4"
+), issueDate='2026-07-24 00:05:43 +0000''>', entitlements='(null)', teamID='3258CL32QP', identifier='dev.hermesengine.iphoneos', executablePath='<DVTFilePath:0x8c26f4a20:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/hermesvm.framework/hermesvm'>', hardenedRuntime='0'>'> are: {
+}
+2026-08-21 13:18:39 +0000 [MT] Writing entitlements for <IDEDistributionItem: 0x8c27a9440; bundleID='dev.hermesengine.iphoneos', path='<DVTFilePath:0x8c260a530:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/hermesvm.framework'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x8c27a94a0; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x8c0798000; name='Apple Distribution: Anlvio LLC (3258CL32QP)', hash='71B23F4F6408E3C508BF3C2452F9507C7348F316', serialNumber='4A72650B8B1E98C67C5920985BBA879D', certificateKinds='(
+    "1.2.840.113635.100.6.1.7",
+    "1.2.840.113635.100.6.1.4"
+), issueDate='2026-07-24 00:05:43 +0000''>', entitlements='(null)', teamID='3258CL32QP', identifier='dev.hermesengine.iphoneos', executablePath='<DVTFilePath:0x8c26f4a20:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/Frameworks/hermesvm.framework/hermesvm'>', hardenedRuntime='0'>'> to: /var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/entitlements~~~aKQlVA
+2026-08-21 13:18:39 +0000 [MT] invoking codesign: <NSConcreteTask: 0x8c40d3700; launchPath='/usr/bin/codesign', arguments='(
+    "-f",
+    "-s",
+    71B23F4F6408E3C508BF3C2452F9507C7348F316,
+    "--entitlements",
+    "/var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/entitlements~~~aKQlVA",
+    "--preserve-metadata=identifier,flags,runtime,launch-constraints,library-constraints",
+    "--generate-entitlement-der",
+    "--strip-disallowed-xattrs",
+    "-vvv",
+    "/var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Root/Payload/QuestHat.app/Frameworks/hermesvm.framework"
+)'>
+2026-08-21 13:18:39 +0000 [MT] codesign output: /var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Root/Payload/QuestHat.app/Frameworks/hermesvm.framework: replacing existing signature
+/var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Root/Payload/QuestHat.app/Frameworks/hermesvm.framework: signed bundle with Mach-O thin (arm64) [dev.hermesengine.iphoneos]
+2026-08-21 13:18:39 +0000 [MT] Entitlements for <IDEDistributionItem: 0x8c27a90e0; bundleID='com.questhat.app.LiveActivity', path='<DVTFilePath:0x8c2609880:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/PlugIns/QuestHatLiveActivity.appex'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x8c27a8c00; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x8c07980c0; name='Apple Distribution: Anlvio LLC (3258CL32QP)', hash='71B23F4F6408E3C508BF3C2452F9507C7348F316', serialNumber='4A72650B8B1E98C67C5920985BBA879D', certificateKinds='(
+    "1.2.840.113635.100.6.1.7",
+    "1.2.840.113635.100.6.1.4"
+), issueDate='2026-07-24 00:05:43 +0000''>', entitlements='{
+    "application-identifier" = "3258CL32QP.com.questhat.app.LiveActivity";
+    "beta-reports-active" = 1;
+    "com.apple.developer.team-identifier" = 3258CL32QP;
+    "get-task-allow" = 0;
+}', teamID='3258CL32QP', identifier='com.questhat.app.LiveActivity', executablePath='<DVTFilePath:0x8c26098f0:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/PlugIns/QuestHatLiveActivity.appex/QuestHatLiveActivity'>', hardenedRuntime='0'>'>: {
+    "application-identifier" = "3258CL32QP.com.questhat.app.LiveActivity";
+    "beta-reports-active" = 1;
+    "com.apple.developer.team-identifier" = 3258CL32QP;
+    "get-task-allow" = 0;
+}
+2026-08-21 13:18:39 +0000 [MT] Associated App Clip Identifiers Filter: Skipping because "com.apple.developer.associated-appclip-app-identifiers" is not present
+2026-08-21 13:18:39 +0000 [MT] Entitlements for <IDEDistributionItem: 0x8c27a90e0; bundleID='com.questhat.app.LiveActivity', path='<DVTFilePath:0x8c2609880:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/PlugIns/QuestHatLiveActivity.appex'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x8c27a8c00; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x8c0798000; name='Apple Distribution: Anlvio LLC (3258CL32QP)', hash='71B23F4F6408E3C508BF3C2452F9507C7348F316', serialNumber='4A72650B8B1E98C67C5920985BBA879D', certificateKinds='(
+    "1.2.840.113635.100.6.1.7",
+    "1.2.840.113635.100.6.1.4"
+), issueDate='2026-07-24 00:05:43 +0000''>', entitlements='{
+    "application-identifier" = "3258CL32QP.com.questhat.app.LiveActivity";
+    "beta-reports-active" = 1;
+    "com.apple.developer.team-identifier" = 3258CL32QP;
+    "get-task-allow" = 0;
+}', teamID='3258CL32QP', identifier='com.questhat.app.LiveActivity', executablePath='<DVTFilePath:0x8c26098f0:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/PlugIns/QuestHatLiveActivity.appex/QuestHatLiveActivity'>', hardenedRuntime='0'>'> are: {
+    "application-identifier" = "3258CL32QP.com.questhat.app.LiveActivity";
+    "beta-reports-active" = 1;
+    "com.apple.developer.team-identifier" = 3258CL32QP;
+    "get-task-allow" = 0;
+}
+2026-08-21 13:18:39 +0000 [MT] Writing entitlements for <IDEDistributionItem: 0x8c27a90e0; bundleID='com.questhat.app.LiveActivity', path='<DVTFilePath:0x8c2609880:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/PlugIns/QuestHatLiveActivity.appex'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x8c27a8c00; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x8c0798000; name='Apple Distribution: Anlvio LLC (3258CL32QP)', hash='71B23F4F6408E3C508BF3C2452F9507C7348F316', serialNumber='4A72650B8B1E98C67C5920985BBA879D', certificateKinds='(
+    "1.2.840.113635.100.6.1.7",
+    "1.2.840.113635.100.6.1.4"
+), issueDate='2026-07-24 00:05:43 +0000''>', entitlements='{
+    "application-identifier" = "3258CL32QP.com.questhat.app.LiveActivity";
+    "beta-reports-active" = 1;
+    "com.apple.developer.team-identifier" = 3258CL32QP;
+    "get-task-allow" = 0;
+}', teamID='3258CL32QP', identifier='com.questhat.app.LiveActivity', executablePath='<DVTFilePath:0x8c26098f0:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/PlugIns/QuestHatLiveActivity.appex/QuestHatLiveActivity'>', hardenedRuntime='0'>'> to: /var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/entitlements~~~BgwybZ
+2026-08-21 13:18:39 +0000 [MT] invoking codesign: <NSConcreteTask: 0x8c40d3700; launchPath='/usr/bin/codesign', arguments='(
+    "-f",
+    "-s",
+    71B23F4F6408E3C508BF3C2452F9507C7348F316,
+    "--entitlements",
+    "/var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/entitlements~~~BgwybZ",
+    "--preserve-metadata=identifier,flags,runtime,launch-constraints,library-constraints",
+    "--generate-entitlement-der",
+    "--strip-disallowed-xattrs",
+    "-vvv",
+    "/var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Root/Payload/QuestHat.app/PlugIns/QuestHatLiveActivity.appex"
+)'>
+2026-08-21 13:18:40 +0000 [MT] codesign output: /var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Root/Payload/QuestHat.app/PlugIns/QuestHatLiveActivity.appex: replacing existing signature
+/var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Root/Payload/QuestHat.app/PlugIns/QuestHatLiveActivity.appex: signed bundle with Mach-O thin (arm64) [com.questhat.app.LiveActivity]
+2026-08-21 13:18:40 +0000 [MT] Entitlements for <IDEDistributionItem: 0x8c27a95c0; bundleID='com.questhat.app', path='<DVTFilePath:0x8c25a1680:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x8c27a9620; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x8c07980c0; name='Apple Distribution: Anlvio LLC (3258CL32QP)', hash='71B23F4F6408E3C508BF3C2452F9507C7348F316', serialNumber='4A72650B8B1E98C67C5920985BBA879D', certificateKinds='(
+    "1.2.840.113635.100.6.1.7",
+    "1.2.840.113635.100.6.1.4"
+), issueDate='2026-07-24 00:05:43 +0000''>', entitlements='{
+    "application-identifier" = "3258CL32QP.com.questhat.app";
+    "aps-environment" = production;
+    "beta-reports-active" = 1;
+    "com.apple.developer.team-identifier" = 3258CL32QP;
+    "get-task-allow" = 0;
+}', teamID='3258CL32QP', identifier='com.questhat.app', executablePath='<DVTFilePath:0x8c25a2ac0:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/QuestHat'>', hardenedRuntime='0'>'>: {
+    "application-identifier" = "3258CL32QP.com.questhat.app";
+    "aps-environment" = production;
+    "beta-reports-active" = 1;
+    "com.apple.developer.team-identifier" = 3258CL32QP;
+    "get-task-allow" = 0;
+}
+2026-08-21 13:18:40 +0000 [MT] Associated App Clip Identifiers Filter: Skipping because "com.apple.developer.associated-appclip-app-identifiers" is not present
+2026-08-21 13:18:40 +0000 [MT] Entitlements for <IDEDistributionItem: 0x8c27a95c0; bundleID='com.questhat.app', path='<DVTFilePath:0x8c25a1680:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x8c27a9620; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x8c0798000; name='Apple Distribution: Anlvio LLC (3258CL32QP)', hash='71B23F4F6408E3C508BF3C2452F9507C7348F316', serialNumber='4A72650B8B1E98C67C5920985BBA879D', certificateKinds='(
+    "1.2.840.113635.100.6.1.7",
+    "1.2.840.113635.100.6.1.4"
+), issueDate='2026-07-24 00:05:43 +0000''>', entitlements='{
+    "application-identifier" = "3258CL32QP.com.questhat.app";
+    "aps-environment" = production;
+    "beta-reports-active" = 1;
+    "com.apple.developer.team-identifier" = 3258CL32QP;
+    "get-task-allow" = 0;
+}', teamID='3258CL32QP', identifier='com.questhat.app', executablePath='<DVTFilePath:0x8c25a2ac0:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/QuestHat'>', hardenedRuntime='0'>'> are: {
+    "application-identifier" = "3258CL32QP.com.questhat.app";
+    "aps-environment" = production;
+    "beta-reports-active" = 1;
+    "com.apple.developer.team-identifier" = 3258CL32QP;
+    "get-task-allow" = 0;
+}
+2026-08-21 13:18:40 +0000 [MT] Writing entitlements for <IDEDistributionItem: 0x8c27a95c0; bundleID='com.questhat.app', path='<DVTFilePath:0x8c25a1680:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x8c27a9620; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x8c0798000; name='Apple Distribution: Anlvio LLC (3258CL32QP)', hash='71B23F4F6408E3C508BF3C2452F9507C7348F316', serialNumber='4A72650B8B1E98C67C5920985BBA879D', certificateKinds='(
+    "1.2.840.113635.100.6.1.7",
+    "1.2.840.113635.100.6.1.4"
+), issueDate='2026-07-24 00:05:43 +0000''>', entitlements='{
+    "application-identifier" = "3258CL32QP.com.questhat.app";
+    "aps-environment" = production;
+    "beta-reports-active" = 1;
+    "com.apple.developer.team-identifier" = 3258CL32QP;
+    "get-task-allow" = 0;
+}', teamID='3258CL32QP', identifier='com.questhat.app', executablePath='<DVTFilePath:0x8c25a2ac0:'/Users/clawd/.openclaw/workspace-control/sidequest/release/ios/QuestHat-95.xcarchive/Products/Applications/QuestHat.app/QuestHat'>', hardenedRuntime='0'>'> to: /var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/entitlements~~~Gq1Xb9
+2026-08-21 13:18:40 +0000 [MT] invoking codesign: <NSConcreteTask: 0x8c40d3700; launchPath='/usr/bin/codesign', arguments='(
+    "-f",
+    "-s",
+    71B23F4F6408E3C508BF3C2452F9507C7348F316,
+    "--entitlements",
+    "/var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/entitlements~~~Gq1Xb9",
+    "--preserve-metadata=identifier,flags,runtime,launch-constraints,library-constraints",
+    "--generate-entitlement-der",
+    "--strip-disallowed-xattrs",
+    "-vvv",
+    "/var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Root/Payload/QuestHat.app"
+)'>
+2026-08-21 13:18:40 +0000 [MT] codesign output: /var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Root/Payload/QuestHat.app: replacing existing signature
+/var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Root/Payload/QuestHat.app: signed app bundle with Mach-O thin (arm64) [com.questhat.app]
+2026-08-21 13:18:40 +0000 [MT] Processing step: IDEDistributionZipODRItemStep
+2026-08-21 13:18:40 +0000 [MT] Skipping step: IDEDistributionZipODRItemStep because it said so
+2026-08-21 13:18:40 +0000 [MT] Skipping step: IDEDistributionZipODRItemStep because it said so
+2026-08-21 13:18:40 +0000 [MT] Skipping step: IDEDistributionZipODRItemStep because it said so
+2026-08-21 13:18:40 +0000 [MT] Skipping step: IDEDistributionZipODRItemStep because it said so
+2026-08-21 13:18:40 +0000 [MT] Skipping step: IDEDistributionZipODRItemStep because it said so
+2026-08-21 13:18:40 +0000 [MT] Skipping step: IDEDistributionZipODRItemStep because it said so
+2026-08-21 13:18:40 +0000 [MT] Skipping step: IDEDistributionZipODRItemStep because it said so
+2026-08-21 13:18:40 +0000 [MT] Skipping step: IDEDistributionZipODRItemStep because it said so
+2026-08-21 13:18:40 +0000 [MT] Skipping step: IDEDistributionZipODRItemStep because it said so
+2026-08-21 13:18:40 +0000 [MT] Skipping step: IDEDistributionZipODRItemStep because it said so
+2026-08-21 13:18:40 +0000 [MT] Skipping step: IDEDistributionZipODRItemStep because it said so
+2026-08-21 13:18:40 +0000 [MT] Skipping step: IDEDistributionZipODRItemStep because it said so
+2026-08-21 13:18:40 +0000 [MT] Skipping step: IDEDistributionZipODRItemStep because it said so
+2026-08-21 13:18:40 +0000 [MT] Processing step: IDEDistributionCreateIPAStep
+2026-08-21 13:18:40 +0000 [MT] Running /usr/bin/rsync '-8aPhhE' '/var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Symbols' '--link-dest' '/var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu' '/var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Root'
+2026-08-21 13:18:40 +0000  Symbols/
+._Symbols
+            163  46%  947.02KB/s   00:00:00 (xfer#1, to-check=0/20)
+2026-08-21 13:18:40 +0000  Symbols/154A708D-4C97-3216-AD93-9830609DBC29.symbols
+Symbols/47BB5244-DDB3-32D7-B1B9-47730EB2B2AA.symbols
+Symbols/72596765-BDC2-3DD2-B676-D7E777AF07BA.symbols
+Symbols/78BB5D65-15A6-3FE5-B93C-91F62E14AD20.symbols
+Symbols/8EB39B85-805E-3427-847A-E35374989157.symbols
+Symbols/CFFF0ACD-9CD8-37A3-8127-F128196D16F2.symbols
+Symbols/D5125F60-E6E4-3200-B818-0B91781F1A51.symbols
+Symbols/D816C8DB-66BE-3A3D-8E9B-51158CCFBB64.symbols
+Symbols/EA3AF269-9DC7-3041-BFF9-0BD60D1DA3B2.symbols
+Symbols/._154A708D-4C97-3216-AD93-9830609DBC29.symbols
+            163   0%  205.43KB/s   00:00:00 (xfer#2, to-check=2/20)
+2026-08-21 13:18:40 +0000  Symbols/._47BB5244-DDB3-32D7-B1B9-47730EB2B2AA.symbols
+            163   0%  113.78KB/s   00:00:00 (xfer#3, to-check=3/20)
+2026-08-21 13:18:40 +0000  Symbols/._72596765-BDC2-3DD2-B676-D7E777AF07BA.symbols
+            163   0%  196.54KB/s   00:00:00 (xfer#4, to-check=4/20)
+2026-08-21 13:18:40 +0000  Symbols/._78BB5D65-15A6-3FE5-B93C-91F62E14AD20.symbols
+            163   0%  235.09KB/s   00:00:00 (xfer#5, to-check=5/20)
+2026-08-21 13:18:40 +0000  Symbols/._8EB39B85-805E-3427-847A-E35374989157.symbols
+            163   0%  218.04KB/s   00:00:00 (xfer#6, to-check=6/20)
+2026-08-21 13:18:40 +0000  Symbols/._CFFF0ACD-9CD8-37A3-8127-F128196D16F2.symbols
+            163   0%  158.21KB/s   00:00:00 (xfer#7, to-check=7/20)
+2026-08-21 13:18:40 +0000  Symbols/._D5125F60-E6E4-3200-B818-0B91781F1A51.symbols
+            163   0%  270.30KB/s   00:00:00 (xfer#8, to-check=8/20)
+2026-08-21 13:18:40 +0000  Symbols/._D816C8DB-66BE-3A3D-8E9B-51158CCFBB64.symbols
+            163   0%  255.90KB/s   00:00:00 (xfer#9, to-check=9/20)
+2026-08-21 13:18:40 +0000  Symbols/._EA3AF269-9DC7-3041-BFF9-0BD60D1DA3B2.symbols
+            163   0%  252.23KB/s   00:00:00 (xfer#10, to-check=10/20)
+2026-08-21 13:18:40 +0000 [MT] /usr/bin/rsync exited with 0
+2026-08-21 13:18:40 +0000 [MT] Running /usr/bin/ditto '-V' '-c' '-k' '--norsrc' '/var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Root' '/var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Packages/QuestHat.ipa'
+2026-08-21 13:18:40 +0000  >>> Copying /var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Root 
+2026-08-21 13:18:40 +0000  copying file ./Payload/QuestHat.app/React-timing_privacy.bundle/PrivacyInfo.xcprivacy ... 
+2026-08-21 13:18:40 +0000  553 bytes for ./Payload/QuestHat.app/React-timing_privacy.bundle/PrivacyInfo.xcprivacy
+2026-08-21 13:18:40 +0000  copying file ./Payload/QuestHat.app/React-timing_privacy.bundle/Info.plist ... 
+2026-08-21 13:18:40 +0000  787 bytes for ./Payload/QuestHat.app/React-timing_privacy.bundle/Info.plist
+2026-08-21 13:18:40 +0000  copying file ./Payload/QuestHat.app/_CodeSignature/CodeResources ... 
+2026-08-21 13:18:40 +0000  50367 bytes for ./Payload/QuestHat.app/_CodeSignature/CodeResources
+2026-08-21 13:18:40 +0000  copying file ./Payload/QuestHat.app/SplashScreen.storyboardc/EXPO-VIEWCONTROLLER-1-view-EXPO-ContainerView.nib ... 
+2026-08-21 13:18:40 +0000  4792 bytes for ./Payload/QuestHat.app/SplashScreen.storyboardc/EXPO-VIEWCONTROLLER-1-view-EXPO-ContainerView.nib
+2026-08-21 13:18:40 +0000  copying file ./Payload/QuestHat.app/SplashScreen.storyboardc/SplashScreenViewController.nib ... 
+2026-08-21 13:18:40 +0000  1004 bytes for ./Payload/QuestHat.app/SplashScreen.storyboardc/SplashScreenViewController.nib
+2026-08-21 13:18:40 +0000  copying file ./Payload/QuestHat.app/SplashScreen.storyboardc/Info.plist ... 
+2026-08-21 13:18:40 +0000  225 bytes for ./Payload/QuestHat.app/SplashScreen.storyboardc/Info.plist
+2026-08-21 13:18:40 +0000  copying file ./Payload/QuestHat.app/QuestHat ... 
+2026-08-21 13:18:40 +0000  2298192 bytes for ./Payload/QuestHat.app/QuestHat
+2026-08-21 13:18:40 +0000  copying file ./Payload/QuestHat.app/PlugIns/QuestHatLiveActivity.appex/_CodeSignature/CodeResources ... 
+2026-08-21 13:18:40 +0000  2246 bytes for ./Payload/QuestHat.app/PlugIns/QuestHatLiveActivity.appex/_CodeSignature/CodeResources
+2026-08-21 13:18:40 +0000  copying file ./Payload/QuestHat.app/PlugIns/QuestHatLiveActivity.appex/QuestHatLiveActivity ... 
+2026-08-21 13:18:40 +0000  132128 bytes for ./Payload/QuestHat.app/PlugIns/QuestHatLiveActivity.appex/QuestHatLiveActivity
+2026-08-21 13:18:40 +0000  copying file ./Payload/QuestHat.app/PlugIns/QuestHatLiveActivity.appex/Assets.car ... 
+2026-08-21 13:18:40 +0000  37288 bytes for ./Payload/QuestHat.app/PlugIns/QuestHatLiveActivity.appex/Assets.car
+2026-08-21 13:18:40 +0000  copying file ./Payload/QuestHat.app/PlugIns/QuestHatLiveActivity.appex/embedded.mobileprovision ... 
+2026-08-21 13:18:40 +0000  12191 bytes for ./Payload/QuestHat.app/PlugIns/QuestHatLiveActivity.appex/embedded.mobileprovision
+2026-08-21 13:18:40 +0000  copying file ./Payload/QuestHat.app/PlugIns/QuestHatLiveActivity.appex/Info.plist ... 
+2026-08-21 13:18:40 +0000  882 bytes for ./Payload/QuestHat.app/PlugIns/QuestHatLiveActivity.appex/Info.plist
+2026-08-21 13:18:40 +0000  copying file ./Payload/QuestHat.app/AppIcon60x60@2x.png ... 
+2026-08-21 13:18:40 +0000  6395 bytes for ./Payload/QuestHat.app/AppIcon60x60@2x.png
+2026-08-21 13:18:40 +0000  copying file ./Payload/QuestHat.app/ExpoConstants_privacy.bundle/PrivacyInfo.xcprivacy ... 
+2026-08-21 13:18:40 +0000  607 bytes for ./Payload/QuestHat.app/ExpoConstants_privacy.bundle/PrivacyInfo.xcprivacy
+2026-08-21 13:18:40 +0000  copying file ./Payload/QuestHat.app/ExpoConstants_privacy.bundle/Info.plist ... 
+2026-08-21 13:18:40 +0000  790 bytes for ./Payload/QuestHat.app/ExpoConstants_privacy.bundle/Info.plist
+2026-08-21 13:18:40 +0000  copying file ./Payload/QuestHat.app/React-cxxreact_privacy.bundle/PrivacyInfo.xcprivacy ... 
+2026-08-21 13:18:40 +0000  552 bytes for ./Payload/QuestHat.app/React-cxxreact_privacy.bundle/PrivacyInfo.xcprivacy
+2026-08-21 13:18:40 +0000  copying file ./Payload/QuestHat.app/React-cxxreact_privacy.bundle/Info.plist ... 
+2026-08-21 13:18:40 +0000  791 bytes for ./Payload/QuestHat.app/React-cxxreact_privacy.bundle/Info.plist
+2026-08-21 13:18:40 +0000  copying file ./Payload/QuestHat.app/ExpoApplication_privacy.bundle/PrivacyInfo.xcprivacy ... 
+2026-08-21 13:18:40 +0000  608 bytes for ./Payload/QuestHat.app/ExpoApplication_privacy.bundle/PrivacyInfo.xcprivacy
+2026-08-21 13:18:40 +0000  copying file ./Payload/QuestHat.app/ExpoApplication_privacy.bundle/Info.plist ... 
+2026-08-21 13:18:40 +0000  793 bytes for ./Payload/QuestHat.app/ExpoApplication_privacy.bundle/Info.plist
+2026-08-21 13:18:40 +0000  copying file ./Payload/QuestHat.app/Assets.car ... 
+2026-08-21 13:18:40 +0000  345848 bytes for ./Payload/QuestHat.app/Assets.car
+2026-08-21 13:18:40 +0000  copying file ./Payload/QuestHat.app/AppIcon76x76@2x~ipad.png ... 
+2026-08-21 13:18:40 +0000  8826 bytes for ./Payload/QuestHat.app/AppIcon76x76@2x~ipad.png
+2026-08-21 13:18:40 +0000  copying file ./Payload/QuestHat.app/main.jsbundle ... 
+2026-08-21 13:18:40 +0000  3542191 bytes for ./Payload/QuestHat.app/main.jsbundle
+2026-08-21 13:18:40 +0000  copying file ./Payload/QuestHat.app/EXConstants.bundle/app.config ... 
+2026-08-21 13:18:40 +0000  2165 bytes for ./Payload/QuestHat.app/EXConstants.bundle/app.config
+2026-08-21 13:18:40 +0000  copying file ./Payload/QuestHat.app/EXConstants.bundle/Info.plist ... 
+2026-08-21 13:18:40 +0000  768 bytes for ./Payload/QuestHat.app/EXConstants.bundle/Info.plist
+2026-08-21 13:18:40 +0000  copying file ./Payload/QuestHat.app/ExpoTaskManager_privacy.bundle/PrivacyInfo.xcprivacy ... 
+2026-08-21 13:18:40 +0000  607 bytes for ./Payload/QuestHat.app/ExpoTaskManager_privacy.bundle/PrivacyInfo.xcprivacy
+2026-08-21 13:18:40 +0000  copying file ./Payload/QuestHat.app/ExpoTaskManager_privacy.bundle/Info.plist ... 
+2026-08-21 13:18:40 +0000  793 bytes for ./Payload/QuestHat.app/ExpoTaskManager_privacy.bundle/Info.plist
+2026-08-21 13:18:40 +0000  copying file ./Payload/QuestHat.app/ExpoDevice_privacy.bundle/PrivacyInfo.xcprivacy ... 
+2026-08-21 13:18:40 +0000  609 bytes for ./Payload/QuestHat.app/ExpoDevice_privacy.bundle/PrivacyInfo.xcprivacy
+2026-08-21 13:18:40 +0000  copying file ./Payload/QuestHat.app/ExpoDevice_privacy.bundle/Info.plist ... 
+2026-08-21 13:18:40 +0000  783 bytes for ./Payload/QuestHat.app/ExpoDevice_privacy.bundle/Info.plist
+2026-08-21 13:18:40 +0000  copying file ./Payload/QuestHat.app/PrivacyInfo.xcprivacy ... 
+2026-08-21 13:18:40 +0000  5261 bytes for ./Payload/QuestHat.app/PrivacyInfo.xcprivacy
+2026-08-21 13:18:40 +0000  copying file ./Payload/QuestHat.app/ExpoNotifications_privacy.bundle/PrivacyInfo.xcprivacy ... 
+2026-08-21 13:18:40 +0000  607 bytes for ./Payload/QuestHat.app/ExpoNotifications_privacy.bundle/PrivacyInfo.xcprivacy
+2026-08-21 13:18:40 +0000  copying file ./Payload/QuestHat.app/ExpoNotifications_privacy.bundle/Info.plist ... 
+2026-08-21 13:18:40 +0000  797 bytes for ./Payload/QuestHat.app/ExpoNotifications_privacy.bundle/Info.plist
+2026-08-21 13:18:40 +0000  copying file ./Payload/QuestHat.app/ExpoFileSystem_privacy.bundle/Info.plist ... 
+2026-08-21 13:18:40 +0000  791 bytes for ./Payload/QuestHat.app/ExpoFileSystem_privacy.bundle/Info.plist
+2026-08-21 13:18:40 +0000  copying file ./Payload/QuestHat.app/Frameworks/ExpoModulesJSI.framework/_CodeSignature/CodeResources ... 
+2026-08-21 13:18:40 +0000  1798 bytes for ./Payload/QuestHat.app/Frameworks/ExpoModulesJSI.framework/_CodeSignature/CodeResources
+2026-08-21 13:18:40 +0000  copying file ./Payload/QuestHat.app/Frameworks/ExpoModulesJSI.framework/ExpoModulesJSI ... 
+2026-08-21 13:18:40 +0000  1437216 bytes for ./Payload/QuestHat.app/Frameworks/ExpoModulesJSI.framework/ExpoModulesJSI
+2026-08-21 13:18:40 +0000  copying file ./Payload/QuestHat.app/Frameworks/ExpoModulesJSI.framework/Info.plist ... 
+2026-08-21 13:18:40 +0000  756 bytes for ./Payload/QuestHat.app/Frameworks/ExpoModulesJSI.framework/Info.plist
+2026-08-21 13:18:40 +0000  copying file ./Payload/QuestHat.app/Frameworks/hermesvm.framework/_CodeSignature/CodeResources ... 
+2026-08-21 13:18:40 +0000  1798 bytes for ./Payload/QuestHat.app/Frameworks/hermesvm.framework/_CodeSignature/CodeResources
+2026-08-21 13:18:40 +0000  copying file ./Payload/QuestHat.app/Frameworks/hermesvm.framework/hermesvm ... 
+2026-08-21 13:18:40 +0000  5090336 bytes for ./Payload/QuestHat.app/Frameworks/hermesvm.framework/hermesvm
+2026-08-21 13:18:40 +0000  copying file ./Payload/QuestHat.app/Frameworks/hermesvm.framework/Info.plist ... 
+2026-08-21 13:18:40 +0000  859 bytes for ./Payload/QuestHat.app/Frameworks/hermesvm.framework/Info.plist
+2026-08-21 13:18:40 +0000  copying file ./Payload/QuestHat.app/Frameworks/ExpoFont.framework/_CodeSignature/CodeResources ... 
+2026-08-21 13:18:40 +0000  1798 bytes for ./Payload/QuestHat.app/Frameworks/ExpoFont.framework/_CodeSignature/CodeResources
+2026-08-21 13:18:40 +0000  copying file ./Payload/QuestHat.app/Frameworks/ExpoFont.framework/ExpoFont ... 
+2026-08-21 13:18:40 +0000  222608 bytes for ./Payload/QuestHat.app/Frameworks/ExpoFont.framework/ExpoFont
+2026-08-21 13:18:40 +0000  copying file ./Payload/QuestHat.app/Frameworks/ExpoFont.framework/Info.plist ... 
+2026-08-21 13:18:40 +0000  748 bytes for ./Payload/QuestHat.app/Frameworks/ExpoFont.framework/Info.plist
+2026-08-21 13:18:40 +0000  copying file ./Payload/QuestHat.app/Frameworks/ExpoVideo.framework/_CodeSignature/CodeResources ... 
+2026-08-21 13:18:40 +0000  1798 bytes for ./Payload/QuestHat.app/Frameworks/ExpoVideo.framework/_CodeSignature/CodeResources
+2026-08-21 13:18:40 +0000  copying file ./Payload/QuestHat.app/Frameworks/ExpoVideo.framework/ExpoVideo ... 
+2026-08-21 13:18:40 +0000  1572720 bytes for ./Payload/QuestHat.app/Frameworks/ExpoVideo.framework/ExpoVideo
+2026-08-21 13:18:40 +0000  copying file ./Payload/QuestHat.app/Frameworks/ExpoVideo.framework/Info.plist ... 
+2026-08-21 13:18:40 +0000  751 bytes for ./Payload/QuestHat.app/Frameworks/ExpoVideo.framework/Info.plist
+2026-08-21 13:18:40 +0000  copying file ./Payload/QuestHat.app/Frameworks/ExpoModulesCore.framework/_CodeSignature/CodeResources ... 
+2026-08-21 13:18:40 +0000  1798 bytes for ./Payload/QuestHat.app/Frameworks/ExpoModulesCore.framework/_CodeSignature/CodeResources
+2026-08-21 13:18:40 +0000  copying file ./Payload/QuestHat.app/Frameworks/ExpoModulesCore.framework/ExpoModulesCore ... 
+2026-08-21 13:18:41 +0000  3772656 bytes for ./Payload/QuestHat.app/Frameworks/ExpoModulesCore.framework/ExpoModulesCore
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/ExpoModulesCore.framework/Info.plist ... 
+2026-08-21 13:18:41 +0000  771 bytes for ./Payload/QuestHat.app/Frameworks/ExpoModulesCore.framework/Info.plist
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/React.framework/_CodeSignature/CodeResources ... 
+2026-08-21 13:18:41 +0000  1798 bytes for ./Payload/QuestHat.app/Frameworks/React.framework/_CodeSignature/CodeResources
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/React.framework/React ... 
+2026-08-21 13:18:41 +0000  12056720 bytes for ./Payload/QuestHat.app/Frameworks/React.framework/React
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/React.framework/Info.plist ... 
+2026-08-21 13:18:41 +0000  744 bytes for ./Payload/QuestHat.app/Frameworks/React.framework/Info.plist
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/ExpoLocation.framework/_CodeSignature/CodeResources ... 
+2026-08-21 13:18:41 +0000  1798 bytes for ./Payload/QuestHat.app/Frameworks/ExpoLocation.framework/_CodeSignature/CodeResources
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/ExpoLocation.framework/ExpoLocation ... 
+2026-08-21 13:18:41 +0000  459280 bytes for ./Payload/QuestHat.app/Frameworks/ExpoLocation.framework/ExpoLocation
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/ExpoLocation.framework/Info.plist ... 
+2026-08-21 13:18:41 +0000  760 bytes for ./Payload/QuestHat.app/Frameworks/ExpoLocation.framework/Info.plist
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/ReactNativeDependencies.framework/_CodeSignature/CodeResources ... 
+2026-08-21 13:18:41 +0000  3548 bytes for ./Payload/QuestHat.app/Frameworks/ReactNativeDependencies.framework/_CodeSignature/CodeResources
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/ReactNativeDependencies.framework/ReactNativeDependencies_folly.bundle/PrivacyInfo.xcprivacy ... 
+2026-08-21 13:18:41 +0000  552 bytes for ./Payload/QuestHat.app/Frameworks/ReactNativeDependencies.framework/ReactNativeDependencies_folly.bundle/PrivacyInfo.xcprivacy
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/ReactNativeDependencies.framework/ReactNativeDependencies_folly.bundle/Info.plist ... 
+2026-08-21 13:18:41 +0000  689 bytes for ./Payload/QuestHat.app/Frameworks/ReactNativeDependencies.framework/ReactNativeDependencies_folly.bundle/Info.plist
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/ReactNativeDependencies.framework/ReactNativeDependencies ... 
+2026-08-21 13:18:41 +0000  1256528 bytes for ./Payload/QuestHat.app/Frameworks/ReactNativeDependencies.framework/ReactNativeDependencies
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/ReactNativeDependencies.framework/ReactNativeDependencies_glog.bundle/PrivacyInfo.xcprivacy ... 
+2026-08-21 13:18:41 +0000  552 bytes for ./Payload/QuestHat.app/Frameworks/ReactNativeDependencies.framework/ReactNativeDependencies_glog.bundle/PrivacyInfo.xcprivacy
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/ReactNativeDependencies.framework/ReactNativeDependencies_glog.bundle/Info.plist ... 
+2026-08-21 13:18:41 +0000  687 bytes for ./Payload/QuestHat.app/Frameworks/ReactNativeDependencies.framework/ReactNativeDependencies_glog.bundle/Info.plist
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/ReactNativeDependencies.framework/ReactNativeDependencies_boost.bundle/PrivacyInfo.xcprivacy ... 
+2026-08-21 13:18:41 +0000  776 bytes for ./Payload/QuestHat.app/Frameworks/ReactNativeDependencies.framework/ReactNativeDependencies_boost.bundle/PrivacyInfo.xcprivacy
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/ReactNativeDependencies.framework/ReactNativeDependencies_boost.bundle/Info.plist ... 
+2026-08-21 13:18:41 +0000  689 bytes for ./Payload/QuestHat.app/Frameworks/ReactNativeDependencies.framework/ReactNativeDependencies_boost.bundle/Info.plist
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/ReactNativeDependencies.framework/Info.plist ... 
+2026-08-21 13:18:41 +0000  781 bytes for ./Payload/QuestHat.app/Frameworks/ReactNativeDependencies.framework/Info.plist
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/MapLibre.framework/de.lproj/Localizable.strings ... 
+2026-08-21 13:18:41 +0000  2461 bytes for ./Payload/QuestHat.app/Frameworks/MapLibre.framework/de.lproj/Localizable.strings
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/MapLibre.framework/de.lproj/Localizable.stringsdict ... 
+2026-08-21 13:18:41 +0000  344 bytes for ./Payload/QuestHat.app/Frameworks/MapLibre.framework/de.lproj/Localizable.stringsdict
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/MapLibre.framework/_CodeSignature/CodeResources ... 
+2026-08-21 13:18:41 +0000  17319 bytes for ./Payload/QuestHat.app/Frameworks/MapLibre.framework/_CodeSignature/CodeResources
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/MapLibre.framework/he.lproj/Localizable.strings ... 
+2026-08-21 13:18:41 +0000  2628 bytes for ./Payload/QuestHat.app/Frameworks/MapLibre.framework/he.lproj/Localizable.strings
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/MapLibre.framework/ar.lproj/Localizable.stringsdict ... 
+2026-08-21 13:18:41 +0000  818 bytes for ./Payload/QuestHat.app/Frameworks/MapLibre.framework/ar.lproj/Localizable.stringsdict
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/MapLibre.framework/zh-Hans.lproj/Localizable.strings ... 
+2026-08-21 13:18:41 +0000  1805 bytes for ./Payload/QuestHat.app/Frameworks/MapLibre.framework/zh-Hans.lproj/Localizable.strings
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/MapLibre.framework/ja.lproj/Localizable.strings ... 
+2026-08-21 13:18:41 +0000  1388 bytes for ./Payload/QuestHat.app/Frameworks/MapLibre.framework/ja.lproj/Localizable.strings
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/MapLibre.framework/en.lproj/Localizable.stringsdict ... 
+2026-08-21 13:18:41 +0000  470 bytes for ./Payload/QuestHat.app/Frameworks/MapLibre.framework/en.lproj/Localizable.stringsdict
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/MapLibre.framework/uk.lproj/Localizable.strings ... 
+2026-08-21 13:18:41 +0000  3322 bytes for ./Payload/QuestHat.app/Frameworks/MapLibre.framework/uk.lproj/Localizable.strings
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/MapLibre.framework/uk.lproj/Localizable.stringsdict ... 
+2026-08-21 13:18:41 +0000  640 bytes for ./Payload/QuestHat.app/Frameworks/MapLibre.framework/uk.lproj/Localizable.stringsdict
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/MapLibre.framework/es.lproj/Localizable.strings ... 
+2026-08-21 13:18:41 +0000  2833 bytes for ./Payload/QuestHat.app/Frameworks/MapLibre.framework/es.lproj/Localizable.strings
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/MapLibre.framework/es.lproj/Localizable.stringsdict ... 
+2026-08-21 13:18:41 +0000  495 bytes for ./Payload/QuestHat.app/Frameworks/MapLibre.framework/es.lproj/Localizable.stringsdict
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/MapLibre.framework/da.lproj/Localizable.strings ... 
+2026-08-21 13:18:41 +0000  2675 bytes for ./Payload/QuestHat.app/Frameworks/MapLibre.framework/da.lproj/Localizable.strings
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/MapLibre.framework/da.lproj/Localizable.stringsdict ... 
+2026-08-21 13:18:41 +0000  479 bytes for ./Payload/QuestHat.app/Frameworks/MapLibre.framework/da.lproj/Localizable.stringsdict
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/MapLibre.framework/gl.lproj/Localizable.strings ... 
+2026-08-21 13:18:41 +0000  2767 bytes for ./Payload/QuestHat.app/Frameworks/MapLibre.framework/gl.lproj/Localizable.strings
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/MapLibre.framework/gl.lproj/Localizable.stringsdict ... 
+2026-08-21 13:18:41 +0000  565 bytes for ./Payload/QuestHat.app/Frameworks/MapLibre.framework/gl.lproj/Localizable.stringsdict
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/MapLibre.framework/metal-cpp-ignores.txt ... 
+2026-08-21 13:18:41 +0000  265 bytes for ./Payload/QuestHat.app/Frameworks/MapLibre.framework/metal-cpp-ignores.txt
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/MapLibre.framework/bg.lproj/Localizable.strings ... 
+2026-08-21 13:18:41 +0000  2772 bytes for ./Payload/QuestHat.app/Frameworks/MapLibre.framework/bg.lproj/Localizable.strings
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/MapLibre.framework/bg.lproj/Localizable.stringsdict ... 
+2026-08-21 13:18:41 +0000  503 bytes for ./Payload/QuestHat.app/Frameworks/MapLibre.framework/bg.lproj/Localizable.stringsdict
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/MapLibre.framework/MapLibre ... 
+2026-08-21 13:18:41 +0000  7788960 bytes for ./Payload/QuestHat.app/Frameworks/MapLibre.framework/MapLibre
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/MapLibre.framework/sv.lproj/Localizable.strings ... 
+2026-08-21 13:18:41 +0000  2740 bytes for ./Payload/QuestHat.app/Frameworks/MapLibre.framework/sv.lproj/Localizable.strings
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/MapLibre.framework/sv.lproj/Localizable.stringsdict ... 
+2026-08-21 13:18:41 +0000  496 bytes for ./Payload/QuestHat.app/Frameworks/MapLibre.framework/sv.lproj/Localizable.stringsdict
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/MapLibre.framework/cs.lproj/Localizable.strings ... 
+2026-08-21 13:18:41 +0000  2140 bytes for ./Payload/QuestHat.app/Frameworks/MapLibre.framework/cs.lproj/Localizable.strings
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/MapLibre.framework/cs.lproj/Localizable.stringsdict ... 
+2026-08-21 13:18:41 +0000  470 bytes for ./Payload/QuestHat.app/Frameworks/MapLibre.framework/cs.lproj/Localizable.stringsdict
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/MapLibre.framework/ko.lproj/Localizable.strings ... 
+2026-08-21 13:18:41 +0000  2119 bytes for ./Payload/QuestHat.app/Frameworks/MapLibre.framework/ko.lproj/Localizable.strings
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/MapLibre.framework/ko.lproj/Localizable.stringsdict ... 
+2026-08-21 13:18:41 +0000  410 bytes for ./Payload/QuestHat.app/Frameworks/MapLibre.framework/ko.lproj/Localizable.stringsdict
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/MapLibre.framework/Base.lproj/Localizable.strings ... 
+2026-08-21 13:18:41 +0000  2155 bytes for ./Payload/QuestHat.app/Frameworks/MapLibre.framework/Base.lproj/Localizable.strings
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/MapLibre.framework/zh-Hant.lproj/Localizable.strings ... 
+2026-08-21 13:18:41 +0000  1597 bytes for ./Payload/QuestHat.app/Frameworks/MapLibre.framework/zh-Hant.lproj/Localizable.strings
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/MapLibre.framework/zh-Hant.lproj/Localizable.stringsdict ... 
+2026-08-21 13:18:41 +0000  282 bytes for ./Payload/QuestHat.app/Frameworks/MapLibre.framework/zh-Hant.lproj/Localizable.stringsdict
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/MapLibre.framework/hu.lproj/Localizable.strings ... 
+2026-08-21 13:18:41 +0000  2460 bytes for ./Payload/QuestHat.app/Frameworks/MapLibre.framework/hu.lproj/Localizable.strings
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/MapLibre.framework/hu.lproj/Localizable.stringsdict ... 
+2026-08-21 13:18:41 +0000  466 bytes for ./Payload/QuestHat.app/Frameworks/MapLibre.framework/hu.lproj/Localizable.stringsdict
+copying file ./Payload/QuestHat.app/Frameworks/MapLibre.framework/Assets.car ... 
+2026-08-21 13:18:41 +0000  202735 bytes for ./Payload/QuestHat.app/Frameworks/MapLibre.framework/Assets.car
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/MapLibre.framework/pt-BR.lproj/Localizable.strings ... 
+2026-08-21 13:18:41 +0000  2597 bytes for ./Payload/QuestHat.app/Frameworks/MapLibre.framework/pt-BR.lproj/Localizable.strings
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/MapLibre.framework/pt-BR.lproj/Localizable.stringsdict ... 
+2026-08-21 13:18:41 +0000  376 bytes for ./Payload/QuestHat.app/Frameworks/MapLibre.framework/pt-BR.lproj/Localizable.stringsdict
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/MapLibre.framework/vi.lproj/Localizable.strings ... 
+2026-08-21 13:18:41 +0000  3390 bytes for ./Payload/QuestHat.app/Frameworks/MapLibre.framework/vi.lproj/Localizable.strings
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/MapLibre.framework/vi.lproj/Localizable.stringsdict ... 
+2026-08-21 13:18:41 +0000  516 bytes for ./Payload/QuestHat.app/Frameworks/MapLibre.framework/vi.lproj/Localizable.stringsdict
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/MapLibre.framework/PrivacyInfo.xcprivacy ... 
+2026-08-21 13:18:41 +0000  1105 bytes for ./Payload/QuestHat.app/Frameworks/MapLibre.framework/PrivacyInfo.xcprivacy
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/MapLibre.framework/lt.lproj/Localizable.strings ... 
+2026-08-21 13:18:41 +0000  2861 bytes for ./Payload/QuestHat.app/Frameworks/MapLibre.framework/lt.lproj/Localizable.strings
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/MapLibre.framework/lt.lproj/Localizable.stringsdict ... 
+2026-08-21 13:18:41 +0000  399 bytes for ./Payload/QuestHat.app/Frameworks/MapLibre.framework/lt.lproj/Localizable.stringsdict
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/MapLibre.framework/ru.lproj/Localizable.strings ... 
+2026-08-21 13:18:41 +0000  3254 bytes for ./Payload/QuestHat.app/Frameworks/MapLibre.framework/ru.lproj/Localizable.strings
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/MapLibre.framework/ru.lproj/Localizable.stringsdict ... 
+2026-08-21 13:18:41 +0000  677 bytes for ./Payload/QuestHat.app/Frameworks/MapLibre.framework/ru.lproj/Localizable.stringsdict
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/MapLibre.framework/fr.lproj/Localizable.strings ... 
+2026-08-21 13:18:41 +0000  3226 bytes for ./Payload/QuestHat.app/Frameworks/MapLibre.framework/fr.lproj/Localizable.strings
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/MapLibre.framework/fr.lproj/Localizable.stringsdict ... 
+2026-08-21 13:18:41 +0000  482 bytes for ./Payload/QuestHat.app/Frameworks/MapLibre.framework/fr.lproj/Localizable.stringsdict
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/MapLibre.framework/pt-PT.lproj/Localizable.strings ... 
+2026-08-21 13:18:41 +0000  3264 bytes for ./Payload/QuestHat.app/Frameworks/MapLibre.framework/pt-PT.lproj/Localizable.strings
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/MapLibre.framework/pt-PT.lproj/Localizable.stringsdict ... 
+2026-08-21 13:18:41 +0000  578 bytes for ./Payload/QuestHat.app/Frameworks/MapLibre.framework/pt-PT.lproj/Localizable.stringsdict
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/MapLibre.framework/Info.plist ... 
+2026-08-21 13:18:41 +0000  813 bytes for ./Payload/QuestHat.app/Frameworks/MapLibre.framework/Info.plist
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/MapLibre.framework/ca.lproj/Localizable.strings ... 
+2026-08-21 13:18:41 +0000  2769 bytes for ./Payload/QuestHat.app/Frameworks/MapLibre.framework/ca.lproj/Localizable.strings
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/MapLibre.framework/ca.lproj/Localizable.stringsdict ... 
+2026-08-21 13:18:41 +0000  356 bytes for ./Payload/QuestHat.app/Frameworks/MapLibre.framework/ca.lproj/Localizable.stringsdict
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/ExpoModulesWorklets.framework/_CodeSignature/CodeResources ... 
+2026-08-21 13:18:41 +0000  1798 bytes for ./Payload/QuestHat.app/Frameworks/ExpoModulesWorklets.framework/_CodeSignature/CodeResources
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/ExpoModulesWorklets.framework/ExpoModulesWorklets ... 
+2026-08-21 13:18:41 +0000  182016 bytes for ./Payload/QuestHat.app/Frameworks/ExpoModulesWorklets.framework/ExpoModulesWorklets
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/ExpoModulesWorklets.framework/Info.plist ... 
+2026-08-21 13:18:41 +0000  783 bytes for ./Payload/QuestHat.app/Frameworks/ExpoModulesWorklets.framework/Info.plist
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/ExpoFileSystem.framework/_CodeSignature/CodeResources ... 
+2026-08-21 13:18:41 +0000  1798 bytes for ./Payload/QuestHat.app/Frameworks/ExpoFileSystem.framework/_CodeSignature/CodeResources
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/ExpoFileSystem.framework/ExpoFileSystem ... 
+2026-08-21 13:18:41 +0000  1153184 bytes for ./Payload/QuestHat.app/Frameworks/ExpoFileSystem.framework/ExpoFileSystem
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/Frameworks/ExpoFileSystem.framework/Info.plist ... 
+2026-08-21 13:18:41 +0000  766 bytes for ./Payload/QuestHat.app/Frameworks/ExpoFileSystem.framework/Info.plist
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/embedded.mobileprovision ... 
+2026-08-21 13:18:41 +0000  12370 bytes for ./Payload/QuestHat.app/embedded.mobileprovision
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/assets/__node_modules/@maplibre/maplibre-react-native/lib/module/assets/heading.png ... 
+2026-08-21 13:18:41 +0000  258 bytes for ./Payload/QuestHat.app/assets/__node_modules/@maplibre/maplibre-react-native/lib/module/assets/heading.png
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/assets/__node_modules/@maplibre/maplibre-react-native/lib/module/assets/heading@3x.png ... 
+2026-08-21 13:18:41 +0000  687 bytes for ./Payload/QuestHat.app/assets/__node_modules/@maplibre/maplibre-react-native/lib/module/assets/heading@3x.png
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/assets/__node_modules/@maplibre/maplibre-react-native/lib/module/assets/heading@2x.png ... 
+2026-08-21 13:18:41 +0000  405 bytes for ./Payload/QuestHat.app/assets/__node_modules/@maplibre/maplibre-react-native/lib/module/assets/heading@2x.png
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Fontisto.ttf ... 
+2026-08-21 13:18:41 +0000  313528 bytes for ./Payload/QuestHat.app/assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Fontisto.ttf
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Octicons.ttf ... 
+2026-08-21 13:18:41 +0000  69436 bytes for ./Payload/QuestHat.app/assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Octicons.ttf
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Feather.ttf ... 
+2026-08-21 13:18:41 +0000  55596 bytes for ./Payload/QuestHat.app/assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Feather.ttf
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/FontAwesome6_Regular.ttf ... 
+2026-08-21 13:18:41 +0000  67976 bytes for ./Payload/QuestHat.app/assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/FontAwesome6_Regular.ttf
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Entypo.ttf ... 
+2026-08-21 13:18:41 +0000  66200 bytes for ./Payload/QuestHat.app/assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Entypo.ttf
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/FontAwesome5_Brands.ttf ... 
+2026-08-21 13:18:41 +0000  134040 bytes for ./Payload/QuestHat.app/assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/FontAwesome5_Brands.ttf
+2026-08-21 13:18:41 +0000  copying file ./Payload/QuestHat.app/assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/MaterialCommunityIcons.ttf ... 
+2026-08-21 13:18:42 +0000  1307660 bytes for ./Payload/QuestHat.app/assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/MaterialCommunityIcons.ttf
+2026-08-21 13:18:42 +0000  copying file ./Payload/QuestHat.app/assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/AntDesign.ttf ... 
+2026-08-21 13:18:42 +0000  130484 bytes for ./Payload/QuestHat.app/assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/AntDesign.ttf
+2026-08-21 13:18:42 +0000  copying file ./Payload/QuestHat.app/assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Foundation.ttf ... 
+2026-08-21 13:18:42 +0000  56976 bytes for ./Payload/QuestHat.app/assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Foundation.ttf
+2026-08-21 13:18:42 +0000  copying file ./Payload/QuestHat.app/assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Ionicons.ttf ... 
+2026-08-21 13:18:42 +0000  389724 bytes for ./Payload/QuestHat.app/assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Ionicons.ttf
+2026-08-21 13:18:42 +0000  copying file ./Payload/QuestHat.app/assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/FontAwesome5_Solid.ttf ... 
+2026-08-21 13:18:42 +0000  202744 bytes for ./Payload/QuestHat.app/assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/FontAwesome5_Solid.ttf
+2026-08-21 13:18:42 +0000  copying file ./Payload/QuestHat.app/assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/FontAwesome5_Regular.ttf ... 
+2026-08-21 13:18:42 +0000  33736 bytes for ./Payload/QuestHat.app/assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/FontAwesome5_Regular.ttf
+2026-08-21 13:18:42 +0000  copying file ./Payload/QuestHat.app/assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/FontAwesome.ttf ... 
+2026-08-21 13:18:42 +0000  165548 bytes for ./Payload/QuestHat.app/assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/FontAwesome.ttf
+2026-08-21 13:18:42 +0000  copying file ./Payload/QuestHat.app/assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Zocial.ttf ... 
+2026-08-21 13:18:42 +0000  25788 bytes for ./Payload/QuestHat.app/assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Zocial.ttf
+2026-08-21 13:18:42 +0000  copying file ./Payload/QuestHat.app/assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/EvilIcons.ttf ... 
+2026-08-21 13:18:42 +0000  13456 bytes for ./Payload/QuestHat.app/assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/EvilIcons.ttf
+2026-08-21 13:18:42 +0000  copying file ./Payload/QuestHat.app/assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/FontAwesome6_Solid.ttf ... 
+2026-08-21 13:18:42 +0000  423676 bytes for ./Payload/QuestHat.app/assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/FontAwesome6_Solid.ttf
+2026-08-21 13:18:42 +0000  copying file ./Payload/QuestHat.app/assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/SimpleLineIcons.ttf ... 
+2026-08-21 13:18:42 +0000  54056 bytes for ./Payload/QuestHat.app/assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/SimpleLineIcons.ttf
+2026-08-21 13:18:42 +0000  copying file ./Payload/QuestHat.app/assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/FontAwesome6_Brands.ttf ... 
+2026-08-21 13:18:42 +0000  209376 bytes for ./Payload/QuestHat.app/assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/FontAwesome6_Brands.ttf
+2026-08-21 13:18:42 +0000  copying file ./Payload/QuestHat.app/assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/MaterialIcons.ttf ... 
+2026-08-21 13:18:42 +0000  356840 bytes for ./Payload/QuestHat.app/assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/MaterialIcons.ttf
+2026-08-21 13:18:42 +0000  copying file ./Payload/QuestHat.app/assets/assets/launch-logo.png ... 
+2026-08-21 13:18:42 +0000  55311 bytes for ./Payload/QuestHat.app/assets/assets/launch-logo.png
+2026-08-21 13:18:42 +0000  copying file ./Payload/QuestHat.app/Info.plist ... 
+2026-08-21 13:18:42 +0000  2560 bytes for ./Payload/QuestHat.app/Info.plist
+2026-08-21 13:18:42 +0000  copying file ./Payload/QuestHat.app/Expo.plist ... 
+2026-08-21 13:18:42 +0000  173 bytes for ./Payload/QuestHat.app/Expo.plist
+2026-08-21 13:18:42 +0000  copying file ./Payload/QuestHat.app/RNCAsyncStorage_resources.bundle/PrivacyInfo.xcprivacy ... 
+2026-08-21 13:18:42 +0000  512 bytes for ./Payload/QuestHat.app/RNCAsyncStorage_resources.bundle/PrivacyInfo.xcprivacy
+2026-08-21 13:18:42 +0000  copying file ./Payload/QuestHat.app/RNCAsyncStorage_resources.bundle/Info.plist ... 
+2026-08-21 13:18:42 +0000  796 bytes for ./Payload/QuestHat.app/RNCAsyncStorage_resources.bundle/Info.plist
+2026-08-21 13:18:42 +0000  copying file ./Payload/QuestHat.app/PkgInfo ... 
+2026-08-21 13:18:42 +0000  8 bytes for ./Payload/QuestHat.app/PkgInfo
+2026-08-21 13:18:42 +0000  copying file ./Payload/QuestHat.app/React-Core_privacy.bundle/PrivacyInfo.xcprivacy ... 
+2026-08-21 13:18:42 +0000  768 bytes for ./Payload/QuestHat.app/React-Core_privacy.bundle/PrivacyInfo.xcprivacy
+2026-08-21 13:18:42 +0000  copying file ./Payload/QuestHat.app/React-Core_privacy.bundle/Info.plist ... 
+2026-08-21 13:18:42 +0000  783 bytes for ./Payload/QuestHat.app/React-Core_privacy.bundle/Info.plist
+2026-08-21 13:18:42 +0000  copying file ./Symbols/8EB39B85-805E-3427-847A-E35374989157.symbols ... 
+2026-08-21 13:18:42 +0000  145492 bytes for ./Symbols/8EB39B85-805E-3427-847A-E35374989157.symbols
+2026-08-21 13:18:42 +0000  copying file ./Symbols/D5125F60-E6E4-3200-B818-0B91781F1A51.symbols ... 
+2026-08-21 13:18:42 +0000  852308 bytes for ./Symbols/D5125F60-E6E4-3200-B818-0B91781F1A51.symbols
+2026-08-21 13:18:42 +0000  copying file ./Symbols/47BB5244-DDB3-32D7-B1B9-47730EB2B2AA.symbols ... 
+2026-08-21 13:18:42 +0000  297612 bytes for ./Symbols/47BB5244-DDB3-32D7-B1B9-47730EB2B2AA.symbols
+2026-08-21 13:18:42 +0000  copying file ./Symbols/D816C8DB-66BE-3A3D-8E9B-51158CCFBB64.symbols ... 
+2026-08-21 13:18:42 +0000  1378204 bytes for ./Symbols/D816C8DB-66BE-3A3D-8E9B-51158CCFBB64.symbols
+2026-08-21 13:18:42 +0000  copying file ./Symbols/CFFF0ACD-9CD8-37A3-8127-F128196D16F2.symbols ... 
+2026-08-21 13:18:42 +0000  4139156 bytes for ./Symbols/CFFF0ACD-9CD8-37A3-8127-F128196D16F2.symbols
+2026-08-21 13:18:42 +0000  copying file ./Symbols/154A708D-4C97-3216-AD93-9830609DBC29.symbols ... 
+2026-08-21 13:18:42 +0000  114108 bytes for ./Symbols/154A708D-4C97-3216-AD93-9830609DBC29.symbols
+2026-08-21 13:18:42 +0000  copying file ./Symbols/EA3AF269-9DC7-3041-BFF9-0BD60D1DA3B2.symbols ... 
+2026-08-21 13:18:42 +0000  60884 bytes for ./Symbols/EA3AF269-9DC7-3041-BFF9-0BD60D1DA3B2.symbols
+2026-08-21 13:18:42 +0000  copying file ./Symbols/72596765-BDC2-3DD2-B676-D7E777AF07BA.symbols ... 
+2026-08-21 13:18:42 +0000  1494332 bytes for ./Symbols/72596765-BDC2-3DD2-B676-D7E777AF07BA.symbols
+2026-08-21 13:18:42 +0000  copying file ./Symbols/78BB5D65-15A6-3FE5-B93C-91F62E14AD20.symbols ... 
+2026-08-21 13:18:42 +0000  6421596 bytes for ./Symbols/78BB5D65-15A6-3FE5-B93C-91F62E14AD20.symbols
+2026-08-21 13:18:42 +0000 [MT] /usr/bin/ditto exited with 0
+2026-08-21 13:18:42 +0000 [MT] Processing step: IDEDistributionAppStoreInformationStep
+2026-08-21 13:18:42 +0000 [MT] Skipping step: IDEDistributionAppStoreInformationStep because it said so
+2026-08-21 13:18:42 +0000 [MT] Processing step: IDEDistributionGenerateProcessedDistributionItems
+2026-08-21 13:18:42 +0000 [MT] IDEDistributionItem init <DVTFilePath:0x8c3211810:'/var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Root/Payload/QuestHat.app/Frameworks/ExpoVideo.framework'>
+2026-08-21 13:18:42 +0000 [MT] IDEDistributionItem init <DVTFilePath:0x8c32118f0:'/var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Root/Payload/QuestHat.app/Frameworks/ExpoFont.framework'>
+2026-08-21 13:18:42 +0000 [MT] IDEDistributionItem init <DVTFilePath:0x8c32116c0:'/var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Root/Payload/QuestHat.app/Frameworks/ExpoFileSystem.framework'>
+2026-08-21 13:18:42 +0000 [MT] IDEDistributionItem init <DVTFilePath:0x8c3210a80:'/var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Root/Payload/QuestHat.app/PlugIns/QuestHatLiveActivity.appex'>
+2026-08-21 13:18:42 +0000 [MT] IDEDistributionItem init <DVTFilePath:0x8c3211b90:'/var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Root/Payload/QuestHat.app/Frameworks/ExpoModulesWorklets.framework'>
+2026-08-21 13:18:42 +0000 [MT] IDEDistributionItem init <DVTFilePath:0x8c32117a0:'/var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Root/Payload/QuestHat.app/Frameworks/MapLibre.framework'>
+2026-08-21 13:18:42 +0000 [MT] IDEDistributionItem init <DVTFilePath:0x8c3211880:'/var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Root/Payload/QuestHat.app/Frameworks/ExpoModulesJSI.framework'>
+2026-08-21 13:18:42 +0000 [MT] IDEDistributionItem init <DVTFilePath:0x8c27ab600:'/var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Root/Payload/QuestHat.app/Frameworks/React.framework'>
+2026-08-21 13:18:42 +0000 [MT] IDEDistributionItem init <DVTFilePath:0x8c3211a40:'/var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Root/Payload/QuestHat.app/Frameworks/ExpoModulesCore.framework'>
+2026-08-21 13:18:42 +0000 [MT] IDEDistributionItem init <DVTFilePath:0x8c3211960:'/var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Root/Payload/QuestHat.app/Frameworks/ExpoLocation.framework'>
+2026-08-21 13:18:42 +0000 [MT] IDEDistributionItem init <DVTFilePath:0x8c07a7880:'/var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Root/Payload/QuestHat.app/Frameworks/ReactNativeDependencies.framework'>
+2026-08-21 13:18:42 +0000 [MT] IDEDistributionItem init <DVTFilePath:0x8c3211730:'/var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Root/Payload/QuestHat.app/Frameworks/hermesvm.framework'>
+2026-08-21 13:18:42 +0000 [MT] IDEDistributionItem init <DVTFilePath:0x8c27aa4c0:'/var/folders/w4/s2b_93js6s96n6llsmwd3j240000gp/T/XcodeDistPipeline.~~~kgIuLu/Root/Payload/QuestHat.app'>
+2026-08-21 13:18:42 +0000 [MT] Processing step: IDEDistributionCreateManifestStep
+2026-08-21 13:18:42 +0000 [MT] Skipping step: IDEDistributionCreateManifestStep because it said so
