@@ -18,12 +18,12 @@ export function appleMapsServerIsConfigured() {
   return Boolean(mapsCredentials());
 }
 
-async function createAuthorizationToken() {
+async function createAuthorizationToken(scope: "server_api" | "mapkit_js" = "server_api", origin?: string) {
   const credentials = mapsCredentials();
   if (!credentials) throw new Error("Apple Maps Server API credentials are not configured.");
   const key = await importPKCS8(credentials.privateKey, "ES256");
   const now = Math.floor(Date.now() / 1000);
-  return new SignJWT({ scope: "server_api" })
+  return new SignJWT({ scope, ...(origin ? { origin } : {}) })
     .setProtectedHeader({ alg: "ES256", kid: credentials.keyId, typ: "JWT" })
     .setIssuer(credentials.teamId)
     .setIssuedAt(now)
@@ -36,7 +36,7 @@ export async function getAppleMapsAccessToken() {
     return cachedAccessToken.value;
   }
 
-  const authorizationToken = await createAuthorizationToken();
+  const authorizationToken = await createAuthorizationToken("server_api");
   const response = await fetch("https://maps-api.apple.com/v1/token", {
     headers: { Authorization: `Bearer ${authorizationToken}` },
     cache: "no-store",
@@ -54,3 +54,6 @@ export async function getAppleMapsAccessToken() {
   return body.accessToken;
 }
 
+export async function getAppleMapKitJsToken(origin: string) {
+  return createAuthorizationToken("mapkit_js", origin);
+}

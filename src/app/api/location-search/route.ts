@@ -124,8 +124,6 @@ export async function POST(request: Request) {
   const provider: SearchProvider = body?.provider === "apple_native" ? "apple_native" : "apple_server";
   const query = cleanString(body?.query, 180);
   const countryCode = cleanString(body?.countryCode, 2).toUpperCase();
-  const countryName = cleanString(body?.countryName, 80);
-  const city = cleanString(body?.city, 100);
 
   if (provider === "apple_server" && !appleMapsServerIsConfigured()) {
     return Response.json({ suggestions: [], error: "Apple address search is not configured yet." }, {
@@ -163,8 +161,9 @@ export async function POST(request: Request) {
   const roundedLocation = Number.isFinite(latitude) && Number.isFinite(longitude)
     ? `${latitude.toFixed(2)},${longitude.toFixed(2)}`
     : "";
-  const contextualQuery = [query, city && !query.toLowerCase().includes(city.toLowerCase()) ? city : "", countryName].filter(Boolean).join(", ");
-  const cacheKey = JSON.stringify([contextualQuery.toLowerCase(), countryCode, roundedLocation]);
+  // Apple already accepts an explicit country filter and a location bias. Appending
+  // profile/city text to a business name can turn an exact POI query into a miss.
+  const cacheKey = JSON.stringify([query.toLowerCase(), countryCode, roundedLocation]);
   const cached = resultCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) {
     return Response.json({ suggestions: cached.suggestions, remaining: quota.daily_remaining }, {
@@ -174,19 +173,30 @@ export async function POST(request: Request) {
 
   try {
     const accessToken = await getAppleMapsAccessToken();
-    const params = new URLSearchParams({ q: contextualQuery, lang: "en-US" });
-    if (countryCode) params.set("limitToCountries", countryCode);
-    if (roundedLocation) params.set("searchLocation", roundedLocation);
-    const appleResponse = await fetch(`https://maps-api.apple.com/v1/search?${params.toString()}`, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-      cache: "no-store",
-    });
-    const appleBody = await appleResponse.json().catch(() => null) as AppleSearchResponse | null;
+    const searchApple = async (includeLocationBias: boolean) => {
+      const params = new URLSearchParams({ q: query, lang: "en-US" });
+      if (countryCode) params.set("limitToCountries", countryCode);
+      if (includeLocationBias && roundedLocation) params.set("searchLocation", roundedLocation);
+      const response = await fetch(`https://maps-api.apple.com/v1/search?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        cache: "no-store",
+      });
+      const body = await response.json().catch(() => null) as AppleSearchResponse | null;
+      return { response, body };
+    };
+
+    let { response: appleResponse, body: appleBody } = await searchApple(true);
     if (!appleResponse.ok) {
       const status = appleResponse.status === 429 ? 503 : 502;
       return Response.json({ suggestions: [], error: appleResponse.status === 429 ? "Address search is busy. Try again later." : "Address search failed. Try again." }, { status });
     }
-    const suggestions = normalizePlaces(appleBody?.results || [], countryCode);
+    let suggestions = normalizePlaces(appleBody?.results || [], countryCode);
+    // A device-location bias should improve nearby relevance, but it can hide a
+    // correctly named venue farther away. Retry once without the bias on a miss.
+    if (!suggestions.length && roundedLocation) {
+      ({ response: appleResponse, body: appleBody } = await searchApple(false));
+      if (appleResponse.ok) suggestions = normalizePlaces(appleBody?.results || [], countryCode);
+    }
     resultCache.set(cacheKey, { suggestions, expiresAt: Date.now() + 5 * 60_000 });
     if (resultCache.size > 200) {
       for (const [key, value] of resultCache) if (value.expiresAt <= Date.now()) resultCache.delete(key);

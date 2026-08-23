@@ -16,6 +16,7 @@ import { compressVideoForUpload, VIDEO_MAX_DURATION_SECONDS } from "@/lib/video-
 import { collectQuestStorageUrls, removeStoragePublicUrls } from "@/lib/storage.js";
 import { APP_EVENT_NAMES, APP_NAME } from "@/lib/app-brand";
 import { AppIcon } from "@/components/app-icons";
+import { AppleMapPreview } from "@/components/apple-map-preview";
 import { TurnstileInvisible } from "@/components/turnstile-invisible";
 import { formatReportReference } from "@/lib/reporting";
 import { recordSecurityAudit, type MediaAuditInput } from "@/lib/security-audit";
@@ -40,6 +41,14 @@ type LocationSuggestion = {
 
 function normalizeLocationQuery(value?: string | null) {
   return (value || "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function isCompletePostalAddress(value: string, countryCode?: string | null) {
+  const normalized = (value || "").trim().replace(/\s+/g, " ");
+  if (normalized.length < 12 || !/\d/.test(normalized) || normalized.split(",").length < 3) return false;
+  if (countryCode === "US") return /\b\d{5}(?:-\d{4})?\b/.test(normalized);
+  if (countryCode === "CA") return /\b[A-Z]\d[A-Z][ -]?\d[A-Z]\d\b/i.test(normalized);
+  return true;
 }
 
 const MAX_QUEST_MEDIA_ITEMS = 3;
@@ -371,6 +380,9 @@ export default function Home() {
   const [countryQuery, setCountryQuery] = useState("United States");
   const [city, setCity] = useState("");
   const [exactAddress, setExactAddress] = useState("");
+  const [confirmedPostalAddress, setConfirmedPostalAddress] = useState("");
+  const [locationConfirmationMode, setLocationConfirmationMode] = useState<"address" | "device" | null>(null);
+  const [confirmedDeviceCoordinates, setConfirmedDeviceCoordinates] = useState<{ lat: number; lon: number } | null>(null);
   const [locationDetails, setLocationDetails] = useState("");
   const [showLocationDetails, setShowLocationDetails] = useState(false);
   const [joinMode, setJoinMode] = useState<"open" | "approval_required">("open");
@@ -378,6 +390,7 @@ export default function Home() {
   const [citySuggestions, setCitySuggestions] = useState<LocationSuggestion[]>([]);
   const [selectedLocationSuggestion, setSelectedLocationSuggestion] = useState<string | null>(null);
   const [selectedPublicLocation, setSelectedPublicLocation] = useState<string | null>(null);
+  const [selectedAppleCoordinates, setSelectedAppleCoordinates] = useState<{ lat: number; lon: number } | null>(null);
   const [locationSearchLoading, setLocationSearchLoading] = useState(false);
   const [locationSearchAttempted, setLocationSearchAttempted] = useState(false);
   const [locationSearchRemaining, setLocationSearchRemaining] = useState<number | null>(null);
@@ -746,6 +759,7 @@ export default function Home() {
     const q = exactAddress.trim();
     if (q.length < 3) {
       setCitySuggestions([]);
+      setSelectedAppleCoordinates(null);
       setLocationSearchAttempted(true);
       return setStatus("Enter at least 3 characters to search.");
     }
@@ -773,14 +787,39 @@ export default function Home() {
       const payload = await response.json() as { suggestions?: LocationSuggestion[]; remaining?: number; error?: string };
       if (typeof payload.remaining === "number") setLocationSearchRemaining(payload.remaining);
       if (!response.ok) throw new Error(payload.error || "Location search failed.");
-      setCitySuggestions(payload.suggestions || []);
+      const suggestions = payload.suggestions || [];
+      setCitySuggestions(suggestions);
+      const firstMapped = suggestions.find((suggestion) => suggestion.lat != null && suggestion.lon != null);
+      setSelectedAppleCoordinates(firstMapped?.lat != null && firstMapped?.lon != null ? { lat: firstMapped.lat, lon: firstMapped.lon } : null);
       setLocationSearchAttempted(true);
     } catch (error) {
       setCitySuggestions([]);
+      setSelectedAppleCoordinates(null);
       setLocationSearchAttempted(true);
       setStatus(error instanceof Error ? error.message : "Location search is temporarily unavailable.");
     } finally {
       setLocationSearchLoading(false);
+    }
+  }
+
+  async function useCurrentLocationForQuest() {
+    try {
+      const location = await getCurrentPositionOnce();
+      setUserLocation(location);
+      setUserLocationStatus("ready");
+      setConfirmedDeviceCoordinates({ lat: location.lat, lon: location.lon });
+      if (!exactAddress.trim()) setExactAddress("Current location");
+      setLocationConfirmationMode("device");
+      setConfirmedPostalAddress("");
+      setSelectedLocationSuggestion("Current device location");
+      setSelectedPublicLocation(city || countryQuery || "Current location");
+      setSelectedAppleCoordinates(null);
+      setCitySuggestions([]);
+      clearFieldError("location");
+      setStatus("Current location selected. QuestHat will save this pin, not track you continuously.");
+    } catch {
+      setUserLocationStatus("denied");
+      setStatus("Location permission is required to use your current position.");
     }
   }
 
@@ -1765,11 +1804,15 @@ export default function Home() {
     setCategoryDropdownOpen(false);
     setLocationMode("in_person");
     setExactAddress("");
+    setConfirmedPostalAddress("");
+    setLocationConfirmationMode(null);
+    setConfirmedDeviceCoordinates(null);
     setLocationDetails("");
     setShowLocationDetails(false);
     setCitySuggestions([]);
     setSelectedLocationSuggestion(null);
     setSelectedPublicLocation(null);
+    setSelectedAppleCoordinates(null);
     setLocationSearchLoading(false);
     setLocationSearchAttempted(false);
     setLocationSearchRemaining(null);
@@ -2282,11 +2325,15 @@ export default function Home() {
     setCategoryInput(hobby?.name || "");
     setCity(q.city || "");
     setExactAddress(protectedAddress);
+    setConfirmedPostalAddress(protectedAddress);
+    setLocationConfirmationMode("address");
+    setConfirmedDeviceCoordinates(null);
     setLocationDetails(protectedLocationDetails);
     setShowLocationDetails(Boolean(protectedLocationDetails));
     setCitySuggestions([]);
     setSelectedLocationSuggestion(protectedAddress || null);
     setSelectedPublicLocation(q.city || null);
+    setSelectedAppleCoordinates(null);
     setLocationSearchLoading(false);
     setLocationSearchAttempted(false);
     setJoinMode(q.join_mode || "open");
@@ -2702,8 +2749,10 @@ export default function Home() {
       if (!exactAddress.trim()) return flagFieldError("location", "Remote meeting link is required.");
     } else if (!exactAddress.trim()) {
       return flagFieldError("location", "Location is required.");
-    } else if (!selectedLocationSuggestion || normalizeLocationQuery(selectedLocationSuggestion) !== normalizeLocationQuery(exactAddress)) {
-      return flagFieldError("location", "Choose a verified location from the suggestions.");
+    } else if (locationConfirmationMode !== "device" && !selectedLocationSuggestion) {
+      return flagFieldError("location", "Search for and choose the meetup place, or use your current location.");
+    } else if (locationConfirmationMode !== "device" && !isCompletePostalAddress(confirmedPostalAddress, countryCode)) {
+      return flagFieldError("location", "Enter the complete street address, city, region, and postal code.");
     }
     if (!groupSizeChoice) return flagFieldError("groupSize", "Group size is required.");
     if (groupSizeChoice === "custom" && (!Number.isFinite(selectedGroupSize) || selectedGroupSize < 2 || selectedGroupSize > 50)) {
@@ -2719,7 +2768,12 @@ export default function Home() {
       return;
     }
 
-    const derivedCity = locationMode === "remote" ? city : selectedPublicLocation || deriveCityFromLocation(exactAddress) || city;
+    const savedExactAddress = locationMode === "remote" || locationConfirmationMode === "device"
+      ? exactAddress.trim()
+      : [exactAddress.trim(), confirmedPostalAddress.trim()]
+        .filter((value, index, values) => value && values.findIndex((candidate) => normalizeLocationQuery(candidate) === normalizeLocationQuery(value)) === index)
+        .join("\n");
+    const derivedCity = locationMode === "remote" ? city : deriveCityFromLocation(confirmedPostalAddress) || selectedPublicLocation || deriveCityFromLocation(exactAddress) || city;
     const availabilityParts = [
       `Start at: ${selectedStartTime.toLocaleString(undefined, { month: "numeric", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })}`,
       timeFlexible ? "Time flexible" : null,
@@ -2879,7 +2933,9 @@ export default function Home() {
           title,
           description: finalDescription,
           city: derivedCity,
-          exact_address: exactAddress || null,
+          exact_address: savedExactAddress || null,
+          exact_lat: locationMode === "in_person" && locationConfirmationMode === "device" ? confirmedDeviceCoordinates?.lat ?? null : null,
+          exact_lng: locationMode === "in_person" && locationConfirmationMode === "device" ? confirmedDeviceCoordinates?.lon ?? null : null,
           location_details: locationMode === "in_person" ? locationDetails.trim().slice(0, 240) || null : null,
           join_mode: joinMode,
           exact_location_visibility: locationMode === "remote" ? "private" : exactLocationVisibility,
@@ -2946,7 +3002,9 @@ export default function Home() {
           title,
           description: finalDescription,
           city: derivedCity,
-          exact_address: exactAddress || null,
+          exact_address: savedExactAddress || null,
+          exact_lat: locationMode === "in_person" && locationConfirmationMode === "device" ? confirmedDeviceCoordinates?.lat ?? null : null,
+          exact_lng: locationMode === "in_person" && locationConfirmationMode === "device" ? confirmedDeviceCoordinates?.lon ?? null : null,
           location_details: locationMode === "in_person" ? locationDetails.trim().slice(0, 240) || null : null,
           join_mode: joinMode,
           exact_location_visibility: locationMode === "remote" ? "private" : exactLocationVisibility,
@@ -4986,6 +5044,7 @@ export default function Home() {
                         setCitySuggestions([]);
                         setSelectedLocationSuggestion(null);
                         setSelectedPublicLocation(null);
+                        setSelectedAppleCoordinates(null);
                         setLocationDetails("");
                         setShowLocationDetails(false);
                         setLocationSearchAttempted(false);
@@ -5038,11 +5097,15 @@ export default function Home() {
                         setCountryQuery(next);
                         setCountryCode(resolveCountryCodeByName(next));
                         setExactAddress("");
+                        setConfirmedPostalAddress("");
+                        setLocationConfirmationMode(null);
+                        setConfirmedDeviceCoordinates(null);
                         setLocationDetails("");
                         setShowLocationDetails(false);
                         setCitySuggestions([]);
                         setSelectedLocationSuggestion(null);
                         setSelectedPublicLocation(null);
+                        setSelectedAppleCoordinates(null);
                         setLocationSearchAttempted(false);
                         clearFieldError("country");
                       }}
@@ -5060,6 +5123,9 @@ export default function Home() {
                       value={exactAddress}
                       onChange={(e) => {
                         setExactAddress(e.target.value);
+                        setConfirmedPostalAddress("");
+                        setLocationConfirmationMode(null);
+                        setConfirmedDeviceCoordinates(null);
                         setLocationDetails("");
                         setShowLocationDetails(false);
                         setCitySuggestions([]);
@@ -5094,9 +5160,14 @@ export default function Home() {
                             type="button"
                             className="flex w-full items-start gap-2 border-b px-3 py-3 text-left last:border-b-0 hover:bg-slate-50"
                             onClick={() => {
-                              setExactAddress(suggestion.label);
                               setSelectedLocationSuggestion(suggestion.label);
                               setSelectedPublicLocation(suggestion.publicLabel || deriveCityFromLocation(suggestion.label));
+                              setSelectedAppleCoordinates(
+                                suggestion.lat != null && suggestion.lon != null ? { lat: suggestion.lat, lon: suggestion.lon } : null,
+                              );
+                              setConfirmedPostalAddress("");
+                              setLocationConfirmationMode(null);
+                              setConfirmedDeviceCoordinates(null);
                               setLocationSearchLoading(false);
                               setCitySuggestions([]);
                               clearFieldError("location");
@@ -5109,11 +5180,22 @@ export default function Home() {
                       </div>
                     )}
                   </div>
+                  {locationMode === "in_person" && selectedAppleCoordinates ? (
+                    <div className="overflow-hidden rounded-xl border border-[#0c5063]/20 bg-slate-100">
+                      <AppleMapPreview
+                        latitude={selectedAppleCoordinates.lat}
+                        longitude={selectedAppleCoordinates.lon}
+                        title={selectedLocationSuggestion || exactAddress || "Meetup location"}
+                      />
+                    </div>
+                  ) : null}
                   <p className={`text-[10px] leading-4 sm:text-xs ${selectedLocationSuggestion ? "font-medium text-emerald-700" : "text-slate-500"}`}>
                     {locationMode === "remote"
                       ? "The link follows the privacy setting above."
+                      : locationConfirmationMode === "device"
+                        ? "Current-location pin selected. QuestHat will not track you after publishing."
                       : selectedLocationSuggestion
-                        ? "Verified location selected."
+                        ? `Apple found: ${selectedLocationSuggestion}`
                         : locationSearchAttempted && !locationSearchLoading && citySuggestions.length === 0
                           ? "No exact matches yet. Try the street address without a suite number or use the venue's shorter name."
                         : "Select a result from the list so QuestHat can save the location."}
@@ -5121,7 +5203,36 @@ export default function Home() {
                   {locationMode === "in_person" && locationSearchRemaining !== null && locationSearchRemaining <= 20 ? (
                     <p className="text-[10px] font-medium text-[#0c5063] sm:text-xs">{locationSearchRemaining} address searches remaining today</p>
                   ) : null}
+                  {locationMode === "in_person" ? (
+                    <button
+                      type="button"
+                      className="mt-1 inline-flex items-center justify-center gap-2 rounded-xl border border-[#0c5063]/25 bg-[#0c5063]/[0.04] px-3 py-2 text-sm font-semibold text-[#0c5063]"
+                      onClick={() => void useCurrentLocationForQuest()}
+                    >
+                      <AppIcon name="location" className="h-4 w-4" />
+                      Use my current location
+                    </button>
+                  ) : null}
                 </div>
+                {locationMode === "in_person" && selectedLocationSuggestion && locationConfirmationMode !== "device" ? (
+                  <div className="grid gap-1.5 rounded-xl border border-[#0c5063]/15 bg-[#0c5063]/[0.03] p-2.5 sm:p-3">
+                    <label className="text-[11px] font-medium uppercase tracking-wide text-slate-600">Confirm the complete address</label>
+                    <textarea
+                      className="min-h-20 w-full resize-y rounded-xl border bg-white px-3 py-2 text-sm"
+                      value={confirmedPostalAddress}
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        setConfirmedPostalAddress(value);
+                        setLocationConfirmationMode(isCompletePostalAddress(value, countryCode) ? "address" : null);
+                        clearFieldError("location");
+                      }}
+                      placeholder="Street address, city, state or region, postal code"
+                    />
+                    <p className="text-[10px] leading-4 text-slate-500 sm:text-xs">
+                      Enter this yourself so QuestHat can reliably find the same location later. A venue name alone cannot be published.
+                    </p>
+                  </div>
+                ) : null}
                 {locationMode === "in_person" && selectedLocationSuggestion ? (
                   <div className="grid gap-2 rounded-xl border border-[#0c5063]/15 bg-[#0c5063]/[0.03] p-2.5 sm:p-3">
                     <button

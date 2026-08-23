@@ -99,7 +99,11 @@ export default function PrivacyPage() {
             Android and the website, QuestHat sends the address search text and limited context, such as country,
             city, and an approximate location when available, to Apple&apos;s Maps service. QuestHat does not send the
             optional meeting-instructions field with an address search. We record your account ID, provider type, and
-            search time to enforce anti-abuse limits, but not the search text in that quota record.
+            search time to enforce anti-abuse limits, but not the search text in that quota record. Apple search
+            results are used temporarily to help you identify a place. Before publishing, you must independently enter
+            a complete postal address, or expressly choose your device&apos;s current-location pin. QuestHat stores that
+            host-submitted address or one-time pin rather than automatically saving Apple&apos;s formatted result,
+            Place ID, or returned coordinates.
           </p>
         </div>
 
