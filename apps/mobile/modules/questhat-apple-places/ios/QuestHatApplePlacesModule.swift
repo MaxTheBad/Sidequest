@@ -32,28 +32,25 @@ public final class QuestHatApplePlacesModule: Module {
         throw ApplePlacesError.invalidQuery
       }
 
-      let request = MKLocalSearch.Request()
-      let context = [
-        cleanedQuery,
-        self.contextPart(city, absentFrom: cleanedQuery),
-        self.contextPart(countryName, absentFrom: cleanedQuery),
-      ].compactMap { $0 }
-      request.naturalLanguageQuery = context.joined(separator: ", ")
-      request.resultTypes = [.address, .pointOfInterest]
-
+      var searchRegion: MKCoordinateRegion?
       if let latitude, let longitude,
          latitude.isFinite, longitude.isFinite,
          (-90.0...90.0).contains(latitude), (-180.0...180.0).contains(longitude) {
         // A roughly city-scale region improves relevance without sending exact device coordinates.
         let roundedLatitude = (latitude * 100).rounded() / 100
         let roundedLongitude = (longitude * 100).rounded() / 100
-        request.region = MKCoordinateRegion(
+        searchRegion = MKCoordinateRegion(
           center: CLLocationCoordinate2D(latitude: roundedLatitude, longitude: roundedLongitude),
           span: MKCoordinateSpan(latitudeDelta: 0.7, longitudeDelta: 0.7)
         )
       }
 
-      let response = try await MKLocalSearch(request: request).start()
+      // Keep the venue name untouched. Adding the profile city or country to the
+      // natural-language query can make an exact business name return no matches.
+      var response = try await self.performSearch(query: cleanedQuery, region: searchRegion)
+      if response.mapItems.isEmpty && searchRegion != nil {
+        response = try await self.performSearch(query: cleanedQuery, region: nil)
+      }
       var seen = Set<String>()
       return response.mapItems.prefix(12).compactMap { item in
         let placemark = item.placemark
@@ -92,9 +89,12 @@ public final class QuestHatApplePlacesModule: Module {
     }
   }
 
-  private func contextPart(_ value: String?, absentFrom query: String) -> String? {
-    guard let cleaned = value?.trimmingCharacters(in: .whitespacesAndNewlines), !cleaned.isEmpty else { return nil }
-    return query.range(of: cleaned, options: [.caseInsensitive, .diacriticInsensitive]) == nil ? cleaned : nil
+  private func performSearch(query: String, region: MKCoordinateRegion?) async throws -> MKLocalSearch.Response {
+    let request = MKLocalSearch.Request()
+    request.naturalLanguageQuery = query
+    request.resultTypes = [.address, .pointOfInterest]
+    if let region { request.region = region }
+    return try await MKLocalSearch(request: request).start()
   }
 
   private func formattedAddress(_ placemark: MKPlacemark) -> String {

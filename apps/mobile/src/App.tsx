@@ -42,6 +42,7 @@ import { Camera, Map as MapLibreMap, Marker, type CameraRef } from "@maplibre/ma
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
+import { WebView } from "react-native-webview";
 import { APP_NAME, CANONICAL_CATEGORIES, haversineMiles, resolveCanonicalCategory, suggestCanonicalCategories, usernameErrorMessage, validateUsername, getCategoryTitleSuggestions, getCategoryFallbackMedia } from "@questhat/shared";
 import { env } from "./lib/env";
 import { supabase } from "./lib/supabase";
@@ -182,6 +183,7 @@ type QuestPreview = {
   skill_level: string | null;
   join_mode?: string | null;
   exact_address?: string | null;
+  apple_place_id?: string | null;
   location_details?: string | null;
   created_at?: string | null;
   media_items?: Array<{ url: string; type: "image" | "video"; label?: string | null; thumbnailUrl?: string | null }> | null;
@@ -250,19 +252,6 @@ const videoCompressor = Platform.OS === "ios" || Platform.OS === "android"
       deleteTemporary(source: string): Promise<boolean>;
       thumbnail(source: string, atSeconds: number): Promise<GeneratedThumbnailResult>;
     }>("QuestHatVideoCompressor")
-  : null;
-
-const applePlaces = Platform.OS === "ios"
-  ? requireOptionalNativeModule<{
-      search(
-        query: string,
-        countryName: string | null,
-        countryCode: string | null,
-        city: string | null,
-        latitude: number | null,
-        longitude: number | null,
-      ): Promise<LocationSuggestion[]>;
-    }>("QuestHatApplePlaces")
   : null;
 
 async function uploadLocalFileToStorage(params: {
@@ -376,6 +365,7 @@ type QuestDetail = QuestPreview & {
   exact_address?: string | null;
   exact_lat?: number | null;
   exact_lng?: number | null;
+  apple_place_id?: string | null;
   location_details?: string | null;
   media_video_url?: string | null;
   media_source?: string | null;
@@ -1049,6 +1039,8 @@ function QuestHatApp() {
   const [selectedCountrySuggestion, setSelectedCountrySuggestion] = useState<string | null>(null);
   const [selectedCountryCode, setSelectedCountryCode] = useState<string | null>(null);
   const [draftExactAddress, setDraftExactAddress] = useState("");
+  const [locationConfirmationMode, setLocationConfirmationMode] = useState<"address" | "device" | null>(null);
+  const [selectedApplePlaceId, setSelectedApplePlaceId] = useState<string | null>(null);
   const [draftLocationDetails, setDraftLocationDetails] = useState("");
   const [showLocationDetails, setShowLocationDetails] = useState(false);
   const [locationSuggestions, setLocationSuggestions] = useState<LocationSuggestion[]>([]);
@@ -1342,6 +1334,8 @@ function QuestHatApp() {
       setSelectedLocationSuggestion(null);
       setSelectedPublicLocation(null);
       setSelectedLocationCoordinates(null);
+      setSelectedApplePlaceId(null);
+      setLocationConfirmationMode(null);
       setDraftLocationDetails("");
       setShowLocationDetails(false);
       setLocationSearchLoading(false);
@@ -1394,7 +1388,9 @@ function QuestHatApp() {
       const { data: sessionData } = await supabase?.auth.getSession() || { data: { session: null } };
       const accessToken = sessionData.session?.access_token;
       if (!accessToken) throw new Error("Your session expired. Sign in again.");
-      const provider = Platform.OS === "ios" ? "apple_native" : "apple_server";
+      // Use Apple's server search on every platform so every selected result has
+      // the stable Apple Place ID that QuestHat is permitted to retain.
+      const provider = "apple_server";
       const response = await fetch(`${env.siteUrl.replace(/\/$/, "")}/api/location-search`, {
         method: "POST",
         headers: {
@@ -1403,7 +1399,7 @@ function QuestHatApp() {
         },
         body: JSON.stringify({
           provider,
-          query: provider === "apple_server" ? query : undefined,
+          query,
           city: cityContext,
           countryName: selectedCountrySuggestion,
           countryCode: selectedCountryCode,
@@ -1414,20 +1410,7 @@ function QuestHatApp() {
       const payload = await response.json() as { suggestions?: LocationSuggestion[]; error?: string; remaining?: number };
       if (!response.ok) throw new Error(payload.error || "Location search failed.");
       setLocationSearchRemaining(typeof payload.remaining === "number" ? payload.remaining : null);
-      if (provider === "apple_native") {
-        if (!applePlaces) throw new Error("Apple Maps search is unavailable in this build.");
-        const suggestions = await applePlaces.search(
-          query,
-          selectedCountrySuggestion,
-          selectedCountryCode,
-          cityContext || null,
-          deviceLocation?.lat ?? null,
-          deviceLocation?.lon ?? null,
-        );
-        setLocationSuggestions(suggestions || []);
-      } else {
-        setLocationSuggestions(payload.suggestions || []);
-      }
+      setLocationSuggestions(payload.suggestions || []);
       setLocationSearchAttempted(true);
     } catch (error) {
       setLocationSuggestions([]);
@@ -1436,6 +1419,20 @@ function QuestHatApp() {
     } finally {
       setLocationSearchLoading(false);
     }
+  }
+
+  async function useCurrentLocationForDraft() {
+    const location = await requestDeviceLocation("Location access is required to use your current position as the meetup location.");
+    if (!location) return;
+    setSelectedLocationCoordinates({ lat: location.lat, lon: location.lon });
+    if (!draftExactAddress.trim()) setDraftExactAddress("Current location");
+    setSelectedLocationSuggestion("Current device location");
+    setSelectedPublicLocation(profile?.city || profile?.region || selectedCountrySuggestion || "Current location");
+    setSelectedApplePlaceId(null);
+    setLocationConfirmationMode("device");
+    setLocationSuggestions([]);
+    setLocationSearchAttempted(false);
+    setStatus("Current location selected. QuestHat will save this pin, not your ongoing location.");
   }
 
   useEffect(() => {
@@ -2364,12 +2361,12 @@ function QuestHatApp() {
     const [{ data, error }, { data: privateLocation, error: privateLocationError }] = await Promise.all([
       supabase
         .from("quests")
-        .select("id,creator_id,title,description,city,availability,starts_at,time_flexible,group_size,hobby_id,skill_level,created_at,join_mode,exact_location_visibility,exact_address,exact_lat,exact_lng,location_details,media_video_url,media_source,media_items,host_coordination_reminders_disabled,host_coordination_reminders_snoozed_until,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,username,city,bio,avatar_url)")
+        .select("id,creator_id,title,description,city,availability,starts_at,time_flexible,group_size,hobby_id,skill_level,created_at,join_mode,exact_location_visibility,exact_address,exact_lat,exact_lng,apple_place_id,location_details,media_video_url,media_source,media_items,host_coordination_reminders_disabled,host_coordination_reminders_snoozed_until,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,username,city,bio,avatar_url)")
         .eq("id", questId)
         .maybeSingle(),
       supabase
         .from("quest_private_locations")
-        .select("exact_address,exact_lat,exact_lng,location_details")
+        .select("exact_address,exact_lat,exact_lng,apple_place_id,location_details")
         .eq("quest_id", questId)
         .maybeSingle(),
     ]);
@@ -2381,6 +2378,7 @@ function QuestHatApp() {
       exact_address: privateLocation?.exact_address ?? data.exact_address ?? null,
       exact_lat: privateLocation?.exact_lat ?? data.exact_lat ?? null,
       exact_lng: privateLocation?.exact_lng ?? data.exact_lng ?? null,
+      apple_place_id: privateLocation?.apple_place_id ?? data.apple_place_id ?? null,
       location_details: privateLocation?.location_details ?? data.location_details ?? null,
     } as QuestDetail;
   }
@@ -3275,6 +3273,7 @@ function privateThreadIncludesUsers(
       return;
     }
     const encodedDestination = encodeURIComponent(destination);
+    const encodedPlaceId = quest.apple_place_id ? encodeURIComponent(quest.apple_place_id) : "";
     const openMapUrl = async (url: string) => {
       try {
         await RNLinking.openURL(url);
@@ -3283,7 +3282,11 @@ function privateThreadIncludesUsers(
       }
     };
     Alert.alert("Open directions", destination, [
-      ...(Platform.OS === "ios" ? [{ text: "Apple Maps", onPress: () => void openMapUrl(`http://maps.apple.com/?daddr=${encodedDestination}&dirflg=d`) }] : []),
+      ...(encodedPlaceId
+        ? [{ text: "Apple Maps", onPress: () => void openMapUrl(`https://maps.apple.com/directions?destination=${encodedDestination}&destination-place-id=${encodedPlaceId}&mode=driving`) }]
+        : Platform.OS === "ios"
+          ? [{ text: "Apple Maps", onPress: () => void openMapUrl(`http://maps.apple.com/?daddr=${encodedDestination}&dirflg=d`) }]
+          : []),
       ...(Platform.OS === "android" ? [{ text: "Maps", onPress: () => void openMapUrl(`geo:0,0?q=${encodedDestination}`) }] : []),
       { text: "Google Maps", onPress: () => void openMapUrl(`https://www.google.com/maps/dir/?api=1&destination=${encodedDestination}&travelmode=driving`) },
       { text: "Waze", onPress: () => void openMapUrl(`https://waze.com/ul?q=${encodedDestination}&navigate=yes`) },
@@ -3626,6 +3629,10 @@ function privateThreadIncludesUsers(
       .replace(/^,+|,+$/g, "");
   }
 
+  function persistedDraftLocation() {
+    return draftExactAddress.trim();
+  }
+
   function getQuestDistanceQueries(quest: QuestPreview | QuestDetail) {
     const rawCity = normalizeQuestLocationQuery(quest.city);
     const exact = normalizeQuestLocationQuery(quest.exact_address);
@@ -3800,6 +3807,8 @@ function privateThreadIncludesUsers(
     setTimeFlexible(quest.time_flexible === true);
     setLocationMode(isRemote ? "remote" : "in_person");
     setDraftExactAddress(exactLocation);
+    setSelectedApplePlaceId(quest.apple_place_id || null);
+    setLocationConfirmationMode(isRemote ? null : quest.apple_place_id ? "address" : null);
     setDraftLocationDetails(quest.location_details || "");
     setShowLocationDetails(Boolean(quest.location_details));
     setSelectedLocationSuggestion(exactLocation || null);
@@ -3865,8 +3874,12 @@ function privateThreadIncludesUsers(
       setStatus(locationMode === "remote" ? "Meeting link is required." : "Meetup address is required.");
       return;
     }
-    if (locationMode === "in_person" && (!selectedLocationSuggestion || normalizeQuestLocationQuery(selectedLocationSuggestion) !== normalizeQuestLocationQuery(draftExactAddress))) {
-      setStatus("Please choose a location suggestion from the list.");
+    if (locationMode === "in_person" && locationConfirmationMode !== "device" && !selectedLocationSuggestion) {
+      setStatus("Search for and choose the meetup place, or use your current location.");
+      return;
+    }
+    if (locationMode === "in_person" && locationConfirmationMode !== "device" && !selectedApplePlaceId) {
+      setStatus("Choose a verified Apple location from the search results.");
       return;
     }
     if (!startAt.trim()) {
@@ -3911,9 +3924,10 @@ function privateThreadIncludesUsers(
       return;
     }
 
+    const savedExactLocation = persistedDraftLocation();
     const derivedCity = locationMode === "remote"
       ? "Virtual"
-      : selectedPublicLocation || deriveCityFromLocation(draftExactAddress) || draftExactAddress.split(",")[0]?.trim() || "";
+      : selectedPublicLocation || profile?.city || deriveCityFromLocation(draftExactAddress) || draftExactAddress.split(",")[0]?.trim() || "";
     const availabilityParts = [
       `Start at: ${formatQuestDateTime(selectedStartTime)}`,
       timeFlexible ? "Time flexible" : null,
@@ -3932,7 +3946,7 @@ function privateThreadIncludesUsers(
           starts_at: selectedStartTime.toISOString(),
           time_flexible: timeFlexible,
           skill_level: skillLevel,
-          exact_address: draftExactAddress.trim(),
+          exact_address: savedExactLocation,
         }, "create");
         if (!canCreate) {
           setCreatingQuest(false);
@@ -3981,9 +3995,10 @@ function privateThreadIncludesUsers(
           hobby_id: finalHobbyId,
           join_mode: draftJoinMode,
           exact_location_visibility: draftLocationVisibility,
-          exact_address: draftExactAddress.trim() || null,
-          exact_lat: locationMode === "in_person" ? selectedLocationCoordinates?.lat ?? null : null,
-          exact_lng: locationMode === "in_person" ? selectedLocationCoordinates?.lon ?? null : null,
+          exact_address: savedExactLocation || null,
+          apple_place_id: locationMode === "in_person" && locationConfirmationMode !== "device" ? selectedApplePlaceId : null,
+          exact_lat: locationMode === "in_person" && locationConfirmationMode === "device" ? selectedLocationCoordinates?.lat ?? null : null,
+          exact_lng: locationMode === "in_person" && locationConfirmationMode === "device" ? selectedLocationCoordinates?.lon ?? null : null,
           location_details: locationMode === "in_person" ? draftLocationDetails.trim().slice(0, 240) || null : null,
           media_items: mediaItems,
           media_source: mediaItems.length ? "upload" : null,
@@ -4017,6 +4032,8 @@ function privateThreadIncludesUsers(
     setDraftTitle("");
     setDraftDescription("");
     setDraftExactAddress("");
+    setLocationConfirmationMode(null);
+    setSelectedApplePlaceId(null);
     setDraftLocationDetails("");
     setShowLocationDetails(false);
     setLocationSuggestions([]);
@@ -6736,14 +6753,16 @@ function privateThreadIncludesUsers(
 
     if (activeTab === "create") {
       const titleSuggestions = getTitleSuggestionsByCategory(categoryInput);
-      const normalizedDraftLocation = normalizeQuestLocationQuery(draftExactAddress);
       const locationReady = locationMode === "remote"
         ? Boolean(draftExactAddress.trim())
         : Boolean(
           selectedCountrySuggestion
-          && selectedLocationSuggestion
-          && normalizeQuestLocationQuery(selectedLocationSuggestion) === normalizedDraftLocation
+          && (locationConfirmationMode === "device" || (selectedLocationSuggestion && selectedApplePlaceId))
         );
+      const appleLocationPreview = locationSuggestions.find((suggestion) => suggestion.lat !== null && suggestion.lon !== null)
+        || (selectedLocationCoordinates
+          ? { id: null, label: selectedLocationSuggestion || draftExactAddress || "Meetup location", publicLabel: selectedPublicLocation || "", lat: selectedLocationCoordinates.lat, lon: selectedLocationCoordinates.lon }
+          : null);
       const scheduleReady = Boolean(startAt.trim() && new Date(startAt).getTime() > Date.now());
       const parsedCreateGroupSize = Number.parseInt(groupSizeChoice === "custom" ? groupSizeCustom : draftGroupSize, 10);
       const groupSizeReady = Number.isFinite(parsedCreateGroupSize) && parsedCreateGroupSize > 0;
@@ -6905,6 +6924,8 @@ function privateThreadIncludesUsers(
                         setSelectedCountrySuggestion(null);
                         setSelectedCountryCode(null);
                         setDraftExactAddress("");
+                        setSelectedApplePlaceId(null);
+                        setLocationConfirmationMode(null);
                         setSelectedLocationSuggestion(null);
                         setSelectedPublicLocation(null);
                         setSelectedLocationCoordinates(null);
@@ -6930,6 +6951,8 @@ function privateThreadIncludesUsers(
                             setSelectedCountryCode(suggestion.code);
                             setCountrySuggestions([]);
                             setDraftExactAddress("");
+                            setSelectedApplePlaceId(null);
+                            setLocationConfirmationMode(null);
                             setSelectedLocationSuggestion(null);
                             setSelectedPublicLocation(null);
                             setSelectedLocationCoordinates(null);
@@ -6957,6 +6980,8 @@ function privateThreadIncludesUsers(
                     value={draftExactAddress}
                     onChangeText={(text) => {
                       setDraftExactAddress(text);
+                      setSelectedApplePlaceId(null);
+                      setLocationConfirmationMode(null);
                       setLocationSuggestions([]);
                       setSelectedLocationSuggestion(null);
                       setSelectedPublicLocation(null);
@@ -7002,10 +7027,9 @@ function privateThreadIncludesUsers(
                   >
                     {locationSuggestions.map((suggestion) => (
                       <Pressable
-                        key={suggestion.label}
+                        key={suggestion.id || suggestion.label}
                         style={styles.locationSuggestionItem}
                         onPress={() => {
-                          setDraftExactAddress(suggestion.label);
                           setSelectedLocationSuggestion(suggestion.label);
                           setSelectedPublicLocation(suggestion.publicLabel || deriveCityFromLocation(suggestion.label));
                           setSelectedLocationCoordinates(
@@ -7013,6 +7037,8 @@ function privateThreadIncludesUsers(
                               ? { lat: suggestion.lat, lon: suggestion.lon }
                               : null,
                           );
+                          setSelectedApplePlaceId(suggestion.id || null);
+                          setLocationConfirmationMode(suggestion.id ? "address" : null);
                           setLocationSearchLoading(false);
                           setLocationSuggestions([]);
                         }}
@@ -7023,15 +7049,48 @@ function privateThreadIncludesUsers(
                     ))}
                   </ScrollView>
                 ) : null}
+                {locationMode === "in_person" && appleLocationPreview?.lat != null && appleLocationPreview?.lon != null ? (
+                  <View style={styles.appleSearchMapWrap}>
+                    {Platform.OS === "ios" ? (
+                      <AppleMapNativeView
+                        style={styles.appleSearchMap}
+                        center={{ latitude: appleLocationPreview.lat, longitude: appleLocationPreview.lon, delta: 0.03 }}
+                        points={(locationSuggestions.length ? locationSuggestions : [appleLocationPreview]).filter((suggestion) => suggestion.lat !== null && suggestion.lon !== null).map((suggestion, index) => ({
+                          id: suggestion.id || `search-${index}`,
+                          latitude: suggestion.lat as number,
+                          longitude: suggestion.lon as number,
+                          title: suggestion.label,
+                          category: "Search result",
+                          selected: suggestion.label === selectedLocationSuggestion,
+                          kind: "quest",
+                        }))}
+                      />
+                    ) : (
+                      <WebView
+                        source={{ uri: `https://maps.apple.com/place?coordinate=${appleLocationPreview.lat},${appleLocationPreview.lon}&name=${encodeURIComponent(appleLocationPreview.label)}` }}
+                        style={styles.appleSearchMap}
+                        originWhitelist={["https://*"]}
+                      />
+                    )}
+                  </View>
+                ) : null}
                 <Text style={styles.createHelperText}>
                   {locationMode === "remote"
                     ? "The link is protected using the visibility setting below."
-                    : selectedLocationSuggestion
-                      ? "Verified location selected."
+                    : locationConfirmationMode === "device"
+                      ? "Current-location pin selected. QuestHat will not track you after publishing."
+                    : selectedLocationSuggestion && selectedApplePlaceId
+                      ? `Confirmed with Apple: ${selectedLocationSuggestion}`
                       : locationSearchAttempted && !locationSearchLoading && locationSuggestions.length === 0
                         ? "No exact matches yet. Try without a suite number or use the venue's shorter name."
-                      : "Select a result from the list so QuestHat can publish it."}
+                      : "Select one exact result. QuestHat keeps its stable Apple Place ID so it won't switch locations later."}
                 </Text>
+                {locationMode === "in_person" ? (
+                  <Pressable style={styles.locationDetailsToggle} onPress={() => void useCurrentLocationForDraft()} accessibilityRole="button">
+                    <View style={styles.locationDetailsToggleIcon}><Ionicons name="navigate-outline" size={18} color="#9bd8e4" /></View>
+                    <Text style={styles.locationDetailsToggleText}>Use my current location</Text>
+                  </Pressable>
+                ) : null}
                 {locationMode === "in_person" && locationSearchRemaining !== null && locationSearchRemaining <= 20 ? (
                   <Text style={styles.locationSearchRemaining}>{locationSearchRemaining} address searches remaining today</Text>
                 ) : null}
@@ -12931,6 +12990,16 @@ const styles = StyleSheet.create({
   },
   locationSuggestionsScrollContent: {
     gap: 2,
+  },
+  appleSearchMapWrap: {
+    borderColor: "rgba(155,216,228,0.35)",
+    borderRadius: 16,
+    borderWidth: 1,
+    height: 180,
+    overflow: "hidden",
+  },
+  appleSearchMap: {
+    flex: 1,
   },
   locationSuggestionText: {
     color: "#0f172a",
