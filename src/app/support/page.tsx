@@ -25,6 +25,18 @@ export default function SupportPage() {
         </div>
 
         <div className="space-y-2">
+          <h2 className="font-semibold">Child-safety reports</h2>
+          <p className="text-sm leading-6 text-gray-700">
+            QuestHat prohibits child sexual abuse and exploitation. Review our{" "}
+            <Link href="/child-safety" className="font-medium underline underline-offset-4">Child Safety Standards</Link>{" "}
+            or report an urgent concern to{" "}
+            <a href="mailto:reports@questhat.com?subject=Urgent%20QuestHat%20child-safety%20report" className="font-medium underline underline-offset-4">
+              reports@questhat.com
+            </a>.
+          </p>
+        </div>
+
+        <div className="space-y-2">
           <h2 className="font-semibold">What to include</h2>
           <ul className="list-disc space-y-1 pl-6 text-sm text-gray-700">
             <li>Your account email or username.</li>
@@ -45,7 +57,7 @@ export default function SupportPage() {
           .
         </p>
 
-        <p className="text-xs text-gray-500">Last updated: July 2026</p>
+        <p className="text-xs text-gray-500">Last updated: September 2026</p>
       </section>
     </main>
   );

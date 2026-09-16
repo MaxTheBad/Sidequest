@@ -8,6 +8,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     "",
     "/privacy",
     "/support",
+    "/child-safety",
     "/terms",
     "/tos",
     "/delete-account",

@@ -123,6 +123,9 @@ export default function RootLayout({
                 <Link href="/support" className="hover:text-slate-800 underline-offset-4 hover:underline">
                   Support
                 </Link>
+                <Link href="/child-safety" className="hover:text-slate-800 underline-offset-4 hover:underline">
+                  Child safety
+                </Link>
                 <Link href="/delete-account" className="hover:text-slate-800 underline-offset-4 hover:underline">
                   Delete data
                 </Link>

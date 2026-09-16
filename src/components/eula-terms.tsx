@@ -11,7 +11,7 @@ export default function EulaTerms() {
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-800">Terms of Use</p>
           <h1 className="mt-1 text-2xl font-bold">QuestHat Terms of Use and EULA</h1>
-          <p className="mt-2 text-sm text-gray-700">Effective August 20, 2026.</p>
+          <p className="mt-2 text-sm text-gray-700">Effective September 16, 2026.</p>
         </div>
 
         <p className={bodyClass}>
@@ -37,6 +37,17 @@ export default function EulaTerms() {
             content, scams, impersonation, stalking, intimidation, encouragement of self-harm, illegal activity, and
             content that creates a credible risk of harm are prohibited. QuestHat may remove content or suspend or ban
             accounts for violations.
+          </p>
+        </div>
+
+        <div className={sectionClass}>
+          <h2 className="font-semibold">Child safety</h2>
+          <p className={bodyClass}>
+            QuestHat and Anlvio LLC explicitly prohibit child sexual abuse and exploitation (CSAE), child sexual abuse
+            material (CSAM), grooming, sextortion, sexual solicitation involving minors, trafficking, and any content
+            or conduct that sexually exploits or endangers a child. See our{" "}
+            <Link href="/child-safety" className="font-medium underline">Child Safety Standards</Link> for reporting,
+            enforcement, and child-safety contact information.
           </p>
         </div>
 
@@ -174,7 +185,7 @@ export default function EulaTerms() {
           <h2 className="font-semibold">Contact</h2>
           <p className={bodyClass}>
             QuestHat is operated by Anlvio LLC. Contact <a href="mailto:support@questhat.com" className="font-medium underline">support@questhat.com</a> for support,{" "}
-            <a href="mailto:reports@questhat.com" className="font-medium underline">reports@questhat.com</a> for urgent moderation concerns, or use our <Link href="/support" className="font-medium underline">Support page</Link>.
+            <a href="mailto:reports@questhat.com" className="font-medium underline">reports@questhat.com</a> for urgent moderation or child-safety concerns, or use our <Link href="/support" className="font-medium underline">Support page</Link>.
           </p>
         </div>
       </section>
