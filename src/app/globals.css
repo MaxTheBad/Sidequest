@@ -209,6 +209,70 @@ body {
 
 body::before { content: none; }
 
+/* The download route is a standalone marketing page rather than an in-app view. */
+body.questhat-download-mode {
+  padding: 0 !important;
+  background: #06121a;
+}
+
+body.questhat-download-mode .mobile-topbar,
+body.questhat-download-mode .desktop-rail,
+body.questhat-download-mode .mobile-dock,
+body.questhat-download-mode .app-footer {
+  display: none !important;
+}
+
+.download-page {
+  font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.download-page h1,
+.download-page h2,
+.download-page h3,
+.download-page .text-white {
+  color: #fff !important;
+}
+
+.download-page .bg-\[\#edf8fa\] h2,
+.download-page .bg-\[\#edf8fa\] h3,
+.download-page .bg-\[\#edf8fa\] .text-white {
+  color: #0a1a24 !important;
+}
+
+.download-orb {
+  position: absolute;
+  z-index: -1;
+  border-radius: 9999px;
+  filter: blur(68px);
+  pointer-events: none;
+}
+
+.download-store-button {
+  display: inline-flex;
+  min-width: 176px;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: 1px solid rgba(255, 255, 255, .24);
+  border-radius: 14px;
+  background: rgba(0, 0, 0, .66);
+  padding: 10px 15px;
+  color: #fff;
+  box-shadow: 0 14px 30px rgba(0, 0, 0, .2);
+  transition: transform .2s ease, background .2s ease, border-color .2s ease;
+}
+
+.download-store-button:hover {
+  transform: translateY(-2px);
+  border-color: rgba(159, 232, 241, .76);
+  background: rgba(4, 23, 31, .96);
+}
+
+.download-gallery {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(145, 224, 234, .35) transparent;
+}
+
 #__next {
   background: var(--background);
   min-height: 100vh;
