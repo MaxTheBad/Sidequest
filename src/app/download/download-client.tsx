@@ -40,6 +40,7 @@ function StoreButton({ kind, href }: { kind: "apple" | "google"; href: string })
 export default function DownloadClient() {
   useEffect(() => {
     document.body.classList.add("questhat-download-mode");
+    document.title = "Download QuestHat | Make plans with real people";
     return () => document.body.classList.remove("questhat-download-mode");
   }, []);
 

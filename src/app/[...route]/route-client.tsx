@@ -7,10 +7,12 @@ import EditListingClient from "../listing/[id]/edit/edit-listing-client";
 import ProfileClient from "../profile/[id]/profile-client";
 import FriendsClient from "../profile/[id]/friends/friends-client";
 import ReportClient from "../report/[kind]/[id]/report-client";
+import DownloadClient from "../download/download-client";
 
 export default function DynamicRouteClient() {
   const pathname = usePathname();
 
+  if (pathname === "/download" || pathname === "/download/") return <DownloadClient />;
   if (/^\/listing\/[^/]+\/edit\/?$/.test(pathname)) return <EditListingClient />;
   if (/^\/listing\/[^/]+\/?$/.test(pathname)) return <ListingClient />;
   if (/^\/profile\/[^/]+\/friends\/?$/.test(pathname)) return <FriendsClient />;
