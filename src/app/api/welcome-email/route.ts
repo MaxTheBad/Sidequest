@@ -11,34 +11,33 @@ function escapeHtml(input: string) {
     .replaceAll("'", "&#39;");
 }
 
-function buildWelcomeEmailHtml(name: string, siteUrl: string) {
-  const safeName = escapeHtml(name || "there");
+function buildEmailShell(innerHtml: string, siteUrl: string) {
   const logoUrl = `${siteUrl}/questhat-logo.png`;
   return `<!doctype html>
 <html>
-  <body style="margin:0;padding:0;background:#f4f4f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
-    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f4f4f7;padding:40px 16px;">
+  <body style="margin:0;padding:0;background:#eef2f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+    <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">
+      Welcome to QuestHat. Your account is ready.
+    </div>
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#eef2f6;padding:40px 16px;">
       <tr>
         <td align="center">
-          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#111318;border-radius:24px;overflow:hidden;">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;background:#0f1218;border:1px solid #202636;border-radius:28px;overflow:hidden;box-shadow:0 20px 60px rgba(15,23,42,.14);">
             <tr>
-              <td style="padding:32px 32px 20px 32px;text-align:center;">
-                <img src="${logoUrl}" alt="QuestHat" width="44" height="44" style="display:block;margin:0 auto 18px auto;border-radius:12px;" />
-                <div style="font-size:14px;letter-spacing:.22em;text-transform:uppercase;color:#7d8596;font-weight:700;margin-bottom:18px;">QuestHat</div>
-                <div style="font-size:28px;line-height:1.15;color:#ffffff;font-weight:800;margin:0 0 12px 0;">Welcome, ${safeName}</div>
-                <div style="font-size:16px;line-height:1.6;color:#c8ceda;margin:0 auto 28px auto;max-width:440px;">
-                  Your account is ready. Start exploring local plans, meetups, and quests on QuestHat.
+              <td style="padding:28px 28px 0 28px;text-align:center;">
+                <div style="display:inline-block;padding:10px 14px;border-radius:999px;background:#121826;border:1px solid #263043;">
+                  <img src="${logoUrl}" alt="QuestHat" width="40" height="40" style="display:block;border-radius:12px;" />
                 </div>
-                <a href="${siteUrl}" style="display:inline-block;background:#6daec2;color:#ffffff;text-decoration:none;font-size:16px;font-weight:700;padding:14px 26px;border-radius:999px;">
-                  Open QuestHat
-                </a>
               </td>
             </tr>
             <tr>
-              <td style="padding:0 32px 28px 32px;text-align:center;">
-                <div style="height:1px;background:#242936;margin:0 0 18px 0;"></div>
-                <div style="font-size:12px;line-height:1.5;color:#7d8596;">
-                  We’re glad you’re here. See you out there.
+              <td style="padding:20px 28px 28px 28px;">${innerHtml}</td>
+            </tr>
+            <tr>
+              <td style="padding:0 28px 28px 28px;text-align:center;">
+                <div style="height:1px;background:#222a3a;margin:0 0 16px 0;"></div>
+                <div style="font-size:12px;line-height:1.6;color:#8b97aa;">
+                  QuestHat is for real-world plans, real people, and fewer dead group chats.
                 </div>
               </td>
             </tr>
@@ -48,6 +47,23 @@ function buildWelcomeEmailHtml(name: string, siteUrl: string) {
     </table>
   </body>
 </html>`;
+}
+
+function buildWelcomeEmailHtml(name: string, siteUrl: string) {
+  const safeName = escapeHtml(name || "there");
+  return buildEmailShell(`
+    <div style="text-align:center;">
+      <div style="font-size:12px;letter-spacing:.24em;text-transform:uppercase;color:#8b97aa;font-weight:800;margin-bottom:14px;">QuestHat</div>
+      <div style="font-size:30px;line-height:1.12;color:#ffffff;font-weight:900;margin:0 0 12px 0;">Welcome, ${safeName}</div>
+      <div style="font-size:16px;line-height:1.65;color:#cfd6e4;margin:0 auto 28px auto;max-width:460px;">
+        Your account is ready. Start exploring local plans, meetups, and quests on QuestHat.
+      </div>
+      <a href="${siteUrl}" style="display:inline-block;background:#78c4d6;color:#06222a;text-decoration:none;font-size:16px;font-weight:800;padding:14px 26px;border-radius:999px;">
+        Open QuestHat
+      </a>
+      <div style="margin-top:24px;font-size:13px;line-height:1.6;color:#8b97aa;">We’ll only email you for account and app activity unless you opt into more.</div>
+    </div>
+  `, siteUrl);
 }
 
 function buildWelcomeEmailText(name: string, siteUrl: string) {
@@ -88,6 +104,7 @@ async function sendSmtpEmail({
   subject,
   text,
   html,
+  replyTo,
 }: {
   host: string;
   port: number;
@@ -98,6 +115,7 @@ async function sendSmtpEmail({
   subject: string;
   text: string;
   html: string;
+  replyTo?: string;
 }) {
   const socketModule = "cloudflare:sockets";
   const { connect } = await import(/* webpackIgnore: true */ socketModule);
@@ -174,7 +192,9 @@ async function sendSmtpEmail({
     const message = [
       `From: ${from}`,
       `To: ${to}`,
+      replyTo ? `Reply-To: ${replyTo}` : null,
       `Subject: =?UTF-8?B?${base64Utf8(subject)}?=`,
+      "X-Mailer: QuestHat",
       "MIME-Version: 1.0",
       `Content-Type: multipart/alternative; boundary="${boundary}"`,
       "",
@@ -191,6 +211,7 @@ async function sendSmtpEmail({
       `--${boundary}--`,
       "",
     ]
+      .filter(Boolean)
       .join("\r\n")
       .replace(/^\./gm, "..");
 
@@ -215,6 +236,7 @@ export async function POST(req: Request) {
   const smtpUser = process.env.SMTP_USER;
   const smtpPassword = process.env.SMTP_PASSWORD;
   const smtpFrom = process.env.SMTP_FROM || "QuestHat <no-reply@questhat.com>";
+  const smtpReplyTo = process.env.SMTP_REPLY_TO || "support@questhat.com";
   const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL || "https://questhat.com").replace(/\/$/, "");
 
   if (!supabaseUrl || !serviceRoleKey) {
@@ -274,6 +296,7 @@ export async function POST(req: Request) {
     subject: "Welcome to QuestHat",
     text,
     html,
+    replyTo: smtpReplyTo,
   });
 
   const { error: updateError } = await supabase

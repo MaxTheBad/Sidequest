@@ -10,6 +10,7 @@ import GlobalTopBar from "@/components/global-top-bar";
 import UsernameGate from "@/components/username-gate";
 import EulaGate from "@/components/eula-gate";
 import RecoveryEmailPrompt from "@/components/recovery-email-prompt";
+import QuestHatPostHogProvider from "@/components/posthog-provider";
 import { APP_NAME } from "@/lib/app-brand";
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://questhat.com";
@@ -91,12 +92,13 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased pt-[60px] pb-28 md:pl-[84px] md:pt-0 md:pb-0 xl:pl-[248px]`}
       >
-        <GlobalTopBar />
-        <EulaGate />
-        <UsernameGate />
-        <RecoveryEmailPrompt />
-        {children}
-        <footer className="app-footer mt-16 border-t border-slate-200 bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/75">
+        <QuestHatPostHogProvider>
+          <GlobalTopBar />
+          <EulaGate />
+          <UsernameGate />
+          <RecoveryEmailPrompt />
+          {children}
+          <footer className="app-footer mt-16 border-t border-slate-200 bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/75">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 text-xs text-slate-500">
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
               <Link href="/" className="flex items-center gap-2 font-medium text-slate-700">
@@ -132,8 +134,9 @@ export default function RootLayout({
               </div>
             </div>
           </div>
-        </footer>
-        <BottomNav />
+          </footer>
+          <BottomNav />
+        </QuestHatPostHogProvider>
       </body>
     </html>
   );

@@ -44,6 +44,14 @@ type Thread = {
 };
 
 type QuestOwnerLite = { creator_id: string | null; display_name: string | null; avatar_url: string | null };
+type HostedQuestLite = { id: string; title: string | null };
+type QuestInvitation = {
+  id: string;
+  message: string | null;
+  created_at: string;
+  quests?: { id: string; title: string | null }[] | { id: string; title: string | null } | null;
+  sender?: { display_name: string | null; avatar_url: string | null }[] | { display_name: string | null; avatar_url: string | null } | null;
+};
 
 function normalizeMessageRow(row: RawInboxMessage): InboxMessage {
   const quest = Array.isArray(row.quests) ? (row.quests[0] ?? null) : (row.quests ?? null);
@@ -104,6 +112,9 @@ export default function InboxPage() {
   const typingChannelRef = useRef<RealtimeChannel | null>(null);
   const lastTypingSendRef = useRef(0);
   const [questOwners, setQuestOwners] = useState<Record<string, QuestOwnerLite>>({});
+  const [hostedQuests, setHostedQuests] = useState<HostedQuestLite[]>([]);
+  const [questInvitations, setQuestInvitations] = useState<QuestInvitation[]>([]);
+  const [invitationActionId, setInvitationActionId] = useState<string | null>(null);
   const messagesSigRef = useRef("");
   const ownersSigRef = useRef("");
   const didAutoSelectRef = useRef(false);
@@ -120,8 +131,8 @@ export default function InboxPage() {
     if (!supabase) return;
     if (!silent) setLoading(true);
 
-    const [{ data: myListings }, sentRes, blockRes] = await Promise.all([
-      supabase.from("quests").select("id").eq("creator_id", uid),
+    const [{ data: myListings }, sentRes, blockRes, invitationRes] = await Promise.all([
+      supabase.from("quests").select("id,title").eq("creator_id", uid).order("starts_at", { ascending: true }).limit(10),
       supabase
         .from("messages")
         .select("id,quest_id,sender_id,body,created_at,quests(title,creator_id,media_video_url,media_items),profiles:profiles!messages_sender_id_fkey(id,display_name,avatar_url)")
@@ -130,9 +141,13 @@ export default function InboxPage() {
         .order("created_at", { ascending: false })
         .limit(300),
       supabase.from("friends").select("requester_id,addressee_id,status").eq("status", "blocked").or(`requester_id.eq.${uid},addressee_id.eq.${uid}`),
+      supabase.from("quest_invitations").select("id,message,created_at,quests(id,title),sender:profiles!quest_invitations_sender_id_fkey(display_name,avatar_url)").eq("recipient_id", uid).eq("status", "pending").order("created_at", { ascending: false }),
     ]);
+    if (!invitationRes.error) setQuestInvitations((invitationRes.data || []) as QuestInvitation[]);
 
-    const ownerQuestIds = ((myListings || []) as Array<{ id: string }>).map((q) => q.id);
+    const ownedListings = (myListings || []) as HostedQuestLite[];
+    setHostedQuests(ownedListings);
+    const ownerQuestIds = ownedListings.map((q) => q.id);
     const privateRes = ownerQuestIds.length
       ? await supabase
           .from("messages")
@@ -209,6 +224,16 @@ export default function InboxPage() {
 
     if (!silent) setLoading(false);
   }, [supabase, activeThreadId]);
+
+  async function respondToInvitation(invitationId: string, accept: boolean) {
+    if (!supabase || !userId || invitationActionId) return;
+    setInvitationActionId(invitationId);
+    const { error } = await supabase.rpc("respond_to_quest_invitation", { p_invitation_id: invitationId, p_accept: accept });
+    setInvitationActionId(null);
+    if (error) return setStatus(error.message);
+    setQuestInvitations((current) => current.filter((invitation) => invitation.id !== invitationId));
+    setStatus(accept ? "Invitation accepted. You are approved for the quest." : "Invitation declined.");
+  }
 
   useEffect(() => {
     if (!supabase) return;
@@ -513,6 +538,20 @@ export default function InboxPage() {
 
         {status && <div className="mb-3 rounded border bg-amber-50 px-3 py-2 text-sm">{status}</div>}
 
+        {questInvitations.length > 0 ? (
+          <section className="mb-3 rounded-2xl border border-cyan-200 bg-cyan-50 p-3">
+            <h2 className="font-semibold text-slate-950">Quest invitations</h2>
+            <div className="mt-2 grid gap-2 sm:grid-cols-2">
+              {questInvitations.map((invitation) => {
+                const sender = Array.isArray(invitation.sender) ? invitation.sender[0] : invitation.sender;
+                const quest = Array.isArray(invitation.quests) ? invitation.quests[0] : invitation.quests;
+                const busy = invitationActionId === invitation.id;
+                return <article key={invitation.id} className="rounded-xl border bg-white p-3"><div className="flex items-center gap-2">{sender?.avatar_url ? <img src={sender.avatar_url} alt="" className="h-9 w-9 rounded-full border object-cover" /> : <div className="h-9 w-9 rounded-full border bg-slate-100" />}<div className="min-w-0"><p className="font-semibold">{sender?.display_name || "A host"}</p><Link href={`/listing/${quest?.id || ""}`} className="block truncate text-xs text-cyan-800 underline">{quest?.title || "Quest invitation"}</Link></div></div>{invitation.message ? <p className="mt-2 text-sm text-slate-700">{invitation.message}</p> : null}<div className="mt-3 flex gap-2"><button type="button" disabled={busy} className="rounded-lg border px-3 py-1.5 text-xs font-semibold" onClick={() => void respondToInvitation(invitation.id, false)}>Decline</button><button type="button" disabled={busy} className="rounded-lg bg-[#0f7486] px-3 py-1.5 text-xs font-semibold text-white" onClick={() => void respondToInvitation(invitation.id, true)}>{busy ? "Joining…" : "Accept & join"}</button></div></article>;
+              })}
+            </div>
+          </section>
+        ) : null}
+
         <div className="grid md:grid-cols-[340px_1fr] gap-3">
           <aside className={`rounded-2xl border bg-white p-2 max-h-[72vh] overflow-auto app-thread-list ${activeThread ? "hidden md:block" : "block"}`}>
             {loading ? (
@@ -565,6 +604,15 @@ export default function InboxPage() {
                 </div>
               </button>
             ))}
+            {!loading && threads.length <= 2 && hostedQuests.length > 0 ? (
+              <div className="mt-2 rounded-xl border border-cyan-200 bg-cyan-50 p-3">
+                <p className="text-sm font-semibold text-slate-900">Start the conversation</p>
+                <p className="mt-1 text-xs text-slate-600">Find opted-in people for a quest you host, then message or invite them.</p>
+                <div className="mt-2 grid gap-1.5">
+                  {hostedQuests.slice(0, 3).map((quest) => <Link key={quest.id} href={`/listing/${quest.id}`} className="rounded-lg bg-[#0f7486] px-3 py-2 text-xs font-semibold text-white">Find people for {quest.title || "this quest"}</Link>)}
+                </div>
+              </div>
+            ) : null}
           </aside>
 
           <section className={`rounded-2xl border bg-white p-3 flex flex-col h-[72vh] app-message-thread ${activeThread ? "block" : "hidden md:flex"}`}>

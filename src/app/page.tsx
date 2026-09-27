@@ -20,6 +20,8 @@ import { AppleMapPreview } from "@/components/apple-map-preview";
 import { TurnstileInvisible } from "@/components/turnstile-invisible";
 import { formatReportReference } from "@/lib/reporting";
 import { recordSecurityAudit, type MediaAuditInput } from "@/lib/security-audit";
+import { ageFromBirthDate, GENDER_IDENTITY_OPTIONS } from "@/lib/people-discovery";
+import { captureProductEvent, identifyProductUser, resetProductUser } from "@/components/posthog-provider";
 
 type Hobby = { id: string; name: string; category: string | null };
 type QuestMediaItem = {
@@ -34,6 +36,7 @@ type UploadedQuestMediaItem = QuestMediaItem & { audit?: MediaAuditInput };
 type LocationSuggestion = {
   id?: string | null;
   label: string;
+  address?: string;
   publicLabel: string;
   lat?: number | null;
   lon?: number | null;
@@ -296,6 +299,8 @@ export default function Home() {
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [marketingOptIn, setMarketingOptIn] = useState(false);
   const [hideCityOnBio, setHideCityOnBio] = useState(true);
+  const [signupGenderIdentity, setSignupGenderIdentity] = useState("");
+  const [signupPeopleDiscoveryEnabled, setSignupPeopleDiscoveryEnabled] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [pendingVerifyEmail, setPendingVerifyEmail] = useState("");
@@ -667,6 +672,7 @@ export default function Home() {
       const md = (session?.user?.user_metadata || {}) as Record<string, unknown>;
       setViewerName((typeof md.full_name === "string" && md.full_name) || (typeof md.name === "string" && md.name) || "");
       if (session?.user) {
+        identifyProductUser(session.user.id);
         void ensureProfileRow(session.user.id, session.user.email, md);
         void sendWelcomeEmail(session.access_token);
         setShowAuthModal(false);
@@ -678,6 +684,8 @@ export default function Home() {
           setStatus("✅ Email confirmed. Welcome!");
         }
         void maybeShowPhotoOnboarding(session.user.id);
+      } else {
+        resetProductUser();
       }
       setAuthReady(true);
     });
@@ -963,6 +971,9 @@ export default function Home() {
     if (!dob) return setStatus("Please enter your date of birth.");
     const years = Math.floor((Date.now() - new Date(dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000));
     if (Number.isNaN(years) || years < 13) return setStatus("You must be at least 13.");
+    if (signupPeopleDiscoveryEnabled && (ageFromBirthDate(dob) ?? 0) < 18) {
+      return setStatus("People discovery is available to adults 18 and older. You can still create a QuestHat account.");
+    }
     if (!acceptTerms) return setStatus("You must accept Terms.");
     if (!Object.values(passwordChecks).every(Boolean)) return setStatus("Password requirements not met.");
 
@@ -987,10 +998,36 @@ export default function Home() {
             marketing_opt_in: marketingOptIn,
             show_location: !hideCityOnBio,
             hide_city_on_bio: hideCityOnBio,
+            gender_identity: signupGenderIdentity || null,
+            people_discovery_enabled: signupPeopleDiscoveryEnabled,
           },
         },
       });
     if (error) return setStatus(error.message);
+    if (data.user?.id) {
+      await supabase.from("profiles").upsert({
+        id: data.user.id,
+        display_name: fullName.trim(),
+        people_discovery_enabled: false,
+      });
+    }
+    if (data.session && signupPeopleDiscoveryEnabled && navigator.geolocation) {
+      try {
+        const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: false, timeout: 12000, maximumAge: 300000 });
+        });
+        const { error: discoveryError } = await supabase.rpc("update_people_discovery_settings", {
+          p_enabled: true,
+          p_birth_date: dob,
+          p_gender_identity: signupGenderIdentity || null,
+          p_latitude: position.coords.latitude,
+          p_longitude: position.coords.longitude,
+        });
+        if (discoveryError) return setStatus(discoveryError.message);
+      } catch {
+        setStatus("Account created. Turn on Find people in Settings when you are ready to allow approximate location.");
+      }
+    }
     await recordSecurityAudit({
       event_type: "signup_password_submitted",
       user_id: data.user?.id ?? null,
@@ -1135,6 +1172,7 @@ export default function Home() {
   async function signOut() {
     if (!supabase) return;
     await supabase.auth.signOut();
+    resetProductUser();
     setUserId(null);
     setUserEmail("");
     setViewerName("");
@@ -2774,7 +2812,8 @@ export default function Home() {
 
     let creatorLocationWarning = "";
     try {
-      const hostLocation = await getCurrentPositionOnce();
+      const hostLocation = userLocation || (locationPermission === "granted" ? await getCurrentPositionOnce() : null);
+      if (!hostLocation) throw new Error("optional-location-unavailable");
       setUserLocation(hostLocation);
       setUserLocationStatus("ready");
       const locationQuery = locationMode === "remote" ? city : (derivedCity || exactAddress);
@@ -2787,7 +2826,7 @@ export default function Home() {
       }
     } catch {
       setUserLocationStatus("denied");
-      return setStatus("Location access is required to create a listing.");
+      creatorLocationWarning = " Location was not used for the optional distance check.";
     }
 
     // Ensure profile row exists (required by quests.creator_id FK)
@@ -2926,8 +2965,8 @@ export default function Home() {
           city: derivedCity,
           exact_address: savedExactAddress || null,
           apple_place_id: locationMode === "in_person" && locationConfirmationMode !== "device" ? selectedApplePlaceId : null,
-          exact_lat: locationMode === "in_person" && locationConfirmationMode === "device" ? confirmedDeviceCoordinates?.lat ?? null : null,
-          exact_lng: locationMode === "in_person" && locationConfirmationMode === "device" ? confirmedDeviceCoordinates?.lon ?? null : null,
+          exact_lat: locationMode === "in_person" ? (selectedAppleCoordinates || confirmedDeviceCoordinates)?.lat ?? null : null,
+          exact_lng: locationMode === "in_person" ? (selectedAppleCoordinates || confirmedDeviceCoordinates)?.lon ?? null : null,
           location_details: locationMode === "in_person" ? locationDetails.trim().slice(0, 240) || null : null,
           join_mode: joinMode,
           exact_location_visibility: locationMode === "remote" ? "private" : exactLocationVisibility,
@@ -2996,8 +3035,8 @@ export default function Home() {
           city: derivedCity,
           exact_address: savedExactAddress || null,
           apple_place_id: locationMode === "in_person" && locationConfirmationMode !== "device" ? selectedApplePlaceId : null,
-          exact_lat: locationMode === "in_person" && locationConfirmationMode === "device" ? confirmedDeviceCoordinates?.lat ?? null : null,
-          exact_lng: locationMode === "in_person" && locationConfirmationMode === "device" ? confirmedDeviceCoordinates?.lon ?? null : null,
+          exact_lat: locationMode === "in_person" ? (selectedAppleCoordinates || confirmedDeviceCoordinates)?.lat ?? null : null,
+          exact_lng: locationMode === "in_person" ? (selectedAppleCoordinates || confirmedDeviceCoordinates)?.lon ?? null : null,
           location_details: locationMode === "in_person" ? locationDetails.trim().slice(0, 240) || null : null,
           join_mode: joinMode,
           exact_location_visibility: locationMode === "remote" ? "private" : exactLocationVisibility,
@@ -3045,6 +3084,13 @@ export default function Home() {
       }
 
       setQuestSaveProgress({ percent: 98, label: "Refreshing feed" });
+      captureProductEvent(editingQuestId ? "quest_updated" : "quest_created", {
+        platform: "web",
+        category: canonicalOrTyped,
+        location_mode: locationMode === "remote" ? "virtual" : "in_person",
+        join_mode: joinMode,
+        media_count: nextMediaItems.length,
+      });
       resetQuestForm();
       setShowCreateModal(false);
       setQuestTurnstileToken("");
@@ -3431,15 +3477,15 @@ export default function Home() {
       return setStatus("You can't join your own listing.");
     }
 
-    let liveLocation: { lat: number; lon: number; accuracy?: number } | null = null;
-    try {
-      liveLocation = await getCurrentPositionOnce();
-      setUserLocation(liveLocation);
-      setUserLocationStatus("ready");
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Location access is required to request or join this event.";
-      setUserLocationStatus("denied");
-      return setStatus(message);
+    let liveLocation: { lat: number; lon: number; accuracy?: number } | null = userLocation;
+    if (!liveLocation && locationPermission === "granted") {
+      try {
+        liveLocation = await getCurrentPositionOnce();
+        setUserLocation(liveLocation);
+        setUserLocationStatus("ready");
+      } catch {
+        setUserLocationStatus("denied");
+      }
     }
 
     const membershipStatus = membershipStatusByQuest[id];
@@ -3471,7 +3517,7 @@ export default function Home() {
     const parsedCachedDistance = cachedDistance ? Number.parseFloat(cachedDistance) : NaN;
     const distanceMiles = Number.isFinite(parsedCachedDistance)
       ? parsedCachedDistance
-      : (questCoords ? haversineMiles(liveLocation!.lat, liveLocation!.lon, questCoords.lat, questCoords.lon) : null);
+      : (questCoords && liveLocation ? haversineMiles(liveLocation.lat, liveLocation.lon, questCoords.lat, questCoords.lon) : null);
     const existingStatus = membershipStatusByQuest[id];
     if (existingStatus === "declined") {
       const { error: delErr } = await supabase
@@ -3492,6 +3538,11 @@ export default function Home() {
       if (error && !error.message.includes("duplicate") && !error.message.toLowerCase().includes("unique")) return setStatus(error.message);
     }
     await loadMemberships(userId);
+    captureProductEvent("quest_join_requested", {
+      platform: "web",
+      join_status: nextStatus,
+      join_mode: quest?.join_mode || "open",
+    });
     setStatus(`${nextStatus === "pending" ? "Join request sent ⏳" : "Joined quest ✅"}`);
   }
 
@@ -4712,6 +4763,11 @@ export default function Home() {
                     <label className="text-sm font-medium">Date of birth (DOB)</label>
                     <input className="border rounded-xl px-3 py-3 text-slate-900 caret-slate-900 bg-white" type="date" name="bday" autoComplete="bday" value={dob} onChange={(e) => setDob(e.target.value)} required />
                     <p className="text-xs text-gray-500">Use your birthday (MM/DD/YYYY).</p>
+                    <label className="text-xs font-medium text-gray-600">Gender (optional)</label>
+                    <select className="border rounded-xl px-3 py-3 text-slate-900 bg-white" value={signupGenderIdentity} onChange={(e) => setSignupGenderIdentity(e.target.value)}>
+                      <option value="">Not provided</option>
+                      {GENDER_IDENTITY_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+                    </select>
                     <label className="text-xs font-medium text-gray-600">Password</label>
                     <div className="flex gap-2">
                       <input className="border rounded-xl px-3 py-3 flex-1 text-slate-900 caret-slate-900 bg-white" placeholder="Password" type={showPassword ? "text" : "password"} name="new-password" autoComplete="new-password" autoCapitalize="none" autoCorrect="off" spellCheck={false} value={password} onChange={(e) => setPassword(e.target.value)} required />
@@ -4743,6 +4799,10 @@ export default function Home() {
                     <label className="flex gap-2 items-start leading-5 text-sm">
                       <input className="mt-0.5" type="checkbox" checked={hideCityOnBio} onChange={(e) => setHideCityOnBio(e.target.checked)} />
                       <span>Hide city on bio</span>
+                    </label>
+                    <label className="flex gap-3 items-start rounded-2xl border border-cyan-200 bg-cyan-50 p-3 text-sm text-slate-900">
+                      <input className="mt-1" type="checkbox" checked={signupPeopleDiscoveryEnabled} onChange={(e) => setSignupPeopleDiscoveryEnabled(e.target.checked)} />
+                      <span><strong>Show me in Find people</strong><br /><span className="text-xs text-slate-600">Optional and off by default. Adults can message or invite you to quests. We show rounded distance, never your exact location.</span></span>
                     </label>
                   </>
                 )}
@@ -4990,14 +5050,6 @@ export default function Home() {
                 <span className="text-sm">Time flexible — the listed time is real, but I’m open to adjusting it.</span>
               </label>
 
-              <label className="text-xs font-medium uppercase tracking-wide text-slate-600">Join Mode *</label>
-              <CreateSelect
-                value={joinMode}
-                placeholder="Choose join mode"
-                options={[{ value: "open", label: "Anyone can join instantly" }, { value: "approval_required", label: "Host must approve members" }]}
-                onChange={(next) => setJoinMode(next as "open" | "approval_required")}
-              />
-
               <div
                 ref={locationVisibilityRef}
                 className={`create-location-panel rounded-2xl border p-2 sm:p-3 space-y-2 sm:space-y-3 transition ${
@@ -5007,7 +5059,7 @@ export default function Home() {
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <label className={`text-sm sm:text-base font-medium ${fieldErrors.locationVisibility ? "text-red-600" : ""}`}>Location *</label>
-                    <p className="text-[10px] leading-4 sm:text-xs text-slate-500">Choose remote or in person, then add the details below.</p>
+                    <p className="text-[10px] leading-4 sm:text-xs text-slate-500">Choose a place or add a virtual link. Exact details stay private by default.</p>
                   </div>
                 </div>
                 <div className="grid gap-1">
@@ -5051,32 +5103,6 @@ export default function Home() {
                     </button>
                   </div>
                 </div>
-                {locationMode === "in_person" ? (
-                  <div className="grid gap-1">
-                    <label className={`text-[11px] font-medium uppercase tracking-wide ${fieldErrors.locationVisibility ? "text-red-600" : "text-slate-600"}`}>Privacy</label>
-                    <CreateSelect
-                      value={exactLocationVisibility}
-                      placeholder="Choose privacy"
-                      invalid={Boolean(fieldErrors.locationVisibility)}
-                      options={[
-                        { value: "private", label: "Private (manual share)" },
-                        ...(joinMode !== "open" ? [{ value: "approved_members", label: "Auto-share with approved members" }] : []),
-                        { value: "public", label: "Public (everyone)" },
-                      ]}
-                      onChange={(value) => {
-                        const next = value as "private" | "public" | "approved_members";
-                        if (next === "private" && !manualShareWarningBypassRef.current) {
-                          setPendingManualShareVisibility(next);
-                          setShowManualShareConfirm(true);
-                          return;
-                        }
-                        setExactLocationVisibility(next);
-                        clearFieldError("locationVisibility");
-                        setPublicVisibilityConfirmed(false);
-                      }}
-                    />
-                  </div>
-                ) : null}
                 {locationMode === "in_person" ? (
                   <div className="grid gap-1">
                     <label className={`text-[11px] font-medium uppercase tracking-wide ${fieldErrors.country ? "text-red-600" : "text-slate-600"}`}>Country *</label>
@@ -5154,6 +5180,7 @@ export default function Home() {
                             type="button"
                             className="flex w-full items-start gap-2 border-b px-3 py-3 text-left last:border-b-0 hover:bg-slate-50"
                             onClick={() => {
+                              setExactAddress(suggestion.address || suggestion.label);
                               setSelectedLocationSuggestion(suggestion.label);
                               setSelectedPublicLocation(suggestion.publicLabel || deriveCityFromLocation(suggestion.label));
                               setSelectedAppleCoordinates(
@@ -5192,7 +5219,7 @@ export default function Home() {
                         ? `Confirmed with Apple: ${selectedLocationSuggestion}`
                         : locationSearchAttempted && !locationSearchLoading && citySuggestions.length === 0
                           ? "No exact matches yet. Try the street address without a suite number or use the venue's shorter name."
-                        : "Select one exact result. QuestHat keeps its stable Apple Place ID so it won't switch locations later."}
+                        : "Select the exact place so guests get the correct directions."}
                   </p>
                   {locationMode === "in_person" && locationSearchRemaining !== null && locationSearchRemaining <= 20 ? (
                     <p className="text-[10px] font-medium text-[#0c5063] sm:text-xs">{locationSearchRemaining} address searches remaining today</p>
@@ -5207,6 +5234,11 @@ export default function Home() {
                       Use my current location
                     </button>
                   ) : null}
+                  <p className="rounded-xl border border-[#0c5063]/15 bg-[#0c5063]/[0.04] px-3 py-2 text-[10px] leading-4 text-[#0c5063] sm:text-xs">
+                    {locationMode === "remote"
+                      ? "Meeting link private by default. Change this in Make it yours."
+                      : "Exact address private by default. Your exact or live device location is never shared automatically."}
+                  </p>
                 </div>
                 {locationMode === "in_person" && selectedLocationSuggestion ? (
                   <div className="grid gap-2 rounded-xl border border-[#0c5063]/15 bg-[#0c5063]/[0.03] p-2.5 sm:p-3">
@@ -5244,6 +5276,17 @@ export default function Home() {
                 ) : null}
               </div>
 
+              <button
+                type="button"
+                onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
+                className="mt-2 flex w-full items-center gap-2 rounded-2xl border border-cyan-300/60 bg-cyan-50/70 px-3 py-3 text-left text-sm font-medium text-gray-800 shadow-[0_0_18px_rgba(34,211,238,0.12)] hover:bg-cyan-50"
+              >
+                <AppIcon name="tune" className="h-4 w-4" />
+                <span className="flex-1"><span className="block font-semibold">Make it yours</span><span className="block text-xs font-normal text-slate-500">Privacy, joining, description, media, and group size.</span></span>
+                <span className="rounded-full border border-cyan-300 bg-white px-2 py-1 text-[9px] font-bold tracking-wide text-cyan-800">{showAdvancedSettings ? "OPTIONAL" : "RECOMMENDED"}</span>
+              </button>
+
+              {showAdvancedSettings ? <>
               <div className="flex items-center justify-between gap-3">
                 <label className="text-xs font-medium uppercase tracking-wide text-slate-600">Media</label>
                 <span className="text-xs font-semibold text-slate-500">{mediaDraftItems.length}/{MAX_QUEST_MEDIA_ITEMS}</span>
@@ -5572,19 +5615,48 @@ export default function Home() {
                   </div>
                 ) : null}
               </div>
+              </> : null}
 
-              {/* Advanced Settings - Collapsible */}
-              <button
-                type="button"
-                onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
-                className="flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-gray-900 mt-2"
-              >
-                <AppIcon name="tune" className="h-4 w-4" />
-                <span>Advanced settings (optional)</span>
-              </button>
-
+              {/* Optional customization stays together so expanding it never moves earlier fields. */}
               {showAdvancedSettings && (
                 <div className="grid gap-3 border-l-2 border-gray-200 pl-3">
+                  <div>
+                    <p className="text-sm font-semibold">Privacy & joining</p>
+                    <p className="text-xs text-slate-500">Control who joins and who receives exact meetup details.</p>
+                  </div>
+                  <label className="text-sm font-medium">Who can join?</label>
+                  <CreateSelect
+                    value={joinMode}
+                    placeholder="Choose join mode"
+                    options={[{ value: "open", label: "Anyone can join instantly" }, { value: "approval_required", label: "Host must approve members" }]}
+                    onChange={(next) => setJoinMode(next as "open" | "approval_required")}
+                  />
+                  <label className="text-sm font-medium">{locationMode === "remote" ? "Who sees the link?" : "Who sees the exact address?"}</label>
+                  <CreateSelect
+                    value={exactLocationVisibility}
+                    placeholder="Choose privacy"
+                    invalid={Boolean(fieldErrors.locationVisibility)}
+                    options={[
+                      { value: "private", label: "Private (manual share)" },
+                      ...(joinMode !== "open" ? [{ value: "approved_members", label: "Auto-share with approved members" }] : []),
+                      { value: "public", label: "Public (everyone)" },
+                    ]}
+                    onChange={(value) => {
+                      const next = value as "private" | "public" | "approved_members";
+                      if (next === "private" && !manualShareWarningBypassRef.current) {
+                        setPendingManualShareVisibility(next);
+                        setShowManualShareConfirm(true);
+                        return;
+                      }
+                      setExactLocationVisibility(next);
+                      clearFieldError("locationVisibility");
+                      setPublicVisibilityConfirmed(false);
+                    }}
+                  />
+                  <div className="border-t pt-3">
+                    <p className="text-sm font-semibold">More details</p>
+                    <p className="text-xs text-slate-500">Help people understand the plan before joining.</p>
+                  </div>
                   <label className="text-sm font-medium">Description (optional)</label>
                   <textarea className="border rounded px-3 py-2" placeholder="What are you trying to do?" value={description} onChange={(e) => setDescription(e.target.value)} />
 

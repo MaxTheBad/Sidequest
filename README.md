@@ -39,7 +39,13 @@ MVP app: find hobby partners/groups, post quests, join quests, and use a Surpris
     - `SMTP_USER`
     - `SMTP_PASSWORD`
     - `SMTP_FROM` (optional)
+    - `SMTP_REPLY_TO` (optional; defaults to `support@questhat.com`)
     - `MODERATION_ALERT_RECIPIENTS` (optional; defaults to `reports@questhat.com`)
+  - For inbox branding and deliverability:
+    - QuestHat currently uses Zoho SMTP for outbound mail
+    - use a real branded sender like `no-reply@questhat.com`
+    - publish SPF, DKIM, and DMARC for the sending domain in Cloudflare
+    - use a square logo image for email body branding; BIMI additionally needs a VMC and a BIMI-compliant SVG
 3. Run the SQL files in Supabase SQL editor:
    - `supabase-schema.sql`
    - every file in `sql/` that has not already been applied to the target Supabase project

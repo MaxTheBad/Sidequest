@@ -13,6 +13,43 @@ function escapeHtml(input: string) {
     .replaceAll("'", "&#39;");
 }
 
+function buildEmailShell(innerHtml: string, logoUrl: string) {
+  return `<!doctype html>
+<html>
+  <body style="margin:0;padding:0;background:#eef2f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#111827;">
+    <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">
+      QuestHat moderation alert received.
+    </div>
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#eef2f6;padding:32px 16px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:680px;background:#ffffff;border:1px solid #d8dee8;border-radius:28px;overflow:hidden;box-shadow:0 18px 50px rgba(15,23,42,.12);">
+            <tr>
+              <td style="padding:24px 28px 0 28px;">
+                <div style="display:inline-block;padding:10px 14px;border-radius:999px;background:#f4f7fa;border:1px solid #e4e8ef;">
+                  <img src="${logoUrl}" alt="QuestHat" width="40" height="40" style="display:block;border-radius:12px;" />
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:18px 28px 28px 28px;">${innerHtml}</td>
+            </tr>
+            <tr>
+              <td style="padding:0 28px 28px 28px;text-align:center;">
+                <div style="height:1px;background:#e5e7eb;margin:0 0 16px 0;"></div>
+                <div style="font-size:12px;line-height:1.6;color:#6b7280;">
+                  QuestHat moderation and safety notifications help keep plans real and the community usable.
+                </div>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+}
+
 function base64Utf8(value: string) {
   const bytes = new TextEncoder().encode(value);
   let binary = "";
@@ -39,6 +76,7 @@ async function sendSmtpEmail({
   subject,
   text,
   html,
+  replyTo,
 }: {
   host: string;
   port: number;
@@ -49,6 +87,7 @@ async function sendSmtpEmail({
   subject: string;
   text: string;
   html: string;
+  replyTo?: string;
 }) {
   const { connect } = await import("cloudflare:sockets");
   const socket = connect({ hostname: host, port }, { secureTransport: port === 465 ? "on" : "starttls" });
@@ -115,7 +154,9 @@ async function sendSmtpEmail({
     const message = [
       `From: ${from}`,
       `To: ${to}`,
+      replyTo ? `Reply-To: ${replyTo}` : null,
       `Subject: =?UTF-8?B?${base64Utf8(subject)}?=`,
+      "X-Mailer: QuestHat",
       "MIME-Version: 1.0",
       `Content-Type: multipart/alternative; boundary="${boundary}"`,
       "",
@@ -131,7 +172,7 @@ async function sendSmtpEmail({
       wrapBase64(html),
       `--${boundary}--`,
       "",
-    ].join("\r\n").replace(/^\./gm, "..");
+    ].filter(Boolean).join("\r\n").replace(/^\./gm, "..");
 
     await writer.write(encoder.encode(`${message}\r\n.\r\n`));
     const accepted = await readResponse();
@@ -188,63 +229,44 @@ function buildReportEmailHtml({
       </td>
     </tr>`;
 
-  return `<!doctype html>
-<html>
-  <body style="margin:0;padding:0;background:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#111827;">
-    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f3f4f6;padding:32px 16px;">
-      <tr>
-        <td align="center">
-          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:680px;background:#ffffff;border:1px solid #e5e7eb;border-radius:24px;overflow:hidden;box-shadow:0 18px 50px rgba(15,23,42,.12);">
-            <tr>
-              <td style="padding:28px 32px 20px 32px;background:linear-gradient(135deg,#0f172a 0%,#111827 55%,#0f766e 100%);color:#ffffff;">
-                <div style="font-size:12px;letter-spacing:.22em;text-transform:uppercase;font-weight:800;opacity:.8;">QuestHat moderation</div>
-                <div style="margin-top:10px;font-size:28px;line-height:1.15;font-weight:900;">New report alert</div>
-                <div style="margin-top:10px;font-size:15px;line-height:1.6;max-width:540px;opacity:.92;">
-                  A new report has been submitted and grouped with other reports on the same target.
-                </div>
-                <div style="margin-top:18px;display:inline-block;padding:8px 12px;border-radius:999px;background:${badgeBg};font-size:13px;font-weight:800;color:#ffffff;">
-                  ${badgeLabel}
-                </div>
-              </td>
-            </tr>
-            <tr>
-              <td style="padding:24px 32px 10px 32px;">
-                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">
-                  <tr>
-                    <td style="padding:0 0 14px 0;">
-                      <div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#6b7280;font-weight:800;">Summary</div>
-                    </td>
-                  </tr>
-                  ${section("Report reference", reportId)}
-                  ${section("Matching reports", String(reportCount))}
-                  ${section("Target", targetLabel)}
-                  ${section("Listing", listingLabel)}
-                  ${section("Host", hostName)}
-                  ${section("Reporter", reporterName)}
-                  ${section("Context", prettyLabel(contextType))}
-                  ${section("Reason", prettyLabel(reasonCode))}
-                  ${section("Severity", prettyLabel(severity))}
-                  ${section("Target key", targetKey)}
-                </table>
-              </td>
-            </tr>
-            <tr>
-              <td style="padding:0 32px 28px 32px;">
-                <div style="border-top:1px solid #e5e7eb;padding-top:22px;">
-                  <div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#6b7280;font-weight:800;margin-bottom:10px;">Details</div>
-                  <div style="border:1px solid #e5e7eb;border-radius:18px;padding:16px 18px;background:#fafafa;">
-                    <div style="font-size:13px;line-height:1.7;color:#111827;white-space:pre-wrap;">${escapeHtml(messageBody || "—")}</div>
-                    <div style="margin-top:14px;font-size:13px;line-height:1.7;color:#111827;white-space:pre-wrap;">${escapeHtml(details || "—")}</div>
-                  </div>
-                </div>
-              </td>
-            </tr>
-          </table>
-        </td>
-      </tr>
-    </table>
-  </body>
-</html>`;
+  return buildEmailShell(`
+    <div style="text-align:center;">
+      <div style="font-size:12px;letter-spacing:.22em;text-transform:uppercase;font-weight:800;color:#6b7280;">QuestHat moderation</div>
+      <div style="margin-top:10px;font-size:28px;line-height:1.15;font-weight:900;color:#111827;">New report alert</div>
+      <div style="margin-top:10px;font-size:15px;line-height:1.6;max-width:540px;color:#4b5563;margin-left:auto;margin-right:auto;">
+        A new report has been submitted and grouped with other reports on the same target.
+      </div>
+      <div style="margin-top:18px;display:inline-block;padding:8px 12px;border-radius:999px;background:${badgeBg};font-size:13px;font-weight:800;color:#ffffff;">
+        ${badgeLabel}
+      </div>
+    </div>
+    <div style="padding-top:24px;">
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">
+        <tr>
+          <td style="padding:0 0 14px 0;">
+            <div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#6b7280;font-weight:800;">Summary</div>
+          </td>
+        </tr>
+        ${section("Report reference", reportId)}
+        ${section("Matching reports", String(reportCount))}
+        ${section("Target", targetLabel)}
+        ${section("Listing", listingLabel)}
+        ${section("Host", hostName)}
+        ${section("Reporter", reporterName)}
+        ${section("Context", prettyLabel(contextType))}
+        ${section("Reason", prettyLabel(reasonCode))}
+        ${section("Severity", prettyLabel(severity))}
+        ${section("Target key", targetKey)}
+      </table>
+      <div style="border-top:1px solid #e5e7eb;padding-top:22px;margin-top:18px;">
+        <div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#6b7280;font-weight:800;margin-bottom:10px;">Details</div>
+        <div style="border:1px solid #e5e7eb;border-radius:18px;padding:16px 18px;background:#fafafa;">
+          <div style="font-size:13px;line-height:1.7;color:#111827;white-space:pre-wrap;">${escapeHtml(messageBody || "—")}</div>
+          <div style="margin-top:14px;font-size:13px;line-height:1.7;color:#111827;white-space:pre-wrap;">${escapeHtml(details || "—")}</div>
+        </div>
+      </div>
+    </div>
+  `, `${process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL || "https://questhat.com"}`.replace(/\/$/, "") + "/questhat-logo.png");
 }
 
 export async function POST(req: Request) {
@@ -255,6 +277,7 @@ export async function POST(req: Request) {
   const smtpUser = process.env.SMTP_USER;
   const smtpPassword = process.env.SMTP_PASSWORD;
   const smtpFrom = process.env.SMTP_FROM || "QuestHat Moderation <alerts@questhat.com>";
+  const smtpReplyTo = process.env.SMTP_REPLY_TO || "support@questhat.com";
   const recipients = (process.env.MODERATION_ALERT_RECIPIENTS || "reports@questhat.com")
     .split(",")
     .map((s) => s.trim())
@@ -382,6 +405,7 @@ export async function POST(req: Request) {
         subject,
         text: bodyText,
         html: bodyHtml,
+        replyTo: smtpReplyTo,
       });
     }
   } catch (sendError) {

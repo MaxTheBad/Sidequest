@@ -10,6 +10,7 @@ import { useUsernameAvailability } from "@/lib/use-username-availability";
 import { normalizeUsername } from "@/lib/username";
 import { recordSecurityAudit } from "@/lib/security-audit";
 import { AppIcon, type AppIconName } from "@/components/app-icons";
+import { ageFromBirthDate, GENDER_IDENTITY_OPTIONS } from "@/lib/people-discovery";
 
 type Tab = "profile" | "account" | "preferences" | "notifications" | "friends" | "blocked";
 type NotificationPreferences = {
@@ -69,6 +70,8 @@ export default function SettingsPage() {
   const [friendsVisibility, setFriendsVisibility] = useState<"public" | "private">("public");
   const [showLocation, setShowLocation] = useState(false);
   const [dob, setDob] = useState("");
+  const [genderIdentity, setGenderIdentity] = useState("");
+  const [peopleDiscoveryEnabled, setPeopleDiscoveryEnabled] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState("");
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreviewUrl, setPhotoPreviewUrl] = useState("");
@@ -113,9 +116,12 @@ export default function SettingsPage() {
         city?: string;
         region?: string;
         bio?: string;
+        dob?: string;
         showLocation?: boolean;
         friendsVisibility?: "public" | "private";
         usernameChangedAt?: string | null;
+        genderIdentity?: string;
+        peopleDiscoveryEnabled?: boolean;
       };
     } catch {
       return null;
@@ -159,12 +165,17 @@ export default function SettingsPage() {
 
       const { data: profile } = await supabase
         .from("profiles")
-        .select("display_name,username,username_changed_at,city,region,country_code,bio,friends_visibility,show_location,radius_km,avatar_url,avatar_source_url,deactivated_at")
+        .select("display_name,username,username_changed_at,city,region,country_code,bio,friends_visibility,show_location,radius_km,avatar_url,avatar_source_url,deactivated_at,people_discovery_enabled")
         .eq("id", uid)
         .maybeSingle();
 
       const { data: authUser } = await supabase.auth.getUser();
       const authMeta = (authUser.user?.user_metadata || {}) as Record<string, unknown>;
+      const { data: discoverySettings } = await supabase
+        .from("people_discovery_settings")
+        .select("birth_date,gender_identity")
+        .eq("user_id", uid)
+        .maybeSingle();
 
       setCity(profile?.city ?? (typeof authMeta.city === "string" ? authMeta.city : ""));
       setRegion(profile?.region ?? (typeof authMeta.region === "string" ? authMeta.region : ""));
@@ -184,7 +195,11 @@ export default function SettingsPage() {
         await supabase.from("profiles").upsert({ id: uid, avatar_url: metaAvatar });
       }
       setMarketingOptIn(Boolean(authMeta.marketing_opt_in));
-      if (typeof authMeta.dob === "string") setDob(authMeta.dob);
+      const resolvedDob = discoverySettings?.birth_date || (typeof authMeta.dob === "string" ? authMeta.dob : "");
+      const resolvedGender = discoverySettings?.gender_identity || (typeof authMeta.gender_identity === "string" ? authMeta.gender_identity : "");
+      setDob(resolvedDob);
+      setGenderIdentity(resolvedGender);
+      setPeopleDiscoveryEnabled(Boolean(profile?.people_discovery_enabled));
       const metaCountry = typeof authMeta.country_code === "string" ? authMeta.country_code : "";
       const browserCountry =
         typeof navigator !== "undefined" ? (navigator.language.split("-")[1] || "US").toUpperCase() : "US";
@@ -197,8 +212,11 @@ export default function SettingsPage() {
         city: profile?.city ?? (typeof authMeta.city === "string" ? authMeta.city : ""),
         region: profile?.region ?? (typeof authMeta.region === "string" ? authMeta.region : ""),
         bio: profile?.bio ?? (typeof authMeta.bio === "string" ? authMeta.bio : ""),
+        dob: resolvedDob,
         showLocation: typeof profile?.show_location === "boolean" ? profile.show_location : Boolean(authMeta.show_location),
         friendsVisibility: ((profile?.friends_visibility as "public" | "private") || "public"),
+        genderIdentity: resolvedGender,
+        peopleDiscoveryEnabled: Boolean(profile?.people_discovery_enabled),
         usernameChangedAt: profile?.username_changed_at || null,
       });
 
@@ -337,8 +355,11 @@ export default function SettingsPage() {
       city: "",
       region: "",
       bio: "",
+      dob: "",
       showLocation: false,
       friendsVisibility: "public" as const,
+      genderIdentity: "",
+      peopleDiscoveryEnabled: false,
       usernameChangedAt: null,
     };
     const changedFields = [
@@ -347,8 +368,11 @@ export default function SettingsPage() {
       initial.city !== city ? "city" : null,
       initial.region !== region ? "state/region" : null,
       initial.bio !== bio ? "bio" : null,
+      initial.dob !== dob ? "date of birth" : null,
       initial.showLocation !== showLocation ? "location visibility" : null,
       initial.friendsVisibility !== friendsVisibility ? "friends visibility" : null,
+      initial.genderIdentity !== genderIdentity ? "gender" : null,
+      initial.peopleDiscoveryEnabled !== peopleDiscoveryEnabled ? "people discovery" : null,
     ].filter(Boolean) as string[];
     const usernameChanged = normalizeUsername(username) !== normalizeUsername(initial.username || "");
     const usernameChangedAtMs = initial.usernameChangedAt ? new Date(initial.usernameChangedAt).getTime() : 0;
@@ -359,6 +383,10 @@ export default function SettingsPage() {
       Date.now() - usernameChangedAtMs < 24 * 60 * 60 * 1000;
     let usernameBlocked = usernameCooldownActive;
     const nextUsernameChangedAt = usernameChanged && !usernameCooldownActive ? new Date().toISOString() : initial.usernameChangedAt || null;
+
+    if (peopleDiscoveryEnabled && (ageFromBirthDate(dob) ?? 0) < 18) {
+      return setStatus("People discovery is available to adults 18 and older. Turn it off to save your other changes.");
+    }
 
     const saveBaseProfile = async () =>
       supabase
@@ -403,6 +431,28 @@ export default function SettingsPage() {
     }
 
     if (error) return setStatus(error.message);
+    let latitude: number | null = null;
+    let longitude: number | null = null;
+    if (peopleDiscoveryEnabled) {
+      if (!navigator.geolocation) return setStatus("This browser cannot provide a discovery location.");
+      try {
+        const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: false, timeout: 12000, maximumAge: 300000 });
+        });
+        latitude = position.coords.latitude;
+        longitude = position.coords.longitude;
+      } catch {
+        return setStatus("Allow location once to join People discovery. QuestHat shows rounded distance, never your exact pin.");
+      }
+    }
+    const { error: discoveryError } = await supabase.rpc("update_people_discovery_settings", {
+      p_enabled: peopleDiscoveryEnabled,
+      p_birth_date: dob || null,
+      p_gender_identity: genderIdentity || null,
+      p_latitude: latitude,
+      p_longitude: longitude,
+    });
+    if (discoveryError) return setStatus(discoveryError.message);
     const savedUsername = usernameBlocked ? initial.username || username : username;
     const savedActualName = usernameBlocked ? initial.actualName || savedUsername : actualName;
 
@@ -416,6 +466,8 @@ export default function SettingsPage() {
         bio: bio || null,
         show_location: showLocation,
         avatar_url: avatarUrl || null,
+        gender_identity: genderIdentity || null,
+        people_discovery_enabled: peopleDiscoveryEnabled,
       },
     });
 
@@ -439,8 +491,11 @@ export default function SettingsPage() {
       city,
       region,
       bio,
+      dob,
       showLocation,
       friendsVisibility,
+      genderIdentity,
+      peopleDiscoveryEnabled,
       usernameChangedAt: usernameBlocked ? initial.usernameChangedAt || null : nextUsernameChangedAt,
     });
   }
@@ -455,12 +510,15 @@ export default function SettingsPage() {
       city,
       region,
       bio,
+      dob,
       showLocation,
       friendsVisibility,
+      genderIdentity,
+      peopleDiscoveryEnabled,
       usernameChangedAt: initialProfileSnapshot?.usernameChangedAt || null,
     });
     return current !== initialProfileSnapshotRef.current || normalizedCurrentUsername !== normalizedInitialUsername;
-  }, [actualName, username, countryCode, city, region, bio, showLocation, friendsVisibility, initialProfileSnapshot]);
+  }, [actualName, username, countryCode, city, region, bio, dob, showLocation, friendsVisibility, genderIdentity, peopleDiscoveryEnabled, initialProfileSnapshot]);
 
   function resetProfileForm() {
     if (!initialProfileSnapshot) return;
@@ -470,8 +528,11 @@ export default function SettingsPage() {
     setCity(initialProfileSnapshot.city || "");
     setRegion(initialProfileSnapshot.region || "");
     setBio(initialProfileSnapshot.bio || "");
+    setDob(initialProfileSnapshot.dob || "");
     setShowLocation(Boolean(initialProfileSnapshot.showLocation));
     setFriendsVisibility(initialProfileSnapshot.friendsVisibility || "public");
+    setGenderIdentity(initialProfileSnapshot.genderIdentity || "");
+    setPeopleDiscoveryEnabled(Boolean(initialProfileSnapshot.peopleDiscoveryEnabled));
     setStatus("");
   }
 
@@ -984,6 +1045,13 @@ export default function SettingsPage() {
                 <label className="text-sm font-medium">Date of birth</label>
                 <input type="date" className="border rounded px-3 py-2" value={dob} onChange={(e) => setDob(e.target.value)} />
 
+                <label className="text-sm font-medium">Gender (optional)</label>
+                <select className="border rounded px-3 py-2" value={genderIdentity} onChange={(e) => setGenderIdentity(e.target.value)}>
+                  <option value="">Not provided</option>
+                  {GENDER_IDENTITY_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+                </select>
+                <p className="text-xs text-gray-500">Used only for filters when you opt into People discovery. “Prefer not to say” is always available.</p>
+
                 <div className="grid gap-2 sm:grid-cols-2 sm:items-end">
                   <div className="grid gap-1">
                     <label className="text-sm font-medium">Country</label>
@@ -1015,6 +1083,11 @@ export default function SettingsPage() {
                 <label className="flex items-start gap-2 text-sm">
                   <input type="checkbox" checked={showLocation} onChange={(e) => setShowLocation(e.target.checked)} />
                   <span>Show location on profile. Hidden by default. When shown, display city, region/state, and country only.</span>
+                </label>
+
+                <label className="flex items-start gap-3 rounded-2xl border border-cyan-200 bg-cyan-50 p-4 text-sm text-slate-900">
+                  <input className="mt-1" type="checkbox" checked={peopleDiscoveryEnabled} onChange={(e) => setPeopleDiscoveryEnabled(e.target.checked)} />
+                  <span><strong>Show me in Find people</strong><br /><span className="text-slate-600">Adults can find and message you or invite you to a quest. QuestHat displays rounded distance, never your exact location. This is off by default and you can leave anytime.</span></span>
                 </label>
 
                 <label className="text-sm font-medium">Friends list visibility</label>

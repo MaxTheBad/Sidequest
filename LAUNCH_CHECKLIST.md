@@ -17,6 +17,7 @@ Use this before promoting a deployment from preview/staging to production.
 - `SMTP_USER`
 - `SMTP_PASSWORD`
 - `SMTP_FROM`
+- `SMTP_REPLY_TO` (recommended)
 - `MODERATION_ALERT_RECIPIENTS`
 
 For Supabase Edge Functions, also confirm:
@@ -24,6 +25,14 @@ For Supabase Edge Functions, also confirm:
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `MODERATION_ALERT_RECIPIENTS`
+- `SMTP_REPLY_TO` (recommended)
+
+## Email Branding And Deliverability
+
+- Use a branded sender address on the same domain as your SMTP authentication, such as `no-reply@questhat.com`.
+- Make sure SPF, DKIM, and DMARC are published for the sending domain and aligned with the `From` address.
+- Use the square `questhat-logo.png` in the message body; it is already the right 1:1 shape for inbox branding.
+- If you want BIMI later, you will also need a BIMI-compliant SVG and, for most inboxes, a Verified Mark Certificate.
 
 ## Database And Storage
 

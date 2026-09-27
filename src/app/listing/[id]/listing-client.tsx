@@ -10,6 +10,7 @@ import { resolveCanonicalCategory } from "@/lib/category-suggestions.js";
 import { AppIcon } from "@/components/app-icons";
 import { formatReportReference } from "@/lib/reporting";
 import { recordSecurityAudit } from "@/lib/security-audit";
+import { GENDER_IDENTITY_OPTIONS } from "@/lib/people-discovery";
 
 type Listing = {
   id: string;
@@ -51,6 +52,18 @@ type ListingComment = {
   profiles?: MemberProfile[] | MemberProfile | null;
 };
 
+type PeopleDiscoveryResult = {
+  id: string;
+  display_name: string | null;
+  username: string | null;
+  avatar_url: string | null;
+  bio: string | null;
+  gender_identity: string | null;
+  age: number;
+  distance_km: number;
+  shared_interests: number;
+};
+
 export default function ListingPage() {
   const supabase = getSupabaseClient();
   const router = useRouter();
@@ -89,6 +102,16 @@ export default function ListingPage() {
   const [submittingReport, setSubmittingReport] = useState(false);
   const [reportFeedback, setReportFeedback] = useState("");
   const [renderedAt] = useState(() => Date.now());
+  const [showPeopleFinder, setShowPeopleFinder] = useState(false);
+  const [peopleResults, setPeopleResults] = useState<PeopleDiscoveryResult[]>([]);
+  const [peopleLoading, setPeopleLoading] = useState(false);
+  const [peopleSelectedIds, setPeopleSelectedIds] = useState<string[]>([]);
+  const [peopleMessage, setPeopleMessage] = useState("");
+  const [peopleMinAge, setPeopleMinAge] = useState(18);
+  const [peopleMaxAge, setPeopleMaxAge] = useState(100);
+  const [peopleMaxDistanceKm, setPeopleMaxDistanceKm] = useState(40);
+  const [peopleGenderFilters, setPeopleGenderFilters] = useState<string[]>([]);
+  const [peopleSending, setPeopleSending] = useState(false);
 
   function sanitizeLocationLabel(input?: string | null) {
     const raw = (input || "").trim();
@@ -123,6 +146,53 @@ export default function ListingPage() {
     if (!listing) return null;
     const profile = Array.isArray(listing.profiles) ? listing.profiles[0] : listing.profiles;
     return profile?.display_name || listing.creator_id || null;
+  }
+
+  async function loadPeople() {
+    if (!supabase || !listing || !isOwner) return;
+    setPeopleLoading(true);
+    setStatus("");
+    const { data, error } = await supabase.rpc("find_people", {
+      p_min_age: peopleMinAge,
+      p_max_age: peopleMaxAge,
+      p_gender_identities: peopleGenderFilters.length ? peopleGenderFilters : null,
+      p_max_distance_km: peopleMaxDistanceKm,
+      p_limit: 50,
+      p_offset: 0,
+    });
+    setPeopleLoading(false);
+    if (error) {
+      setStatus(error.message);
+      return;
+    }
+    setPeopleResults((data || []) as PeopleDiscoveryResult[]);
+  }
+
+  async function sendPeopleInvitations() {
+    if (!supabase || !listing || !peopleSelectedIds.length || peopleSending) return;
+    setPeopleSending(true);
+    const results = await Promise.all(peopleSelectedIds.map((recipientId) => supabase.rpc("send_quest_invitation", {
+      p_quest_id: listing.id,
+      p_recipient_id: recipientId,
+      p_message: peopleMessage.trim() || null,
+    })));
+    setPeopleSending(false);
+    const failed = results.filter((result) => result.error);
+    const sent = results.length - failed.length;
+    setStatus(failed.length ? `${sent} invitation${sent === 1 ? "" : "s"} sent. ${failed[0].error?.message || "Some could not be sent."}` : `${sent} invitation${sent === 1 ? "" : "s"} sent.`);
+    if (sent) setPeopleSelectedIds([]);
+  }
+
+  async function messageDiscoveredPerson(person: PeopleDiscoveryResult) {
+    if (!supabase || !listing || !userId) return;
+    const body = peopleMessage.trim();
+    if (!body) return setStatus("Write a message first.");
+    const { error } = await supabase.from("messages").insert({
+      quest_id: listing.id,
+      sender_id: userId,
+      body: `[PRIVATE to=${person.id}] ${body}`,
+    });
+    setStatus(error ? error.message : `Message sent to ${person.display_name || person.username || "this person"}.`);
   }
 
   function getReportedUserRole(targetUserId: string | null) {
@@ -1155,6 +1225,55 @@ export default function ListingPage() {
                 <p className="text-xs text-gray-500">No members yet.</p>
               )}
             </div>
+
+            {isOwner && (
+              <div className="rounded-2xl border border-cyan-200 bg-cyan-50/70 p-4 quest-detail-section">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-semibold text-slate-950">Find people for this quest</p>
+                    <p className="mt-1 text-xs text-slate-600">Browse adults who opted in, then message them or send a quest invitation. Distances are rounded and exact locations stay private.</p>
+                  </div>
+                  <button type="button" className="shrink-0 rounded-full bg-[#9bd8e4] px-4 py-2 text-sm font-bold text-[#082f3a]" onClick={() => { setShowPeopleFinder((value) => !value); if (!showPeopleFinder && !peopleResults.length) void loadPeople(); }}>
+                    {showPeopleFinder ? "Close" : "Find people"}
+                  </button>
+                </div>
+
+                {showPeopleFinder && (
+                  <div className="mt-4 space-y-3 border-t border-cyan-200 pt-4">
+                    <div className="grid gap-2 sm:grid-cols-3">
+                      <label className="grid gap-1 text-xs font-medium">Age range<span className="flex items-center gap-1"><input aria-label="Minimum age" type="number" min={18} max={100} className="w-full rounded-lg border bg-white px-2 py-2" value={peopleMinAge} onChange={(e) => setPeopleMinAge(Number(e.target.value))} /><span>to</span><input aria-label="Maximum age" type="number" min={18} max={100} className="w-full rounded-lg border bg-white px-2 py-2" value={peopleMaxAge} onChange={(e) => setPeopleMaxAge(Number(e.target.value))} /></span></label>
+                      <label className="grid gap-1 text-xs font-medium">Within<select className="rounded-lg border bg-white px-2 py-2" value={peopleMaxDistanceKm} onChange={(e) => setPeopleMaxDistanceKm(Number(e.target.value))}><option value={8}>5 miles</option><option value={16}>10 miles</option><option value={40}>25 miles</option><option value={80}>50 miles</option><option value={160}>100 miles</option></select></label>
+                      <button type="button" className="self-end rounded-lg border bg-white px-3 py-2 text-sm font-semibold" onClick={() => void loadPeople()}>Apply filters</button>
+                    </div>
+                    <div>
+                      <p className="mb-2 text-xs font-medium">Gender (optional filter)</p>
+                      <div className="flex max-h-28 flex-wrap gap-1.5 overflow-y-auto">
+                        {GENDER_IDENTITY_OPTIONS.map((option) => {
+                          const selected = peopleGenderFilters.includes(option);
+                          return <button key={option} type="button" className={`rounded-full border px-2.5 py-1 text-xs ${selected ? "border-cyan-700 bg-cyan-700 text-white" : "bg-white text-slate-700"}`} onClick={() => setPeopleGenderFilters((current) => selected ? current.filter((value) => value !== option) : [...current, option])}>{option}</button>;
+                        })}
+                      </div>
+                    </div>
+                    <textarea className="min-h-20 w-full rounded-xl border bg-white px-3 py-2 text-sm" maxLength={500} placeholder="Add one message for invitations, or write a message before tapping Message…" value={peopleMessage} onChange={(e) => setPeopleMessage(e.target.value)} />
+                    {peopleLoading ? <p className="text-sm text-slate-600">Finding people…</p> : peopleResults.length ? (
+                      <div className="grid max-h-[28rem] gap-2 overflow-y-auto pr-1">
+                        {peopleResults.map((person) => {
+                          const selected = peopleSelectedIds.includes(person.id);
+                          return <div key={person.id} className={`rounded-xl border p-3 ${selected ? "border-cyan-700 bg-white" : "border-slate-200 bg-white/80"}`}>
+                            <div className="flex items-start gap-3">
+                              {person.avatar_url ? <img src={person.avatar_url} alt="" className="h-11 w-11 rounded-full border object-cover" /> : <div className="h-11 w-11 rounded-full border bg-slate-100" />}
+                              <div className="min-w-0 flex-1"><Link href={`/profile/${person.id}`} className="font-semibold underline">{person.display_name || person.username || "QuestHat member"}</Link><p className="text-xs text-slate-600">Age {person.age} · {(person.distance_km * 0.621371).toFixed(person.distance_km < 16 ? 1 : 0)} mi away{person.shared_interests ? ` · ${person.shared_interests} shared interest${person.shared_interests === 1 ? "" : "s"}` : ""}</p>{person.bio ? <p className="mt-1 line-clamp-2 text-sm text-slate-700">{person.bio}</p> : null}</div>
+                            </div>
+                            <div className="mt-2 flex gap-2"><button type="button" className="rounded-lg border bg-white px-3 py-1.5 text-xs font-semibold" onClick={() => void messageDiscoveredPerson(person)}>Message</button><button type="button" className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${selected ? "bg-cyan-700 text-white" : "bg-slate-900 text-white"}`} onClick={() => setPeopleSelectedIds((current) => selected ? current.filter((id) => id !== person.id) : [...current, person.id])}>{selected ? "Selected" : "Select to invite"}</button></div>
+                          </div>;
+                        })}
+                      </div>
+                    ) : <p className="rounded-xl border border-dashed bg-white/70 p-4 text-sm text-slate-600">No opted-in people match these filters yet. Try a wider distance or age range.</p>}
+                    <button type="button" disabled={!peopleSelectedIds.length || peopleSending} className="w-full rounded-xl bg-[#0f7486] px-4 py-3 font-bold text-white disabled:opacity-40" onClick={() => void sendPeopleInvitations()}>{peopleSending ? "Sending…" : `Invite ${peopleSelectedIds.length || "selected"}`}</button>
+                  </div>
+                )}
+              </div>
+            )}
 
             {isManager && (
               <div className="rounded-xl border bg-gray-50 p-3">

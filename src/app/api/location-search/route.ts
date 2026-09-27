@@ -46,6 +46,7 @@ const resultCache = new Map<string, { expiresAt: number; suggestions: LocationSu
 type LocationSuggestion = {
   id: string | null;
   label: string;
+  address: string;
   publicLabel: string;
   lat: number | null;
   lon: number | null;
@@ -83,6 +84,7 @@ function normalizePlaces(results: ApplePlace[], fallbackCountryCode: string) {
     suggestions.push({
       id: cleanString(place.id, 300) || null,
       label,
+      address: address || label,
       publicLabel: publicLabel(place, fallbackCountryCode),
       lat: Number.isFinite(latitude) ? latitude : null,
       lon: Number.isFinite(longitude) ? longitude : null,

@@ -385,6 +385,8 @@ Deno.serve(async (req) => {
                 ? "join_requests"
           : discoveryKind === "liked_category"
                 ? "liked_categories"
+                : discoveryKind === "quest_schedule_changed"
+                  ? "join_updates"
                 : discoveryKind === "quest_start_reminder" || discoveryKind === "host_location_reminder"
                   ? "quest_reminders"
                 : null;
