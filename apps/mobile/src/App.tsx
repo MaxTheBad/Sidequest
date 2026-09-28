@@ -92,7 +92,10 @@ Sentry.init({
 const posthogClient = env.posthogKey
   ? new PostHog(env.posthogKey, {
       host: "https://us.i.posthog.com",
+      defaultOptIn: false,
       captureAppLifecycleEvents: true,
+      capturePushNotificationOpened: false,
+      capturePushNotificationSubscriptions: false,
       enableSessionReplay: false,
     })
   : null;
@@ -1152,6 +1155,23 @@ function QuestHatApp() {
   const [topBarHidden, setTopBarHidden] = useState(false);
   const [bottomNavHidden, setBottomNavHidden] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
+  const [analyticsEnabled, setAnalyticsEnabled] = useState(false);
+
+  useEffect(() => {
+    void AsyncStorage.getItem("questhat_optional_analytics").then((saved) => {
+      const enabled = saved === "granted";
+      setAnalyticsEnabled(enabled);
+      if (enabled) void posthogClient?.optIn();
+      else void posthogClient?.optOut();
+    });
+  }, []);
+
+  async function setAnalyticsPreference(enabled: boolean) {
+    setAnalyticsEnabled(enabled);
+    await AsyncStorage.setItem("questhat_optional_analytics", enabled ? "granted" : "denied");
+    if (enabled) await posthogClient?.optIn();
+    else await posthogClient?.optOut();
+  }
 
   useEffect(() => {
     if (userId) {
@@ -8748,6 +8768,12 @@ function privateThreadIncludesUsers(
                     <Text style={styles.settingsControlSubtitle}>Only safe city-level details are shown.</Text>
                   </View>
                   <Switch value={settingsShowLocation} onValueChange={setSettingsShowLocation} trackColor={{ false: "#343846", true: "#6daec2" }} thumbColor="#f8fafc" />
+                </View>
+                <View style={styles.settingsDivider} />
+                <View style={styles.settingsControlRow}>
+                  <View style={styles.settingsControlIcon}><Ionicons name="analytics-outline" size={18} color="#9bc8d2" /></View>
+                  <View style={styles.settingsControlCopy}><Text style={styles.settingsControlTitle}>Optional analytics</Text><Text style={styles.settingsControlSubtitle}>Help improve QuestHat. No ads or session recordings.</Text></View>
+                  <Switch value={analyticsEnabled} onValueChange={(next) => void setAnalyticsPreference(next)} trackColor={{ false: "#343846", true: "#6daec2" }} thumbColor="#f8fafc" />
                 </View>
                 <View style={styles.settingsDivider} />
                 <View style={styles.settingsControlRow}>

@@ -11,7 +11,7 @@ export default function PrivacyPage() {
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-800">Privacy notice</p>
           <h1 className="mt-1 text-2xl font-bold">QuestHat Privacy Policy</h1>
-          <p className="mt-2 text-sm text-gray-700">Effective and last updated August 21, 2026.</p>
+          <p className="mt-2 text-sm text-gray-700">Effective and last updated September 27, 2026.</p>
         </div>
 
         <p className={bodyClass}>
@@ -27,10 +27,20 @@ export default function PrivacyPage() {
             <li><strong>Profile and social information:</strong> name, username, profile photo, bio, city or region, friend relationships, blocks, and the visibility choices you make.</li>
             <li><strong>Content and communications:</strong> quests, comments, direct messages, join requests, reports, photos, videos, audio, and other content you submit.</li>
             <li><strong>Meetup and location information:</strong> city or region, meeting links, exact meetup locations and optional meeting instructions you submit, and event check-in status and time. Meeting instructions use the same visibility control as the exact address. When you grant location permission, precise device location is ordinarily processed and cached on your device to calculate distance and apply location-based safety controls rather than stored in your QuestHat profile. When you check in, your current coordinates are transmitted securely and used transiently to verify that you are within the permitted radius; we store the check-in status and time, not the coordinates submitted for that verification. Exact meetup locations and protected meeting instructions are stored and limited according to the host&apos;s selected access controls.</li>
-            <li><strong>Device and usage information:</strong> IP address, browser or user-agent, device and operating-system type, app version, timestamps, security events, local preferences, crash or diagnostic information, and interactions needed to operate and protect the service.</li>
+            <li><strong>Device and usage information:</strong> IP address, browser or user-agent, device and operating-system type, app version, timestamps, security events, local preferences, crash or diagnostic information, and privacy-limited product interactions.</li>
             <li><strong>Notifications:</strong> push token, notification preferences, delivery information, and Live Activity token or state when you enable those features.</li>
             <li><strong>Support and safety:</strong> correspondence, reports, evidence you submit, moderation decisions, and records used to investigate abuse, fraud, or safety incidents.</li>
           </ul>
+        </div>
+
+        <div className={sectionClass}>
+          <h2 className="font-semibold">Optional analytics and diagnostics</h2>
+          <p className={bodyClass}>
+            QuestHat uses PostHog to understand high-level product use, such as screens viewed and whether a quest was created or a join request was sent. We use Sentry to diagnose crashes and reliability problems. We do not send message text, quest titles, addresses, search terms, precise location, email address, or session recordings to these tools. We do not use this information for targeted advertising, cross-app tracking, or sale of personal information.
+          </p>
+          <p className={bodyClass}>
+            Optional product analytics is off until you choose to enable it. You can change that choice in QuestHat Settings or in the analytics notice on this website. Essential security and crash diagnostics may still be processed to keep the service reliable and safe.
+          </p>
         </div>
 
         <div className={sectionClass}>
@@ -86,7 +96,7 @@ export default function PrivacyPage() {
           <ul className={listClass}>
             <li><strong>Other users:</strong> according to the feature and privacy settings you select. Private messages and restricted meetup details are shown only to authorized participants. Approved quest participants may see that you checked in and when, but they do not receive the precise coordinates used to verify your arrival.</li>
             <li><strong>At your direction:</strong> with Meta or X when you expressly choose to publish or perform another disclosed action.</li>
-            <li><strong>Service providers:</strong> with vendors that provide authentication, database hosting and storage, email, notifications, maps and geocoding, media delivery, bot protection, security, and app distribution. They may use data only to provide services to us and must protect it consistently with this policy and applicable platform rules.</li>
+            <li><strong>Service providers:</strong> with vendors that provide authentication, database hosting and storage, email, notifications, maps and geocoding, media delivery, bot protection, product analytics, crash diagnostics, security, and app distribution. They may use data only to provide services to us and must protect it consistently with this policy and applicable platform rules.</li>
             <li><strong>Legal and safety:</strong> when reasonably necessary to comply with law, protect rights or safety, investigate abuse, or enforce our agreements.</li>
             <li><strong>Business changes:</strong> as part of a merger, financing, acquisition, or sale, subject to appropriate confidentiality and notice where required.</li>
           </ul>
