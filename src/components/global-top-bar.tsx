@@ -136,6 +136,7 @@ export default function GlobalTopBar() {
           <span className="font-semibold">{APP_NAME}</span>
         </Link>
         <div className="flex items-center gap-2">
+          <Link href="/download" className="nav-download-link" aria-label="Download the QuestHat app">Download app</Link>
           <button className="icon-control relative" aria-label="Notifications" onClick={() => navigate("/notifications")}><AppIcon name="bell" className="h-5 w-5" />{notificationCount > 0 && <span className="nav-badge">{notificationCount > 9 ? "9+" : notificationCount}</span>}</button>
           {!userId ? <button className="nav-control" onClick={openLogin}>Join / Log in</button> : null}
         </div>

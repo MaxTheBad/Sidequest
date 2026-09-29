@@ -756,6 +756,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .rail-account { min-height: 60px; display: flex; align-items: center; justify-content: center; gap: 10px; border-top: 1px solid var(--border); padding-top: 14px; }
 .rail-sign { color: var(--foreground); border: 1px solid var(--border); border-radius: 999px; padding: 7px 10px; font-size: 11px; font-weight: 700; white-space: nowrap; }
 .icon-control { display:grid; place-items:center; width:42px; height:42px; border-radius:999px; color:var(--foreground); background:var(--muted); }
+.nav-download-link { display:inline-flex; align-items:center; justify-content:center; min-height:34px; padding:0 11px; border:1px solid color-mix(in srgb, var(--accent-primary) 30%, var(--border)); border-radius:999px; color:var(--accent-primary); background:color-mix(in srgb, var(--accent-soft) 64%, transparent); font-size:12px; font-weight:800; letter-spacing:-.01em; white-space:nowrap; }
+.nav-download-link:hover { color:#fff; background:var(--accent-primary); border-color:var(--accent-primary); transform:none; }
 .nav-badge { position:absolute; top:-7px; right:-9px; display:grid; place-items:center; min-width:18px; height:18px; padding:0 4px; border:2px solid var(--surface-elevated); border-radius:99px; color:#fff; background:var(--accent-primary); font-size:9px; font-weight:800; }
 
 @media (min-width:1280px) {
