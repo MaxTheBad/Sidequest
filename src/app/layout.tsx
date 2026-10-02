@@ -14,7 +14,7 @@ import QuestHatPostHogProvider from "@/components/posthog-provider";
 import { APP_NAME } from "@/lib/app-brand";
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://questhat.com";
-const defaultShareImage = "/images/questhat-social-preview-v1.jpg";
+const defaultShareImage = "/images/questhat-social-default.jpg?v=20261002";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",

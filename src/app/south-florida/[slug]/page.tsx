@@ -14,7 +14,7 @@ export function generateMetadata({ params }: { params: Promise<{ slug: string }>
     const guide = getLocalGuide(slug);
     if (!guide) return {};
     const path = `/south-florida/${guide.slug}`;
-    const image = `${siteUrl}/images/questhat-social-preview-v1.jpg`;
+    const image = `${siteUrl}/images/questhat-social-default.jpg?v=20261002`;
     return {
       title: guide.title,
       description: guide.description,
