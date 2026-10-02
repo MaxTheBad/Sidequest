@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
+export const runtime = "edge";
+
 const APP_STORE_URL = "https://apps.apple.com/us/app/questhat/id6787166004";
 const GOOGLE_PLAY_URL = "https://play.google.com/store/apps/details?id=com.questhat.app";
 
