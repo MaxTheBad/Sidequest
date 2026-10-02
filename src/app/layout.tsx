@@ -14,6 +14,7 @@ import QuestHatPostHogProvider from "@/components/posthog-provider";
 import { APP_NAME } from "@/lib/app-brand";
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://questhat.com";
+const defaultShareImage = "/images/questhat-social-default.jpg";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -28,7 +29,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: `${APP_NAME} | Find local people to do real plans with`,
-  description: "Quest Hat helps people discover nearby activities, start group quests, and meet others nearby.",
+  description: "QuestHat helps people create local activities with a real time and place, then connect with people who want to join.",
   applicationName: APP_NAME,
   alternates: {
     canonical: "/",
@@ -38,21 +39,21 @@ export const metadata: Metadata = {
     url: "/",
     siteName: APP_NAME,
     title: `${APP_NAME} | Find local people to do real plans with`,
-    description: "Discover nearby activities, start group quests, and meet people nearby.",
+    description: "Don’t wait to be invited. Host a local activity with QuestHat.",
     images: [
       {
-        url: "/questhat-logo.png",
+        url: defaultShareImage,
         width: 1200,
         height: 630,
-        alt: APP_NAME,
+        alt: "QuestHat — Don’t wait to be invited. Host it.",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
     title: `${APP_NAME} | Find local people to do real plans with`,
-    description: "Discover nearby activities, start group quests, and meet people nearby.",
-    images: ["/questhat-logo.png"],
+    description: "Don’t wait to be invited. Host a local activity with QuestHat.",
+    images: [{ url: defaultShareImage, alt: "QuestHat — Don’t wait to be invited. Host it." }],
   },
   manifest: "/site.webmanifest",
   icons: {
@@ -113,6 +114,9 @@ export default function RootLayout({
                 <span>QuestHat</span>
               </Link>
               <div className="flex flex-wrap items-center justify-center gap-4">
+                <Link href="/south-florida/broward-county" className="hover:text-slate-800 underline-offset-4 hover:underline">
+                  South Florida guides
+                </Link>
                 <Link href="/terms" className="hover:text-slate-800 underline-offset-4 hover:underline">
                   Terms
                 </Link>
@@ -131,6 +135,12 @@ export default function RootLayout({
                 <Link href="/delete-account" className="hover:text-slate-800 underline-offset-4 hover:underline">
                   Delete data
                 </Link>
+              </div>
+              <div className="flex items-center gap-3" aria-label="QuestHat social profiles">
+                <a href="https://www.tiktok.com/@questhatapp" target="_blank" rel="noreferrer" className="hover:text-slate-800 underline-offset-4 hover:underline">TikTok</a>
+                <a href="https://www.instagram.com/questhatapp" target="_blank" rel="noreferrer" className="hover:text-slate-800 underline-offset-4 hover:underline">Instagram</a>
+                <a href="https://www.facebook.com/1263520396843577" target="_blank" rel="noreferrer" className="hover:text-slate-800 underline-offset-4 hover:underline">Facebook</a>
+                <a href="https://x.com/questhatapp" target="_blank" rel="noreferrer" className="hover:text-slate-800 underline-offset-4 hover:underline">X</a>
               </div>
             </div>
           </div>
