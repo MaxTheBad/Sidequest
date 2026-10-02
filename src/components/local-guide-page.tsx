@@ -27,7 +27,7 @@ export default function LocalGuidePage({ guide, related }: { guide: LocalGuide; 
             <p className="mt-5 max-w-2xl text-lg leading-relaxed text-slate-200">{guide.intro}</p>
             <div className="mt-7 flex flex-wrap gap-3">
               <Link href="/create" className="rounded-full bg-[#73d7e8] px-5 py-3 text-sm font-extrabold text-[#06232d] transition hover:bg-[#a6edf5]">Host a {guide.name} activity</Link>
-              <Link href="/download" className="rounded-full border border-white/30 px-5 py-3 text-sm font-extrabold text-white transition hover:bg-white/10">Download QuestHat</Link>
+              <Link href="/app" className="rounded-full border border-white/30 px-5 py-3 text-sm font-extrabold text-white transition hover:bg-white/10">Download QuestHat</Link>
             </div>
           </div>
           <div className="relative min-h-[205px] overflow-hidden rounded-[1.5rem] border border-cyan-100/25 bg-[#0b3948]">
@@ -68,7 +68,7 @@ export default function LocalGuidePage({ guide, related }: { guide: LocalGuide; 
         </div>
       </section>
 
-      {related.length ? <section className="mt-12"><h2 className="text-2xl font-black tracking-[-.035em] text-slate-950">Keep exploring South Florida</h2><div className="mt-4 flex flex-wrap gap-3">{related.map((item) => <Link key={item.slug} href={guideHref(item.slug)} className="rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-[#0c5063] hover:border-[#0c5063]">{item.name} guide</Link>)}<Link href="/download" className="rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-[#0c5063] hover:border-[#0c5063]">Download QuestHat</Link></div></section> : null}
+      {related.length ? <section className="mt-12"><h2 className="text-2xl font-black tracking-[-.035em] text-slate-950">Keep exploring South Florida</h2><div className="mt-4 flex flex-wrap gap-3">{related.map((item) => <Link key={item.slug} href={guideHref(item.slug)} className="rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-[#0c5063] hover:border-[#0c5063]">{item.name} guide</Link>)}<Link href="/app" className="rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-[#0c5063] hover:border-[#0c5063]">Download QuestHat</Link></div></section> : null}
     </main>
   );
 }
