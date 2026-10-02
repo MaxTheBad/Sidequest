@@ -217,8 +217,7 @@ body.questhat-download-mode {
 
 body.questhat-download-mode .mobile-topbar,
 body.questhat-download-mode .desktop-rail,
-body.questhat-download-mode .mobile-dock,
-body.questhat-download-mode .app-footer {
+body.questhat-download-mode .mobile-dock {
   display: none !important;
 }
 
@@ -773,6 +772,11 @@ nav.nav-shell { border-color: var(--border) !important; box-shadow: 0 -8px 30px 
 .nav-create { background: var(--accent-primary) !important; box-shadow: 0 8px 24px color-mix(in srgb, var(--accent-primary) 30%, transparent); }
 .nav-item-active { color: var(--accent-primary); background: transparent; }
 .app-footer { background: var(--surface-elevated) !important; border-color: var(--border) !important; }
+.global-footer-link { min-height: 44px; display: inline-flex; align-items: center; border-radius: 8px; text-decoration: underline; text-underline-offset: 4px; }
+.global-footer-link:hover { color: var(--foreground); }
+.global-footer-link:focus-visible, .global-footer-social-link:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent-primary) 62%, transparent); outline-offset: 3px; }
+.global-footer-social-link { display: inline-flex; width: 44px; height: 44px; align-items: center; justify-content: center; border: 1px solid var(--border-strong); border-radius: 12px; color: var(--foreground); background: var(--muted); transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease; }
+.global-footer-social-link:hover { color: #fff; border-color: var(--accent-primary); background: var(--accent-primary); }
 
 .mobile-dock { padding: 0 14px max(12px, env(safe-area-inset-bottom)); pointer-events: none; }
 .mobile-dock-inner {
@@ -994,7 +998,6 @@ button.border, a.border { min-height: 40px; border-radius: 999px; font-weight: 6
 .sq-shimmer, .skeleton { background: linear-gradient(100deg, var(--muted) 25%, color-mix(in srgb, var(--accent-primary) 10%, var(--muted)) 45%, var(--muted) 65%); background-size: 200% 100%; animation: shimmer 1.4s infinite; }
 
 @media (max-width:767px) {
-  .app-footer { display:none; }
   main { overflow-x: clip; }
   main > section.rounded-2xl, main > section.rounded-3xl { border-radius: 0; border-left: 0 !important; border-right: 0 !important; box-shadow: none; }
   .quest-card { border-left: 0 !important; border-right: 0 !important; }

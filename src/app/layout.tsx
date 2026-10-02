@@ -1,6 +1,4 @@
 import type { Metadata } from "next";
-import Image from "next/image";
-import Link from "next/link";
 import { Geist, Geist_Mono } from "next/font/google";
 import Script from "next/script";
 import "leaflet/dist/leaflet.css";
@@ -11,6 +9,7 @@ import UsernameGate from "@/components/username-gate";
 import EulaGate from "@/components/eula-gate";
 import RecoveryEmailPrompt from "@/components/recovery-email-prompt";
 import QuestHatPostHogProvider from "@/components/posthog-provider";
+import GlobalFooter from "@/components/global-footer";
 import { APP_NAME } from "@/lib/app-brand";
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://questhat.com";
@@ -99,52 +98,7 @@ export default function RootLayout({
           <UsernameGate />
           <RecoveryEmailPrompt />
           {children}
-          <footer className="app-footer mt-16 border-t border-slate-200 bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/75">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 text-xs text-slate-500">
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-              <Link href="/" className="flex items-center gap-2 font-medium text-slate-700">
-                <Image
-                  src="/questhat-logo.png"
-                  alt="QuestHat"
-                  width={26}
-                  height={14}
-                  className="h-4 w-auto"
-                  priority
-                />
-                <span>QuestHat</span>
-              </Link>
-              <div className="flex flex-wrap items-center justify-center gap-4">
-                <Link href="/south-florida/broward-county" className="hover:text-slate-800 underline-offset-4 hover:underline">
-                  South Florida guides
-                </Link>
-                <Link href="/terms" className="hover:text-slate-800 underline-offset-4 hover:underline">
-                  Terms
-                </Link>
-                <Link href="/tos" className="hover:text-slate-800 underline-offset-4 hover:underline">
-                  TOS
-                </Link>
-                <Link href="/privacy" className="hover:text-slate-800 underline-offset-4 hover:underline">
-                  Privacy
-                </Link>
-                <Link href="/support" className="hover:text-slate-800 underline-offset-4 hover:underline">
-                  Support
-                </Link>
-                <Link href="/child-safety" className="hover:text-slate-800 underline-offset-4 hover:underline">
-                  Child safety
-                </Link>
-                <Link href="/delete-account" className="hover:text-slate-800 underline-offset-4 hover:underline">
-                  Delete data
-                </Link>
-              </div>
-              <div className="flex items-center gap-3" aria-label="QuestHat social profiles">
-                <a href="https://www.tiktok.com/@questhatapp" target="_blank" rel="noreferrer" className="hover:text-slate-800 underline-offset-4 hover:underline">TikTok</a>
-                <a href="https://www.instagram.com/questhatapp" target="_blank" rel="noreferrer" className="hover:text-slate-800 underline-offset-4 hover:underline">Instagram</a>
-                <a href="https://www.facebook.com/1263520396843577" target="_blank" rel="noreferrer" className="hover:text-slate-800 underline-offset-4 hover:underline">Facebook</a>
-                <a href="https://x.com/questhatapp" target="_blank" rel="noreferrer" className="hover:text-slate-800 underline-offset-4 hover:underline">X</a>
-              </div>
-            </div>
-          </div>
-          </footer>
+          <GlobalFooter />
           <BottomNav />
         </QuestHatPostHogProvider>
       </body>
