@@ -4941,14 +4941,34 @@ export default function Home() {
       )}
 
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 bg-black/45 flex items-stretch sm:items-center justify-center p-0 sm:p-4 overflow-hidden">
-          <div className="w-full sm:w-full sm:max-w-xl rounded-none sm:rounded-2xl border-0 sm:border bg-white p-3 sm:p-4 space-y-2 h-[100svh] sm:h-auto sm:max-h-[92vh] overflow-y-auto overflow-x-hidden my-0 sm:my-auto pb-28 md:pb-4 box-border">
-            <div className="sticky top-0 z-10 -mx-3 sm:mx-0 px-3 sm:px-0 py-2 bg-white/95 dark:bg-black/95 backdrop-blur flex justify-between items-center gap-3 border-b border-slate-100 dark:border-slate-800">
-              <h3 className="font-semibold text-lg sm:text-xl text-slate-900 dark:text-white">{editingQuestId ? "Edit Listing" : "Create Quest"}</h3>
-              <button disabled={savingQuest} onClick={() => { setShowCreateModal(false); resetQuestForm(); }} className="border rounded-full px-2 py-1 text-sm sm:text-base disabled:opacity-50">Close</button>
+        <div className="create119-overlay fixed inset-0 z-50 flex items-stretch justify-center overflow-hidden">
+          <div className="create119-shell w-full overflow-y-auto overflow-x-hidden box-border">
+            <div className="create119-header sticky top-0 z-30 backdrop-blur">
+              <div className="create119-nav-row">
+                <button aria-label="Back" disabled={savingQuest} onClick={() => { setShowCreateModal(false); resetQuestForm(); }} className="create119-back">‹</button>
+                <div className="create119-progress" aria-label="Three required sections"><span className={title.trim() && categoryInput.trim() ? "is-complete" : ""} /><span className={startAt ? "is-complete" : ""} /><span className={exactAddress.trim() ? "is-complete" : ""} /></div>
+                <span className="create119-draft">▤ Draft</span>
+              </div>
+              <h1>{editingQuestId ? "Update your Quest" : "Create a Quest"}</h1>
+              <p>Share your plan and find people to do it with.</p>
             </div>
-            <form ref={createQuestFormRef} id="create-quest-form" onSubmit={createQuest} className="grid gap-2 pb-28 md:pb-4">
+            <div className="create119-memorable">
+              <span className="create119-sparkle">✦</span>
+              <div><strong>Make it memorable</strong><p>A clear title, good details, and a photo gets more people to join.</p></div>
+              <div className="create119-photo-stack" aria-hidden="true"><img src="/category-fallbacks/outdoors.jpg" alt="" /><img src="/category-fallbacks/community.jpg" alt="" /></div>
+            </div>
+            <form ref={createQuestFormRef} id="create-quest-form" onSubmit={createQuest} className="create119-form grid gap-3 pb-28 md:pb-8">
               {/* Core Fields */}
+              <section className="create119-card">
+              <div className="create119-section-heading"><span>1</span><div><h2>What are you doing?</h2><p>Choose a category and give it a clear title.</p></div></div>
+              <div className="create119-category-rail" role="list" aria-label="Quest categories">
+                {["Outdoors", "Sports", "Games", "Arts & Creative", "Money", "Fitness"].map((category, index) => {
+                  const active = categoryInput.trim().toLowerCase() === category.toLowerCase();
+                  const icon = ["▲", "◉", "⌘", "◌", "$", "↔"][index];
+                  return <button key={category} type="button" role="listitem" className={active ? "is-active" : ""} onClick={() => { const match = categoryOptions.find((option) => option.name.toLowerCase() === category.toLowerCase()); setCategoryInput(category); setUseCustomCategory(false); setCustomCategory(""); setHobbyId(match && !match.id.startsWith("canonical:") ? match.id : ""); clearFieldError("category"); }}><b>{icon}</b><span>{category}</span></button>;
+                })}
+                <button type="button" role="listitem" className={useCustomCategory ? "is-active" : ""} onClick={() => setCategoryDropdownOpen(true)}><b>•••</b><span>More</span></button>
+              </div>
               <label className={`text-xs font-medium uppercase tracking-wide ${fieldErrors.category ? "text-red-600" : "text-slate-600"}`}>Category *</label>
               <div className="relative">
                 <button
@@ -5041,15 +5061,21 @@ export default function Home() {
               </div>
 
               <label className={`text-xs font-medium uppercase tracking-wide ${fieldErrors.title ? "text-red-600" : "text-slate-600"}`}>Title *</label>
-              <input className={`border rounded-xl px-2.5 py-2 text-sm sm:px-3 sm:py-2.5 sm:text-base ${fieldErrors.title ? "border-red-500 ring-1 ring-red-300" : ""}`} placeholder={titlePlaceholder} value={title} onChange={(e) => { setTitle(e.target.value); clearFieldError("title"); }} />
+              <div className="create119-title-wrap"><input maxLength={80} className={`border rounded-xl px-2.5 py-2 text-sm sm:px-3 sm:py-2.5 sm:text-base ${fieldErrors.title ? "border-red-500 ring-1 ring-red-300" : ""}`} placeholder={titlePlaceholder} value={title} onChange={(e) => { setTitle(e.target.value.slice(0, 80)); clearFieldError("title"); }} /><span>{title.length}/80</span></div>
+              </section>
 
+              <section className="create119-card">
+              <div className="create119-section-heading"><span>2</span><div><h2>When?</h2><p>Every quest needs a date and start time.</p></div></div>
               <label className="text-xs font-medium uppercase tracking-wide text-slate-600">Date and start time *</label>
               <input type="datetime-local" min={toDateTimeLocalValue(new Date().toISOString())} className="border rounded-xl px-2.5 py-2 text-sm sm:px-3 sm:py-2.5 sm:text-base" value={startAt} onChange={(e) => setStartAt(e.target.value)} />
-              <label className="flex items-center gap-2 text-sm">
+              <label className="create119-toggle-row flex items-center gap-2 text-sm">
                 <input type="checkbox" checked={timeFlexible} onChange={(e) => setTimeFlexible(e.target.checked)} className="scale-90" />
-                <span className="text-sm">Time flexible — the listed time is real, but I’m open to adjusting it.</span>
+                <span className="text-sm"><strong>Time flexible</strong><small>The listed time is real, but I’m open to adjusting it.</small></span>
               </label>
+              </section>
 
+              <section className="create119-card">
+              <div className="create119-section-heading"><span>3</span><div><h2>Where?</h2><p>Choose a place or add a virtual link. Exact details stay private by default.</p></div></div>
               <div
                 ref={locationVisibilityRef}
                 className={`create-location-panel rounded-2xl border p-2 sm:p-3 space-y-2 sm:space-y-3 transition ${
@@ -5058,13 +5084,12 @@ export default function Home() {
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <label className={`text-sm sm:text-base font-medium ${fieldErrors.locationVisibility ? "text-red-600" : ""}`}>Location *</label>
-                    <p className="text-[10px] leading-4 sm:text-xs text-slate-500">Choose a place or add a virtual link. Exact details stay private by default.</p>
+                  <label className={`text-sm sm:text-base font-medium ${fieldErrors.locationVisibility ? "text-red-600" : ""}`}>Location *</label>
                   </div>
                 </div>
                 <div className="grid gap-1">
                   <label className="text-[11px] font-medium uppercase tracking-wide text-slate-600">Meeting type</label>
-                  <div className="grid gap-2 sm:gap-2.5">
+                  <div className="create119-location-modes grid grid-cols-2 gap-2 sm:gap-2.5">
                     <button
                       type="button"
                       className={`rounded-xl border px-2.5 py-2 text-left transition ${
@@ -5275,6 +5300,7 @@ export default function Home() {
                   </div>
                 ) : null}
               </div>
+              </section>
 
               <button
                 type="button"

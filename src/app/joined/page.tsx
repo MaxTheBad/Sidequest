@@ -157,8 +157,14 @@ export default function JoinedPage() {
     <main className="page-shell page-joined app-page min-h-screen bg-transparent p-4">
       <section className="max-w-4xl mx-auto rounded-2xl border bg-white p-4 space-y-4 app-page-card">
         <div className="flex items-center justify-between app-page-header">
-          <div><p className="app-kicker">Your plans</p><h1 className="text-xl font-bold">Your Quests</h1><p className="app-page-subtitle">Active plans and a history of completed quests.</p></div>
+          <div><p className="app-kicker">Your plans</p><h1 className="text-xl font-bold">Your quests</h1><p className="app-page-subtitle">Everything you’re hosting or joining.</p></div>
           <Link href="/" className="border rounded px-3 py-2 text-sm">Discover</Link>
+        </div>
+
+        <div className="quests119-summary">
+          <span aria-hidden="true">♟</span>
+          <div><strong>{collectionCounts[collectionView]}</strong><small>{collectionView} {collectionCounts[collectionView] === 1 ? "quest" : "quests"}</small></div>
+          <Link href="/?create=1">＋ New quest</Link>
         </div>
 
         <div className="grid grid-cols-2 gap-1 rounded-2xl border border-slate-200 bg-slate-100 p-1 dark:border-white/10 dark:bg-white/5" aria-label="Quest history view">

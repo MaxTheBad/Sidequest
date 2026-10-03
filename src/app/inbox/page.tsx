@@ -528,7 +528,7 @@ export default function InboxPage() {
     <main className="page-shell page-inbox app-page min-h-screen bg-transparent p-4">
       <div className="max-w-6xl mx-auto">
         <div className="mb-3 flex items-center justify-between app-page-header app-inbox-header">
-          <div><p className="app-kicker">Conversations</p><h1 className="text-2xl font-bold">Inbox</h1><p className="app-page-subtitle">Private messages around your quests.</p></div>
+          <div><p className="app-kicker">Conversations</p><h1 className="text-2xl font-bold">Inbox</h1><p className="app-page-subtitle">Private conversations about your plans.</p></div>
           <div className="flex gap-2">
             <button className="border rounded px-3 py-2" onClick={() => userId && void loadInbox(userId)}>Refresh</button>
           </div>
@@ -539,8 +539,8 @@ export default function InboxPage() {
         {status && <div className="mb-3 rounded border bg-amber-50 px-3 py-2 text-sm">{status}</div>}
 
         {questInvitations.length > 0 ? (
-          <section className="mb-3 rounded-2xl border border-cyan-200 bg-cyan-50 p-3">
-            <h2 className="font-semibold text-slate-950">Quest invitations</h2>
+          <section className="inbox119-invitations mb-3 rounded-2xl border p-3">
+            <div className="inbox119-invitation-heading"><h2 className="font-semibold">Quest invitations</h2><span>{questInvitations.length} new</span></div>
             <div className="mt-2 grid gap-2 sm:grid-cols-2">
               {questInvitations.map((invitation) => {
                 const sender = Array.isArray(invitation.sender) ? invitation.sender[0] : invitation.sender;
@@ -551,6 +551,12 @@ export default function InboxPage() {
             </div>
           </section>
         ) : null}
+
+        <Link href={hostedQuests[0] ? `/listing/${hostedQuests[0].id}` : "/"} className="inbox119-find-people mb-3" aria-label="Find people for your quest">
+          <span className="inbox119-find-icon" aria-hidden="true">♟</span>
+          <span><strong>Find people for your quest</strong><small>Browse opted-in adults nearby, start a conversation, or send an invitation.</small></span>
+          <b aria-hidden="true">→</b>
+        </Link>
 
         <div className="grid md:grid-cols-[340px_1fr] gap-3">
           <aside className={`rounded-2xl border bg-white p-2 max-h-[72vh] overflow-auto app-thread-list ${activeThread ? "hidden md:block" : "block"}`}>
