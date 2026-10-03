@@ -809,6 +809,76 @@ nav.nav-shell { border-color: var(--border) !important; box-shadow: 0 -8px 30px 
 .dock-create .nav-create { width: 46px; height: 46px; box-shadow: 0 8px 22px color-mix(in srgb, var(--accent-primary) 28%, transparent); }
 html[data-theme="dark"] .mobile-dock-inner { background: rgba(27,25,33,.82); border-color: rgba(255,255,255,.1); box-shadow: 0 16px 48px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.08); }
 
+/* Build 119 Home / Discover */
+.home119-discovery { display: none; }
+@media (max-width: 767px) {
+  body:has(.home119-page) { color: #101827; background: #f4f7fb; }
+  body:has(.home119-page) .mobile-topbar {
+    color: #101827; border-color: #e2e8f0 !important; background: rgba(255,255,255,.96) !important;
+  }
+  body:has(.home119-page) .mobile-topbar .nav-brand,
+  body:has(.home119-page) .mobile-topbar .icon-control { color: #101827; }
+  body:has(.home119-page) .mobile-topbar .icon-control { border: 1px solid #dce4eb; background: #edf3f7; }
+  body:has(.home119-page) .nav-download-link { display: none; }
+  .home119-header-toggle { display: grid; grid-template-columns: 1fr 1fr; padding: 4px; border-radius: 999px; background: #3e8999; }
+  .home119-header-toggle button { min-width: 50px; height: 34px; border-radius: 999px; color: #d4e6eb; font-size: 12px; font-weight: 800; }
+  .home119-header-toggle button.is-active { color: #101827; background: #fff; }
+  body:has(.home119-page) .app-footer { background: #fff !important; border-color: #e2e8f0 !important; }
+  body:has(.home119-page) .mobile-dock-inner { background: rgba(245,247,248,.86); border-color: rgba(15,23,42,.10); }
+  body:has(.home119-page) .dock-item { color: #64748b; }
+  body:has(.home119-page) .dock-item.nav-item-active { color: #8ed7e4; background: rgba(109,174,194,.14); }
+  .home119-page { min-height: 100dvh; color: #101827; background: #f4f7fb !important; }
+  .home119-shell { padding: 10px 0 110px !important; }
+  .home119-shell > *:not(.home119-content):not(.home119-discovery) { margin-inline: 16px; }
+  .home119-guest-hero { display: none; }
+  .home119-discovery { display: grid; gap: 13px; padding: 8px 18px 3px; }
+  .home119-search {
+    min-height: 54px; display: flex; align-items: center; gap: 11px; padding: 0 15px;
+    border: 1px solid rgba(15,23,42,.10); border-radius: 17px; color: #64748b; background: #fff;
+  }
+  .home119-search input { min-width: 0; flex: 1; padding: 0; border: 0; color: #101827; background: transparent; box-shadow: none; font-size: 14px; }
+  .home119-search input::placeholder { color: #94a3b8; }
+  .home119-chips { display: flex; gap: 9px; overflow-x: auto; padding: 1px 0 4px; scrollbar-width: none; }
+  .home119-chips::-webkit-scrollbar { display: none; }
+  .home119-chips button {
+    min-height: 40px; display: inline-flex; align-items: center; gap: 7px; flex: 0 0 auto; padding: 0 17px;
+    border: 1px solid rgba(15,23,42,.10); border-radius: 999px; color: #334155; background: #fff;
+    font-size: 12px; font-weight: 750;
+  }
+  .home119-chips button.is-active { border-color: #0f5f73; color: #fff; background: #0f5f73; }
+  .home119-find-people {
+    min-height: 82px; display: grid; grid-template-columns: 46px 1fr 22px; align-items: center; gap: 12px;
+    padding: 12px 14px; border: 1px solid rgba(15,95,115,.18); border-radius: 18px; color: #101827;
+    background: #eef8fa; text-align: left;
+  }
+  .home119-find-people > span:first-child { width: 44px; height: 44px; display: grid; place-items: center; border-radius: 13px; color: #082f3a; background: #9bd8e4; }
+  .home119-find-people strong { display: block; font-size: 14px; line-height: 1.25; }
+  .home119-find-people small { display: block; margin-top: 3px; color: #536273; font-size: 10px; line-height: 1.35; }
+  .home119-find-people b { color: #6daec2; font-size: 20px; }
+  .home119-section-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 14px; padding: 3px 2px 0; }
+  .home119-section-heading small { color: #6daec2; font-size: 9px; font-weight: 900; letter-spacing: .19em; }
+  .home119-section-heading h1 { margin-top: 2px; color: #101827; font-size: 24px; font-weight: 900; letter-spacing: -.04em; line-height: 1.05; }
+  .home119-section-heading > span { min-width: 32px; height: 32px; display: grid; place-items: center; border-radius: 50%; color: #0f5f73; background: #e8f3f5; font-size: 11px; font-weight: 850; }
+  .home119-content { display: block !important; }
+  .home119-legacy-filters { display: none; }
+  .home119-content > section { display: flex; flex-direction: column; gap: 0; }
+  .home119-view-row { display: none !important; }
+  .home119-page .quest-card { border-color: #e2e8f0 !important; background: #fff !important; box-shadow: 0 14px 40px rgba(15,23,42,.08) !important; }
+  html[data-theme="dark"] body:has(.home119-page) { color: #f8fafc; background: #06121f; }
+  html[data-theme="dark"] body:has(.home119-page) .mobile-topbar { color: #f8fafc; border-color: rgba(255,255,255,.07) !important; background: rgba(6,18,31,.96) !important; }
+  html[data-theme="dark"] body:has(.home119-page) .mobile-topbar .nav-brand,
+  html[data-theme="dark"] body:has(.home119-page) .mobile-topbar .icon-control { color: #f8fafc; }
+  html[data-theme="dark"] body:has(.home119-page) .mobile-topbar .icon-control { border-color: rgba(255,255,255,.08); background: #142332; }
+  html[data-theme="dark"] .home119-page { color: #f8fafc; background: #06121f !important; }
+  html[data-theme="dark"] .home119-search { border-color: rgba(255,255,255,.09); color: #7d8999; background: #171923; }
+  html[data-theme="dark"] .home119-search input { color: #f8fafc; }
+  html[data-theme="dark"] .home119-chips button { border-color: rgba(255,255,255,.08); color: #c7ced9; background: #171923; }
+  html[data-theme="dark"] .home119-find-people { border-color: rgba(109,174,194,.24); color: #f8fafc; background: rgba(109,174,194,.10); }
+  html[data-theme="dark"] .home119-find-people small { color: #9aa7b7; }
+  html[data-theme="dark"] .home119-section-heading h1 { color: #f8fafc; }
+  html[data-theme="dark"] .home119-page .quest-card { border-color: rgba(255,255,255,.08) !important; background: #0b1825 !important; box-shadow: none !important; }
+}
+
 /* Route-level premium composition */
 .page-shell { padding-top: clamp(28px, 5vw, 64px); padding-bottom: 120px; }
 .page-shell > section { width: 100%; }

@@ -3701,6 +3701,15 @@ export default function Home() {
   }, [feedViewMode]);
 
   useEffect(() => {
+    const onFeedView = (event: Event) => {
+      const mode = (event as CustomEvent<"list" | "map">).detail;
+      if (mode === "list" || mode === "map") setFeedViewMode(mode);
+    };
+    window.addEventListener("questhat-feed-view", onFeedView);
+    return () => window.removeEventListener("questhat-feed-view", onFeedView);
+  }, []);
+
+  useEffect(() => {
     if (feedViewMode !== "map") return;
     const quest = selectedMapQuest;
     if (!quest) {
@@ -3741,13 +3750,13 @@ export default function Home() {
   }, [filteredQuests, userLocation]);
 
   return (
-<main className="min-h-screen bg-transparent">
-      <div className="w-full mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-4 lg:py-8 space-y-6">
+<main className="home119-page min-h-screen bg-transparent">
+      <div className="home119-shell w-full mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-4 lg:py-8 space-y-6">
         {!!pendingVerifyEmail && (
           <div className="text-sm rounded bg-emerald-50 border p-2">Email sent to <b>{pendingVerifyEmail}</b>. <button className="underline" disabled={resendCooldown > 0} onClick={() => void resendVerification()}>{resendCooldown > 0 ? `Resend in ${resendCooldown}s` : "Resend"}</button></div>
         )}
         {!userId && !showOnboardingWizard ? (
-          <section className="py-3 sm:py-6">
+          <section className="home119-guest-hero py-3 sm:py-6">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">Quest Hat</p>
             <h1 className="mt-2 max-w-3xl text-3xl font-bold tracking-tight sm:text-5xl">Find local people to do real plans with.</h1>
             <p className="mt-3 max-w-2xl text-sm text-gray-500 sm:text-base">
@@ -3757,8 +3766,37 @@ export default function Home() {
           </section>
         ) : null}
 
-        <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)] xl:items-start">
-          <aside className="space-y-4 xl:sticky xl:top-[76px]">
+        <section className="home119-discovery" aria-label="Discover quests">
+          <div className="home119-search">
+            <AppIcon name="search" className="h-5 w-5" />
+            <input
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Search plans, places, or interests"
+              aria-label="Search plans, places, or interests"
+            />
+          </div>
+          <div className="home119-chips" role="list" aria-label="Quest categories">
+            <button type="button" className={hobbyFilter === "all" ? "is-active" : ""} onClick={() => setHobbyFilter("all")}><span aria-hidden="true">✧</span>For you</button>
+            {["Lifestyle", "Arts & Crafts", "Community"].map((name) => {
+              const option = categoryOptions.find((item) => item.name.toLowerCase() === name.toLowerCase());
+              if (!option) return null;
+              return <button key={option.id} type="button" className={hobbyFilter === option.id ? "is-active" : ""} onClick={() => setHobbyFilter(option.id)}>{option.name}</button>;
+            })}
+          </div>
+          <button type="button" className="home119-find-people" onClick={() => userId ? window.location.assign("/inbox") : setShowAuthModal(true)}>
+            <span aria-hidden="true"><AppIcon name="people" className="h-5 w-5" /></span>
+            <span><strong>Find people for your quest</strong><small>Browse nearby people who chose to be discoverable.</small></span>
+            <b aria-hidden="true">→</b>
+          </button>
+          <div className="home119-section-heading">
+            <div><small>{hobbyFilter === "all" ? "FRESH PICKS" : (categoryOptions.find((item) => item.id === hobbyFilter)?.name || "QUESTS").toUpperCase()}</small><h1>{searchQuery.trim() ? "Search results" : "Plans happening now"}</h1></div>
+            <span>{filteredQuests.length}</span>
+          </div>
+        </section>
+
+        <div className="home119-content grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)] xl:items-start">
+          <aside className="home119-legacy-filters space-y-4 xl:sticky xl:top-[76px]">
             <section className="space-y-4">
               <button
                 type="button"
@@ -3817,7 +3855,7 @@ export default function Home() {
           </aside>
 
           <section className="space-y-4">
-            <div className="flex flex-col items-stretch gap-3 px-1 sm:flex-row sm:items-center sm:justify-between sm:px-1">
+            <div className="home119-view-row flex flex-col items-stretch gap-3 px-1 sm:flex-row sm:items-center sm:justify-between sm:px-1">
               <button
                 type="button"
                 onClick={() => setShowDiscoverFilters((current) => !current)}

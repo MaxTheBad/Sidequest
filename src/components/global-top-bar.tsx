@@ -21,6 +21,7 @@ export default function GlobalTopBar() {
   const [userLabel, setUserLabel] = useState("");
   const [userRole, setUserRole] = useState("user");
   const [notificationCount, setNotificationCount] = useState(0);
+  const [homeFeedView, setHomeFeedView] = useState<"list" | "map">("list");
 
   useEffect(() => {
     let lastScrollY = typeof window !== "undefined" ? window.scrollY : 0;
@@ -111,6 +112,10 @@ export default function GlobalTopBar() {
   }
 
   const navigate = (path: string) => router.push(path);
+  const changeHomeFeedView = (mode: "list" | "map") => {
+    setHomeFeedView(mode);
+    window.dispatchEvent(new CustomEvent("questhat-feed-view", { detail: mode }));
+  };
   const createQuest = () => {
     if (typeof window === "undefined") return;
     if (pathname === "/") return dispatchAppEvent("open-create");
@@ -135,6 +140,7 @@ export default function GlobalTopBar() {
           <Image src="/questhat-logo.png" alt={APP_NAME} width={34} height={18} className="h-5 w-auto" priority />
           <span className="font-semibold">{APP_NAME}</span>
         </Link>
+        {pathname === "/" ? <div className="home119-header-toggle" role="group" aria-label="Quest display"><button type="button" className={homeFeedView === "list" ? "is-active" : ""} onClick={() => changeHomeFeedView("list")}>List</button><button type="button" className={homeFeedView === "map" ? "is-active" : ""} onClick={() => changeHomeFeedView("map")}>Map</button></div> : null}
         <div className="flex items-center gap-2">
           <Link href="/app" className="nav-download-link" aria-label="Download the QuestHat app">Download app</Link>
           <button className="icon-control relative" aria-label="Notifications" onClick={() => navigate("/notifications")}><AppIcon name="bell" className="h-5 w-5" />{notificationCount > 0 && <span className="nav-badge">{notificationCount > 9 ? "9+" : notificationCount}</span>}</button>
