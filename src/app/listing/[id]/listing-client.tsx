@@ -11,6 +11,7 @@ import { AppIcon } from "@/components/app-icons";
 import { formatReportReference } from "@/lib/reporting";
 import { recordSecurityAudit } from "@/lib/security-audit";
 import { GENDER_IDENTITY_OPTIONS } from "@/lib/people-discovery";
+import { downloadQuestCalendarFile } from "@/lib/quest-calendar";
 
 type Listing = {
   id: string;
@@ -27,6 +28,8 @@ type Listing = {
   availability: string | null;
   starts_at?: string | null;
   time_flexible?: boolean | null;
+  host_coordination_reminders_disabled?: boolean | null;
+  host_coordination_reminders_snoozed_until?: string | null;
   media_video_url: string | null;
   media_source: "live" | "upload" | null;
   media_items?: { url: string; type: "image" | "video"; label?: string | null; thumbnailUrl?: string | null }[] | null;
@@ -49,6 +52,12 @@ type ListingComment = {
   sender_id: string;
   body: string;
   created_at: string;
+  profiles?: MemberProfile[] | MemberProfile | null;
+};
+
+type QuestCheckIn = {
+  user_id: string;
+  checked_in_at: string;
   profiles?: MemberProfile[] | MemberProfile | null;
 };
 
@@ -112,6 +121,9 @@ export default function ListingPage() {
   const [peopleMaxDistanceKm, setPeopleMaxDistanceKm] = useState(40);
   const [peopleGenderFilters, setPeopleGenderFilters] = useState<string[]>([]);
   const [peopleSending, setPeopleSending] = useState(false);
+  const [checkIns, setCheckIns] = useState<QuestCheckIn[]>([]);
+  const [checkInAction, setCheckInAction] = useState<"check-in" | "leave" | null>(null);
+  const [coordinationReminderAction, setCoordinationReminderAction] = useState<"snooze" | "disable" | "enable" | null>(null);
 
   function sanitizeLocationLabel(input?: string | null) {
     const raw = (input || "").trim();
@@ -451,7 +463,7 @@ export default function ListingPage() {
 
       const withMedia = await supabase
         .from("quests")
-        .select("id,creator_id,created_at,title,description,city,join_mode,exact_location_visibility,exact_address,skill_level,group_size,availability,starts_at,time_flexible,media_video_url,media_source,media_items,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,avatar_url)")
+        .select("id,creator_id,created_at,title,description,city,join_mode,exact_location_visibility,exact_address,skill_level,group_size,availability,starts_at,time_flexible,host_coordination_reminders_disabled,host_coordination_reminders_snoozed_until,media_video_url,media_source,media_items,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,avatar_url)")
         .eq("id", listingId)
         .maybeSingle();
 
@@ -504,16 +516,97 @@ export default function ListingPage() {
       await loadMembers(listingId, uid);
       await loadComments(listingId, blocked);
       if (uid) {
-        const { data: accessRows } = await supabase
-          .from("quest_exact_location_access")
-          .select("user_id")
-          .eq("quest_id", listingId);
+        const [{ data: accessRows }, { data: checkInRows }] = await Promise.all([
+          supabase.from("quest_exact_location_access").select("user_id").eq("quest_id", listingId),
+          supabase.from("quest_checkins").select("user_id,checked_in_at,profiles:profiles!quest_checkins_user_id_fkey(id,display_name,avatar_url)").eq("quest_id", listingId).order("checked_in_at", { ascending: true }),
+        ]);
         setExactAccessUserIds((accessRows || []).map((r: { user_id: string }) => r.user_id));
+        setCheckIns((checkInRows || []) as QuestCheckIn[]);
       }
     };
 
     void init();
   }, [supabase, listingId]);
+
+  async function checkInToQuest() {
+    if (!supabase || !listing || !userId || checkInAction) return;
+    if (!navigator.geolocation) return setStatus("This browser does not support location check-in.");
+    setCheckInAction("check-in");
+    setStatus("Verifying that you’re near the meetup…");
+    try {
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 15_000, maximumAge: 0 });
+      });
+      const { error } = await supabase.rpc("check_in_to_quest", {
+        p_quest_id: listing.id,
+        p_lat: position.coords.latitude,
+        p_lng: position.coords.longitude,
+        p_accuracy_m: position.coords.accuracy || null,
+      });
+      if (error) throw error;
+      const { data } = await supabase.from("quest_checkins")
+        .select("user_id,checked_in_at,profiles:profiles!quest_checkins_user_id_fkey(id,display_name,avatar_url)")
+        .eq("quest_id", listing.id)
+        .order("checked_in_at", { ascending: true });
+      setCheckIns((data || []) as QuestCheckIn[]);
+      setStatus("You’re checked in. Your precise location was not shared.");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not check in. Check your browser location permission and try again.");
+    } finally {
+      setCheckInAction(null);
+    }
+  }
+
+  async function leaveQuestCheckIn() {
+    if (!supabase || !listing || !userId || checkInAction) return;
+    setCheckInAction("leave");
+    const { error } = await supabase.rpc("leave_quest_check_in", { p_quest_id: listing.id });
+    if (error) setStatus(error.message);
+    else {
+      setCheckIns((current) => current.filter((row) => row.user_id !== userId));
+      setStatus("Check-in removed.");
+    }
+    setCheckInAction(null);
+  }
+
+  async function updateCoordinationReminders(action: "snooze" | "disable" | "enable") {
+    if (!supabase || !listing || !isManager || coordinationReminderAction) return;
+    setCoordinationReminderAction(action);
+    const snoozedUntil = action === "snooze" ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() : null;
+    const enabled = action !== "disable";
+    const { error } = await supabase.rpc("set_host_coordination_reminders", {
+      p_quest_id: listing.id,
+      p_enabled: enabled,
+      p_snoozed_until: snoozedUntil,
+    });
+    if (error) setStatus(error.message);
+    else {
+      setListing((current) => current ? {
+        ...current,
+        host_coordination_reminders_disabled: !enabled,
+        host_coordination_reminders_snoozed_until: snoozedUntil,
+      } : current);
+      setStatus(action === "disable" ? "Host reminders are off for this quest." : action === "snooze" ? "Host reminders are snoozed until tomorrow." : "Host reminders are on.");
+    }
+    setCoordinationReminderAction(null);
+  }
+
+  function addQuestToCalendar() {
+    if (!listing?.starts_at) return setStatus("This quest does not have a start time yet.");
+    try {
+      downloadQuestCalendarFile({
+        id: listing.id,
+        title: listing.title,
+        description: listing.description,
+        startsAt: listing.starts_at,
+        location: canViewExactAddress ? listing.exact_address || listing.city : listing.city,
+        url: `${window.location.origin}/listing/${listing.id}`,
+      });
+      setStatus("Calendar event downloaded. Open it to add this quest to your calendar.");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not create the calendar event.");
+    }
+  }
 
   useEffect(() => {
     // Reset stale distance data before calculating it for the next listing.
@@ -861,6 +954,22 @@ export default function ListingPage() {
   const isOwner = !!(userId && listing && userId === listing.creator_id);
   const myMemberRow = userId ? members.find((m) => m.user_id === userId) : null;
   const isManager = !!(isOwner || (myMemberRow && myMemberRow.role === "cohost" && (myMemberRow.status || "approved") === "approved"));
+
+  useEffect(() => {
+    if (!supabase || !listingId || !userId || !(isManager || myMembershipStatus === "approved")) return;
+    const refresh = async () => {
+      const { data, error } = await supabase.from("quest_checkins")
+        .select("user_id,checked_in_at,profiles:profiles!quest_checkins_user_id_fkey(id,display_name,avatar_url)")
+        .eq("quest_id", listingId)
+        .order("checked_in_at", { ascending: true });
+      if (!error) setCheckIns((data || []) as QuestCheckIn[]);
+    };
+    const channel = supabase.channel(`web-quest-checkins-${listingId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "quest_checkins", filter: `quest_id=eq.${listingId}` }, () => void refresh())
+      .subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }, [supabase, listingId, userId, isManager, myMembershipStatus]);
+
   const canViewExactAddress = !!(listing && userId && (() => {
     if (isManager) return true;
     if (listing.exact_location_visibility === "public") return true;
@@ -960,6 +1069,12 @@ export default function ListingPage() {
 
   const visibleMembers = members.filter((m) => !blockedUserIds.includes(m.user_id));
   const blockedMembers = members.filter((m) => blockedUserIds.includes(m.user_id));
+  const approvedParticipant = isManager || myMembershipStatus === "approved";
+  const checkInWindowOpen = Boolean(listing?.starts_at && Date.now() >= new Date(listing.starts_at).getTime() - 4 * 60 * 60 * 1000 && Date.now() <= new Date(listing.starts_at).getTime() + 12 * 60 * 60 * 1000);
+  const showCheckIn = Boolean(listing && approvedParticipant && !isVirtualListing() && checkInWindowOpen);
+  const myCheckIn = checkIns.find((row) => row.user_id === userId);
+  const pendingMembers = members.filter((member) => member.status === "pending");
+  const reminderSnoozed = Boolean(listing?.host_coordination_reminders_snoozed_until && new Date(listing.host_coordination_reminders_snoozed_until).getTime() > Date.now());
 
   return (
     <main className="page-shell page-listing app-page min-h-screen overflow-y-auto overscroll-contain bg-transparent p-4 [-webkit-overflow-scrolling:touch]">
@@ -1082,11 +1197,29 @@ export default function ListingPage() {
             <div className="quest-detail-description"><p>{listing.description || "The host has not added a description yet."}</p></div>
             <div className="quest-detail-facts">
               <div><span className="quest-detail-fact-icon"><AppIcon name="location" className="h-5 w-5" /></span><div><small>Meetup</small><strong>{isVirtualListing() ? "Virtual" : (sanitizeLocationLabel(listing.city) || sanitizeLocationLabel(locationSummary(listing.exact_address)) || "Location to be confirmed")}</strong><p>{myDistanceLabel || (myLocationStatus === "denied" ? "Enable location for distance" : "Location and directions")}</p></div></div>
-              <div><span className="quest-detail-fact-icon"><AppIcon name="clock" className="h-5 w-5" /></span><div><small>Starts</small><strong>{getEventTimingLabel(listing.availability)}</strong><p>{formatPostedLabel(listing.created_at)}</p></div></div>
+              <div><span className="quest-detail-fact-icon"><AppIcon name="clock" className="h-5 w-5" /></span><div><small>Starts</small><strong>{getEventTimingLabel(listing.availability)}</strong><p>{formatPostedLabel(listing.created_at)}</p>{approvedParticipant && listing.starts_at ? <button type="button" className="mt-2 inline-flex min-h-10 items-center gap-2 rounded-full border bg-white px-3 py-2 text-xs font-bold text-slate-800" onClick={addQuestToCalendar}><AppIcon name="calendar" className="h-4 w-4" /> Add to calendar</button> : null}</div></div>
               <div><span className="quest-detail-fact-icon"><AppIcon name="shield" className="h-5 w-5" /></span><div><small>Exact location</small><strong>{canViewExactAddress ? "Available to you" : "Protected"}</strong><p>{isVirtualListing()
                 ? (listing.exact_location_visibility === "public" ? "Shared with everyone" : listing.exact_location_visibility === "approved_members" ? "Shared with approved guests" : canViewExactAddress ? "Meeting link shared" : "Host shares when ready")
                 : canViewExactAddress && listing.exact_address ? listing.exact_address : "The host shares it based on their privacy setting."}</p></div></div>
             </div>
+
+            {showCheckIn ? (
+              <section className="rounded-2xl border border-cyan-200 bg-[#0b202a] p-4 text-white shadow-lg shadow-cyan-950/10" aria-labelledby="quest-presence-title">
+                <div className="flex items-start gap-3">
+                  <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-full ${myCheckIn ? "bg-[#9bd8e4] text-[#082f3a]" : "bg-white/10 text-[#9bd8e4]"}`}><AppIcon name={myCheckIn ? "check" : "location"} className="h-5 w-5" /></span>
+                  <div className="min-w-0 flex-1"><p className="text-[10px] font-black tracking-[0.18em] text-cyan-200">QUEST PRESENCE</p><h2 id="quest-presence-title" className="text-lg font-black">{checkIns.length ? `${checkIns.length} ${checkIns.length === 1 ? "person is" : "people are"} here` : "Let everyone know you arrived"}</h2>{checkIns.length ? <p className="mt-1 text-xs text-white/70">{checkIns.map((row) => { const profile = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles; return profile?.display_name || "QuestHat member"; }).join(" · ")}</p> : null}</div>
+                </div>
+                <p className="mt-3 text-sm leading-6 text-white/75">Check-in works only within one mile of the meetup. Your precise location verifies distance and is never shown to the host or attendees.</p>
+                {myCheckIn ? <div className="mt-3 flex items-center justify-between"><span className="inline-flex items-center gap-2 rounded-full bg-emerald-400/15 px-3 py-2 text-sm font-bold text-emerald-200"><AppIcon name="check" className="h-4 w-4" /> You’re checked in</span><button type="button" disabled={Boolean(checkInAction)} className="text-sm font-bold text-cyan-200 underline disabled:opacity-50" onClick={() => void leaveQuestCheckIn()}>{checkInAction === "leave" ? "Removing…" : "Undo"}</button></div> : <button type="button" disabled={Boolean(checkInAction)} className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#9bd8e4] px-4 py-3 font-black text-[#082f3a] disabled:opacity-60" onClick={() => void checkInToQuest()}><AppIcon name="location" className="h-5 w-5" />{checkInAction === "check-in" ? "Verifying…" : "I’m here"}</button>}
+              </section>
+            ) : null}
+
+            {isManager && pendingMembers.length ? (
+              <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-slate-950" aria-labelledby="host-checklist-title">
+                <div className="flex items-start justify-between gap-3"><div><p className="text-[10px] font-black tracking-[0.18em] text-amber-700">HOST CHECKLIST</p><h2 id="host-checklist-title" className="text-lg font-black">{pendingMembers.length} {pendingMembers.length === 1 ? "request needs" : "requests need"} you</h2><p className="mt-1 text-sm text-slate-600">Approve or decline so people can plan.</p></div>{listing.host_coordination_reminders_disabled || reminderSnoozed ? <span className="rounded-full bg-slate-900 px-2 py-1 text-[10px] font-black text-white">{listing.host_coordination_reminders_disabled ? "OFF" : "SNOOZED"}</span> : null}</div>
+                <div className="mt-3 flex flex-wrap gap-2">{listing.host_coordination_reminders_disabled ? <button type="button" disabled={Boolean(coordinationReminderAction)} className="rounded-full border bg-white px-3 py-2 text-xs font-bold" onClick={() => void updateCoordinationReminders("enable")}>Turn reminders on</button> : <><button type="button" disabled={Boolean(coordinationReminderAction)} className="rounded-full border bg-white px-3 py-2 text-xs font-bold" onClick={() => void updateCoordinationReminders("snooze")}>Remind tomorrow</button><button type="button" disabled={Boolean(coordinationReminderAction)} className="rounded-full border bg-white px-3 py-2 text-xs font-bold" onClick={() => void updateCoordinationReminders("disable")}>Turn off for this quest</button></>}</div>
+              </section>
+            ) : null}
 
             <div className="rounded-xl border bg-gray-50 p-3 quest-detail-section quest-members-section">
               <p className="text-sm font-medium mb-2">Joined members ({visibleMembers.filter((m) => (m.status || "approved") === "approved").length})</p>
