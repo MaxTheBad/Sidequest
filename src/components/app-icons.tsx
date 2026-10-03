@@ -1,4 +1,67 @@
-import type { ReactNode, SVGProps } from "react";
+import type { CSSProperties, HTMLAttributes, ReactNode, SVGProps } from "react";
+import {
+  barbellOutline,
+  basketballOutline,
+  cashOutline,
+  colorPaletteOutline,
+  ellipsisHorizontal,
+  gameControllerOutline,
+  trailSignOutline,
+} from "ionicons/icons";
+
+/**
+ * These names intentionally mirror the Ionicons references in the native
+ * Create Quest category definition. Keeping the mapping here makes the web
+ * implementation traceable to the mobile source instead of using lookalikes.
+ */
+export type QuestCategoryIconName =
+  | "trail-sign-outline"
+  | "basketball-outline"
+  | "game-controller-outline"
+  | "color-palette-outline"
+  | "cash-outline"
+  | "barbell-outline"
+  | "ellipsis-horizontal";
+
+const questCategoryIcons: Record<QuestCategoryIconName, string> = {
+  "trail-sign-outline": trailSignOutline,
+  "basketball-outline": basketballOutline,
+  "game-controller-outline": gameControllerOutline,
+  "color-palette-outline": colorPaletteOutline,
+  "cash-outline": cashOutline,
+  "barbell-outline": barbellOutline,
+  "ellipsis-horizontal": ellipsisHorizontal,
+};
+
+/**
+ * Renders the official Ionicons SVG data as a CSS mask. This preserves the
+ * exact native glyph while allowing the selected and unselected web states to
+ * inherit their colour from `currentColor`.
+ */
+export function QuestCategoryIcon({
+  name,
+  className,
+  style,
+  ...props
+}: HTMLAttributes<HTMLSpanElement> & { name: QuestCategoryIconName }) {
+  const icon = questCategoryIcons[name];
+  const maskImage = `url("${icon}")`;
+  const iconStyle: CSSProperties = {
+    display: "inline-block",
+    backgroundColor: "currentColor",
+    WebkitMaskImage: maskImage,
+    maskImage,
+    WebkitMaskRepeat: "no-repeat",
+    maskRepeat: "no-repeat",
+    WebkitMaskPosition: "center",
+    maskPosition: "center",
+    WebkitMaskSize: "contain",
+    maskSize: "contain",
+    ...style,
+  };
+
+  return <span aria-hidden="true" className={className} style={iconStyle} {...props} />;
+}
 
 export type AppIconName = "home" | "bookmark" | "bell" | "message" | "people" | "plus" | "settings" | "shield" | "user" | "location" | "more" | "clock" | "calendar" | "refresh" | "minus" | "check" | "star" | "tune" | "play" | "chevronDown" | "search";
 

@@ -1569,7 +1569,7 @@ html[data-theme="dark"] .quest-detail-section { background: rgba(29,32,44,.82) !
   color: #edf5fb;
   background: #112235;
 }
-.create119-category-rail button b { font-size: 23px; line-height: 1; }
+.create119-category-icon { width: 25px; height: 25px; flex: 0 0 25px; }
 .create119-category-rail button span { font-size: 10px; font-weight: 750; line-height: 1.1; text-align: center; }
 .create119-category-rail button.is-active {
   border-color: #68e7fa;

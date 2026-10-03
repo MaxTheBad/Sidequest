@@ -15,7 +15,7 @@ import { isImageLikeFile, prepareImageForUpload } from "@/lib/media-optimize";
 import { compressVideoForUpload, VIDEO_MAX_DURATION_SECONDS } from "@/lib/video-optimize";
 import { collectQuestStorageUrls, removeStoragePublicUrls } from "@/lib/storage.js";
 import { APP_EVENT_NAMES, APP_NAME } from "@/lib/app-brand";
-import { AppIcon } from "@/components/app-icons";
+import { AppIcon, QuestCategoryIcon, type QuestCategoryIconName } from "@/components/app-icons";
 import { AppleMapPreview } from "@/components/apple-map-preview";
 import { TurnstileInvisible } from "@/components/turnstile-invisible";
 import { formatReportReference } from "@/lib/reporting";
@@ -5000,12 +5000,18 @@ export default function Home() {
               <section className="create119-card">
               <div className="create119-section-heading"><span>1</span><div><h2>What are you doing?</h2><p>Choose a category and give it a clear title.</p></div></div>
               <div className="create119-category-rail" role="list" aria-label="Quest categories">
-                {["Outdoors", "Sports", "Games", "Arts & Creative", "Money", "Fitness"].map((category, index) => {
+                {([
+                  ["Outdoors", "trail-sign-outline"],
+                  ["Sports", "basketball-outline"],
+                  ["Games", "game-controller-outline"],
+                  ["Arts & Creative", "color-palette-outline"],
+                  ["Money", "cash-outline"],
+                  ["Fitness", "barbell-outline"],
+                ] as const satisfies readonly (readonly [string, QuestCategoryIconName])[]).map(([category, icon]) => {
                   const active = categoryInput.trim().toLowerCase() === category.toLowerCase();
-                  const icon = ["▲", "◉", "⌘", "◌", "$", "↔"][index];
-                  return <button key={category} type="button" role="listitem" className={active ? "is-active" : ""} onClick={() => { const match = categoryOptions.find((option) => option.name.toLowerCase() === category.toLowerCase()); setCategoryInput(category); setUseCustomCategory(false); setCustomCategory(""); setHobbyId(match && !match.id.startsWith("canonical:") ? match.id : ""); clearFieldError("category"); }}><b>{icon}</b><span>{category}</span></button>;
+                  return <button key={category} type="button" role="listitem" className={active ? "is-active" : ""} onClick={() => { const match = categoryOptions.find((option) => option.name.toLowerCase() === category.toLowerCase()); setCategoryInput(category); setUseCustomCategory(false); setCustomCategory(""); setHobbyId(match && !match.id.startsWith("canonical:") ? match.id : ""); clearFieldError("category"); }}><QuestCategoryIcon name={icon} className="create119-category-icon" /><span>{category}</span></button>;
                 })}
-                <button type="button" role="listitem" className={useCustomCategory ? "is-active" : ""} onClick={() => setCategoryDropdownOpen(true)}><b>•••</b><span>More</span></button>
+                <button type="button" role="listitem" className={useCustomCategory ? "is-active" : ""} onClick={() => setCategoryDropdownOpen(true)}><QuestCategoryIcon name="ellipsis-horizontal" className="create119-category-icon" /><span>More</span></button>
               </div>
               <label className={`text-xs font-medium uppercase tracking-wide ${fieldErrors.category ? "text-red-600" : "text-slate-600"}`}>Category *</label>
               <div className="relative">

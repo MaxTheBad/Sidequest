@@ -32,6 +32,7 @@
     "@supabase/supabase-js": "^2.111.0",
     "heic2any": "^0.0.4",
     "i18n-iso-countries": "^7.14.0",
+    "ionicons": "^8.1.0",
     "jose": "^6.2.5",
     "leaflet": "^1.9.4",
     "next": "^16.2.12",
