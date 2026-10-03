@@ -7,7 +7,7 @@ import CityAutocompleteInput from "@/components/city-autocomplete-input";
 import QuestMap from "@/components/quest-map";
 import { formatActivityTime, formatPostedTime } from "@/lib/activity-time";
 import { getSupabaseClient } from "@/lib/supabase";
-import { CANONICAL_CATEGORIES, resolveCanonicalCategory, suggestCanonicalCategories } from "@/lib/category-suggestions.js";
+import { CANONICAL_CATEGORIES, resolveCanonicalCategory } from "@/lib/category-suggestions.js";
 import { getCategoryFallbackMedia } from "@/lib/category-default-media";
 import { TITLE_SUGGESTIONS, getCategoryTitleSuggestions } from "@questhat/shared";
 import { readStoredUserLocation, writeStoredUserLocation } from "@/lib/location-distance";
@@ -15,7 +15,7 @@ import { isImageLikeFile, prepareImageForUpload } from "@/lib/media-optimize";
 import { compressVideoForUpload, VIDEO_MAX_DURATION_SECONDS } from "@/lib/video-optimize";
 import { collectQuestStorageUrls, removeStoragePublicUrls } from "@/lib/storage.js";
 import { APP_EVENT_NAMES, APP_NAME } from "@/lib/app-brand";
-import { AppIcon, QuestCategoryIcon, type QuestCategoryIconName } from "@/components/app-icons";
+import { AppIcon, QuestCategoryIcon, getQuestCategoryIconName, type QuestCategoryIconName } from "@/components/app-icons";
 import { AppleMapPreview } from "@/components/apple-map-preview";
 import { TurnstileInvisible } from "@/components/turnstile-invisible";
 import { formatReportReference } from "@/lib/reporting";
@@ -48,6 +48,23 @@ function normalizeLocationQuery(value?: string | null) {
 
 const MAX_QUEST_MEDIA_ITEMS = 3;
 const MAX_QUEST_VIDEOS = 2;
+const CREATE_TOP_CATEGORIES = [
+  ["Outdoors", "trail-sign-outline"],
+  ["Sports", "basketball-outline"],
+  ["Games", "game-controller-outline"],
+  ["Arts & Creative", "color-palette-outline"],
+  ["Money", "cash-outline"],
+  ["Fitness", "barbell-outline"],
+] as const satisfies readonly (readonly [string, QuestCategoryIconName])[];
+
+const CREATE_COVER_CATEGORY_SEQUENCE = [
+  "Outdoors",
+  "Social",
+  "Community",
+  "Healthy Lifestyle",
+  "Money",
+  "Creative",
+] as const;
 
 type DraftMediaItem = {
   id: string;
@@ -424,6 +441,8 @@ export default function Home() {
   const [removeExistingVideo, setRemoveExistingVideo] = useState(false);
   const liveVideoInputRef = useRef<HTMLInputElement | null>(null);
   const uploadVideoInputRef = useRef<HTMLInputElement | null>(null);
+  const coverMediaInputRef = useRef<HTMLInputElement | null>(null);
+  const startAtInputRef = useRef<HTMLInputElement | null>(null);
   const [savingQuest, setSavingQuest] = useState(false);
   const [questSaveProgress, setQuestSaveProgress] = useState<{ percent: number; label: string }>({ percent: 0, label: "" });
   const [lastQuestCreateMs, setLastQuestCreateMs] = useState(0);
@@ -501,14 +520,59 @@ export default function Home() {
     () => getTitleSuggestionsByCategory(categoryInput || ""),
     [categoryInput]
   );
-  const canonicalCategoryMatch = useMemo(
-    () => resolveCanonicalCategory(categoryInput),
-    [categoryInput]
-  );
-  const canonicalCategorySuggestions = useMemo(
-    () => suggestCanonicalCategories(categoryInput),
-    [categoryInput]
-  );
+  const createCoverSuggestions = useMemo(() => {
+    const names = [categoryInput || "Outdoors", ...CREATE_COVER_CATEGORY_SEQUENCE];
+    const seen = new Set<string>();
+    return names
+      .map((name) => ({ name, media: getCategoryFallbackMedia(name) }))
+      .filter(({ media }) => {
+        const key = media.imageUrl;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .slice(0, 6);
+  }, [categoryInput]);
+  const createCompletionStates = useMemo(() => {
+    const hasCategoryAndTitle = Boolean(categoryInput.trim() && title.trim());
+    const hasStartTime = Boolean(startAt);
+    const hasPlace = locationMode === "remote"
+      ? Boolean(exactAddress.trim())
+      : Boolean(countryQuery.trim() && exactAddress.trim() && (locationConfirmationMode || selectedLocationSuggestion || confirmedDeviceCoordinates));
+    return [hasCategoryAndTitle, hasStartTime, hasPlace];
+  }, [categoryInput, title, startAt, locationMode, exactAddress, countryQuery, locationConfirmationMode, selectedLocationSuggestion, confirmedDeviceCoordinates]);
+  const createCompletionCount = createCompletionStates.filter(Boolean).length;
+  const createRequiredReady = createCompletionCount === createCompletionStates.length;
+  const formatCreateDate = (value: string) => {
+    if (!value) return "Choose date";
+    const date = new Date(value);
+    if (!Number.isFinite(date.getTime())) return "Choose date";
+    return date.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+  };
+  const formatCreateTime = (value: string) => {
+    if (!value) return "Choose time";
+    const date = new Date(value);
+    if (!Number.isFinite(date.getTime())) return "Choose time";
+    return date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  };
+  const openNativeStartPicker = () => {
+    const input = startAtInputRef.current;
+    if (!input) return;
+    if (typeof input.showPicker === "function") {
+      input.showPicker();
+    } else {
+      input.focus();
+    }
+  };
+
+  function selectCreateCategory(category: string) {
+    const match = categoryOptions.find((option) => option.name.toLowerCase() === category.toLowerCase());
+    setCategoryInput(category);
+    setUseCustomCategory(false);
+    setCustomCategory("");
+    setHobbyId(match && !match.id.startsWith("canonical:") ? match.id : "");
+    clearFieldError("category");
+  }
 
   useEffect(() => {
     if (!categoryInput.trim()) {
@@ -1829,7 +1893,7 @@ export default function Home() {
     setTimeFlexible(false);
     setShowAdvancedSettings(false);
     setHobbyId("");
-    setCategoryInput("");
+    setCategoryInput("Outdoors");
     setUseCustomCategory(false);
     setCustomCategory("");
     setCategoryDropdownOpen(false);
@@ -2035,6 +2099,28 @@ export default function Home() {
     if (added.length < files.length) setStatus(`Only ${MAX_QUEST_MEDIA_ITEMS} media items are allowed per quest.`);
   }
 
+  async function useSuggestedCoverImage(imageUrl: string, label: string) {
+    try {
+      const response = await fetch(imageUrl);
+      if (!response.ok) throw new Error("Could not load suggested cover.");
+      const blob = await response.blob();
+      const sourceFile = new File([blob], `${label.toLowerCase().replace(/[^a-z0-9]+/g, "-") || "quest-cover"}.jpg`, {
+        type: blob.type || "image/jpeg",
+      });
+      const file = await prepareImageForUpload(sourceFile, { maxWidth: 1600, maxHeight: 1600, quality: 0.82 });
+      const id = `suggested-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const suggestedItem: DraftMediaItem = { id, file, label: "", type: "image", source: "new" };
+      setMediaDraftItems((prev) => {
+        const withoutSuggestedCover = prev.filter((item) => !item.id.startsWith("suggested-"));
+        return [suggestedItem, ...withoutSuggestedCover].slice(0, MAX_QUEST_MEDIA_ITEMS);
+      });
+      setSelectedMediaId(id);
+      setStatus("");
+    } catch (err) {
+      setStatus(err instanceof Error ? err.message : "Could not use that suggested cover.");
+    }
+  }
+
   const mediaPreviewUrls = useMemo(() => {
     const map = new Map<string, string>();
     mediaDraftItems.forEach((item) => {
@@ -2056,6 +2142,7 @@ export default function Home() {
   }, [mediaDraftItems, mediaPreviewUrls]);
 
   const selectedMediaItem = mediaDraftItems.find((m) => m.id === selectedMediaId) || null;
+  const selectedCreateCoverUrl = selectedMediaId ? mediaPreviewUrls.get(selectedMediaId) : null;
   const selectedTrimStart = selectedMediaItem?.trimStartSeconds ?? 0;
   const selectedTrimEnd = selectedMediaItem?.trimEndSeconds ?? (selectedMediaVideoDuration || VIDEO_MAX_DURATION_SECONDS);
   const selectedTrimLength = Math.max(0, selectedTrimEnd - selectedTrimStart);
@@ -2778,8 +2865,8 @@ export default function Home() {
     if (!categoryInput.trim()) return flagFieldError("category", "Please enter a category.");
     if (!title.trim()) return flagFieldError("title", "Please enter a title.");
     if (!countryQuery.trim()) return flagFieldError("country", "Please enter a country.");
-    if (locationMode === "remote") {
-      if (!exactAddress.trim()) return flagFieldError("location", "Remote meeting link is required.");
+      if (locationMode === "remote") {
+        if (!exactAddress.trim()) return flagFieldError("location", "Virtual meeting link is required.");
     } else if (!exactAddress.trim()) {
       return flagFieldError("location", "Location is required.");
     } else if (locationConfirmationMode !== "device" && !selectedLocationSuggestion) {
@@ -4995,163 +5082,147 @@ export default function Home() {
               <div><strong>Make it memorable</strong><p>A clear title, good details, and a photo gets more people to join.</p></div>
               <div className="create119-photo-stack" aria-hidden="true"><img src="/category-fallbacks/outdoors.jpg" alt="" /><img src="/category-fallbacks/community.jpg" alt="" /></div>
             </div>
-            <form ref={createQuestFormRef} id="create-quest-form" onSubmit={createQuest} className="create119-form grid gap-3 pb-28 md:pb-8">
-              {/* Core Fields */}
+            <form ref={createQuestFormRef} id="create-quest-form" onSubmit={createQuest} className="create119-form grid gap-3 pb-8">
               <section className="create119-card">
-              <div className="create119-section-heading"><span>1</span><div><h2>What are you doing?</h2><p>Choose a category and give it a clear title.</p></div></div>
-              <div className="create119-category-rail" role="list" aria-label="Quest categories">
-                {([
-                  ["Outdoors", "trail-sign-outline"],
-                  ["Sports", "basketball-outline"],
-                  ["Games", "game-controller-outline"],
-                  ["Arts & Creative", "color-palette-outline"],
-                  ["Money", "cash-outline"],
-                  ["Fitness", "barbell-outline"],
-                ] as const satisfies readonly (readonly [string, QuestCategoryIconName])[]).map(([category, icon]) => {
-                  const active = categoryInput.trim().toLowerCase() === category.toLowerCase();
-                  return <button key={category} type="button" role="listitem" className={active ? "is-active" : ""} onClick={() => { const match = categoryOptions.find((option) => option.name.toLowerCase() === category.toLowerCase()); setCategoryInput(category); setUseCustomCategory(false); setCustomCategory(""); setHobbyId(match && !match.id.startsWith("canonical:") ? match.id : ""); clearFieldError("category"); }}><QuestCategoryIcon name={icon} className="create119-category-icon" /><span>{category}</span></button>;
-                })}
-                <button type="button" role="listitem" className={useCustomCategory ? "is-active" : ""} onClick={() => setCategoryDropdownOpen(true)}><QuestCategoryIcon name="ellipsis-horizontal" className="create119-category-icon" /><span>More</span></button>
-              </div>
-              <label className={`text-xs font-medium uppercase tracking-wide ${fieldErrors.category ? "text-red-600" : "text-slate-600"}`}>Category *</label>
-              <div className="relative">
-                <button
-                  type="button"
-                  className={`create-select-trigger w-full ${fieldErrors.category ? "is-invalid" : ""}`}
-                  onClick={() => setCategoryDropdownOpen((open) => !open)}
-                >
-                  <span className={categoryInput.trim() ? "text-slate-900 dark:text-white" : "text-slate-400 dark:text-slate-500"}>
-                    {categoryInput.trim() || "Select a category"}
-                  </span>
-                  <AppIcon name="chevronDown" className={`h-4 w-4 text-slate-500 transition-transform ${categoryDropdownOpen ? "rotate-180" : ""}`} />
-                </button>
-                {categoryDropdownOpen ? (
-                  <div className="create-select-menu category-select-menu absolute left-0 right-0 top-full z-20 mt-1">
-                    <button
-                      type="button"
-                      className="create-select-option"
-                      onClick={() => {
-                        setUseCustomCategory(true);
-                        setCustomCategory("");
-                        setCategoryInput("");
-                        setHobbyId("");
-                        clearFieldError("category");
-                        setCategoryDropdownOpen(false);
-                      }}
-                    >
-                      Custom category...
-                    </button>
-                    {categoryOptions.map((option) => (
+                <div className="create119-section-heading"><span>1</span><div><h2>What are you doing?</h2><p>Choose a category and give it a clear title.</p></div></div>
+                <div className="create119-category-rail" aria-label="Quest categories">
+                  {CREATE_TOP_CATEGORIES.map(([category, icon]) => {
+                    const active = categoryInput.trim().toLowerCase() === category.toLowerCase();
+                    return (
+                      <button key={category} type="button" className={active ? "is-active" : ""} onClick={() => selectCreateCategory(category)}>
+                        <QuestCategoryIcon name={icon} className="create119-category-icon" />
+                        <span>{category}</span>
+                      </button>
+                    );
+                  })}
+                  <button
+                    type="button"
+                    className={categoryInput.trim() && !CREATE_TOP_CATEGORIES.some(([category]) => category.toLowerCase() === categoryInput.trim().toLowerCase()) ? "is-active" : ""}
+                    onClick={() => setCategoryDropdownOpen(true)}
+                  >
+                    <QuestCategoryIcon name="ellipsis-horizontal" className="create119-category-icon" /><span>More</span>
+                  </button>
+                </div>
+                {fieldErrors.category ? <p className="create119-field-error">Choose a category.</p> : null}
+
+                <div className="create119-field-group">
+                  <div className="create119-label-row">
+                    <label className={fieldErrors.title ? "is-error" : ""}>Quest title</label>
+                    <span>{title.length}/80</span>
+                  </div>
+                  <div className="create119-title-wrap">
+                    <input
+                      maxLength={80}
+                      className={fieldErrors.title ? "is-error" : ""}
+                      placeholder={titlePlaceholder}
+                      value={title}
+                      onChange={(e) => { setTitle(e.target.value.slice(0, 80)); clearFieldError("title"); }}
+                    />
+                  </div>
+                  <div className="create119-suggestion-rail" aria-label="Suggested quest titles">
+                    {categoryTitleSuggestions.map((suggestion, index) => (
                       <button
-                        key={option.id}
+                        key={`${suggestion}-${index}`}
                         type="button"
-                        className="create-select-option"
                         onClick={() => {
-                          setCategoryInput(option.name);
-                          setUseCustomCategory(false);
-                          setCustomCategory("");
-                          setHobbyId(option.id.startsWith("canonical:") ? "" : option.id);
-                          clearFieldError("category");
-                          setCategoryDropdownOpen(false);
+                          setTitle(suggestion);
+                          clearFieldError("title");
                         }}
                       >
-                        {option.name}
+                        <QuestCategoryIcon name="sparkles" className="create119-chip-icon" />
+                        <span>{suggestion}</span>
                       </button>
                     ))}
                   </div>
-                ) : null}
-              </div>
-                {useCustomCategory ? (
-                <input
-                  className={`border rounded-xl px-2.5 py-2 w-full bg-white dark:bg-slate-900 text-sm sm:px-3 sm:py-2.5 sm:text-base text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 ${fieldErrors.category ? "border-red-500 ring-1 ring-red-300" : ""}`}
-                  value={customCategory}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setCustomCategory(value);
-                    setCategoryInput(value);
-                    clearFieldError("category");
-                    setHobbyId("");
-                  }}
-                  placeholder="Enter a custom category"
-                />
-              ) : null}
-              <p className="w-full text-[10px] leading-4 sm:text-xs text-gray-500 break-words break-all">
-                {canonicalCategoryMatch && categoryInput.trim() && categoryInput.trim().toLowerCase() !== canonicalCategoryMatch.toLowerCase()
-                  ? <>Mapped to: <span className="font-medium">{canonicalCategoryMatch}</span> · </>
-                  : null}
-                <span className="block whitespace-normal">Category suggestions: <span className="italic">{canonicalCategorySuggestions.join(", ")}</span></span>
-                <br />
-                <span className="block whitespace-normal">Title suggestion: <span className="italic">{categoryTitleHint}</span></span>
-              </p>
-              <div className="flex flex-wrap gap-1.5 min-w-0 max-w-full">
-                {categoryTitleSuggestions.map((suggestion, index) => (
-                  <button
-                    key={`${suggestion}-${index}`}
-                    type="button"
-                    className={`inline-flex max-w-full min-w-0 items-center gap-1.5 rounded-full border px-2.5 py-1 py-[5px] text-[10px] sm:px-3 sm:py-1.5 sm:text-xs font-medium transition active:scale-[0.98] ${
-                      index === 0
-                        ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-800 dark:border-slate-200 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white"
-                        : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
-                    }`}
-                    onClick={() => {
-                      setTitle(suggestion);
-                      clearFieldError("title");
-                    }}
-                  >
-                    <span className={`text-xs leading-none shrink-0 ${index === 0 ? "dark:text-slate-950" : "dark:text-slate-300"}`}>{index === 0 ? "✨" : "•"}</span>
-                    <span className="min-w-0 whitespace-normal break-words">{suggestion}</span>
-                  </button>
-                ))}
-              </div>
+                </div>
 
-              <label className={`text-xs font-medium uppercase tracking-wide ${fieldErrors.title ? "text-red-600" : "text-slate-600"}`}>Title *</label>
-              <div className="create119-title-wrap"><input maxLength={80} className={`border rounded-xl px-2.5 py-2 text-sm sm:px-3 sm:py-2.5 sm:text-base ${fieldErrors.title ? "border-red-500 ring-1 ring-red-300" : ""}`} placeholder={titlePlaceholder} value={title} onChange={(e) => { setTitle(e.target.value.slice(0, 80)); clearFieldError("title"); }} /><span>{title.length}/80</span></div>
-              </section>
-
-              <section className="create119-card">
-              <div className="create119-section-heading"><span>2</span><div><h2>When?</h2><p>Every quest needs a date and start time.</p></div></div>
-              <label className="text-xs font-medium uppercase tracking-wide text-slate-600">Date and start time *</label>
-              <input type="datetime-local" min={toDateTimeLocalValue(new Date().toISOString())} className="border rounded-xl px-2.5 py-2 text-sm sm:px-3 sm:py-2.5 sm:text-base" value={startAt} onChange={(e) => setStartAt(e.target.value)} />
-              <label className="create119-toggle-row flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={timeFlexible} onChange={(e) => setTimeFlexible(e.target.checked)} className="scale-90" />
-                <span className="text-sm"><strong>Time flexible</strong><small>The listed time is real, but I’m open to adjusting it.</small></span>
-              </label>
-              </section>
-
-              <section className="create119-card">
-              <div className="create119-section-heading"><span>3</span><div><h2>Where?</h2><p>Choose a place or add a virtual link. Exact details stay private by default.</p></div></div>
-              <div
-                ref={locationVisibilityRef}
-                className={`create-location-panel rounded-2xl border p-2 sm:p-3 space-y-2 sm:space-y-3 transition ${
-                  highlightLocationVisibility || fieldErrors.locationVisibility || fieldErrors.location ? "border-red-200 bg-red-50" : "border-slate-200"
-                }`}
-              >
-                <div className="flex items-start justify-between gap-3">
+                <div className="create119-field-group">
                   <div>
-                  <label className={`text-sm sm:text-base font-medium ${fieldErrors.locationVisibility ? "text-red-600" : ""}`}>Location *</label>
+                    <p className="create119-field-title">Add a cover photo</p>
+                    <p className="create119-field-subtitle">A photo helps more people join.</p>
+                  </div>
+                  <input
+                    ref={coverMediaInputRef}
+                    type="file"
+                    accept="image/*,video/*"
+                    multiple
+                    className="create119-cover-input"
+                    hidden
+                    aria-hidden="true"
+                    tabIndex={-1}
+                    onChange={(event) => {
+                      void handleQuestMediaPicked(event.target.files);
+                      event.currentTarget.value = "";
+                    }}
+                  />
+                  <div className="create119-cover-rail" aria-label="Cover photo choices">
+                    <button type="button" className="create119-add-photo" onClick={() => coverMediaInputRef.current?.click()}>
+                      <QuestCategoryIcon name="add" className="create119-add-photo-icon" />
+                      <span>Add photo</span>
+                    </button>
+                    {selectedCreateCoverUrl ? (
+                      <button type="button" className="create119-cover-thumb is-selected" onClick={() => setSelectedMediaId(selectedMediaId)}>
+                        <img src={selectedCreateCoverUrl} alt="Selected quest cover" />
+                      </button>
+                    ) : null}
+                    {createCoverSuggestions.map(({ name, media }) => (
+                      <button key={`${name}-${media.imageUrl}`} type="button" className="create119-cover-thumb" onClick={() => void useSuggestedCoverImage(media.imageUrl, name)}>
+                        <img src={media.imageUrl} alt={`${name} cover idea`} />
+                      </button>
+                    ))}
                   </div>
                 </div>
-                <div className="grid gap-1">
-                  <label className="text-[11px] font-medium uppercase tracking-wide text-slate-600">Meeting type</label>
-                  <div className="create119-location-modes grid grid-cols-2 gap-2 sm:gap-2.5">
+              </section>
+
+              <section className="create119-card">
+                <div className="create119-section-heading"><span>2</span><div><h2>When?</h2><p>Every quest needs a date and start time.</p></div></div>
+                <input
+                  ref={startAtInputRef}
+                  type="datetime-local"
+                  min={toDateTimeLocalValue(new Date().toISOString())}
+                  className="create119-hidden-datetime"
+                  value={startAt}
+                  onChange={(e) => setStartAt(e.target.value)}
+                  aria-label="Date and start time"
+                />
+                <div className="create119-date-row">
+                  <button type="button" className="create119-date-card" onClick={openNativeStartPicker}>
+                    <span className="create119-date-icon"><QuestCategoryIcon name="calendar-clear-outline" /></span>
+                    <span><small>Date</small><strong>{formatCreateDate(startAt)}</strong></span>
+                    <QuestCategoryIcon name="chevron-forward" className="create119-chevron" />
+                  </button>
+                  <button type="button" className="create119-date-card" onClick={openNativeStartPicker}>
+                    <span className="create119-date-icon"><QuestCategoryIcon name="time-outline" /></span>
+                    <span><small>Start time</small><strong>{formatCreateTime(startAt)}</strong></span>
+                    <QuestCategoryIcon name="chevron-forward" className="create119-chevron" />
+                  </button>
+                </div>
+                <label className="create119-switch-card">
+                  <span className="create119-switch-icon"><QuestCategoryIcon name="swap-horizontal-outline" /></span>
+                  <span className="create119-switch-copy"><strong>Time flexible</strong><small>The listed time is real, but you’re open to adjusting it.</small></span>
+                  <input type="checkbox" checked={timeFlexible} onChange={(e) => setTimeFlexible(e.target.checked)} />
+                  <span className="create119-switch-track" aria-hidden="true"><span /></span>
+                </label>
+              </section>
+
+              <section className="create119-card">
+                <div className="create119-section-heading"><span>3</span><div><h2>Where?</h2><p>Choose a place or add a virtual link. Exact details stay private by default.</p></div></div>
+                <div ref={locationVisibilityRef} className={`create119-where-panel ${highlightLocationVisibility || fieldErrors.locationVisibility || fieldErrors.location ? "has-error" : ""}`}>
+                  <div className="create119-location-modes" role="group" aria-label="Meeting type">
                     <button
                       type="button"
-                      className={`rounded-xl border px-2.5 py-2 text-left transition ${
-                        locationMode === "in_person" ? "border-slate-950 bg-slate-950 text-white" : "border-slate-200 bg-white hover:bg-slate-100"
-                      }`}
+                      className={locationMode === "in_person" ? "is-active" : ""}
                       onClick={() => {
                         setLocationMode("in_person");
                         clearFieldError("location");
                       }}
                     >
-                      <div className="font-medium text-sm sm:text-base">In person</div>
-                      <div className={`text-[11px] leading-4 sm:text-xs ${locationMode === "in_person" ? "text-white/80" : "text-slate-500"}`}>Meet at a place you choose</div>
+                      <span className="create119-location-shade" />
+                      <span className="create119-location-copy"><QuestCategoryIcon name="location" /><strong>In person</strong><small>A real-world place</small></span>
                     </button>
                     <button
                       type="button"
-                      className={`rounded-xl border px-2.5 py-2 text-left transition ${
-                        locationMode === "remote" ? "border-slate-950 bg-slate-950 text-white" : "border-slate-200 bg-white hover:bg-slate-100"
-                      }`}
+                      className={locationMode === "remote" ? "is-active" : ""}
                       onClick={() => {
                         setLocationMode("remote");
                         setExactLocationVisibility("private");
@@ -5167,193 +5238,172 @@ export default function Home() {
                         clearFieldError("locationVisibility");
                       }}
                     >
-                      <div className="font-medium text-sm sm:text-base">Remote</div>
-                      <div className={`text-[11px] leading-4 sm:text-xs ${locationMode === "remote" ? "text-white/80" : "text-slate-500"}`}>Paste a meeting link</div>
+                      <span className="create119-location-shade" />
+                      <span className="create119-location-copy"><QuestCategoryIcon name="videocam-outline" /><strong>Virtual</strong><small>Meet online</small></span>
                     </button>
                   </div>
-                </div>
-                {locationMode === "in_person" ? (
-                  <div className="grid gap-1">
-                    <label className={`text-[11px] font-medium uppercase tracking-wide ${fieldErrors.country ? "text-red-600" : "text-slate-600"}`}>Country *</label>
-                    <CreateSelect
-                      value={countryQuery}
-                      placeholder="Choose a country"
-                      searchable
-                      invalid={Boolean(fieldErrors.country)}
-                      options={countryOptions.map((country) => ({ value: country.name, label: country.name }))}
-                      onChange={(next) => {
-                        setCountryQuery(next);
-                        setCountryCode(resolveCountryCodeByName(next));
-                        setExactAddress("");
-                        setLocationConfirmationMode(null);
-                        setSelectedApplePlaceId(null);
-                        setConfirmedDeviceCoordinates(null);
-                        setLocationDetails("");
-                        setShowLocationDetails(false);
-                        setCitySuggestions([]);
-                        setSelectedLocationSuggestion(null);
-                        setSelectedPublicLocation(null);
-                        setSelectedAppleCoordinates(null);
-                        setLocationSearchAttempted(false);
-                        clearFieldError("country");
-                      }}
-                    />
-                  </div>
-                ) : null}
-                <div className="grid gap-1">
-                  <label className={`text-[11px] font-medium uppercase tracking-wide ${fieldErrors.location ? "text-red-600" : "text-slate-600"}`}>
-                    {locationMode === "remote" ? "Meeting link" : "Meetup location"}
-                  </label>
-                  <div className="relative">
-                    <input
-                      className={`border rounded-xl px-2.5 py-2 w-full bg-white text-sm sm:px-3 sm:py-2.5 sm:text-base ${locationMode === "in_person" ? "pr-24" : ""} ${fieldErrors.location ? "border-red-500 ring-1 ring-red-300" : ""}`}
-                      placeholder={locationMode === "remote" ? "Paste a Google Meet, Zoom, or Teams link" : "Exact address or Barnes & Noble Miami"}
-                      value={exactAddress}
-                      onChange={(e) => {
-                        setExactAddress(e.target.value);
-                        setLocationConfirmationMode(null);
-                        setSelectedApplePlaceId(null);
-                        setConfirmedDeviceCoordinates(null);
-                        setLocationDetails("");
-                        setShowLocationDetails(false);
-                        setCitySuggestions([]);
-                        setSelectedLocationSuggestion(null);
-                        setSelectedPublicLocation(null);
-                        setSelectedAppleCoordinates(null);
-                        setLocationSearchAttempted(false);
-                        clearFieldError("location");
-                      }}
-                      onKeyDown={(event) => {
-                        if (locationMode === "in_person" && event.key === "Enter") {
-                          event.preventDefault();
-                          void searchQuestLocations();
-                        }
-                      }}
-                    />
-                    {locationMode === "in_person" ? (
-                      <button
-                        type="button"
-                        className="absolute bottom-1.5 right-1.5 top-1.5 inline-flex min-w-[4.5rem] items-center justify-center gap-1 rounded-lg bg-[#0c5063] px-2 text-xs font-semibold text-white disabled:opacity-60"
-                        disabled={locationSearchLoading || exactAddress.trim().length < 3}
-                        onClick={() => void searchQuestLocations()}
-                      >
-                        {locationSearchLoading ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" /> : null}
-                        {locationSearchLoading ? "Finding" : "Search"}
-                      </button>
-                    ) : null}
-                    {locationMode === "in_person" && citySuggestions.length > 0 && (
-                      <div className="absolute z-20 left-0 right-0 mt-1 max-h-56 overflow-auto rounded-xl border bg-white text-sm shadow-xl">
-                        {citySuggestions.map((suggestion) => (
-                          <button
-                            key={suggestion.id || suggestion.label}
-                            type="button"
-                            className="flex w-full items-start gap-2 border-b px-3 py-3 text-left last:border-b-0 hover:bg-slate-50"
-                            onClick={() => {
-                              setExactAddress(suggestion.address || suggestion.label);
-                              setSelectedLocationSuggestion(suggestion.label);
-                              setSelectedPublicLocation(suggestion.publicLabel || deriveCityFromLocation(suggestion.label));
-                              setSelectedAppleCoordinates(
-                                suggestion.lat != null && suggestion.lon != null ? { lat: suggestion.lat, lon: suggestion.lon } : null,
-                              );
-                              setSelectedApplePlaceId(suggestion.id || null);
-                              setLocationConfirmationMode(suggestion.id ? "address" : null);
-                              setConfirmedDeviceCoordinates(null);
-                              setLocationSearchLoading(false);
-                              setCitySuggestions([]);
-                              clearFieldError("location");
-                            }}
-                          >
-                            <AppIcon name="location" className="mt-0.5 h-4 w-4 shrink-0 text-[#0c5063]" />
-                            <span>{suggestion.label}</span>
-                          </button>
-                        ))}
+
+                  {locationMode === "in_person" ? (
+                    <div className="create119-field-group">
+                      <label className={`create119-field-title ${fieldErrors.country ? "is-error" : ""}`}>Country or region</label>
+                      <div className="create119-icon-row">
+                        <QuestCategoryIcon name="globe-outline" className="create119-input-icon" />
+                        <CreateSelect
+                          value={countryQuery}
+                          placeholder="Search countries"
+                          searchable
+                          invalid={Boolean(fieldErrors.country)}
+                          options={countryOptions.map((country) => ({ value: country.name, label: country.name }))}
+                          onChange={(next) => {
+                            setCountryQuery(next);
+                            setCountryCode(resolveCountryCodeByName(next));
+                            setExactAddress("");
+                            setLocationConfirmationMode(null);
+                            setSelectedApplePlaceId(null);
+                            setConfirmedDeviceCoordinates(null);
+                            setLocationDetails("");
+                            setShowLocationDetails(false);
+                            setCitySuggestions([]);
+                            setSelectedLocationSuggestion(null);
+                            setSelectedPublicLocation(null);
+                            setSelectedAppleCoordinates(null);
+                            setLocationSearchAttempted(false);
+                            clearFieldError("country");
+                          }}
+                        />
                       </div>
-                    )}
-                  </div>
-                  {locationMode === "in_person" && selectedAppleCoordinates ? (
-                    <div className="overflow-hidden rounded-xl border border-[#0c5063]/20 bg-slate-100">
-                      <AppleMapPreview
-                        latitude={selectedAppleCoordinates.lat}
-                        longitude={selectedAppleCoordinates.lon}
-                        title={selectedLocationSuggestion || exactAddress || "Meetup location"}
-                      />
                     </div>
                   ) : null}
-                  <p className={`text-[10px] leading-4 sm:text-xs ${selectedLocationSuggestion ? "font-medium text-emerald-700" : "text-slate-500"}`}>
-                    {locationMode === "remote"
-                      ? "The link follows the privacy setting above."
-                      : locationConfirmationMode === "device"
-                        ? "Current-location pin selected. QuestHat will not track you after publishing."
-                      : selectedLocationSuggestion && selectedApplePlaceId
-                        ? `Confirmed with Apple: ${selectedLocationSuggestion}`
-                        : locationSearchAttempted && !locationSearchLoading && citySuggestions.length === 0
-                          ? "No exact matches yet. Try the street address without a suite number or use the venue's shorter name."
-                        : "Select the exact place so guests get the correct directions."}
-                  </p>
-                  {locationMode === "in_person" && locationSearchRemaining !== null && locationSearchRemaining <= 20 ? (
-                    <p className="text-[10px] font-medium text-[#0c5063] sm:text-xs">{locationSearchRemaining} address searches remaining today</p>
-                  ) : null}
-                  {locationMode === "in_person" ? (
-                    <button
-                      type="button"
-                      className="mt-1 inline-flex items-center justify-center gap-2 rounded-xl border border-[#0c5063]/25 bg-[#0c5063]/[0.04] px-3 py-2 text-sm font-semibold text-[#0c5063]"
-                      onClick={() => void useCurrentLocationForQuest()}
-                    >
-                      <AppIcon name="location" className="h-4 w-4" />
-                      Use my current location
-                    </button>
-                  ) : null}
-                  <p className="rounded-xl border border-[#0c5063]/15 bg-[#0c5063]/[0.04] px-3 py-2 text-[10px] leading-4 text-[#0c5063] sm:text-xs">
-                    {locationMode === "remote"
-                      ? "Meeting link private by default. Change this in Make it yours."
-                      : "Exact address private by default. Your exact or live device location is never shared automatically."}
-                  </p>
-                </div>
-                {locationMode === "in_person" && selectedLocationSuggestion ? (
-                  <div className="grid gap-2 rounded-xl border border-[#0c5063]/15 bg-[#0c5063]/[0.03] p-2.5 sm:p-3">
-                    <button
-                      type="button"
-                      className="flex w-full items-center gap-2 text-left text-sm font-semibold text-[#0c5063]"
-                      onClick={() => setShowLocationDetails((current) => !current)}
-                      aria-expanded={showLocationDetails}
-                    >
-                      <AppIcon name="shield" className="h-4 w-4" />
-                      <span className="flex-1">{showLocationDetails ? "Hide meeting details" : "+ Add meeting details"}</span>
-                      <span aria-hidden>{showLocationDetails ? "−" : "+"}</span>
-                    </button>
-                    {showLocationDetails ? (
-                      <div className="grid gap-1.5">
-                        <div className="flex items-center justify-between gap-3">
-                          <label className="text-[11px] font-medium uppercase tracking-wide text-slate-600">Meeting details</label>
-                          <span className="text-[10px] text-slate-500">{locationDetails.length}/240</span>
+
+                  <div className="create119-field-group">
+                    <label className={`create119-field-title ${fieldErrors.location ? "is-error" : ""}`}>{locationMode === "remote" ? "Meeting link" : "Business, address, or city"}</label>
+                    <div className="create119-location-search">
+                      <QuestCategoryIcon name={locationMode === "remote" ? "link-outline" : "search-outline"} className="create119-input-icon" />
+                      <input
+                        placeholder={locationMode === "remote" ? "Paste a Google Meet, Zoom, or Teams link" : "Exact address or Barnes & Noble Miami"}
+                        value={exactAddress}
+                        onChange={(e) => {
+                          setExactAddress(e.target.value);
+                          setLocationConfirmationMode(null);
+                          setSelectedApplePlaceId(null);
+                          setConfirmedDeviceCoordinates(null);
+                          setLocationDetails("");
+                          setShowLocationDetails(false);
+                          setCitySuggestions([]);
+                          setSelectedLocationSuggestion(null);
+                          setSelectedPublicLocation(null);
+                          setSelectedAppleCoordinates(null);
+                          setLocationSearchAttempted(false);
+                          clearFieldError("location");
+                        }}
+                        onKeyDown={(event) => {
+                          if (locationMode === "in_person" && event.key === "Enter") {
+                            event.preventDefault();
+                            void searchQuestLocations();
+                          }
+                        }}
+                      />
+                      {locationMode === "in_person" ? (
+                        <button type="button" disabled={locationSearchLoading || exactAddress.trim().length < 3} onClick={() => void searchQuestLocations()}>
+                          {locationSearchLoading ? <span className="create119-spinner" /> : <QuestCategoryIcon name="search-outline" />}
+                          <span>{locationSearchLoading ? "Finding" : "Search"}</span>
+                        </button>
+                      ) : null}
+                      {locationMode === "in_person" && citySuggestions.length > 0 && (
+                        <div className="create119-location-suggestions">
+                          {citySuggestions.map((suggestion) => (
+                            <button
+                              key={suggestion.id || suggestion.label}
+                              type="button"
+                              onClick={() => {
+                                setExactAddress(suggestion.address || suggestion.label);
+                                setSelectedLocationSuggestion(suggestion.label);
+                                setSelectedPublicLocation(suggestion.publicLabel || deriveCityFromLocation(suggestion.label));
+                                setSelectedAppleCoordinates(
+                                  suggestion.lat != null && suggestion.lon != null ? { lat: suggestion.lat, lon: suggestion.lon } : null,
+                                );
+                                setSelectedApplePlaceId(suggestion.id || null);
+                                setLocationConfirmationMode(suggestion.id ? "address" : null);
+                                setConfirmedDeviceCoordinates(null);
+                                setLocationSearchLoading(false);
+                                setCitySuggestions([]);
+                                clearFieldError("location");
+                              }}
+                            >
+                              <QuestCategoryIcon name="location" />
+                              <span>{suggestion.label}</span>
+                            </button>
+                          ))}
                         </div>
-                        <textarea
-                          className="min-h-24 w-full resize-y rounded-xl border bg-white px-3 py-2 text-sm"
-                          maxLength={240}
-                          value={locationDetails}
-                          onChange={(event) => setLocationDetails(event.target.value.slice(0, 240))}
-                          placeholder="Court number, table location, entrance, suite, or parking instructions"
+                      )}
+                    </div>
+                    {locationMode === "in_person" && selectedAppleCoordinates ? (
+                      <div className="create119-map-preview">
+                        <AppleMapPreview
+                          latitude={selectedAppleCoordinates.lat}
+                          longitude={selectedAppleCoordinates.lon}
+                          title={selectedLocationSuggestion || exactAddress || "Meetup location"}
                         />
-                        <p className={`text-[10px] leading-4 sm:text-xs ${exactLocationVisibility === "public" ? "text-amber-700" : "text-slate-500"}`}>
-                          {exactLocationVisibility === "public"
-                            ? "These details will be public. Don’t include door codes or sensitive personal information."
-                            : "These details stay protected with your exact address. Don’t include door codes or sensitive personal information."}
-                        </p>
                       </div>
                     ) : null}
+                    <p className={`create119-helper-text ${selectedLocationSuggestion ? "is-confirmed" : ""}`}>
+                      {locationMode === "remote"
+                        ? "The link follows the privacy setting in Make it yours."
+                        : locationConfirmationMode === "device"
+                          ? "Current-location pin selected. QuestHat will not track you after publishing."
+                        : selectedLocationSuggestion && selectedApplePlaceId
+                          ? `Confirmed with Apple: ${selectedLocationSuggestion}`
+                          : locationSearchAttempted && !locationSearchLoading && citySuggestions.length === 0
+                            ? "No exact matches yet. Try the street address without a suite number or use the venue's shorter name."
+                          : "Select the exact place so guests get the correct directions."}
+                    </p>
+                    {locationMode === "in_person" && locationSearchRemaining !== null && locationSearchRemaining <= 20 ? (
+                      <p className="create119-helper-text">{locationSearchRemaining} address searches remaining today</p>
+                    ) : null}
+                    {locationMode === "in_person" ? (
+                      <button type="button" className="create119-current-location" onClick={() => void useCurrentLocationForQuest()}>
+                        <QuestCategoryIcon name="navigate-outline" />
+                        <span>Use my current location</span>
+                      </button>
+                    ) : null}
+                    <p className="create119-privacy-note">
+                      <QuestCategoryIcon name="shield-checkmark-outline" />
+                      <span>{locationMode === "remote" ? "Meeting link private by default. Change this in Make it yours." : "Exact address private by default. Your exact or live device location is never shared automatically."}</span>
+                    </p>
                   </div>
-                ) : null}
-              </div>
+
+                  {locationMode === "in_person" && selectedLocationSuggestion ? (
+                    <div className="create119-details-panel">
+                      <button
+                        type="button"
+                        onClick={() => setShowLocationDetails((current) => !current)}
+                        aria-expanded={showLocationDetails}
+                      >
+                        <QuestCategoryIcon name="information-circle-outline" />
+                        <span>{showLocationDetails ? "Hide meeting details" : "+ Add meeting details"}</span>
+                        <span aria-hidden>{showLocationDetails ? "−" : "+"}</span>
+                      </button>
+                      {showLocationDetails ? (
+                        <div className="create119-field-group">
+                          <div className="create119-label-row"><label>Meeting details</label><span>{locationDetails.length}/240</span></div>
+                          <textarea
+                            maxLength={240}
+                            value={locationDetails}
+                            onChange={(event) => setLocationDetails(event.target.value.slice(0, 240))}
+                            placeholder="Court number, table location, entrance, suite, or parking instructions"
+                          />
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
               </section>
 
-              <button
-                type="button"
-                onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
-                className="mt-2 flex w-full items-center gap-2 rounded-2xl border border-cyan-300/60 bg-cyan-50/70 px-3 py-3 text-left text-sm font-medium text-gray-800 shadow-[0_0_18px_rgba(34,211,238,0.12)] hover:bg-cyan-50"
-              >
-                <AppIcon name="tune" className="h-4 w-4" />
-                <span className="flex-1"><span className="block font-semibold">Make it yours</span><span className="block text-xs font-normal text-slate-500">Privacy, joining, description, media, and group size.</span></span>
-                <span className="rounded-full border border-cyan-300 bg-white px-2 py-1 text-[9px] font-bold tracking-wide text-cyan-800">{showAdvancedSettings ? "OPTIONAL" : "RECOMMENDED"}</span>
+              <button type="button" className={`create119-advanced-toggle ${!showAdvancedSettings ? "is-recommended" : ""}`} onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}>
+                <span className="create119-advanced-icon"><QuestCategoryIcon name="sparkles-outline" /></span>
+                <span className="create119-advanced-copy"><strong>Make it yours</strong><small>Privacy, joining, description, media, and group size.</small></span>
+                <span className="create119-advanced-badge">{showAdvancedSettings ? "OPTIONAL" : "RECOMMENDED"}</span>
+                <QuestCategoryIcon name={showAdvancedSettings ? "chevron-up" : "chevron-down"} className="create119-advanced-chevron" />
               </button>
 
               {showAdvancedSettings ? <>
@@ -5753,7 +5803,7 @@ export default function Home() {
 
               <div
                 ref={questVerificationRef}
-                className={`scroll-mt-24 rounded-2xl border p-3 ${questVerificationState === "verified" ? "border-emerald-200 bg-emerald-50" : questVerificationState === "error" ? "border-red-200 bg-red-50" : "border-slate-200 bg-slate-50"}`}
+                className={`create119-verification scroll-mt-24 ${questVerificationState === "verified" ? "is-verified" : questVerificationState === "error" ? "is-error" : ""}`}
               >
                 <div className="mb-2 flex items-start justify-between gap-3">
                   <div>
@@ -5815,21 +5865,82 @@ export default function Home() {
                   </div>
                 </div>
               )}
-            </form>
-          </div>
-          <div className="fixed bottom-0 left-0 right-0 z-[60] px-4 pb-[max(12px,env(safe-area-inset-bottom))] pt-3 md:pb-4">
-            <div className="create-action-dock mx-auto w-full max-w-xl rounded-t-2xl border px-4 py-3 shadow-[0_-10px_35px_rgba(15,23,42,0.14)] backdrop-blur-xl">
-              <div className="flex gap-2 flex-wrap sm:flex-nowrap">
-                <button form="create-quest-form" type="submit" className="w-full sm:w-auto inline-flex items-center justify-center rounded-xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed" disabled={savingQuest}>
-                  {savingQuest ? "Saving..." : (editingQuestId ? "Save changes" : "Post quest")}
-                </button>
-                {editingQuestId && (
-                  <button type="button" className="w-full sm:w-auto rounded-xl border border-red-300 bg-white px-4 py-3 text-sm font-medium text-red-700 transition hover:bg-red-50 active:scale-[0.99]" onClick={() => void deleteQuest(editingQuestId)}>
-                    Delete listing
+              <section className="create119-publish-card">
+                <div className="create119-publish-copy">
+                  <QuestCategoryIcon name={createRequiredReady ? "flash-outline" : "information-circle-outline"} className="create119-publish-icon" />
+                  <div>
+                    <h3>{createRequiredReady ? "Ready to publish" : "Finish the required details"}</h3>
+                    <p>{createRequiredReady ? "Your quest has the basics people need to decide." : "Add a clear plan, time, and place before publishing."}</p>
+                  </div>
+                </div>
+                <div className="create119-completion-row" aria-label={`${createCompletionCount} of ${createCompletionStates.length} required sections complete`}>
+                  <span>{createCompletionCount}/{createCompletionStates.length}</span>
+                  {createCompletionStates.map((complete, index) => <i key={index} className={complete ? "is-complete" : ""} />)}
+                </div>
+                <div className="create119-publish-actions">
+                  <button type="submit" disabled={savingQuest || !createRequiredReady}>
+                    {savingQuest ? "Saving..." : (editingQuestId ? "Save changes" : "Publish quest")}
                   </button>
-                )}
+                  {editingQuestId ? (
+                    <button type="button" className="is-delete" onClick={() => void deleteQuest(editingQuestId)}>
+                      Delete listing
+                    </button>
+                  ) : null}
+                </div>
+              </section>
+            </form>
+            {categoryDropdownOpen ? (
+              <div className="create119-category-modal" role="dialog" aria-modal="true" aria-labelledby="create119-category-title">
+                <button type="button" className="create119-category-backdrop" aria-label="Close category picker" onClick={() => setCategoryDropdownOpen(false)} />
+                <div className="create119-category-modal-card">
+                  <div className="create119-category-modal-header">
+                    <div>
+                      <h3 id="create119-category-title">CATEGORY</h3>
+                      <p>Choose what best fits your quest.</p>
+                    </div>
+                    <button type="button" className="create119-category-close" aria-label="Close category picker" onClick={() => setCategoryDropdownOpen(false)}>
+                      <span aria-hidden="true">×</span>
+                    </button>
+                  </div>
+                  <div className="create119-category-picker-scroll">
+                    <div className="create119-category-picker-grid">
+                      {CANONICAL_CATEGORIES.map((category) => {
+                        const active = categoryInput.trim().toLowerCase() === category.toLowerCase() && !useCustomCategory;
+                        return (
+                          <button
+                            key={category}
+                            type="button"
+                            className={active ? "is-active" : ""}
+                            onClick={() => {
+                              selectCreateCategory(category);
+                              setCategoryDropdownOpen(false);
+                            }}
+                          >
+                            <QuestCategoryIcon name={getQuestCategoryIconName(category)} className="create119-category-option-icon" />
+                            <span>{category}</span>
+                          </button>
+                        );
+                      })}
+                      <button
+                        type="button"
+                        className={useCustomCategory ? "is-active" : ""}
+                        onClick={() => {
+                          setCategoryInput("Custom");
+                          setUseCustomCategory(true);
+                          setCustomCategory("Custom");
+                          setHobbyId("");
+                          clearFieldError("category");
+                          setCategoryDropdownOpen(false);
+                        }}
+                      >
+                        <QuestCategoryIcon name="create-outline" className="create119-category-option-icon" />
+                        <span>Custom</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
-            </div>
+            ) : null}
           </div>
         </div>
       )}

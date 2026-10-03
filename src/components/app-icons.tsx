@@ -1,12 +1,37 @@
-import type { CSSProperties, HTMLAttributes, ReactNode, SVGProps } from "react";
+import type { HTMLAttributes, ReactNode, SVGProps } from "react";
 import {
+  add,
   barbellOutline,
   basketballOutline,
+  bookOutline,
+  briefcaseOutline,
+  calendarClearOutline,
   cashOutline,
+  chevronDown,
+  chevronForward,
+  chevronUp,
   colorPaletteOutline,
+  createOutline,
+  flashOutline,
+  globeOutline,
+  informationCircleOutline,
+  leafOutline,
   ellipsisHorizontal,
   gameControllerOutline,
+  linkOutline,
+  location,
+  navigateOutline,
+  peopleOutline,
+  searchOutline,
+  shieldCheckmarkOutline,
+  sparkles,
+  musicalNotesOutline,
+  sparklesOutline,
+  swapHorizontalOutline,
+  tennisballOutline,
+  timeOutline,
   trailSignOutline,
+  videocamOutline,
 } from "ionicons/icons";
 
 /**
@@ -21,7 +46,32 @@ export type QuestCategoryIconName =
   | "color-palette-outline"
   | "cash-outline"
   | "barbell-outline"
-  | "ellipsis-horizontal";
+  | "ellipsis-horizontal"
+  | "sparkles-outline"
+  | "briefcase-outline"
+  | "tennisball-outline"
+  | "leaf-outline"
+  | "book-outline"
+  | "musical-notes-outline"
+  | "create-outline"
+  | "sparkles"
+  | "add"
+  | "calendar-clear-outline"
+  | "time-outline"
+  | "chevron-forward"
+  | "swap-horizontal-outline"
+  | "location"
+  | "videocam-outline"
+  | "globe-outline"
+  | "search-outline"
+  | "link-outline"
+  | "navigate-outline"
+  | "shield-checkmark-outline"
+  | "information-circle-outline"
+  | "chevron-up"
+  | "chevron-down"
+  | "people-outline"
+  | "flash-outline";
 
 const questCategoryIcons: Record<QuestCategoryIconName, string> = {
   "trail-sign-outline": trailSignOutline,
@@ -31,7 +81,50 @@ const questCategoryIcons: Record<QuestCategoryIconName, string> = {
   "cash-outline": cashOutline,
   "barbell-outline": barbellOutline,
   "ellipsis-horizontal": ellipsisHorizontal,
+  "sparkles-outline": sparklesOutline,
+  "briefcase-outline": briefcaseOutline,
+  "tennisball-outline": tennisballOutline,
+  "leaf-outline": leafOutline,
+  "book-outline": bookOutline,
+  "musical-notes-outline": musicalNotesOutline,
+  "create-outline": createOutline,
+  "sparkles": sparkles,
+  "add": add,
+  "calendar-clear-outline": calendarClearOutline,
+  "time-outline": timeOutline,
+  "chevron-forward": chevronForward,
+  "swap-horizontal-outline": swapHorizontalOutline,
+  "location": location,
+  "videocam-outline": videocamOutline,
+  "globe-outline": globeOutline,
+  "search-outline": searchOutline,
+  "link-outline": linkOutline,
+  "navigate-outline": navigateOutline,
+  "shield-checkmark-outline": shieldCheckmarkOutline,
+  "information-circle-outline": informationCircleOutline,
+  "chevron-up": chevronUp,
+  "chevron-down": chevronDown,
+  "people-outline": peopleOutline,
+  "flash-outline": flashOutline,
 };
+
+export function getQuestCategoryIconName(category: string): QuestCategoryIconName {
+  const normalized = category.toLowerCase();
+  if (normalized.includes("pickleball") || normalized.includes("tennis")) return "tennisball-outline";
+  if (normalized.includes("book")) return "book-outline";
+  if (normalized.includes("music")) return "musical-notes-outline";
+  if (normalized.includes("art") || normalized.includes("craft")) return "color-palette-outline";
+  if (normalized.includes("fitness") || normalized.includes("health") || normalized.includes("sport")) return "barbell-outline";
+  if (normalized.includes("game")) return "game-controller-outline";
+  if (normalized.includes("career") || normalized.includes("business")) return "briefcase-outline";
+  if (normalized.includes("outdoor") || normalized.includes("nature")) return "leaf-outline";
+  return "sparkles-outline";
+}
+
+function ioniconMarkup(icon: string) {
+  const svg = icon.replace(/^data:image\/svg\+xml;utf8,/, "");
+  return decodeURIComponent(svg);
+}
 
 /**
  * Renders the official Ionicons SVG data as a CSS mask. This preserves the
@@ -41,26 +134,11 @@ const questCategoryIcons: Record<QuestCategoryIconName, string> = {
 export function QuestCategoryIcon({
   name,
   className,
-  style,
   ...props
 }: HTMLAttributes<HTMLSpanElement> & { name: QuestCategoryIconName }) {
   const icon = questCategoryIcons[name];
-  const maskImage = `url("${icon}")`;
-  const iconStyle: CSSProperties = {
-    display: "inline-block",
-    backgroundColor: "currentColor",
-    WebkitMaskImage: maskImage,
-    maskImage,
-    WebkitMaskRepeat: "no-repeat",
-    maskRepeat: "no-repeat",
-    WebkitMaskPosition: "center",
-    maskPosition: "center",
-    WebkitMaskSize: "contain",
-    maskSize: "contain",
-    ...style,
-  };
 
-  return <span aria-hidden="true" className={className} style={iconStyle} {...props} />;
+  return <span aria-hidden="true" className={className} dangerouslySetInnerHTML={{ __html: ioniconMarkup(icon) }} {...props} />;
 }
 
 export type AppIconName = "home" | "bookmark" | "bell" | "message" | "people" | "plus" | "settings" | "shield" | "user" | "location" | "more" | "clock" | "calendar" | "refresh" | "minus" | "check" | "star" | "tune" | "play" | "chevronDown" | "search";
