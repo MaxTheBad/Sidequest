@@ -12,7 +12,7 @@ import { recordSecurityAudit } from "@/lib/security-audit";
 import { AppIcon, type AppIconName } from "@/components/app-icons";
 import { ageFromBirthDate, GENDER_IDENTITY_OPTIONS } from "@/lib/people-discovery";
 
-type Tab = "profile" | "account" | "preferences" | "notifications" | "friends" | "blocked";
+type Tab = "profile" | "account" | "connected" | "preferences" | "notifications" | "friends" | "blocked";
 type NotificationPreferences = {
   messages: boolean;
   comments: boolean;
@@ -43,6 +43,13 @@ function clampNumber(value: number, min: number, max: number) {
 }
 
 type SocialProfile = { id: string; display_name: string | null; avatar_url: string | null; username: string | null };
+type TikTokConnectionStatus = {
+  connected: boolean;
+  displayName?: string | null;
+  avatarUrl?: string | null;
+  scopes?: string[];
+  connectedAt?: string | null;
+};
 type FriendEdge = {
   requester_id: string;
   addressee_id: string;
@@ -89,6 +96,9 @@ export default function SettingsPage() {
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [tiktokStatus, setTiktokStatus] = useState<TikTokConnectionStatus | null>(null);
+  const [tiktokLoading, setTiktokLoading] = useState(false);
+  const [tiktokAction, setTiktokAction] = useState<"connect" | "disconnect" | null>(null);
 
   const [marketingOptIn, setMarketingOptIn] = useState(false);
   const [themePref, setThemePref] = useState<"auto" | "light" | "dark">("auto");
@@ -137,8 +147,17 @@ export default function SettingsPage() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (new URLSearchParams(window.location.search).get("section") === "notifications") {
-      setTab("notifications");
+    const params = new URLSearchParams(window.location.search);
+    const section = params.get("section");
+    if (section === "notifications") setTab("notifications");
+    if (section === "connected") setTab("connected");
+    const tiktok = params.get("tiktok");
+    if (tiktok === "connected") {
+      setStatus("TikTok connected ✅");
+      window.history.replaceState({}, "", "/settings?section=connected");
+    } else if (tiktok) {
+      setStatus(`TikTok connection failed: ${tiktok.replace(/_/g, " ")}`);
+      window.history.replaceState({}, "", "/settings?section=connected");
     }
   }, []);
 
@@ -296,6 +315,87 @@ export default function SettingsPage() {
 
     void run();
   }, [supabase, blockedRefreshTick]);
+
+  async function getAccessToken() {
+    if (!supabase) return null;
+    const { data } = await supabase.auth.getSession();
+    return data.session?.access_token || null;
+  }
+
+  async function loadTikTokStatus() {
+    if (!supabase || !userId) return;
+    setTiktokLoading(true);
+    try {
+      const token = await getAccessToken();
+      if (!token) {
+        setTiktokStatus({ connected: false });
+        return;
+      }
+      const res = await fetch("/api/tiktok/status", {
+        headers: { authorization: `Bearer ${token}` },
+      });
+      const data = (await res.json().catch(() => null)) as { ok?: boolean; status?: TikTokConnectionStatus; error?: string } | null;
+      if (!res.ok || !data?.ok) throw new Error(data?.error || "Could not read TikTok status.");
+      setTiktokStatus(data.status || { connected: false });
+    } catch (err) {
+      setStatus(err instanceof Error ? err.message : "Could not read TikTok status.");
+      setTiktokStatus({ connected: false });
+    } finally {
+      setTiktokLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (tab !== "connected" || !userId) return;
+    void loadTikTokStatus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, userId]);
+
+  async function connectTikTok() {
+    if (!supabase || !userId || tiktokAction) return;
+    setTiktokAction("connect");
+    setStatus("");
+    try {
+      const token = await getAccessToken();
+      if (!token) throw new Error("Log in first.");
+      const res = await fetch("/api/tiktok/connect", {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${token}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ returnTo: "/settings?section=connected" }),
+      });
+      const data = (await res.json().catch(() => null)) as { ok?: boolean; authorizationUrl?: string; error?: string } | null;
+      if (!res.ok || !data?.ok || !data.authorizationUrl) throw new Error(data?.error || "TikTok connection is unavailable.");
+      window.location.assign(data.authorizationUrl);
+    } catch (err) {
+      setStatus(err instanceof Error ? err.message : "TikTok connection is unavailable.");
+      setTiktokAction(null);
+    }
+  }
+
+  async function disconnectTikTok() {
+    if (!supabase || !userId || tiktokAction) return;
+    setTiktokAction("disconnect");
+    setStatus("");
+    try {
+      const token = await getAccessToken();
+      if (!token) throw new Error("Log in first.");
+      const res = await fetch("/api/tiktok/disconnect", {
+        method: "POST",
+        headers: { authorization: `Bearer ${token}` },
+      });
+      const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
+      if (!res.ok || !data?.ok) throw new Error(data?.error || "Could not disconnect TikTok.");
+      setTiktokStatus({ connected: false });
+      setStatus("TikTok disconnected.");
+    } catch (err) {
+      setStatus(err instanceof Error ? err.message : "Could not disconnect TikTok.");
+    } finally {
+      setTiktokAction(null);
+    }
+  }
 
   useEffect(() => {
     if (!supabase || !userId) return;
@@ -912,6 +1012,7 @@ export default function SettingsPage() {
         <div className="flex gap-2 flex-wrap app-segmented-tabs">
           <button className={`px-3 py-2 rounded ${tab === "profile" ? "bg-black text-white" : "border"}`} onClick={() => setTab("profile")}>Profile</button>
           <button className={`px-3 py-2 rounded ${tab === "account" ? "bg-black text-white" : "border"}`} onClick={() => setTab("account")}>Account</button>
+          <button className={`px-3 py-2 rounded ${tab === "connected" ? "bg-black text-white" : "border"}`} onClick={() => setTab("connected")}>Connected apps</button>
           <button className={`px-3 py-2 rounded ${tab === "preferences" ? "bg-black text-white" : "border"}`} onClick={() => setTab("preferences")}>Preferences</button>
           <button className={`px-3 py-2 rounded ${tab === "notifications" ? "bg-black text-white" : "border"}`} onClick={() => setTab("notifications")}>Notifications</button>
           <button className={`px-3 py-2 rounded ${tab === "friends" ? "bg-black text-white" : "border"}`} onClick={() => setTab("friends")}>Friends</button>
@@ -1179,6 +1280,69 @@ export default function SettingsPage() {
                       Delete account
                     </button>
                   </div>
+                </div>
+              </div>
+            )}
+
+            {tab === "connected" && (
+              <div className="space-y-4">
+                <div className="rounded-2xl border bg-gray-50 p-4">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-start gap-3">
+                      <div className="grid h-12 w-12 place-items-center rounded-2xl bg-black text-white text-lg font-bold">♪</div>
+                      <div>
+                        <h2 className="text-lg font-bold">TikTok</h2>
+                        <p className="text-sm text-gray-600">
+                          Connect TikTok to use TikTok Login Kit and authorize QuestHat video uploads or posts from your account.
+                        </p>
+                        <p className="mt-1 text-xs text-gray-500">
+                          QuestHat stores this connection in Supabase and only uses it after you authorize TikTok.
+                        </p>
+                      </div>
+                    </div>
+                    {tiktokLoading ? (
+                      <div className="rounded-full border px-3 py-2 text-sm text-gray-500">Checking…</div>
+                    ) : tiktokStatus?.connected ? (
+                      <div className="rounded-full bg-emerald-100 px-3 py-2 text-sm font-medium text-emerald-800">Connected</div>
+                    ) : (
+                      <div className="rounded-full bg-gray-100 px-3 py-2 text-sm font-medium text-gray-700">Not connected</div>
+                    )}
+                  </div>
+
+                  {tiktokStatus?.connected ? (
+                    <div className="mt-4 flex flex-col gap-3 rounded-xl border bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex items-center gap-3">
+                        {tiktokStatus.avatarUrl ? (
+                          <img src={tiktokStatus.avatarUrl} alt="" className="h-10 w-10 rounded-full object-cover" />
+                        ) : (
+                          <div className="h-10 w-10 rounded-full bg-gray-200" />
+                        )}
+                        <div>
+                          <p className="font-medium">{tiktokStatus.displayName || "TikTok account connected"}</p>
+                          <p className="text-xs text-gray-500">
+                            Scopes: {(tiktokStatus.scopes || []).join(", ") || "TikTok authorization granted"}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        className="rounded-xl border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-700 disabled:opacity-50"
+                        disabled={Boolean(tiktokAction)}
+                        onClick={() => void disconnectTikTok()}
+                      >
+                        {tiktokAction === "disconnect" ? "Disconnecting…" : "Disconnect"}
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      className="mt-4 rounded-xl bg-black px-4 py-3 text-sm font-bold text-white disabled:opacity-50"
+                      disabled={Boolean(tiktokAction) || tiktokLoading}
+                      onClick={() => void connectTikTok()}
+                    >
+                      {tiktokAction === "connect" ? "Opening TikTok…" : "Connect TikTok"}
+                    </button>
+                  )}
                 </div>
               </div>
             )}
