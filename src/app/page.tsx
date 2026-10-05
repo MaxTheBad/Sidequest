@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FormEvent, PointerEvent, UIEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import CityAutocompleteInput from "@/components/city-autocomplete-input";
+import { FeedCardDetails } from "@/components/feed-card-details";
 import QuestMap from "@/components/quest-map";
 import { formatActivityTime, formatPostedTime } from "@/lib/activity-time";
 import { getSupabaseClient } from "@/lib/supabase";
@@ -4012,7 +4013,7 @@ export default function Home() {
             </div>
 
             {feedViewMode === "list" ? (
-              <div className="grid w-screen max-w-none gap-0 grid-cols-1 -mx-4 sm:w-full sm:mx-auto sm:max-w-3xl xl:mx-auto xl:w-full xl:max-w-6xl">
+              <div className="feed119-list grid grid-cols-1">
               {loading ? <p>Loading...</p> : filteredQuests.map((q) => {
             const creatorProfile = getCreatorProfile(q);
             const feedMediaItems: QuestMediaItem[] = [
@@ -4026,7 +4027,7 @@ export default function Home() {
             const isExpired = Boolean(q.starts_at && new Date(q.starts_at).getTime() <= Date.now() && userId === q.creator_id);
 
             return (
-            <article key={q.id} className={`quest-card relative w-full bg-white border border-slate-200 shadow-[0_14px_40px_rgba(15,23,42,0.08)] overflow-hidden ${isExpired ? "grayscale-[0.65] opacity-80 ring-1 ring-slate-400/30" : ""} ${feedViewMode === "list" ? "rounded-none sm:rounded-[1.75rem] h-[calc(100svh-10.75rem)] min-h-[680px] flex flex-col sm:h-auto sm:min-h-[680px] md:h-[calc(100svh-9.25rem)] md:min-h-[720px] md:flex md:flex-col lg:h-[calc(100dvh-8.5rem)] lg:min-h-[760px] xl:h-[calc(100dvh-8.25rem)] xl:min-h-[820px] xl:flex xl:flex-col" : "rounded-[2rem]"}`}>
+            <article key={q.id} className={`feed119-card quest-card relative w-full bg-white border border-slate-200 shadow-[0_14px_40px_rgba(15,23,42,0.08)] overflow-hidden ${isExpired ? "grayscale-[0.65] opacity-80 ring-1 ring-slate-400/30" : ""} ${feedViewMode === "list" ? "rounded-none sm:rounded-[1.75rem] h-[calc(100svh-10.75rem)] min-h-[680px] flex flex-col sm:h-auto sm:min-h-[680px] md:h-[calc(100svh-9.25rem)] md:min-h-[720px] md:flex md:flex-col lg:h-[calc(100dvh-8.5rem)] lg:min-h-[760px] xl:h-[calc(100dvh-8.25rem)] xl:min-h-[820px] xl:flex xl:flex-col" : "rounded-[2rem]"}`}>
               {isExpired ? (
                 <>
                   <div className="pointer-events-none absolute left-1/2 top-[42%] z-50 -translate-x-1/2 -rotate-6 rounded-xl border-4 border-white/85 bg-slate-950/15 px-6 py-3 text-xl font-black tracking-[0.2em] text-white/90 shadow-xl">
@@ -4040,8 +4041,8 @@ export default function Home() {
                   </div>
                 </>
               ) : null}
-              <div className={`p-3 flex items-center justify-between gap-2 ${feedViewMode === "list" ? "sm:p-4 absolute top-0 left-0 right-0 z-40 bg-gradient-to-b from-black/22 via-black/12 via-black/6 to-transparent py-2 sm:py-3 text-white border-0 backdrop-blur-[0.75px]" : ""}`}>
-                <Link href={`/profile/${q.creator_id}`} className="flex items-center gap-2 min-w-0">
+              <div className={`feed119-top p-3 flex items-center justify-between gap-2 ${feedViewMode === "list" ? "sm:p-4 absolute top-0 left-0 right-0 z-40 bg-gradient-to-b from-black/22 via-black/12 via-black/6 to-transparent py-2 sm:py-3 text-white border-0 backdrop-blur-[0.75px]" : ""}`}>
+                <Link href={`/profile/${q.creator_id}`} className="feed119-host flex items-center gap-2 min-w-0">
                   {creatorProfile?.avatar_url ? (
                     <img src={creatorProfile.avatar_url} alt="Creator" className="h-9 w-9 rounded-full object-cover border" />
                   ) : (
@@ -4050,16 +4051,10 @@ export default function Home() {
                   <span className="text-sm font-semibold truncate">{creatorProfile?.display_name || "View profile"}</span>
                 </Link>
                 <div className="flex items-center gap-2">
-                  <div className="flex flex-col leading-tight">
-                    <p className="flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap text-white/90 drop-shadow sm:text-base">
-                      <AppIcon name="location" className="h-4 w-4" /> {getQuestCityQuery(q)}
-                    </p>
-                    {distanceLabel ? (
-                      <p className="pl-5 text-[11px] font-medium whitespace-nowrap text-white/80 drop-shadow sm:text-sm">
-                        {distanceLabel}
-                      </p>
-                    ) : null}
-                  </div>
+                  <button type="button" className="feed119-location" aria-label={(q.city === "Virtual" || isVirtualQuest(q)) ? "Virtual quest" : distanceLabel ? `View ${formatQuestCityState(q)} on map` : "Use my location for quest distances"} onClick={() => { if (!(q.city === "Virtual" || isVirtualQuest(q))) { if (!userLocation) void requestUserLocation(); else void openQuestCityMap(q); } }} disabled={(q.city === "Virtual" || isVirtualQuest(q))}>
+                    <span className="feed119-location-icon"><AppIcon name="location" /></span>
+                    <span><strong>{(q.city === "Virtual" || isVirtualQuest(q)) ? "Virtual quest" : distanceLabel || (userLocation ? "Distance unavailable" : "Use my location")}</strong><small>{(q.city === "Virtual" || isVirtualQuest(q)) ? "Meet online" : (q.city?.trim() || "City tbd")}</small></span>
+                  </button>
                   <div className="relative">
                     <button
                       className={`border text-xs ${feedViewMode === "list" ? "inline-flex h-9 w-9 items-center justify-center rounded-full border-white/25 bg-black/35 p-0 text-white backdrop-blur-sm" : "rounded px-2 py-1"}`}
@@ -4092,7 +4087,7 @@ export default function Home() {
               </div>
 
               {feedMediaItems.length > 0 ? (
-                <div className="relative flex-1 min-h-[320px] md:flex-1 md:min-h-[360px] bg-black">
+                <div className="feed119-media relative flex-1 min-h-[320px] md:flex-1 md:min-h-[360px] bg-black">
                   <div
                     className={`w-full h-full overflow-x-auto snap-x snap-mandatory flex ${feedViewMode === "list" ? "gap-0" : ""}`}
                     onScroll={(e) => {
@@ -4174,7 +4169,7 @@ export default function Home() {
                   </div>
                 </div>
               ) : (
-                <div className={`relative border-y overflow-hidden ${feedViewMode === "list" ? "flex-1 min-h-[320px] md:flex-1 md:min-h-[360px] xl:flex-1 xl:min-h-[360px]" : "h-[22vh] sm:h-[18vh] lg:h-[14vw] max-h-[220px]"}`} style={{ background: fallbackVisual.gradient, clipPath: feedViewMode === "list" ? "polygon(0 0, 100% 0, 100% 94%, 0 100%)" : undefined }}>
+                <div className={`feed119-media relative border-y overflow-hidden ${feedViewMode === "list" ? "flex-1 min-h-[320px] md:flex-1 md:min-h-[360px] xl:flex-1 xl:min-h-[360px]" : "h-[22vh] sm:h-[18vh] lg:h-[14vw] max-h-[220px]"}`} style={{ background: fallbackVisual.gradient }}>
                   <img src={fallbackVisual.imageUrl} alt={fallbackVisual.title} className="absolute inset-0 h-full w-full object-cover" />
                   <div className="absolute inset-0 bg-black/10" />
                   <div className="absolute inset-0 opacity-60" style={{ background: "linear-gradient(180deg, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.45) 100%)" }} />
@@ -4182,125 +4177,17 @@ export default function Home() {
               )}
 
               {feedViewMode === "list" ? (
-                <>
-                <div className="relative">
-                  <div
-                    aria-hidden="true"
-                    className="soft-fade-layer pointer-events-none absolute inset-x-0 top-0 z-20 h-16 bg-gradient-to-b from-black/10 via-black/5 to-transparent"
-                  />
-                  <div
-                    className={`absolute inset-x-0 bottom-0 z-10 px-4 text-white text-left ${expandedQuestIds[q.id] === false ? "pb-3" : "quest-list-overlay pt-8 pb-4"}`}
-                    onClick={() => setExpandedQuestIds((prev) => ({ ...prev, [q.id]: !prev[q.id] }))}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        setExpandedQuestIds((prev) => ({ ...prev, [q.id]: !prev[q.id] }));
-                      }
-                    }}
-                  >
-                    <div className="flex h-full flex-col justify-end gap-4">
-                      {expandedQuestIds[q.id] === false ? (
-                        <div className="grid w-full max-w-[calc(100%-1rem)] grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 rounded-full bg-black/35 px-2.5 py-1 text-xs font-medium leading-none whitespace-nowrap backdrop-blur-[2px] shadow-sm">
-                          <Link
-                            href={`/listing/${q.id}`}
-                            className="justify-self-start underline decoration-2 underline-offset-2 text-white/95 truncate max-w-full"
-                            title="Open listing"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            {q.title}
-                          </Link>
-                          <button
-                            type="button"
-                            className="justify-self-center inline-flex items-center gap-1 underline decoration-2 underline-offset-2 text-white/95"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setExpandedQuestIds((prev) => ({ ...prev, [q.id]: true }));
-                            }}
-                          >
-                            <span>Show more</span>
-                            <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                              <path d="m6 10 6 6 6-6" />
-                            </svg>
-                          </button>
-                          <div className="justify-self-end flex flex-col items-end gap-0.5 min-w-0 max-w-full">
-                          <button
-                            type="button"
-                            className="inline-flex items-center gap-1 underline decoration-2 underline-offset-2 text-white/95 truncate max-w-full"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              void openQuestCityMap(q);
-                            }}
-                          >
-                            <span className="truncate">{formatQuestCityState(q)}</span>
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                          <div className="space-y-1">
-                            <p className="text-[11px] font-semibold uppercase tracking-wide text-white/85">
-                              {getQuestCategoryDisplay(q)}
-                            </p>
-                            <h3 className="text-[11px] sm:text-xs font-semibold leading-tight tracking-tight text-white max-w-[70%]">
-                              <Link href={`/listing/${q.id}`} className="underline decoration-2 underline-offset-2" title="Open listing">
-                                {q.title}
-                              </Link>
-                            </h3>
-                            {q.description ? <p className="text-sm text-white/85 leading-relaxed line-clamp-2">{q.description}</p> : null}
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                <div className="quest-card-feed-footer px-4 py-3">
-                  <div className="flex items-center gap-2">
-                    <div className="flex items-center justify-start gap-2 flex-1 min-w-0">
-                    {userId !== q.creator_id ? (
-                      <button
-                        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-transparent text-sm font-semibold text-slate-900 transition hover:text-[#0c5063] focus-visible:text-[#0c5063]"
-                        aria-label={membershipStatusByQuest[q.id] === "pending" ? "Cancel request" : (membershipStatusByQuest[q.id] === "declined" ? "Request again" : (joinedQuestIds.includes(q.id) ? "Leave" : ((q.join_mode || "open") === "approval_required" ? "Request to join" : "Join")))}
-                        title={membershipStatusByQuest[q.id] === "pending" ? "Cancel request" : (membershipStatusByQuest[q.id] === "declined" ? "Request again" : (joinedQuestIds.includes(q.id) ? "Leave" : ((q.join_mode || "open") === "approval_required" ? "Request to join" : "Join")))}
-                        onClick={() => void toggleJoinQuest(q.id)}
-                      >
-                        <AppIcon name={membershipStatusByQuest[q.id] === "pending" ? "clock" : (membershipStatusByQuest[q.id] === "declined" ? "refresh" : (joinedQuestIds.includes(q.id) ? "minus" : "plus"))} className="h-6 w-6" />
-                      </button>
-                    ) : null}
-                    <button className="inline-flex h-9 w-auto shrink-0 items-center justify-center gap-1 rounded-full bg-transparent px-1.5 text-sm font-medium text-slate-900 transition hover:text-[#0c5063] focus-visible:text-[#0c5063]" aria-label={`Comment ${commentCountByQuestId[q.id] || 0}`} title="Comment" onClick={() => {
-                      void askQuestion(q, "public");
-                    }}>
-                      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                        <path d="M20 14a4 4 0 0 1-4 4H9l-5 3V8a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4v6Z" />
-                      </svg>
-                      <span className="text-xs tabular-nums text-slate-700">{commentCountByQuestId[q.id] || 0}</span>
-                    </button>
-                    <button className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-transparent text-sm font-medium text-slate-900 transition hover:text-[#0c5063] focus-visible:text-[#0c5063]" aria-label="Message" title="Message" onClick={() => {
-                      void askQuestion(q, "private");
-                    }}>
-                      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                        <rect x="3.5" y="5" width="17" height="14" rx="2.5" />
-                        <path d="m5 7 7 5 7-5" />
-                      </svg>
-                    </button>
-                    <button className="inline-flex h-9 w-auto shrink-0 items-center justify-center gap-1 rounded-full bg-transparent px-1.5 text-sm font-medium text-slate-900 transition hover:text-[#0c5063] focus-visible:text-[#0c5063]" aria-label={`Share ${shareCountByQuestId[q.id] || 0}`} title="Share" onClick={() => void shareQuest(q)}>
-                      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                        <path d="M12 16V4" />
-                        <path d="m7 9 5-5 5 5" />
-                        <path d="M5 19h14" />
-                      </svg>
-                      <span className="text-xs tabular-nums text-slate-700">{shareCountByQuestId[q.id] || 0}</span>
-                    </button>
-                    </div>
-                    <button className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-transparent text-sm font-medium transition hover:text-[#0c5063] focus-visible:text-[#0c5063] ${bookmarkedQuestIds.includes(q.id) ? "text-[#0c5063]" : "text-slate-900"}`} aria-label={bookmarkedQuestIds.includes(q.id) ? "Saved" : "Save"} title={bookmarkedQuestIds.includes(q.id) ? "Saved" : "Save"} onClick={() => void toggleBookmark(q.id)}>
-                      <svg viewBox="0 0 24 24" className="h-5 w-5" fill={bookmarkedQuestIds.includes(q.id) ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                        <path d="m12 3 2.9 6 6.6.9-4.8 4.7 1.2 6.6-5.9-3.2-5.9 3.2 1.2-6.6-4.8-4.7 6.6-.9L12 3Z" />
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-                </>
+                <FeedCardDetails
+                  id={q.id} title={q.title} category={getQuestCategoryDisplay(q)}
+                  timing={getEventTimingLabel(q.availability, q.starts_at).replace(/^Event:/, "Start at:")}
+                  startsAt={q.starts_at} isOwner={Boolean(userId && userId === q.creator_id)} isExpired={isExpired}
+                  membershipStatus={membershipStatusByQuest[q.id]} isJoined={joinedQuestIds.includes(q.id)} joinMode={q.join_mode || "open"}
+                  going={joinedCountByQuestId[q.id] || 0} comments={commentCountByQuestId[q.id] || 0}
+                  shares={shareCountByQuestId[q.id] || 0} saved={bookmarkedQuestIds.includes(q.id)}
+                  onMembership={() => { if (userId === q.creator_id) { if (isExpired) openEditModal(q); } else { void toggleJoinQuest(q.id); } }}
+                  onComments={() => { void askQuestion(q, "public"); }} onMessage={() => { void askQuestion(q, "private"); }}
+                  onShare={() => { void shareQuest(q); }} onSave={() => { void toggleBookmark(q.id); }}
+                />
               ) : (
                 <div className={`p-3 sm:p-4 space-y-3 flex h-full flex-col sm:p-5`}>
                   <div className="space-y-2 min-h-[112px]">

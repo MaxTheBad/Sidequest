@@ -134,7 +134,7 @@ export default function GlobalTopBar() {
 
   return (
     <>
-      <header className={`mobile-topbar fixed top-0 inset-x-0 z-50 border-b nav-shell md:hidden ${isScrolled ? (isScrollingDown ? "is-transparent" : "is-scrolled") : "is-top"}`}>
+      <header className={`mobile-topbar ${pathname === "/" ? "feed119-header" : ""} fixed top-0 inset-x-0 z-50 border-b nav-shell md:hidden ${isScrolled ? (isScrollingDown ? "is-transparent" : "is-scrolled") : "is-top"}`}>
       <div className="h-[60px] px-4 flex items-center justify-between gap-3">
         <Link href="/" className="nav-brand flex items-center gap-2 text-[15px] tracking-tight">
           <Image src="/questhat-logo.png" alt={APP_NAME} width={34} height={18} className="h-5 w-auto" priority />
