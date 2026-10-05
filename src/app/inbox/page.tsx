@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { AppIcon } from "@/components/app-icons";
+import { PeopleFinder, type DiscoveryQuest } from "@/components/people-finder";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { formatActivityTime } from "@/lib/activity-time";
@@ -36,6 +38,7 @@ type Thread = {
   partnerName?: string | null;
   partnerAvatar?: string | null;
   title: string;
+  questTitle: string;
   lastMessageAt: string;
   preview: string;
   mediaVideoUrl?: string | null;
@@ -44,7 +47,7 @@ type Thread = {
 };
 
 type QuestOwnerLite = { creator_id: string | null; display_name: string | null; avatar_url: string | null };
-type HostedQuestLite = { id: string; title: string | null };
+type HostedQuestLite = DiscoveryQuest;
 type QuestInvitation = {
   id: string;
   message: string | null;
@@ -111,8 +114,26 @@ export default function InboxPage() {
   const typingTimeoutRef = useRef<number | null>(null);
   const typingChannelRef = useRef<RealtimeChannel | null>(null);
   const lastTypingSendRef = useRef(0);
+  const [partnerProfiles, setPartnerProfiles] = useState<Record<string, { display_name: string | null; avatar_url: string | null }>>({});
   const [questOwners, setQuestOwners] = useState<Record<string, QuestOwnerLite>>({});
   const [hostedQuests, setHostedQuests] = useState<HostedQuestLite[]>([]);
+  const [peopleQuestId, setPeopleQuestId] = useState<string | null>(null);
+  const [showPeopleFinder, setShowPeopleFinder] = useState(false);
+  useEffect(() => {
+    const sync = () => { const id = new URLSearchParams(window.location.search).get("people"); setPeopleQuestId(id === "choose" ? null : id); setShowPeopleFinder(Boolean(id)); };
+    sync(); window.addEventListener("popstate", sync);
+    return () => window.removeEventListener("popstate", sync);
+  }, []);
+  function openPeopleFinder(quest?: HostedQuestLite) {
+    const url = new URL(window.location.href); url.searchParams.set("people", quest?.id || "choose");
+    window.history.pushState({ ...window.history.state, inboxPeopleFinder: true }, "", url.pathname + url.search);
+    setPeopleQuestId(quest?.id || null); setShowPeopleFinder(true);
+  }
+  function closePeopleFinder() {
+    if (window.history.state?.inboxPeopleFinder) window.history.back();
+    else { const url = new URL(window.location.href); url.searchParams.delete("people"); window.history.replaceState(window.history.state, "", url.pathname + url.search); setShowPeopleFinder(false); setPeopleQuestId(null); }
+  }
+  const peopleQuest = hostedQuests.find(quest => quest.id === peopleQuestId) || null;
   const [questInvitations, setQuestInvitations] = useState<QuestInvitation[]>([]);
   const [invitationActionId, setInvitationActionId] = useState<string | null>(null);
   const messagesSigRef = useRef("");
@@ -131,8 +152,8 @@ export default function InboxPage() {
     if (!supabase) return;
     if (!silent) setLoading(true);
 
-    const [{ data: myListings }, sentRes, blockRes, invitationRes] = await Promise.all([
-      supabase.from("quests").select("id,title").eq("creator_id", uid).order("starts_at", { ascending: true }).limit(10),
+    const [hostedRes, sentRes, blockRes, invitationRes] = await Promise.all([
+      supabase.from("quests").select("id,title,creator_id").eq("creator_id", uid).order("starts_at", { ascending: true }).limit(10),
       supabase
         .from("messages")
         .select("id,quest_id,sender_id,body,created_at,quests(title,creator_id,media_video_url,media_items),profiles:profiles!messages_sender_id_fkey(id,display_name,avatar_url)")
@@ -145,7 +166,8 @@ export default function InboxPage() {
     ]);
     if (!invitationRes.error) setQuestInvitations((invitationRes.data || []) as QuestInvitation[]);
 
-    const ownedListings = (myListings || []) as HostedQuestLite[];
+    if (hostedRes.error) setStatus(`Your hosted quests could not be loaded: ${hostedRes.error.message}`);
+    const ownedListings = ((hostedRes.data || []) as HostedQuestLite[]).filter(quest => quest.creator_id === uid);
     setHostedQuests(ownedListings);
     const ownerQuestIds = ownedListings.map((q) => q.id);
     const privateRes = ownerQuestIds.length
@@ -186,7 +208,7 @@ export default function InboxPage() {
     const privateForMeRows = ((privateForMeRes.data || []) as RawInboxMessage[]).map(normalizeMessageRow);
     const blocked = Array.from(new Set(((blockRes.data || []) as Array<{ requester_id: string; addressee_id: string }>).flatMap((r) => [r.requester_id, r.addressee_id]).filter((id) => id !== uid)));
 
-    const merged = [...sentRows, ...privateRows, ...privateForMeRows].filter((m) => !blocked.includes(m.sender_id));
+    const merged = [...sentRows, ...privateRows, ...privateForMeRows].filter((m) => !blocked.includes(m.sender_id) && !blocked.includes(getPrivateRecipientId(m.body) || ""));
     const dedupedMap = new Map<string, InboxMessage>();
     merged.forEach((m) => dedupedMap.set(m.id, m));
     const deduped = Array.from(dedupedMap.values()).sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at));
@@ -197,6 +219,11 @@ export default function InboxPage() {
       setMessages(deduped);
     }
 
+    const partnerIds = [...new Set(deduped.flatMap(message => [message.sender_id, getPrivateRecipientId(message.body)]).filter((id): id is string => Boolean(id && id !== uid)))];
+    if (partnerIds.length) {
+      const { data: profiles } = await supabase.from("profiles").select("id,display_name,avatar_url").in("id", partnerIds);
+      if (profiles) setPartnerProfiles(Object.fromEntries(profiles.map(profile => [profile.id, profile])));
+    }
     const questIds = Array.from(new Set(deduped.map((m) => m.quest_id).filter(Boolean)));
     if (questIds.length) {
       const { data: ownerRows } = await supabase
@@ -214,12 +241,6 @@ export default function InboxPage() {
         ownersSigRef.current = nextOwnerSig;
         setQuestOwners(ownerMap);
       }
-    }
-
-    if (!didAutoSelectRef.current && !activeThreadId && deduped[0]) {
-      const firstKind = getMessagePrivacy(deduped[0].body);
-      setActiveThreadId(`${deduped[0].quest_id}:${firstKind}`);
-      didAutoSelectRef.current = true;
     }
 
     if (!silent) setLoading(false);
@@ -301,10 +322,12 @@ export default function InboxPage() {
       const id = kind === "private" ? `${m.quest_id}:${kind}:${partnerId || "unknown"}` : `${m.quest_id}:${kind}`;
       if (!map.has(id)) {
         const owner = questOwners[m.quest_id];
-        const partnerProfile = partnerId ? profileBySender.get(partnerId) : null;
+        const senderProfile = partnerId ? profileBySender.get(partnerId) : null;
+        const fetchedProfile = partnerId ? partnerProfiles[partnerId] : null;
+        const partnerProfile = fetchedProfile ? { name: fetchedProfile.display_name, avatar: fetchedProfile.avatar_url } : senderProfile;
         const ownerIsPartner = !!(partnerId && owner?.creator_id && partnerId === owner.creator_id);
         const partnerName = kind === "private"
-          ? (partnerProfile?.name || (ownerIsPartner ? (owner?.display_name || "Listing owner") : (m.sender_id === userId ? "Listing owner" : (m.profiles?.display_name || "Member"))))
+          ? (partnerProfile?.name || (ownerIsPartner ? (owner?.display_name || "Listing owner") : (m.sender_id === userId ? "QuestHat member" : (m.profiles?.display_name || "Member"))))
           : null;
         const partnerAvatar = kind === "private"
           ? (partnerProfile?.avatar || (ownerIsPartner ? (owner?.avatar_url || null) : (m.sender_id === userId ? null : (m.profiles?.avatar_url || null))))
@@ -320,6 +343,7 @@ export default function InboxPage() {
           partnerId,
           partnerName,
           partnerAvatar,
+          questTitle: m.quests?.title || "Untitled quest",
           title: kind === "private"
             ? `${m.quests?.title || "Untitled listing"} · Private · ${(partnerName || "Member").trim().split(/\s+/)[0]}`
             : `${m.quests?.title || "Untitled listing"} · Public`,
@@ -332,7 +356,7 @@ export default function InboxPage() {
       }
     }
     return Array.from(map.values()).sort((a, b) => +new Date(b.lastMessageAt) - +new Date(a.lastMessageAt));
-  }, [messages, userId, questOwners]);
+  }, [messages, userId, questOwners, partnerProfiles]);
 
   const visibleThreads = useMemo(() => {
     const query = threadSearch.trim().toLowerCase();
@@ -526,15 +550,15 @@ export default function InboxPage() {
 
   return (
     <main className="page-shell page-inbox app-page min-h-screen bg-transparent p-4">
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-6xl mx-auto inbox119-shell">
         <div className="mb-3 flex items-center justify-between app-page-header app-inbox-header">
-          <div><p className="app-kicker">Conversations</p><h1 className="text-2xl font-bold">Inbox</h1><p className="app-page-subtitle">Private conversations about your plans.</p></div>
+          <div><h1 className="text-2xl font-bold">Inbox</h1><p className="app-page-subtitle">Private conversations about your plans.</p></div>
           <div className="flex gap-2">
-            <button className="border rounded px-3 py-2" onClick={() => userId && void loadInbox(userId)}>Refresh</button>
+            <button className="inbox119-refresh" aria-label="Refresh inbox" onClick={() => userId && void loadInbox(userId)}><AppIcon name="refresh" /></button>
           </div>
         </div>
 
-        <div className="app-search-field mb-3"><span aria-hidden="true">⌕</span><input value={threadSearch} onChange={(event) => setThreadSearch(event.target.value)} placeholder="Search people, quests, or messages" aria-label="Search inbox" /></div>
+        <div className="app-search-field mb-3"><AppIcon name="search" /><input value={threadSearch} onChange={(event) => setThreadSearch(event.target.value)} placeholder="Search people, quests, or messages" aria-label="Search inbox" /></div>
 
         {status && <div className="mb-3 rounded border bg-amber-50 px-3 py-2 text-sm">{status}</div>}
 
@@ -552,11 +576,11 @@ export default function InboxPage() {
           </section>
         ) : null}
 
-        <Link href={hostedQuests[0] ? `/listing/${hostedQuests[0].id}` : "/"} className="inbox119-find-people mb-3" aria-label="Find people for your quest">
-          <span className="inbox119-find-icon" aria-hidden="true">♟</span>
+        <button type="button" onClick={() => openPeopleFinder(hostedQuests[0])} className="inbox119-find-people mb-3" aria-label="Find people for your quest">
+          <span className="inbox119-find-icon" aria-hidden="true"><AppIcon name="people" /></span>
           <span><strong>Find people for your quest</strong><small>Browse opted-in adults nearby, start a conversation, or send an invitation.</small></span>
           <b aria-hidden="true">→</b>
-        </Link>
+        </button>
 
         <div className="grid md:grid-cols-[340px_1fr] gap-3">
           <aside className={`rounded-2xl border bg-white p-2 max-h-[72vh] overflow-auto app-thread-list ${activeThread ? "hidden md:block" : "block"}`}>
@@ -566,56 +590,19 @@ export default function InboxPage() {
                 <div className="h-20 rounded-xl border sq-shimmer" />
                 <div className="h-20 rounded-xl border sq-shimmer" />
               </div>
-            ) : visibleThreads.length === 0 ? <p className="p-3 text-sm text-gray-500">{threadSearch ? "No conversations match your search." : "No messages yet."}</p> : visibleThreads.map((t) => (
-              <button
-                key={t.id}
-                className={`w-full text-left rounded-xl px-3 py-2 border mb-2 ${activeThreadId === t.id ? "bg-black text-white" : "bg-white"}`}
-                onClick={() => setActiveThreadId(t.id)}
-                type="button"
-              >
-                <div className="flex items-center gap-2">
-                  {t.kind === "private" ? (
-                    t.partnerAvatar ? (
-                      <img src={t.partnerAvatar} alt={t.partnerName || "Partner"} className="h-7 w-7 rounded-full object-cover border shrink-0" />
-                    ) : (
-                      <div className="h-7 w-7 rounded-full border bg-gray-200 shrink-0 grid place-items-center text-[11px] font-semibold text-gray-700">{getInitial(t.partnerName)}</div>
-                    )
-                  ) : null}
-                  <div className="min-w-0 flex-1 flex items-center justify-between gap-2">
-                    <p className="font-medium truncate">{t.title}</p>
-                    <span className={`shrink-0 text-[11px] ${activeThreadId === t.id ? "text-white/70" : "text-gray-500"}`}>{formatActivityTime(t.lastMessageAt)}</span>
-                  </div>
-                </div>
-                <Link
-                  href={`/listing/${t.questId}`}
-                  className={`text-[11px] underline ${activeThreadId === t.id ? "text-white/90" : "text-gray-500"}`}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  View listing
-                </Link>
-                <div className="mt-1 flex items-center gap-2">
-                  {t.mediaVideoUrl ? (
-                    <video
-                      src={t.mediaVideoUrl}
-                      poster={t.mediaFallbackUrl || undefined}
-                      className="h-12 w-16 rounded object-cover bg-black shrink-0"
-                      muted
-                      playsInline
-                      preload="metadata"
-                    />
-                  ) : t.mediaFallbackUrl ? (
-                    <img src={t.mediaFallbackUrl} className="h-12 w-16 rounded object-cover shrink-0" alt="Listing preview" />
-                  ) : null}
-                  <p className={`text-xs line-clamp-2 ${activeThreadId === t.id ? "text-white/80" : "text-gray-500"}`}>{t.preview}</p>
-                </div>
+            ) : visibleThreads.length === 0 ? <p className="p-3 text-sm text-gray-500">{threadSearch ? "No conversations match your search." : "No messages yet."}</p> : visibleThreads.map(thread => (
+              <button key={thread.id} className={`inbox119-thread ${activeThreadId === thread.id ? "is-active" : ""}`} type="button" onClick={() => setActiveThreadId(thread.id)}>
+                {thread.partnerAvatar ? <img src={thread.partnerAvatar} alt="" /> : <span className="inbox119-avatar">{thread.kind === "private" ? getInitial(thread.partnerName) : <AppIcon name="people" />}</span>}
+                <span className="inbox119-thread-copy"><strong>{thread.kind === "private" ? thread.partnerName || "QuestHat member" : "Quest conversation"}</strong><span className="inbox119-quest-title">{thread.questTitle}</span><span className="inbox119-preview">{thread.preview}</span></span>
+                <span className="inbox119-thread-tail"><time dateTime={thread.lastMessageAt}>{formatActivityTime(thread.lastMessageAt)}</time><span aria-hidden="true">›</span></span>
               </button>
             ))}
             {!loading && threads.length <= 2 && hostedQuests.length > 0 ? (
-              <div className="mt-2 rounded-xl border border-cyan-200 bg-cyan-50 p-3">
+              <div className="inbox119-start mt-2 rounded-xl border border-cyan-200 bg-cyan-50 p-3">
                 <p className="text-sm font-semibold text-slate-900">Start the conversation</p>
                 <p className="mt-1 text-xs text-slate-600">Find opted-in people for a quest you host, then message or invite them.</p>
                 <div className="mt-2 grid gap-1.5">
-                  {hostedQuests.slice(0, 3).map((quest) => <Link key={quest.id} href={`/listing/${quest.id}`} className="rounded-lg bg-[#0f7486] px-3 py-2 text-xs font-semibold text-white">Find people for {quest.title || "this quest"}</Link>)}
+                  {hostedQuests.slice(0, 3).map((quest) => <button type="button" key={quest.id} onClick={() => openPeopleFinder(quest)} className="rounded-lg bg-[#0f7486] px-3 py-2 text-xs font-semibold text-white">Find people for {quest.title || "this quest"}</button>)}
                 </div>
               </div>
             ) : null}
@@ -716,6 +703,7 @@ export default function InboxPage() {
           </section>
         </div>
       </div>
+      {showPeopleFinder && userId && <PeopleFinder key={peopleQuest?.id || "choose"} client={supabase} userId={userId} quest={peopleQuest} quests={hostedQuests} onQuestChange={quest => { const url = new URL(window.location.href); url.searchParams.set("people", quest.id); window.history.replaceState(window.history.state, "", url.pathname + url.search); setPeopleQuestId(quest.id); }} onClose={closePeopleFinder} onMessageSent={(questId, personId) => { closePeopleFinder(); setActiveThreadId(`${questId}:private:${personId}`); void loadInbox(userId, true); }} />}
     </main>
   );
 }

@@ -2385,3 +2385,107 @@ html:has(.home119-page) { scroll-padding-bottom: 130px; scroll-padding-top: 70px
 .detail119-dialog .ionicon-fill-none { fill: none; }
 .detail119-dialog .ionicon-stroke-width { stroke: currentColor; stroke-width: 32px; }
 .detail119-dialog .detail119-footer { background: transparent; border: 0; box-shadow: none; border-radius: 0; }
+
+/* Inbox follows native hierarchy; the intentional Start conversation card stays. */
+.inbox119-header { z-index: 50; background: var(--surface-elevated) !important; }
+.inbox119-header .nav-brand { font-size: 22px; font-weight: 900; }
+.inbox119-brand-subtitle { display: block; font-size: 12px; font-weight: 400; color: var(--muted-foreground,#64748b); margin-top: 2px; }
+.inbox119-header .nav-brand img, .inbox119-header .nav-download-link { display: none; }
+.inbox119-header > div { height: 84px; }
+.page-inbox .app-inbox-header { border: 0; padding-bottom: 0; gap: 10px; }
+.page-inbox .app-inbox-header h1 { font-size: 27px; font-weight: 900; letter-spacing: -.6px; }
+.page-inbox .app-page-subtitle { font-size: 14px; line-height: 1.4; }
+.page-inbox .inbox119-refresh { width: 40px; height: 40px; padding: 9px; display: grid; place-items: center; border-radius: 50%; background: transparent; border: 1px solid var(--border); box-shadow: none; }
+.page-inbox .inbox119-refresh svg { width: 20px; height: 20px; }
+.page-inbox .app-search-field { min-height: 48px; border-radius: 17px; box-shadow: none; }
+.page-inbox .app-search-field svg { width: 20px; height: 20px; flex: 0 0 20px; color: #64748b; }
+.page-inbox .inbox119-find-people { width: 100%; text-align: left; box-shadow: none; padding: 15px 13px; min-height: 80px; border-radius: 20px; background: color-mix(in srgb,#6daec2 14%,var(--surface-elevated)); }
+.page-inbox .inbox119-find-people strong { font-size: 15px; font-weight: 900; }
+.page-inbox .inbox119-find-people small { font-size: 13px; color: #64748b; }
+.page-inbox .inbox119-find-icon { width: 43px; height: 43px; border-radius: 14px; background: #a7d8e3; color: #082f3a; }
+.inbox119-find-icon svg { width: 24px; height: 24px; }
+.page-inbox .app-thread-list { padding: 0; border: 0; background: transparent !important; }
+.page-inbox .app-thread-list > .inbox119-thread { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 90px; border: 1px solid var(--border) !important; background: var(--surface-elevated) !important; border-radius: 20px; box-shadow: none; text-align: left; padding: 15px 13px !important; margin-bottom: 12px; }
+.inbox119-thread > img, .inbox119-avatar { width: 38px; height: 38px; border-radius: 50%; flex: 0 0 38px; object-fit: cover; }
+.inbox119-avatar { display: grid; place-items: center; background: #dcecf1; color: #17566a; font-weight: 800; }
+.inbox119-avatar svg { width: 22px; height: 22px; }
+.inbox119-thread-copy { display: grid; gap: 3px; flex: 1; min-width: 0; }
+.inbox119-thread-copy strong { font-size: 16px; font-weight: 900; color: var(--foreground); white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
+.inbox119-quest-title { font-size: 10px; line-height: 1.5; font-weight: 900; color: #6daec2; letter-spacing: .7px; text-transform: uppercase; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
+.inbox119-preview { font-size: 13px; color: #64748b; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
+.inbox119-thread-tail { display: grid; justify-items: end; gap: 4px; flex: 0 0 auto; color: #64748b; }
+.inbox119-thread-tail time { font-size: 10px; font-weight: 700; }
+.inbox119-thread-tail > span { font-size: 26px; line-height: 1; }
+.inbox119-start { margin: 0 0 14px; }
+.inbox119-start button { min-height: 44px; text-align: left; overflow-wrap: anywhere; }
+.page-inbox .inbox119-thread.is-active { border-color: #6daec2 !important; }
+@media (max-width:767px) {
+  .page-inbox.page-shell { padding: 100px 14px 120px; }
+  .page-inbox .app-thread-list { height: auto; overflow: visible; }
+  .inbox119-header.is-transparent, .inbox119-header.is-scrolled { opacity: 1; background: var(--surface-elevated) !important; }
+}
+.people119-dialog { color-scheme: dark; color: #f8fafc; background: #10141d; width: min(560px,calc(100% - 28px)); max-width: none; height: 88dvh; max-height: 92dvh; margin: auto; padding: 0; border: 1px solid #ffffff14; border-radius: 24px; overflow: hidden; box-shadow: 0 24px 80px #0004; }
+.people119-dialog[open] { display: flex; flex-direction: column; }
+.people119-dialog::backdrop { background: #0d172a8f; }
+.people119-dialog button, .people119-dialog select, .people119-dialog textarea { color: inherit; box-shadow: none; border: 1px solid #ffffff12; background: #252936; }
+.people119-dialog button { cursor: pointer; min-height: 40px; padding: 8px 12px; border-radius: 12px; font-weight: 800; }
+.people119-dialog button:disabled { opacity: .45; cursor: default; }
+.people119-dialog :focus-visible { outline: 3px solid #9bd8e4; outline-offset: 2px; }
+.people119-dialog svg { width: 20px; height: 20px; flex-shrink: 0; }
+.people119-header { display: flex; align-items: center; gap: 10px; padding: 14px; flex: 0 0 auto; background: #141824; border-bottom: 1px solid #ffffff12; }
+.people119-icon { display: grid; place-items: center; width: 43px; height: 43px; flex: 0 0 43px; border-radius: 14px; background: #9bd8e4; color: #082f3a; }
+.people119-icon svg { width: 25px; height: 25px; }
+.people119-header > div { flex: 1; min-width: 0; }
+.people119-header p { color: #9bd8e4; font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: 1.2px; }
+.people119-header h2 { font-size: 17px; font-weight: 900; line-height: 1.25; overflow-wrap: anywhere; color: #f8fafc; }
+.people119-dialog .people119-close { width: 38px; height: 38px; flex: 0 0 38px; min-height: 38px; border-radius: 50%; padding: 0; font-size: 30px; line-height: 1; }
+.people119-body { min-height: 0; flex: 1; overflow: auto; overscroll-behavior: contain; padding: 14px 14px 32px; display: flex; flex-direction: column; gap: 11px; }
+.people119-privacy { display: flex; align-items: flex-start; gap: 9px; border: 1px solid #6daec233; border-radius: 15px; background: #6daec217; padding: 11px; color: #b7c7cf; font-size: 12px; line-height: 1.5; }
+.people119-privacy svg { color: #9bd8e4; margin-top: 2px; }
+.people119-card { border: 1px solid #ffffff14; background: #171b26; border-radius: 18px; padding: 12px; font-size: 13px; color: #aeb6c6; }
+.people119-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.people119-card h3 { color: #9bc8d2; text-transform: uppercase; font-size: 12px; font-weight: 900; }
+.people119-section-heading button { border: 0; background: transparent; color: #9bd8e4; padding: 0 0 0 8px; }
+.people119-label { margin: 10px 0 6px; font-size: 10px; text-transform: uppercase; font-weight: 900; }
+.people119-age, .people119-age > div, .people119-stepper { display: flex; align-items: center; gap: 8px; }
+.people119-age { flex-wrap: wrap; }
+.people119-age > div, .people119-stepper { flex-wrap: nowrap; }
+.people119-age button, .people119-stepper button { width: 34px; min-height: 34px; padding: 0; font-size: 20px; color: #dff7fb; }
+.people119-age output, .people119-stepper output { min-width: 26px; text-align: center; color: #f8fafc; font-size: 14px; font-weight: 900; }
+.people119-gender { display: flex; align-items: center; gap: 8px; border-radius: 13px; background: #202431; margin-top: 12px; padding: 10px 12px; color: #9bd8e4; }
+.people119-dialog .people119-gender select { min-width: 0; flex: 1; padding: 0; border: 0; background: transparent; color: #dce3ec; font-size: 13px; font-weight: 800; }
+.people119-dialog .people119-primary { color: #082f3a; background: #9bd8e4; border: 0; display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
+.people119-apply { display: flex !important; margin: 10px 0 0 auto; }
+.people119-person > div:first-child { display: flex; gap: 10px; }
+.people119-person img, .people119-avatar { width: 56px; height: 56px; border-radius: 14px; object-fit: cover; flex: 0 0 56px; }
+.people119-avatar { display: grid; place-items: center; background: #9bd8e41f; color: #9bd8e4; }
+.people119-person > div:first-child > div { flex: 1; min-width: 0; }
+.people119-name { font-size: 17px; font-weight: 900; color: #f8fafc; text-decoration: none; overflow-wrap: anywhere; }
+.people119-person p { font-size: 12px; line-height: 1.5; margin-top: 2px; overflow-wrap: anywhere; }
+.people119-person-age { color: #9bd8e4; font-weight: 900; }
+.people119-result-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.people119-result-actions button { display: flex; align-items: center; gap: 6px; color: #dff7fb; }
+.people119-result-actions button[aria-pressed="true"] { background: #9bd8e4; color: #082f3a; }
+.people119-dialog textarea { display: block; width: 100%; min-height: 85px; padding: 10px; border-radius: 12px; margin: 8px 0; resize: vertical; }
+.people119-dialog a { color: #9bd8e4; }
+.people119-dialog a.people119-name { color: #f8fafc; }
+.people119-error { border: 1px solid #fb718566; border-radius: 12px; background: #7f1d1d33; padding: 12px; color: #fecdd3; font-size: 13px; }
+.people119-error a { display: block; margin-top: 8px; }
+.people119-error button { margin-top: 8px; }
+.people119-quest-picker { font-size: 12px; display: grid; gap: 5px; }
+.people119-quest-picker select { padding: 9px; border-radius: 10px; max-width: 100%; }
+.people119-composer { position: absolute; inset: 0; display: grid; place-items: center; padding: 14px; background: #070c16d9; }
+.people119-composer section { width: 100%; max-height: 100%; overflow: auto; background: #171b26; border: 1px solid #ffffff14; border-radius: 18px; padding: 16px; }
+.people119-composer h3 { font-weight: 900; font-size: 17px; }
+.people119-composer p { color: #aeb6c6; font-size: 13px; }
+.people119-composer section > div { display: flex; gap: 8px; justify-content: flex-end; }
+@media (max-width:360px) { .inbox119-brand-subtitle { font-size: 10px; } .people119-dialog { width: calc(100% - 20px); } .people119-header { gap: 8px; padding: 12px; } .people119-header h2 { font-size: 15px; } .people119-body { padding: 12px; } .people119-age { gap: 5px; } }
+.people119-age button, .people119-stepper button { width: 44px; min-height: 44px; }
+.people119-dialog button { min-height: 44px; }
+.people119-dialog .people119-close { width: 44px; height: 44px; flex-basis: 44px; min-height: 44px; }
+@media (max-width:767px) { .page-inbox.page-shell { padding-top: 40px; } .page-inbox .app-page-subtitle { max-width: none; } }
+html:not([data-theme="dark"]) body:has(.page-inbox) { background: #f4f7fb; }
+html:not([data-theme="dark"]) .page-inbox.app-page { background: #f4f7fb; }
+html:not([data-theme="dark"]) .inbox119-header { background: #fff !important; }
+
+.page-inbox.app-page::before { content: none; }
