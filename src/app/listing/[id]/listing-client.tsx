@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { canReadQuestAddress, updateDetailMembership } from "@/lib/listing-detail.js";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { formatActivityTime, formatPostedTime } from "@/lib/activity-time";
 import { readStoredUserLocation, writeStoredUserLocation } from "@/lib/location-distance";
 import { getSupabaseClient } from "@/lib/supabase";
 import { resolveCanonicalCategory } from "@/lib/category-suggestions.js";
-import { AppIcon } from "@/components/app-icons";
+import { AppIcon, QuestCategoryIcon, getQuestCategoryIconName } from "@/components/app-icons";
 import { formatReportReference } from "@/lib/reporting";
 import { recordSecurityAudit } from "@/lib/security-audit";
 import { GENDER_IDENTITY_OPTIONS } from "@/lib/people-discovery";
@@ -34,7 +35,7 @@ type Listing = {
   media_source: "live" | "upload" | null;
   media_items?: { url: string; type: "image" | "video"; label?: string | null; thumbnailUrl?: string | null }[] | null;
   hobbies?: { name: string | null; category: string | null }[] | null;
-  profiles?: { id: string; display_name: string | null; avatar_url: string | null }[] | null;
+  profiles?: { id: string; display_name: string | null; avatar_url: string | null; city?: string | null }[] | null;
 };
 
 type MemberProfile = { id: string; display_name: string | null; avatar_url: string | null };
@@ -73,11 +74,27 @@ type PeopleDiscoveryResult = {
   shared_interests: number;
 };
 
-export default function ListingPage() {
+export default function ListingPage({ questId, onClose }: { questId?: string; onClose?: () => void } = {}) {
   const supabase = getSupabaseClient();
   const router = useRouter();
   const pathname = usePathname();
-  const listingId = pathname.match(/^\/listing\/([^/]+)/)?.[1];
+  const listingId = questId || pathname.match(/^\/listing\/([^/]+)/)?.[1];
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const [commentSort, setCommentSort] = useState("newest");
+  const [membershipAction, setMembershipAction] = useState<string | null>(null);
+  const closeDetails = () => onClose ? onClose() : router.replace("/");
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    const previousOverflow = document.body.style.overflow;
+    const previousFocus = document.activeElement as HTMLElement | null;
+    dialog?.showModal();
+    document.body.style.overflow = "hidden";
+    return () => {
+      dialog?.close();
+      document.body.style.overflow = previousOverflow;
+      if (previousFocus?.isConnected) previousFocus.focus({ preventScroll: true });
+    };
+  }, []);
   const [listing, setListing] = useState<Listing | null>(null);
   const [status, setStatus] = useState("Loading listing...");
   const [userId, setUserId] = useState<string | null>(null);
@@ -98,7 +115,7 @@ export default function ListingPage() {
   const [memberDistanceByUserId, setMemberDistanceByUserId] = useState<Record<string, string>>({});
   const [myDistanceLabel, setMyDistanceLabel] = useState("");
   const [myDistanceMiles, setMyDistanceMiles] = useState<number | null>(null);
-  const [myLocationStatus, setMyLocationStatus] = useState<"idle" | "loading" | "ready" | "denied" | "error">("idle");
+  const [, setMyLocationStatus] = useState<"idle" | "loading" | "ready" | "denied" | "error">("idle");
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const [showReportModal, setShowReportModal] = useState(false);
   const [showBlockConfirm, setShowBlockConfirm] = useState(false);
@@ -151,7 +168,7 @@ export default function ListingPage() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    dialogRef.current?.scrollTo({ top: 0, left: 0, behavior: "auto" });
   }, [listingId]);
 
   function getListingHostName() {
@@ -463,7 +480,7 @@ export default function ListingPage() {
 
       const withMedia = await supabase
         .from("quests")
-        .select("id,creator_id,created_at,title,description,city,join_mode,exact_location_visibility,exact_address,skill_level,group_size,availability,starts_at,time_flexible,host_coordination_reminders_disabled,host_coordination_reminders_snoozed_until,media_video_url,media_source,media_items,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,avatar_url)")
+        .select("id,creator_id,created_at,title,description,city,join_mode,exact_location_visibility,exact_address,skill_level,group_size,availability,starts_at,time_flexible,host_coordination_reminders_disabled,host_coordination_reminders_snoozed_until,media_video_url,media_source,media_items,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,avatar_url,city)")
         .eq("id", listingId)
         .maybeSingle();
 
@@ -474,7 +491,7 @@ export default function ListingPage() {
       if (error?.message?.includes("column quests.media_items does not exist")) {
         const fallback = await supabase
           .from("quests")
-          .select("id,creator_id,created_at,title,description,city,join_mode,exact_location_visibility,exact_address,skill_level,group_size,availability,starts_at,time_flexible,media_video_url,media_source,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,avatar_url)")
+          .select("id,creator_id,created_at,title,description,city,join_mode,exact_location_visibility,exact_address,skill_level,group_size,availability,starts_at,time_flexible,media_video_url,media_source,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,avatar_url,city)")
           .eq("id", listingId)
           .maybeSingle();
         data = fallback.data as Listing | null;
@@ -695,30 +712,20 @@ export default function ListingPage() {
     await loadMembers(listing.id, userId);
   }
 
-  async function setMemberApproval(targetUserId: string, next: "pending" | "approved") {
-    if (!supabase || !listing || !isManager) return;
-    const { error } = await supabase
-      .from("quest_members")
-      .update({ status: next })
-      .eq("quest_id", listing.id)
-      .eq("user_id", targetUserId)
-      .neq("role", "creator");
-    if (error) return setStatus(error.message);
-    await loadMembers(listing.id, userId);
-    setStatus(next === "approved" ? "Member approved ✅" : "Moved back to pending.");
+  async function setMemberApproval(targetUserId: string, next: "pending" | "approved" | "declined", shareAddress = false) {
+    if (!supabase || !listing || !isManager || membershipAction) return;
+    setMembershipAction(targetUserId);
+    try {
+      const result = await updateDetailMembership(supabase, { questId: listing.id, targetUserId, userId, status: next, shareAddress });
+      if (result.error) { if (result.approved) await loadMembers(listing.id, userId); setStatus(result.error); return; }
+      if (result.shared) setExactAccessUserIds(current => [...new Set([...current, targetUserId])]);
+      await loadMembers(listing.id, userId);
+      setStatus(next === "approved" ? (shareAddress ? "Member approved and exact address shared." : "Member approved.") : next === "declined" ? "Request declined." : "Moved back to pending.");
+    } finally { setMembershipAction(null); }
   }
 
   async function declineMember(targetUserId: string) {
-    if (!supabase || !listing || !isManager) return;
-    const { error } = await supabase
-      .from("quest_members")
-      .update({ status: "declined" })
-      .eq("quest_id", listing.id)
-      .eq("user_id", targetUserId)
-      .neq("role", "creator");
-    if (error) return setStatus(error.message);
-    await loadMembers(listing.id, userId);
-    setStatus("Request declined.");
+    await setMemberApproval(targetUserId, "declined");
   }
 
   function openReportUser(targetUserId: string) {
@@ -970,14 +977,7 @@ export default function ListingPage() {
     return () => { void supabase.removeChannel(channel); };
   }, [supabase, listingId, userId, isManager, myMembershipStatus]);
 
-  const canViewExactAddress = !!(listing && userId && (() => {
-    if (isManager) return true;
-    if (listing.exact_location_visibility === "public") return true;
-    if (listing.exact_location_visibility === "approved_members") {
-      return myMembershipStatus === "approved" && exactAccessUserIds.includes(userId);
-    }
-    return exactAccessUserIds.includes(userId);
-  })());
+  const canViewExactAddress = canReadQuestAddress({ userId, isManager, visibility: listing?.exact_location_visibility, membershipStatus: myMembershipStatus, accessUserIds: exactAccessUserIds });
 
   function memberProfileOf(member: MemberRow): MemberLocationProfile | null {
     if (!member.profiles) return null;
@@ -1028,7 +1028,7 @@ export default function ListingPage() {
   function listingCategoryLabel() {
     const hobby = Array.isArray(listing?.hobbies) ? (listing?.hobbies[0] ?? null) : listing?.hobbies ?? null;
     const title = listing?.title.trim().toLowerCase() || "";
-    const candidates = [hobby?.name?.trim(), hobby?.category?.trim()].filter((value): value is string => {
+    const candidates = [hobby?.category?.trim(), hobby?.name?.trim()].filter((value): value is string => {
       if (!value) return false;
       const normalized = value.toLowerCase();
       if (/^(category|hobby|custom)$/i.test(value)) return false;
@@ -1042,15 +1042,6 @@ export default function ListingPage() {
     return "Category";
   }
 
-  function getSkillLevelLabel(skillLevel?: string | null) {
-    const raw = (skillLevel || "").trim();
-    if (!raw || raw.toLowerCase() === "any") return "Any level";
-    if (/^beginner$/i.test(raw)) return "Beginner";
-    if (/^intermediate$/i.test(raw)) return "Intermediate";
-    if (/^advanced$/i.test(raw)) return "Advanced";
-    return raw;
-  }
-
   function formatPostedLabel(createdAt?: string | null) {
     return formatPostedTime(createdAt, renderedAt);
   }
@@ -1059,7 +1050,7 @@ export default function ListingPage() {
     if (listing?.starts_at) {
       const date = new Date(listing.starts_at);
       if (Number.isFinite(date.getTime())) {
-        return `${date.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })} at ${date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}${listing.time_flexible ? " · time flexible" : ""}`;
+        return `${date.toLocaleDateString(undefined, { year: "numeric", month: "numeric", day: "numeric" })} at ${date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}${listing.time_flexible ? " · time flexible" : ""}`;
       }
     }
     const raw = (availability || "").trim();
@@ -1077,40 +1068,63 @@ export default function ListingPage() {
   const reminderSnoozed = Boolean(listing?.host_coordination_reminders_snoozed_until && new Date(listing.host_coordination_reminders_snoozed_until).getTime() > Date.now());
 
   return (
-    <main className="page-shell page-listing app-page min-h-screen overflow-y-auto overscroll-contain bg-transparent p-4 [-webkit-overflow-scrolling:touch]">
-      <div className="max-w-4xl mx-auto space-y-3">
-        <button
-          type="button"
-          className="inline-block border rounded px-3 py-2 text-left app-back-button"
-          onClick={() => {
-            if (window.history.length > 1) {
-              router.back();
-              return;
-            }
-            router.push("/");
-          }}
-        >
-          ← Back to listings
-        </button>
-
+    <dialog ref={dialogRef} className="detail119-dialog" aria-label="Quest details"
+      onCancel={(event) => {
+        event.preventDefault();
+        if (expandedMediaIndex !== null) setExpandedMediaIndex(null);
+        else if (showQuestionModal) setShowQuestionModal(false);
+        else if (showReportModal) setShowReportModal(false);
+        else if (showBlockConfirm) setShowBlockConfirm(false);
+        else if (showDistanceJoinModal) setShowDistanceJoinModal(false);
+        else closeDetails();
+      }}
+      onClick={(event) => { if (event.target === event.currentTarget) {
+        const rect = event.currentTarget.getBoundingClientRect();
+        if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) closeDetails();
+      } }}>
+      <div className="detail119-content">
+        {!listing && <button type="button" className="detail119-close" onClick={closeDetails} aria-label="Close quest details">×</button>}
         {!listing && status ? (
           <div className="rounded-2xl border bg-white p-4 text-sm">{status}</div>
         ) : listing ? (
           <article className="rounded-2xl border bg-white p-4 space-y-4 quest-detail-panel">
-            <div className="flex items-center gap-3 quest-detail-titlebar">
-              {listing.profiles?.[0]?.avatar_url ? (
-                <img src={listing.profiles[0].avatar_url} alt="Creator" className="h-12 w-12 rounded-full border object-cover" />
-              ) : (
-                <div className="h-12 w-12 rounded-full border bg-gray-100" />
-              )}
-              <div>
-                <p className="app-kicker">{listingCategoryLabel()}</p><h1 className="text-2xl font-bold">{listing.title}</h1>
-                <Link href={`/profile/${listing.creator_id}`} className="text-sm underline text-gray-600">
-                  {listing.profiles?.[0]?.display_name || "View creator profile"}
-                </Link>
-              </div>
-            </div>
+            <header className="detail119-hero">
+              <div className="detail119-top"><span className="detail119-category"><QuestCategoryIcon name={getQuestCategoryIconName(listingCategoryLabel())} />{listingCategoryLabel()}</span><button type="button" className="detail119-close" onClick={closeDetails} aria-label="Close quest details">×</button></div>
+              <h1>{listing.title}</h1>
+              <div className="detail119-chips"><span><AppIcon name="tune" />{listing.skill_level || "Any level"}</span><span><AppIcon name="shield" />{listing.join_mode === "approval_required" ? "Approval required" : "Open to join"}</span><span><AppIcon name="people" />{members.filter(m => (m.status || "approved") === "approved").length} {members.filter(m => (m.status || "approved") === "approved").length === 1 ? "person" : "people"} going</span></div>
+            </header>
 
+            <section className="detail119-section detail119-about"><h2><QuestCategoryIcon name="book-outline" />About this quest</h2><p className={!listing.description ? "detail119-empty" : ""}>{listing.description || "The host has not added a description yet."}</p></section>
+            <section className="detail119-section detail119-facts" aria-label="Quest information">
+              <div><span className="detail119-fact-icon"><AppIcon name="location" /></span><div><h3>Location</h3><strong>{listing.city || "City to be decided"}{canViewExactAddress && listing.exact_address ? ` · ${listing.exact_address}` : ""}</strong>{canViewExactAddress && listing.exact_address && !isVirtualListing() ? <a target="_blank" rel="noopener noreferrer" href={`https://maps.apple.com/?q=${encodeURIComponent(listing.exact_address)}`}>Open in Maps ↗</a> : null}{!canViewExactAddress ? <p className="detail119-privacy">Exact location stays private until the host shares it with you.</p> : null}</div></div>
+              <div><span className="detail119-fact-icon"><AppIcon name="calendar" /></span><div><h3>When</h3><strong>{getEventTimingLabel(listing.availability)}</strong>{approvedParticipant && listing.starts_at ? <button type="button" className="detail119-primary" onClick={addQuestToCalendar}><AppIcon name="calendar" />Add to calendar</button> : null}</div></div>
+              <div><span className="detail119-fact-icon"><AppIcon name="clock" /></span><div><h3>Posted</h3><strong>{formatPostedLabel(listing.created_at).replace(/^Posted /, "")}</strong></div></div>
+            </section>
+
+            {showCheckIn ? (
+              <section className="rounded-2xl border border-cyan-200 bg-[#0b202a] p-4 text-white shadow-lg shadow-cyan-950/10" aria-labelledby="quest-presence-title">
+                <div className="flex items-start gap-3">
+                  <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-full ${myCheckIn ? "bg-[#9bd8e4] text-[#082f3a]" : "bg-white/10 text-[#9bd8e4]"}`}><AppIcon name={myCheckIn ? "check" : "location"} className="h-5 w-5" /></span>
+                  <div className="min-w-0 flex-1"><p className="text-[10px] font-black tracking-[0.18em] text-cyan-200">QUEST PRESENCE</p><h2 id="quest-presence-title" className="text-lg font-black">{checkIns.length ? `${checkIns.length} ${checkIns.length === 1 ? "person is" : "people are"} here` : "Let everyone know you arrived"}</h2>{checkIns.length ? <p className="mt-1 text-xs text-white/70">{checkIns.map((row) => { const profile = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles; return profile?.display_name || "QuestHat member"; }).join(" · ")}</p> : null}</div>
+                </div>
+                <p className="mt-3 text-sm leading-6 text-white/75">Check-in works only within one mile of the meetup. Your precise location verifies distance and is never shown to the host or attendees.</p>
+                {myCheckIn ? <div className="mt-3 flex items-center justify-between"><span className="inline-flex items-center gap-2 rounded-full bg-emerald-400/15 px-3 py-2 text-sm font-bold text-emerald-200"><AppIcon name="check" className="h-4 w-4" /> You’re checked in</span><button type="button" disabled={Boolean(checkInAction)} className="text-sm font-bold text-cyan-200 underline disabled:opacity-50" onClick={() => void leaveQuestCheckIn()}>{checkInAction === "leave" ? "Removing…" : "Undo"}</button></div> : <button type="button" disabled={Boolean(checkInAction)} className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#9bd8e4] px-4 py-3 font-black text-[#082f3a] disabled:opacity-60" onClick={() => void checkInToQuest()}><AppIcon name="location" className="h-5 w-5" />{checkInAction === "check-in" ? "Verifying…" : "I’m here"}</button>}
+              </section>
+            ) : null}
+
+            {isManager && pendingMembers.length ? (
+              <section className="detail119-section detail119-checklist" aria-labelledby="host-checklist-title">
+                <div className="detail119-checklist-heading"><span><AppIcon name="check" /></span><div><p>Host checklist</p><h2 id="host-checklist-title">{pendingMembers.length > 1 ? "A couple things need you" : "One thing needs you"}</h2></div>{listing.host_coordination_reminders_disabled || reminderSnoozed ? <small>{listing.host_coordination_reminders_disabled ? "OFF" : "SNOOZED"}</small> : null}</div>
+                <div className="detail119-checklist-item"><AppIcon name="people" /><div><strong>{pendingMembers.length} {pendingMembers.length === 1 ? "request is" : "requests are"} waiting</strong><p>Approve or decline so people can plan.</p></div><button type="button" className="detail119-review" onClick={() => document.getElementById("detail119-requests")?.scrollIntoView({ behavior: "smooth", block: "start" })}>Review</button></div>
+                <div className="mt-3 flex flex-wrap gap-2">{listing.host_coordination_reminders_disabled ? <button type="button" disabled={Boolean(coordinationReminderAction)} className="rounded-full border bg-white px-3 py-2 text-xs font-bold" onClick={() => void updateCoordinationReminders("enable")}>Turn reminders on</button> : <><button type="button" disabled={Boolean(coordinationReminderAction)} className="rounded-full border bg-white px-3 py-2 text-xs font-bold" onClick={() => void updateCoordinationReminders("snooze")}>Remind tomorrow</button><button type="button" disabled={Boolean(coordinationReminderAction)} className="rounded-full border bg-white px-3 py-2 text-xs font-bold" onClick={() => void updateCoordinationReminders("disable")}>Turn off for this quest</button></>}</div>
+              </section>
+            ) : null}
+
+            <section className="detail119-section detail119-host"><h2>Hosted by</h2>{(() => {
+              const host = (Array.isArray(listing.profiles) ? listing.profiles[0] : listing.profiles) || memberProfileOf(members.find(m => m.user_id === listing.creator_id) || { user_id: listing.creator_id, role: "creator" });
+              return <Link href={`/profile/${listing.creator_id}`} className="detail119-person">{host?.avatar_url ? <img src={host.avatar_url} alt="" /> : <span className="detail119-avatar"><AppIcon name="user" /></span>}<span><strong>{host?.display_name || "View host profile"} <small>Host</small></strong>{host?.city && <span>{host.city}</span>}</span><span aria-hidden="true">›</span></Link>;
+            })()}</section>
+            {(listing.media_video_url || !!listing.media_items?.length) && <section className="detail119-section detail119-media"><h2>Media</h2>
             {listing.media_video_url && (
               <div className="relative overflow-hidden rounded-xl border bg-black">
                 {generatedVideoThumbs[`listing-video-${listing.id}`] ? null : (
@@ -1193,47 +1207,13 @@ export default function ListingPage() {
               </div>
             )}
 
-            <div className="quest-detail-tags"><span>{getSkillLevelLabel(listing.skill_level)}</span><span>{listing.join_mode === "approval_required" ? "Approval required" : "Open join"}</span><span>Up to {listing.group_size}</span></div>
-            <div className="quest-detail-description"><p>{listing.description || "The host has not added a description yet."}</p></div>
-            <div className="quest-detail-facts">
-              <div><span className="quest-detail-fact-icon"><AppIcon name="location" className="h-5 w-5" /></span><div><small>Meetup</small><strong>{isVirtualListing() ? "Virtual" : (sanitizeLocationLabel(listing.city) || sanitizeLocationLabel(locationSummary(listing.exact_address)) || "Location to be confirmed")}</strong><p>{myDistanceLabel || (myLocationStatus === "denied" ? "Enable location for distance" : "Location and directions")}</p></div></div>
-              <div><span className="quest-detail-fact-icon"><AppIcon name="clock" className="h-5 w-5" /></span><div><small>Starts</small><strong>{getEventTimingLabel(listing.availability)}</strong><p>{formatPostedLabel(listing.created_at)}</p>{approvedParticipant && listing.starts_at ? <button type="button" className="mt-2 inline-flex min-h-10 items-center gap-2 rounded-full border bg-white px-3 py-2 text-xs font-bold text-slate-800" onClick={addQuestToCalendar}><AppIcon name="calendar" className="h-4 w-4" /> Add to calendar</button> : null}</div></div>
-              <div><span className="quest-detail-fact-icon"><AppIcon name="shield" className="h-5 w-5" /></span><div><small>Exact location</small><strong>{canViewExactAddress ? "Available to you" : "Protected"}</strong><p>{isVirtualListing()
-                ? (listing.exact_location_visibility === "public" ? "Shared with everyone" : listing.exact_location_visibility === "approved_members" ? "Shared with approved guests" : canViewExactAddress ? "Meeting link shared" : "Host shares when ready")
-                : canViewExactAddress && listing.exact_address ? listing.exact_address : "The host shares it based on their privacy setting."}</p></div></div>
-            </div>
+            </section>}
 
-            {showCheckIn ? (
-              <section className="rounded-2xl border border-cyan-200 bg-[#0b202a] p-4 text-white shadow-lg shadow-cyan-950/10" aria-labelledby="quest-presence-title">
-                <div className="flex items-start gap-3">
-                  <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-full ${myCheckIn ? "bg-[#9bd8e4] text-[#082f3a]" : "bg-white/10 text-[#9bd8e4]"}`}><AppIcon name={myCheckIn ? "check" : "location"} className="h-5 w-5" /></span>
-                  <div className="min-w-0 flex-1"><p className="text-[10px] font-black tracking-[0.18em] text-cyan-200">QUEST PRESENCE</p><h2 id="quest-presence-title" className="text-lg font-black">{checkIns.length ? `${checkIns.length} ${checkIns.length === 1 ? "person is" : "people are"} here` : "Let everyone know you arrived"}</h2>{checkIns.length ? <p className="mt-1 text-xs text-white/70">{checkIns.map((row) => { const profile = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles; return profile?.display_name || "QuestHat member"; }).join(" · ")}</p> : null}</div>
-                </div>
-                <p className="mt-3 text-sm leading-6 text-white/75">Check-in works only within one mile of the meetup. Your precise location verifies distance and is never shown to the host or attendees.</p>
-                {myCheckIn ? <div className="mt-3 flex items-center justify-between"><span className="inline-flex items-center gap-2 rounded-full bg-emerald-400/15 px-3 py-2 text-sm font-bold text-emerald-200"><AppIcon name="check" className="h-4 w-4" /> You’re checked in</span><button type="button" disabled={Boolean(checkInAction)} className="text-sm font-bold text-cyan-200 underline disabled:opacity-50" onClick={() => void leaveQuestCheckIn()}>{checkInAction === "leave" ? "Removing…" : "Undo"}</button></div> : <button type="button" disabled={Boolean(checkInAction)} className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#9bd8e4] px-4 py-3 font-black text-[#082f3a] disabled:opacity-60" onClick={() => void checkInToQuest()}><AppIcon name="location" className="h-5 w-5" />{checkInAction === "check-in" ? "Verifying…" : "I’m here"}</button>}
-              </section>
-            ) : null}
-
-            {isManager && pendingMembers.length ? (
-              <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-slate-950" aria-labelledby="host-checklist-title">
-                <div className="flex items-start justify-between gap-3"><div><p className="text-[10px] font-black tracking-[0.18em] text-amber-700">HOST CHECKLIST</p><h2 id="host-checklist-title" className="text-lg font-black">{pendingMembers.length} {pendingMembers.length === 1 ? "request needs" : "requests need"} you</h2><p className="mt-1 text-sm text-slate-600">Approve or decline so people can plan.</p></div>{listing.host_coordination_reminders_disabled || reminderSnoozed ? <span className="rounded-full bg-slate-900 px-2 py-1 text-[10px] font-black text-white">{listing.host_coordination_reminders_disabled ? "OFF" : "SNOOZED"}</span> : null}</div>
-                <div className="mt-3 flex flex-wrap gap-2">{listing.host_coordination_reminders_disabled ? <button type="button" disabled={Boolean(coordinationReminderAction)} className="rounded-full border bg-white px-3 py-2 text-xs font-bold" onClick={() => void updateCoordinationReminders("enable")}>Turn reminders on</button> : <><button type="button" disabled={Boolean(coordinationReminderAction)} className="rounded-full border bg-white px-3 py-2 text-xs font-bold" onClick={() => void updateCoordinationReminders("snooze")}>Remind tomorrow</button><button type="button" disabled={Boolean(coordinationReminderAction)} className="rounded-full border bg-white px-3 py-2 text-xs font-bold" onClick={() => void updateCoordinationReminders("disable")}>Turn off for this quest</button></>}</div>
-              </section>
-            ) : null}
-
-            <div className="rounded-xl border bg-gray-50 p-3 quest-detail-section quest-members-section">
-              <p className="text-sm font-medium mb-2">Joined members ({visibleMembers.filter((m) => (m.status || "approved") === "approved").length})</p>
-              {visibleMembers.some((m) => (m.status || "approved") === "approved" && (m.role === "creator" || m.role === "cohost")) && (
-                <div className="mb-2 flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-800">
-                  <AppIcon name="star" className="h-3.5 w-3.5" /> Hosts: {visibleMembers
-                    .filter((m) => (m.status || "approved") === "approved" && (m.role === "creator" || m.role === "cohost"))
-                    .map((m) => (memberProfileOf(m)?.display_name || "Host").trim().split(/\s+/)[0] || "Host")
-                    .join(", ")}
-                </div>
-              )}
-              {visibleMembers.length ? (
+            {approvedParticipant && <div className="rounded-xl border bg-gray-50 p-3 quest-detail-section quest-members-section">
+              <div className="detail119-section-heading"><h2>Guests <span>{visibleMembers.filter(m => (m.status || "approved") === "approved" && m.user_id !== listing.creator_id).length}</span></h2>{isOwner && <button type="button" className="detail119-primary" onClick={() => { setShowPeopleFinder(value => !value); if (!showPeopleFinder && !peopleResults.length) void loadPeople(); }}>Find people</button>}</div>
+              {visibleMembers.some(m => (m.status || "approved") === "approved" && m.user_id !== listing.creator_id) ? (
                 <div className="space-y-2">
-                  {visibleMembers.filter((m) => (m.status || "approved") === "approved").map((m) => {
+                  {visibleMembers.filter((m) => (m.status || "approved") === "approved" && m.user_id !== listing.creator_id).map((m) => {
                     const p = memberProfileOf(m);
                     const firstName = (p?.display_name || "Member").trim().split(/\s+/)[0] || "Member";
                     const hasExactAccess = exactAccessUserIds.includes(m.user_id);
@@ -1300,31 +1280,6 @@ export default function ListingPage() {
                     );
                   })}
 
-                  {isManager && members.some((m) => m.status === "pending") && (
-                    <div className="pt-2 border-t">
-                      <p className="text-xs font-medium mb-2">Pending join requests</p>
-                      <div className="grid gap-2">
-                        {members.filter((m) => m.status === "pending").map((m) => {
-                          const p = memberProfileOf(m);
-                          const firstName = (p?.display_name || "Member").trim().split(/\s+/)[0] || "Member";
-                          const distanceHint = memberDistanceByUserId[m.user_id] || "";
-                          return (
-                            <div key={`pending-${m.user_id}`} className="flex items-center justify-between rounded border bg-white px-2 py-1">
-                              <div className="min-w-0">
-                                <Link href={`/profile/${m.user_id}`} className="text-xs underline">{firstName}</Link>
-                                {distanceHint && <p className="text-[11px] text-gray-500 truncate">{distanceHint}</p>}
-                              </div>
-                              <div className="flex gap-1">
-                                <button type="button" className="text-xs border rounded px-2 py-1" onClick={() => void setMemberApproval(m.user_id, "approved")}>Approve</button>
-                                <button type="button" className="text-xs border rounded px-2 py-1" onClick={() => void declineMember(m.user_id)}>Decline</button>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
                   {isManager && members.some((m) => m.status === "declined") && (
                     <div className="pt-2 border-t">
                       <p className="text-xs font-medium mb-2">Declined requests</p>
@@ -1355,11 +1310,11 @@ export default function ListingPage() {
                   )}
                 </div>
               ) : (
-                <p className="text-xs text-gray-500">No members yet.</p>
+                <p className="text-xs text-gray-500">This quest is ready for its first guest.</p>
               )}
-            </div>
+            </div>}
 
-            {isOwner && (
+            {isOwner && showPeopleFinder && (
               <div className="rounded-2xl border border-cyan-200 bg-cyan-50/70 p-4 quest-detail-section">
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -1409,8 +1364,7 @@ export default function ListingPage() {
             )}
 
             {isManager && (
-              <div className="rounded-xl border bg-gray-50 p-3">
-                <p className="text-sm font-medium mb-2">Exact address access</p>
+              <details className="detail119-section"><summary>Manage exact address access</summary>
                 {members.filter((m) => exactAccessUserIds.includes(m.user_id)).length ? (
                   <div className="flex flex-wrap gap-2">
                     {members.filter((m) => exactAccessUserIds.includes(m.user_id)).map((m) => {
@@ -1424,14 +1378,15 @@ export default function ListingPage() {
                     })}
                   </div>
                 ) : <p className="text-xs text-gray-500">No one has manual exact-address access.</p>}
-              </div>
+              </details>
             )}
 
+            {isManager && pendingMembers.length > 0 && <section id="detail119-requests" className="detail119-section"><h2>Join requests <span className="detail119-pending-count">{pendingMembers.length} pending</span></h2>{pendingMembers.map(member => { const person = memberProfileOf(member); return <div className="detail119-request" key={member.user_id}><Link className="detail119-person" href={`/profile/${member.user_id}`}>{person?.avatar_url ? <img src={person.avatar_url} alt="" /> : <span className="detail119-avatar"><AppIcon name="user" /></span>}<span><strong>{person?.display_name || "Member"}</strong><span>Wants to join this quest</span></span><span aria-hidden="true">›</span></Link><div className="detail119-request-actions"><button className="detail119-primary" type="button" disabled={Boolean(membershipAction)} onClick={() => void setMemberApproval(member.user_id, "approved")}><AppIcon name="check" />{membershipAction === member.user_id ? "Updating…" : "Approve"}</button><button className="detail119-danger" type="button" disabled={Boolean(membershipAction)} onClick={() => void declineMember(member.user_id)}>× &nbsp; Decline</button></div>{listing.exact_address && <button className="detail119-share-address" type="button" disabled={Boolean(membershipAction)} onClick={() => void setMemberApproval(member.user_id, "approved", true)}><AppIcon name="location" />Approve and share exact address</button>}</div>; })}</section>}
             <div className="rounded-xl border bg-gray-50 p-3 quest-detail-section quest-comments-section">
-              <p className="text-sm font-medium mb-2">Comments ({comments.length})</p>
+              <div className="detail119-comment-heading"><select aria-label="Sort comments" value={commentSort} onChange={event => setCommentSort(event.target.value)}><option value="newest">Newest first</option><option value="oldest">Oldest first</option></select><span>{comments.length} comments</span></div>
               {comments.length ? (
                 <div className="space-y-2">
-                  {comments.map((comment) => {
+                  {[...comments].sort((a, b) => commentSort === "oldest" ? Date.parse(a.created_at) - Date.parse(b.created_at) : Date.parse(b.created_at) - Date.parse(a.created_at)).map((comment) => {
                     const profile = commentProfileOf(comment);
                     return (
                       <div key={comment.id} className="rounded-xl border bg-white px-3 py-2">
@@ -1453,29 +1408,19 @@ export default function ListingPage() {
                   })}
                 </div>
               ) : (
-                <p className="text-xs text-gray-500">No comments yet.</p>
+                <p className="text-xs text-gray-500">Comments will appear here.</p>
               )}
             </div>
 
-            <div className="pt-2 flex gap-2 flex-wrap quest-detail-actions">
-              {!isOwner ? (
-                <>
-                  <button className="border rounded px-3 py-2 bg-black text-white" onClick={() => void toggleJoin()}>{myMembershipStatus === "pending" ? "Cancel request" : (myMembershipStatus === "declined" ? "Request again" : (hasJoined ? "Leave" : ((listing.join_mode || "open") === "approval_required" ? "Request to join" : "Join")))}</button>
-                </>
-              ) : (
-                <>
-                  <Link href={`/listing/${listing.id}/edit`} className="border rounded px-3 py-2 inline-block">Edit listing</Link>
-                  <Link href="/inbox" className="border rounded px-3 py-2 inline-block">Open inbox</Link>
-                  <button className="border border-red-300 text-red-700 rounded px-3 py-2" onClick={() => void deleteListing()}>Delete listing</button>
-                </>
-              )}
-              <button className="border rounded px-3 py-2" onClick={() => void askQuestion("public")}>Comment</button>
-              <button className="border rounded px-3 py-2" onClick={() => void askQuestion("private")}>Message</button>
-              <button className="border rounded px-3 py-2" onClick={() => void toggleSave()}>{isSaved ? "★ Saved" : "☆ Save"}</button>
+            <div className="detail119-section detail119-actions">
+              <button type="button" aria-pressed={isSaved} onClick={() => void toggleSave()}><span><AppIcon name="bookmark" fill={isSaved ? "currentColor" : "none"} /></span>{isSaved ? "Saved" : "Save"}</button>
+              <button type="button" onClick={() => void askQuestion("public")}><span><AppIcon name="message" /></span>Comment</button>
+              <button type="button" onClick={() => void askQuestion("private")}><span><QuestCategoryIcon name="navigate-outline" /></span>Message</button>
             </div>
+            {isOwner ? <footer className="detail119-footer"><Link href={`/listing/${listing.id}/edit`}><QuestCategoryIcon name="create-outline" />Edit quest</Link><button type="button" className="detail119-danger" onClick={() => void deleteListing()}>Delete listing</button></footer> : <button type="button" className="detail119-primary detail119-join" onClick={() => void toggleJoin()}>{myMembershipStatus === "pending" ? "Cancel request" : myMembershipStatus === "declined" ? "Request again" : hasJoined ? "Leave quest" : listing.join_mode === "approval_required" ? "Request to join" : "Join now"}</button>}
 
             {status && (
-              <p className="text-xs text-gray-600">
+              <p role="status" className="text-xs text-gray-600">
                 {status}
                 {status === "Location access is required to request or join this event." ? (
                   <>
@@ -1615,7 +1560,7 @@ export default function ListingPage() {
                           <p className="mt-2 text-sm text-gray-700">{comment.body.replace(/^\[PUBLIC\]\s?/, "")}</p>
                         </div>
                       );
-                    }) : <p className="text-xs text-gray-500">No comments yet.</p>}
+                    }) : <p className="text-xs text-gray-500">Comments will appear here.</p>}
                   </div>
                 </>
               ) : (
@@ -1629,6 +1574,6 @@ export default function ListingPage() {
           </div>
         )}
       </div>
-    </main>
+    </dialog>
   );
 }

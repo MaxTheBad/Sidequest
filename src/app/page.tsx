@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import ListingClient from "./listing/[id]/listing-client";
 import { FormEvent, PointerEvent, UIEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import CityAutocompleteInput from "@/components/city-autocomplete-input";
@@ -261,6 +262,13 @@ const REPORT_REASONS: Record<"listing_content" | "chat_behavior" | "profile_acco
 };
 
 export default function Home() {
+  const [detailQuestId, setDetailQuestId] = useState<string | null>(null);
+  useEffect(() => {
+    const syncDetail = () => setDetailQuestId(window.history.state?.questDetailOverlay ? window.location.pathname.match(/^\/listing\/([^/]+)\/?$/)?.[1] || null : null);
+    window.addEventListener("popstate", syncDetail);
+    return () => window.removeEventListener("popstate", syncDetail);
+  }, []);
+
   const supabase = getSupabaseClient();
   const router = useRouter();
   const redirectTo =
@@ -3838,7 +3846,17 @@ export default function Home() {
   }, [filteredQuests, userLocation]);
 
   return (
-<main className="home119-page min-h-screen bg-transparent">
+<main className="home119-page min-h-screen bg-transparent" onClickCapture={(event) => {
+  if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || detailQuestId) return;
+  const link = (event.target as HTMLElement).closest<HTMLAnchorElement>("a[href]");
+  if (!link || link.target === "_blank") return;
+  const url = new URL(link.href, window.location.href);
+  const match = url.origin === window.location.origin && url.pathname.match(/^\/listing\/([^/]+)\/?$/);
+  if (!match) return;
+  event.preventDefault();
+  window.history.pushState({ ...window.history.state, questDetailOverlay: true }, "", url.pathname);
+  setDetailQuestId(match[1]);
+}}>
       <div className="home119-shell w-full mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-4 lg:py-8 space-y-6">
         {!!pendingVerifyEmail && (
           <div className="text-sm rounded bg-emerald-50 border p-2">Email sent to <b>{pendingVerifyEmail}</b>. <button className="underline" disabled={resendCooldown > 0} onClick={() => void resendVerification()}>{resendCooldown > 0 ? `Resend in ${resendCooldown}s` : "Resend"}</button></div>
@@ -6175,6 +6193,7 @@ export default function Home() {
           </div>
         </div>
       )}
+      {detailQuestId && <ListingClient key={detailQuestId} questId={detailQuestId} onClose={() => window.history.back()} />}
     </main>
   );
 }
