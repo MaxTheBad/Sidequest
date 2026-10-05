@@ -99,6 +99,13 @@ export default function SettingsPage() {
   const [tiktokStatus, setTiktokStatus] = useState<TikTokConnectionStatus | null>(null);
   const [tiktokLoading, setTiktokLoading] = useState(false);
   const [tiktokAction, setTiktokAction] = useState<"connect" | "disconnect" | null>(null);
+  const [tiktokVideo, setTiktokVideo] = useState<File | null>(null);
+  const [tiktokShareMode, setTiktokShareMode] = useState<"draft" | "direct">("draft");
+  const [tiktokCaption, setTiktokCaption] = useState("");
+  const [tiktokPrivacyOptions, setTiktokPrivacyOptions] = useState<string[]>(["SELF_ONLY"]);
+  const [tiktokPrivacyLevel, setTiktokPrivacyLevel] = useState("SELF_ONLY");
+  const [tiktokPublishing, setTiktokPublishing] = useState(false);
+  const [tiktokPublishResult, setTiktokPublishResult] = useState("");
 
   const [marketingOptIn, setMarketingOptIn] = useState(false);
   const [themePref, setThemePref] = useState<"auto" | "light" | "dark">("auto");
@@ -394,6 +401,42 @@ export default function SettingsPage() {
       setStatus(err instanceof Error ? err.message : "Could not disconnect TikTok.");
     } finally {
       setTiktokAction(null);
+    }
+  }
+
+  async function loadTikTokCreatorInfo() {
+    const token = await getAccessToken();
+    if (!token) return;
+    const response = await fetch("/api/tiktok/creator-info", { method: "POST", headers: { authorization: `Bearer ${token}` } });
+    const data = (await response.json().catch(() => null)) as { ok?: boolean; creator?: { privacy_level_options?: string[] }; error?: string } | null;
+    if (!response.ok || !data?.ok) throw new Error(data?.error || "Could not load your TikTok posting options.");
+    const options = data.creator?.privacy_level_options?.length ? data.creator.privacy_level_options : ["SELF_ONLY"];
+    setTiktokPrivacyOptions(options);
+    setTiktokPrivacyLevel((current) => options.includes(current) ? current : options[0]);
+  }
+
+  async function shareVideoToTikTok() {
+    if (!tiktokVideo || tiktokPublishing) return;
+    setTiktokPublishing(true);
+    setTiktokPublishResult("");
+    setStatus("");
+    try {
+      const token = await getAccessToken();
+      if (!token) throw new Error("Log in first.");
+      if (tiktokShareMode === "direct") await loadTikTokCreatorInfo();
+      const form = new FormData();
+      form.set("video", tiktokVideo);
+      form.set("mode", tiktokShareMode);
+      form.set("title", tiktokCaption);
+      form.set("privacyLevel", tiktokPrivacyLevel);
+      const response = await fetch("/api/tiktok/publish", { method: "POST", headers: { authorization: `Bearer ${token}` }, body: form });
+      const data = (await response.json().catch(() => null)) as { ok?: boolean; message?: string; error?: string } | null;
+      if (!response.ok || !data?.ok) throw new Error(data?.error || "TikTok could not receive the video.");
+      setTiktokPublishResult(data.message || "TikTok received your video.");
+    } catch (err) {
+      setTiktokPublishResult(err instanceof Error ? err.message : "TikTok sharing is unavailable.");
+    } finally {
+      setTiktokPublishing(false);
     }
   }
 
@@ -1310,28 +1353,74 @@ export default function SettingsPage() {
                   </div>
 
                   {tiktokStatus?.connected ? (
-                    <div className="mt-4 flex flex-col gap-3 rounded-xl border bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
-                      <div className="flex items-center gap-3">
-                        {tiktokStatus.avatarUrl ? (
-                          <img src={tiktokStatus.avatarUrl} alt="" className="h-10 w-10 rounded-full object-cover" />
-                        ) : (
-                          <div className="h-10 w-10 rounded-full bg-gray-200" />
-                        )}
-                        <div>
-                          <p className="font-medium">{tiktokStatus.displayName || "TikTok account connected"}</p>
-                          <p className="text-xs text-gray-500">
-                            Scopes: {(tiktokStatus.scopes || []).join(", ") || "TikTok authorization granted"}
-                          </p>
+                    <div className="mt-4 space-y-3">
+                      <div className="flex flex-col gap-3 rounded-xl border bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex items-center gap-3">
+                          {tiktokStatus.avatarUrl ? (
+                            <img src={tiktokStatus.avatarUrl} alt="" className="h-10 w-10 rounded-full object-cover" />
+                          ) : (
+                            <div className="h-10 w-10 rounded-full bg-gray-200" />
+                          )}
+                          <div>
+                            <p className="font-medium">{tiktokStatus.displayName || "TikTok account connected"}</p>
+                            <p className="text-xs text-gray-500">
+                              Scopes: {(tiktokStatus.scopes || []).join(", ") || "TikTok authorization granted"}
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          className="rounded-xl border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-700 disabled:opacity-50"
+                          disabled={Boolean(tiktokAction)}
+                          onClick={() => void disconnectTikTok()}
+                        >
+                          {tiktokAction === "disconnect" ? "Disconnecting…" : "Disconnect"}
+                        </button>
+                      </div>
+
+                      <div className="rounded-xl border bg-white p-4">
+                        <div className="flex items-start justify-between gap-4">
+                          <div>
+                            <h3 className="font-semibold">Share a QuestHat video to TikTok</h3>
+                            <p className="mt-1 text-sm text-gray-600">Choose a video you own. You decide whether to send a draft to TikTok or post directly.</p>
+                          </div>
+                          <span className="rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700">Your choice</span>
+                        </div>
+                        <div className="mt-4 grid gap-3">
+                          <label className="grid gap-1 text-sm font-medium">
+                            Video
+                            <input type="file" accept="video/mp4,video/quicktime,video/webm" onChange={(event) => { setTiktokVideo(event.target.files?.[0] || null); setTiktokPublishResult(""); }} />
+                            <span className="text-xs font-normal text-gray-500">MP4, MOV, or WebM, up to 50 MB.</span>
+                          </label>
+                          <fieldset className="grid gap-2">
+                            <legend className="text-sm font-medium">How should TikTok receive it?</legend>
+                            <label className="flex items-start gap-2 rounded-lg border p-3 text-sm">
+                              <input type="radio" name="tiktok-mode" checked={tiktokShareMode === "draft"} onChange={() => setTiktokShareMode("draft")} />
+                              <span><strong>Send as a TikTok draft</strong><br /><span className="text-gray-600">TikTok will notify you to finish editing and post from its app.</span></span>
+                            </label>
+                            <label className="flex items-start gap-2 rounded-lg border p-3 text-sm">
+                              <input type="radio" name="tiktok-mode" checked={tiktokShareMode === "direct"} onChange={() => { setTiktokShareMode("direct"); void loadTikTokCreatorInfo().catch((err) => setTiktokPublishResult(err instanceof Error ? err.message : "Could not load TikTok posting options.")); }} />
+                              <span><strong>Post directly to TikTok</strong><br /><span className="text-gray-600">You choose the caption and an available audience before QuestHat sends the post.</span></span>
+                            </label>
+                          </fieldset>
+                          {tiktokShareMode === "direct" && (
+                            <>
+                              <label className="grid gap-1 text-sm font-medium">Caption
+                                <textarea className="min-h-20 rounded-lg border px-3 py-2 font-normal" maxLength={2200} value={tiktokCaption} onChange={(event) => setTiktokCaption(event.target.value)} placeholder="Describe your QuestHat video" />
+                              </label>
+                              <label className="grid gap-1 text-sm font-medium">Who can watch?
+                                <select className="rounded-lg border px-3 py-2 font-normal" value={tiktokPrivacyLevel} onChange={(event) => setTiktokPrivacyLevel(event.target.value)}>
+                                  {tiktokPrivacyOptions.map((option) => <option key={option} value={option}>{option.replaceAll("_", " ")}</option>)}
+                                </select>
+                              </label>
+                            </>
+                          )}
+                          <button type="button" className="w-fit rounded-xl bg-black px-4 py-3 text-sm font-bold text-white disabled:opacity-50" disabled={!tiktokVideo || tiktokPublishing} onClick={() => void shareVideoToTikTok()}>
+                            {tiktokPublishing ? "Sending to TikTok…" : tiktokShareMode === "direct" ? "Post to TikTok" : "Send draft to TikTok"}
+                          </button>
+                          {tiktokPublishResult && <p className="rounded-lg bg-gray-50 p-3 text-sm text-gray-700" role="status">{tiktokPublishResult}</p>}
                         </div>
                       </div>
-                      <button
-                        type="button"
-                        className="rounded-xl border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-700 disabled:opacity-50"
-                        disabled={Boolean(tiktokAction)}
-                        onClick={() => void disconnectTikTok()}
-                      >
-                        {tiktokAction === "disconnect" ? "Disconnecting…" : "Disconnect"}
-                      </button>
                     </div>
                   ) : (
                     <button
