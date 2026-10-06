@@ -50,6 +50,8 @@ export default function QuestMap({
   const mapInstanceRef = useRef<LeafletMap | null>(null);
   const markersRef = useRef<LeafletLayerGroup | null>(null);
   const [leaflet, setLeaflet] = useState<LeafletModule | null>(null);
+  const [tilesUnavailable, setTilesUnavailable] = useState(false);
+  const [tileRetry, setTileRetry] = useState(0);
 
   const center = useMemo(() => {
     const pts = items.map((item) => item.coords);
@@ -78,13 +80,35 @@ export default function QuestMap({
       preferCanvas: true,
     }).setView([center.lat, center.lon], 5);
     leaflet.control.zoom({ position: "bottomright" }).addTo(map);
-    leaflet.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
+    // Standard OSM tiles: browser caching/referrers are preserved; no prefetch.
+    const tiles = leaflet.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 20,
-      subdomains: "abcd",
+      maxNativeZoom: 19,
+      keepBuffer: 0,
+      updateWhenIdle: true,
       attribution:
-        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
       className: "quest-map-tiles",
+      errorTileUrl: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
     }).addTo(map);
+    const failedTiles = new Set<string>();
+    const tileKey = (event: import("leaflet").TileEvent) =>
+      `${event.coords.z}/${event.coords.x}/${event.coords.y}`;
+    setTilesUnavailable(false);
+    tiles.on("tileunload", (event) => {
+      failedTiles.delete(tileKey(event));
+      setTilesUnavailable(failedTiles.size > 0);
+    });
+    tiles.on("tileerror", (event) => {
+      failedTiles.add(tileKey(event));
+      setTilesUnavailable(true);
+    });
+    tiles.on("tileload", (event) => {
+      // Leaflet emits tileload for its transparent error image too.
+      if ((event.tile as HTMLImageElement).getAttribute("src") === tiles.options.errorTileUrl) return;
+      failedTiles.delete(tileKey(event));
+      setTilesUnavailable(failedTiles.size > 0);
+    });
     markersRef.current = leaflet.layerGroup().addTo(map);
     mapInstanceRef.current = map;
     return () => {
@@ -93,6 +117,13 @@ export default function QuestMap({
       markersRef.current = null;
     };
   }, [center.lat, center.lon, leaflet]);
+
+  useEffect(() => {
+    if (!tileRetry) return;
+    mapInstanceRef.current?.eachLayer((layer) => {
+      if (leaflet && layer instanceof leaflet.TileLayer) layer.redraw();
+    });
+  }, [tileRetry, leaflet]);
 
   useEffect(() => {
     const map = mapInstanceRef.current;
@@ -175,6 +206,14 @@ export default function QuestMap({
   return (
     <div className="relative h-[60vh] overflow-hidden rounded-3xl border border-slate-200 bg-slate-100 shadow-[0_16px_40px_rgba(15,23,42,0.12)]">
       <div ref={mapRef} className="h-full w-full" />
+      {tilesUnavailable ? (
+        <div role="status" className="absolute left-3 right-3 top-3 z-[500] rounded-2xl bg-white/95 p-3 text-xs text-slate-700 shadow-lg">
+          Map background unavailable. Quest pins still work; you can also use list view.{" "}
+          <button type="button" className="font-semibold underline" onClick={() => setTileRetry((value) => value + 1)}>
+            Retry map
+          </button>
+        </div>
+      ) : null}
       {selectedItem ? (
         <div className="pointer-events-none absolute left-1/2 top-1/2 z-[520] w-[min(92vw,360px)] -translate-x-1/2 -translate-y-1/2">
           <div className="mx-auto flex aspect-square w-full max-w-[340px] items-center justify-center rounded-full border border-white/65 bg-white/72 p-5 shadow-[0_18px_45px_rgba(15,23,42,0.18)] backdrop-blur-md">
