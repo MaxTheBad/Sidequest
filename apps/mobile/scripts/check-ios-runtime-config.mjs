@@ -20,8 +20,12 @@ if (!hasSupabaseUrl || !hasSupabaseAnonKey) {
   throw new Error("iOS runtime config is missing required Supabase settings");
 }
 
-if (extra.postQuestFollowUpsEnabled === true || extra.nativeFeedbackEnabled === true) {
-  throw new Error("iOS runtime config unexpectedly enables a default-off feature flag");
+if (extra.postQuestFollowUpsEnabled !== true) {
+  throw new Error("iOS runtime config is missing the released post-quest follow-up capability");
 }
 
-console.log("ios_runtime_config=supabase-present;default-off-flags-confirmed");
+if (extra.nativeFeedbackEnabled === true) {
+  throw new Error("iOS runtime config unexpectedly enables native feedback without CAPTCHA support");
+}
+
+console.log("ios_runtime_config=supabase-present;post-quest-followups=enabled;native-feedback=disabled");
