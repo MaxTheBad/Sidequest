@@ -1,10 +1,35 @@
-import { Component, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { sortQuestComments, type CommentSort } from "./lib/comment-sort";
+import { getHomeFeedPresentation, type HomeFeedLoadStatus } from "./lib/home-feed-status";
+import { createHomeFeedRequestGate, withHomeFeedTimeout } from "./lib/home-feed-load";
+import { clearConversationDraft, conversationThreadKey, createConversationSendGate, saveConversationDraft } from "./lib/conversation-send";
+import { createMembershipActionGate } from "./lib/membership-action-gate";
+import { persistSettingsPreferences } from "./lib/settings-preferences-save";
+import { validateQuestDraft } from "./lib/quest-draft-validation";
+import { createNotificationPreferenceRequestGate, resolveNotificationDestination } from "./lib/notification-routing";
+import { classifyPickedMedia, createMediaOperationGate } from "./lib/media-operation-gate";
+import { isIosUnsupportedVideoUrl } from "./lib/media-compatibility";
+import { filterHomeQuests, normalizeHomeCategoryFilter } from "./lib/home-discovery";
+import { createPeopleActionGate, createPeopleRequestGate, normalizePeopleFilters } from "./lib/people-client-state";
+import { applyHomeFallbackPageQuery, buildHomeFeedRpcArgs, createHomeAppendGate, filterBlockedHomePage, HOME_SORT_OPTIONS, mergeHomePageCounts, mergeHomePages, prepareHomeFallbackPage, prepareHomePage, requestHomeFeedWithFallback, type HomePageCursor, type HomeSortMode } from "./lib/home-pagination";
+import { clampMediaIndex, createQuestDetailRequestGate, normalizeQuestMediaItems } from "./lib/quest-detail-media-state";
+import { confirmedBlockMutationError, createModerationActionGate, isAllowedReportReason } from "./lib/moderation-client-state";
+import { emailChangePendingMessage, parseAuthCallback, resolveEmailChangeState } from "./lib/email-change-state";
+import { buildQuestCalendarDetails, buildQuestDirectionsOptions, buildQuestSharePayload, canCommitCalendarTracking, canIncludeQuestPrivateLocation, createCalendarPayloadFingerprint, createNativeIntentGate, getCalendarUpdateState, persistCalendarExportBaseline, refreshQuestPrivateLocationForIntent, tryUpdateStoredCalendarEvent } from "./lib/native-quest-intents";
+import { createLatestScopedRequestGate, createScopedMutationGate, runConfirmedScopedMutation } from "./lib/scoped-mutation-gate";
+import { approvedGuestsMissingLocation, isTerminalInvitationError, partitionInvitationResults } from "./lib/invitation-location-state";
+import { canShowCheckIn, resolveCheckInResult, resolveCheckInUndoResult } from "./lib/check-in-state";
+import { GUEST_ACTION_IDS, createGuestActionMenuGate, guestActionScope, isGuestActionTargetCurrent } from "./lib/guest-actions-menu-state";
+import { ConversationPanel } from "./components/ConversationPanel";
+import { KeyboardDismissTextInput as TextInput } from "./components/KeyboardDismissTextInput";
+import { Component, type ReactNode, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import {
   AppState,
   ActivityIndicator,
   Alert,
   Animated,
-  Image,
+  BackHandler,
+  Image as NativeImage,
+  ImageBackground,
   Keyboard,
   KeyboardAvoidingView,
   Platform,
@@ -15,7 +40,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
   Share,
   Switch,
@@ -24,6 +48,10 @@ import {
   Linking as RNLinking,
   NativeEventEmitter,
   NativeModules,
+  type ImageSourcePropType,
+  type NativeModule,
+  type TextInput as NativeTextInput,
+  type ViewProps,
 } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -39,20 +67,39 @@ import { requireOptionalNativeModule, useEvent } from "expo";
 import { requireNativeViewManager } from "expo-modules-core";
 import { useVideoPlayer, VideoView } from "expo-video";
 import * as WebBrowser from "expo-web-browser";
-import { Camera, Map as MapLibreMap, Marker, type CameraRef } from "@maplibre/maplibre-react-native";
+import Constants from "expo-constants";
+import { Camera, Map as MapLibreMap, Marker, type CameraRef, type StyleSpecification } from "@maplibre/maplibre-react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { WebView } from "react-native-webview";
 import * as Sentry from "@sentry/react-native";
 import PostHog from "posthog-react-native";
-import { APP_NAME, CANONICAL_CATEGORIES, haversineMiles, resolveCanonicalCategory, suggestCanonicalCategories, usernameErrorMessage, validateUsername, getCategoryTitleSuggestions, getCategoryFallbackMedia } from "@questhat/shared";
+import { APP_NAME, haversineMiles, resolveCanonicalCategory, usernameErrorMessage, validateUsername, getCategoryTitleSuggestions, getCategoryFallbackMedia } from "@questhat/shared";
+import { useCategoryCatalog } from "./lib/use-category-catalog";
+import { catalogChoices, catalogCovers, catalogLabel, canChooseCategory } from "@questhat/shared";
 import { env } from "./lib/env";
 import { supabase } from "./lib/supabase";
 import { getPushPermissionStatus, registerPushTokenForUser, requestPushPermissionAndRegisterForUser } from "./lib/push";
 import { COUNTRY_OPTIONS } from "./lib/countries";
+import { activeLocationDraftValue, resolveExactCountrySelection } from "./lib/create-location-draft-state";
+import { beginQuestEditorDraftSession, consumeQuestEditorDraftSession } from "./lib/quest-editor-draft-session";
+import { shouldRefreshQuestMembershipFromPayload } from "./lib/quest-membership-live-state";
+import { createOptionalAnalytics } from "./lib/optional-analytics";
+import { discoveryLoadedProperties, joinReviewedProperties } from "./lib/metrics-privacy";
+import { authChallengeMessage } from "./lib/auth-challenge";
+import { PostQuestFollowUpCard } from "./components/PostQuestFollowUpCard";
+import { requestNeutralEngagementReview } from "./lib/native-review";
+import createQuestBannerLarge from "../assets/create-quest/categories/outdoors/cover-05.jpg";
+import createQuestBannerSmall from "../assets/create-quest/categories/outdoors/cover-00.jpg";
+import createLocationInPerson from "../assets/create-quest/location/card-00.jpg";
+import createLocationVirtual from "../assets/create-quest/location/card-01.jpg";
+import createAdvancedPrivacy from "../assets/create-quest/make-it-yours/card-00.jpg";
+import createAdvancedJoining from "../assets/create-quest/make-it-yours/card-01.jpg";
+import createAdvancedDetails from "../assets/create-quest/make-it-yours/card-02.jpg";
+import createAdvancedMedia from "../assets/create-quest/make-it-yours/card-03.jpg";
+import launchLogo from "../assets/launch-logo.png";
 
-function scrubSentryEvent(event: Sentry.Event): Sentry.Event | null {
+function scrubSentryEvent(event: Sentry.ErrorEvent): Sentry.ErrorEvent | null {
   return {
     ...event,
     user: event.user
@@ -77,7 +124,13 @@ function scrubSentryEvent(event: Sentry.Event): Sentry.Event | null {
     breadcrumbs: event.breadcrumbs
       ?.filter((breadcrumb) => breadcrumb.category !== "console")
       .map((breadcrumb) => ({ ...breadcrumb, data: undefined })),
+    extra: undefined,
   };
+}
+
+function scrubSentryBreadcrumb(breadcrumb: Sentry.Breadcrumb): Sentry.Breadcrumb | null {
+  if (breadcrumb.category === "console") return null;
+  return { ...breadcrumb, data: undefined, message: undefined };
 }
 
 Sentry.init({
@@ -86,7 +139,10 @@ Sentry.init({
   environment: __DEV__ ? "development" : "production",
   sendDefaultPii: false,
   tracesSampleRate: __DEV__ ? 1 : 0.1,
+  replaysSessionSampleRate: 0,
+  replaysOnErrorSampleRate: 0,
   beforeSend: scrubSentryEvent,
+  beforeBreadcrumb: scrubSentryBreadcrumb,
 });
 
 const posthogClient = env.posthogKey
@@ -99,6 +155,7 @@ const posthogClient = env.posthogKey
       enableSessionReplay: false,
     })
   : null;
+const optionalAnalytics = createOptionalAnalytics(posthogClient);
 
 WebBrowser.maybeCompleteAuthSession();
 Notifications.setNotificationHandler({
@@ -111,11 +168,11 @@ Notifications.setNotificationHandler({
   }),
 });
 
-const QuestHatLiveActivity = NativeModules.QuestHatLiveActivity as undefined | {
+const QuestHatLiveActivity = NativeModules.QuestHatLiveActivity as undefined | (NativeModule & {
   sync: (questId: string, title: string, startsAt: number, location: string) => Promise<boolean>;
   end: () => Promise<boolean>;
   getPushToStartToken: () => Promise<LiveActivityPushToken>;
-};
+});
 
 const QuestHatAndroidLiveActivity = Platform.OS === "android"
   ? requireOptionalNativeModule<{
@@ -124,9 +181,15 @@ const QuestHatAndroidLiveActivity = Platform.OS === "android"
     }>("QuestHatLiveActivityAndroid")
   : null;
 
+type AppleMapNativeProps = ViewProps & {
+  ref?: React.Ref<AppleMapNativeRef>;
+  center: { latitude: number; longitude: number; delta: number };
+  points: Array<{ id: string; latitude: number; longitude: number; title: string; category: string; selected: boolean; kind: string }>;
+  onMarkerPress?: (event: { nativeEvent: { id?: string } }) => void;
+};
 const AppleMapNativeView = Platform.OS === "ios"
-  ? requireNativeViewManager("QuestHatApplePlaces", "QuestHatAppleMapView")
-  : View;
+  ? requireNativeViewManager<AppleMapNativeProps>("QuestHatApplePlaces", "QuestHatAppleMapView")
+  : ({ style }: AppleMapNativeProps) => <View style={style} />;
 
 type LiveActivityPushToken = {
   supported: boolean;
@@ -149,7 +212,7 @@ type AppleMapNativeRef = {
 type SafetyPromptContext = "host" | "guest";
 type PendingSafetyJoin = { quest: QuestPreview; source: "selected" | "feed" };
 const FAR_AWAY_WARNING_MILES = 15;
-const HOME_QUEST_LIMIT = 200;
+const HOME_QUEST_PAGE_SIZE = 50;
 const COMPLETED_FEED_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 const STORED_LOCATION_KEY = "questhat_device_location";
 const STORED_PUSH_PROMPT_DISMISSED_AT = "questhat_push_prompt_dismissed_at";
@@ -157,12 +220,13 @@ const STORED_CONTEXTUAL_PUSH_PROMPT_AT = "questhat_contextual_push_prompt_at";
 const STORED_DISMISSED_EVENT_ANNOUNCEMENTS = "questhat_dismissed_event_announcements";
 const STORED_SAFETY_PROMPT_HIDDEN = "questhat_safety_prompt_hidden";
 const STORED_RECOVERY_EMAIL_PROMPTED_AT = "questhat_recovery_email_prompted_at";
+const STORED_EMAIL_CHANGE_PENDING = "questhat_email_change_pending";
 const STORED_CALENDAR_EVENTS = "questhat_calendar_events";
 const RECOVERY_EMAIL_REMINDER_MS = 7 * 24 * 60 * 60 * 1000;
 const CURRENT_EULA_VERSION = "2026-07-30";
 const VIDEO_MAX_DURATION_SECONDS = 15;
 const VIDEO_MAX_SIZE_BYTES = 60 * 1024 * 1024;
-const OPEN_STREET_MAP_STYLE = {
+const OPEN_STREET_MAP_STYLE: StyleSpecification = {
   version: 8,
   name: "QuestHat Free Map",
   sources: {
@@ -193,6 +257,7 @@ const US_STATE_CODES: Record<string, string> = {
   tennessee: "TN", texas: "TX", utah: "UT", vermont: "VT", virginia: "VA", washington: "WA",
   "west virginia": "WV", wisconsin: "WI", wyoming: "WY", "district of columbia": "DC",
 };
+type HomeSortAnchor = { x: number; y: number; width: number; height: number };
 const US_STATE_ABBREVIATIONS = new Set(Object.values(US_STATE_CODES));
 
 function formatQuestCityState(rawLocation?: string | null) {
@@ -234,6 +299,7 @@ type QuestPreview = {
   hobby_id?: string | null;
   skill_level: string | null;
   join_mode?: string | null;
+  exact_location_visibility?: string | null;
   exact_address?: string | null;
   exact_lat?: number | null;
   exact_lng?: number | null;
@@ -250,10 +316,7 @@ type QuestMediaItem = { url: string; type: "image" | "video"; label?: string | n
 type StoredCalendarEvent = {
   eventId: string;
   calendarId: string;
-  startsAt: string;
-  title: string;
-  location: string;
-  notes: string;
+  payloadFingerprint?: string;
 };
 
 type StoredCalendarEvents = Record<string, StoredCalendarEvent>;
@@ -342,6 +405,55 @@ type DraftMedia = {
   existingLabel?: string | null;
 };
 
+type CreateQuestDraftSnapshot = {
+  locationMode: "in_person" | "remote";
+  originalHobbyId: string;
+  categoryInput: string;
+  draftHobbyId: string;
+  startAt: string;
+  timeFlexible: boolean;
+  draftTitle: string;
+  draftDescription: string;
+  draftCountryQuery: string;
+  selectedCountrySuggestion: string | null;
+  selectedCountryCode: string | null;
+  draftExactAddress: string;
+  draftMeetingLink: string;
+  locationConfirmationMode: "address" | "device" | null;
+  selectedApplePlaceId: string | null;
+  draftLocationDetails: string;
+  showLocationDetails: boolean;
+  selectedLocationSuggestion: string | null;
+  selectedPublicLocation: string | null;
+  selectedLocationCoordinates: { lat: number; lon: number } | null;
+  skillLevel: string;
+  groupSizeChoice: string;
+  groupSizeCustom: string;
+  draftJoinMode: "approval_required" | "open";
+  draftLocationVisibility: "private" | "approved_members" | "public";
+  draftGroupSize: string;
+  draftMediaItems: DraftMedia[];
+  showAdvancedSettings: boolean;
+};
+
+// Permanent banner artwork stays bundled; suggested covers come only from the catalog.
+const CREATE_QUEST_BANNER_ASSETS = [
+  createQuestBannerLarge,
+  createQuestBannerSmall,
+] as const;
+
+const CREATE_LOCATION_ASSETS = {
+  inPerson: createLocationInPerson,
+  virtual: createLocationVirtual,
+};
+
+const CREATE_ADVANCED_ASSETS = [
+  { label: "Privacy", image: createAdvancedPrivacy },
+  { label: "Joining", image: createAdvancedJoining },
+  { label: "Details", image: createAdvancedDetails },
+  { label: "Media", image: createAdvancedMedia },
+] as const;
+
 type CompressedVideoResult = {
   uri: string;
   fileSize: number;
@@ -386,6 +498,7 @@ async function uploadLocalFileToStorage(params: {
   const result = await FileSystem.uploadAsync(endpoint, params.uri, {
     httpMethod: "POST",
     uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+    sessionType: FileSystem.FileSystemSessionType.FOREGROUND,
     headers: {
       Authorization: `Bearer ${accessToken}`,
       apikey: env.supabaseAnonKey,
@@ -420,8 +533,8 @@ function getOwnedPublicStoragePath(url: string | null | undefined, bucket: strin
 type MessageRow = {
   id: string;
   quest_id?: string | null;
-  sender_id?: string | null;
-  body: string | null;
+  sender_id: string;
+  body: string;
   created_at: string;
   quests?: { id?: string | null; title: string | null; creator_id?: string | null }[] | { id?: string | null; title: string | null; creator_id?: string | null } | null;
   profiles?: { id?: string | null; display_name: string | null; username?: string | null; avatar_url?: string | null }[] | { id?: string | null; display_name: string | null; username?: string | null; avatar_url?: string | null } | null;
@@ -482,6 +595,9 @@ type QuestMemberRow = {
 };
 
 type QuestDetail = QuestPreview & {
+  ends_at?: string | null;
+  completed_at?: string | null;
+  status?: string | null;
   join_mode?: string | null;
   exact_location_visibility?: string | null;
   exact_address?: string | null;
@@ -505,6 +621,14 @@ type QuestMemberProfileRow = {
   status?: "pending" | "approved" | "declined" | null;
 };
 
+type QuestGuestActionsTarget = {
+  quest: QuestPreview;
+  member: QuestMemberProfileRow;
+  isManager: boolean;
+  questId: string;
+  memberId: string;
+};
+
 type QuestCheckInRow = {
   user_id: string;
   checked_in_at: string;
@@ -524,6 +648,8 @@ const tabs: Array<{ key: TabKey; label: string; icon: keyof typeof Ionicons.glyp
 ];
 
 const supportEmails = ["support@questhat.com", "cs@questhat.com"];
+const POST_QUEST_FOLLOW_UPS_ENABLED = Constants.expoConfig?.extra?.postQuestFollowUpsEnabled === true;
+const NATIVE_FEEDBACK_ENABLED = Constants.expoConfig?.extra?.nativeFeedbackEnabled === true;
 const REPORT_CONTEXT_OPTIONS = [
   { value: "listing_content", label: "Listing content" },
   { value: "chat_behavior", label: "Chat / in-app behavior" },
@@ -568,15 +694,13 @@ function getRedirectUrl() {
   return Linking.createURL("auth/callback", { scheme: "questhat" });
 }
 
-function getQueryParams(url: string) {
-  const params = new URLSearchParams();
-  const query = url.split("?")[1]?.split("#")[0] || "";
-  const hash = url.split("#")[1] || "";
-  for (const part of [query, hash]) {
-    const next = new URLSearchParams(part);
-    next.forEach((value, key) => params.set(key, value));
-  }
-  return params;
+type AppleDeletionResponse = { ok?: boolean; error?: string; code?: string; appleReauthenticationRequired?: boolean; appleRevoked?: boolean };
+function appleProviderRefreshToken(session: { provider_refresh_token?: string | null; user?: { app_metadata?: { provider?: string; providers?: string[] }; identities?: Array<{ provider?: string }> } } | null | undefined) {
+  const provider = session?.user?.app_metadata?.provider;
+  const providers = session?.user?.app_metadata?.providers || [];
+  const hasAppleIdentity = session?.user?.identities?.some((identity) => identity.provider === "apple") || providers.includes("apple");
+  const token = session?.provider_refresh_token?.trim() || "";
+  return provider === "apple" && hasAppleIdentity && token ? token : null;
 }
 
 function getRelationOne<T>(value: T[] | T | null | undefined) {
@@ -588,7 +712,7 @@ function getQuestHobby(q?: { hobbies?: { name?: string | null; category?: string
   return Array.isArray(q.hobbies) ? (q.hobbies[0] ?? null) : q.hobbies;
 }
 
-function getCategory(quest: QuestPreview) {
+function getLegacyCategory(quest: QuestPreview) {
   const hobby = getQuestHobby(quest);
   const title = (quest.title || "").trim().toLowerCase();
   const candidates = [
@@ -624,17 +748,19 @@ function getCategoryIcon(category: string): keyof typeof Ionicons.glyphMap {
   return "sparkles-outline";
 }
 
-function slugify(input: string) {
-  return input
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 64);
-}
+
 
 function getTitleSuggestionsByCategory(categoryName: string) {
-  return getCategoryTitleSuggestions(categoryName);
+  const createSuggestions: Record<string, string[]> = {
+    outdoors: ["Sunset beach walk", "Weekend nature trail", "Park picnic meetup"],
+    sports: ["Casual pickup game", "Beginner tennis meetup", "Watch the game together"],
+    games: ["Board game night", "Arcade meetup", "Friendly trivia team"],
+    "arts & creative": ["Paint and create together", "Photo walk downtown", "Creative project session"],
+    money: ["Side-hustle brainstorm", "Budget accountability meetup", "Build a business idea"],
+    fitness: ["Morning workout crew", "Beginner run club", "Yoga accountability session"],
+    more: ["Try something new", "Community meetup", "Make a plan together"],
+  };
+  return createSuggestions[categoryName.trim().toLowerCase()] || getCategoryTitleSuggestions(categoryName);
 }
 
 function formatDate(value?: string | null) {
@@ -790,6 +916,33 @@ function NativeVideoPlayer({
   trimStart?: number;
   trimEnd?: number;
 }) {
+  const [retryAttempt, setRetryAttempt] = useState(0);
+  return <NativeVideoPlayerSession
+    key={`native-video-${uri}-${retryAttempt}`}
+    uri={uri}
+    fullscreen={fullscreen}
+    compact={compact}
+    trimStart={trimStart}
+    trimEnd={trimEnd}
+    onRetry={() => setRetryAttempt((current) => current + 1)}
+  />;
+}
+
+function NativeVideoPlayerSession({
+  uri,
+  fullscreen = false,
+  compact = false,
+  trimStart,
+  trimEnd,
+  onRetry,
+}: {
+  uri: string;
+  fullscreen?: boolean;
+  compact?: boolean;
+  trimStart?: number;
+  trimEnd?: number;
+  onRetry: () => void;
+}) {
   const player = useVideoPlayer({ uri }, (nextPlayer) => {
     nextPlayer.loop = false;
   });
@@ -797,12 +950,12 @@ function NativeVideoPlayer({
 
   useEffect(() => {
     if (typeof trimStart !== "number") return;
-    player.currentTime = trimStart;
+    player.seekBy(trimStart - player.currentTime);
     if (typeof trimEnd !== "number") return;
     const timer = setInterval(() => {
       if (player.currentTime >= trimEnd) {
         player.pause();
-        player.currentTime = trimStart;
+        player.seekBy(trimStart - player.currentTime);
       }
     }, 100);
     return () => clearInterval(timer);
@@ -824,9 +977,12 @@ function NativeVideoPlayer({
         </View>
       ) : null}
       {status === "error" ? (
-        <View pointerEvents="none" style={styles.videoStatusOverlay}>
+        <View style={styles.videoStatusOverlay}>
           <Ionicons name="alert-circle-outline" size={28} color="#ffffff" />
           <Text style={styles.videoErrorText}>{error?.message || "Video preview could not be loaded."}</Text>
+          <Pressable style={styles.videoRetryButton} onPress={onRetry} accessibilityRole="button" accessibilityLabel="Retry video">
+            <Text style={styles.videoRetryButtonText}>Retry</Text>
+          </Pressable>
         </View>
       ) : null}
     </View>
@@ -844,41 +1000,29 @@ function VideoRangeTrimmer({
   end: number;
   onChange: (start: number, end: number) => void;
 }) {
-  const trackWidth = useRef(1);
-  const startValue = useRef(start);
-  const endValue = useRef(end);
-  const durationValue = useRef(duration);
-  const onChangeValue = useRef(onChange);
-  const dragOrigin = useRef(0);
-  startValue.current = start;
-  endValue.current = end;
-  durationValue.current = duration;
-  onChangeValue.current = onChange;
-
-  const startHandle = useRef(PanResponder.create({
+  const [trackWidth, setTrackWidth] = useState(1);
+  const startDragOrigin = start;
+  const endDragOrigin = end;
+  const startHandle = PanResponder.create({
     onStartShouldSetPanResponder: () => true,
     onMoveShouldSetPanResponder: () => true,
-    onPanResponderGrant: () => { dragOrigin.current = startValue.current; },
     onPanResponderMove: (_, gesture) => {
-      const total = durationValue.current;
-      const next = dragOrigin.current + (gesture.dx / trackWidth.current) * total;
-      const minimumStart = Math.max(0, endValue.current - VIDEO_MAX_DURATION_SECONDS);
-      const maximumStart = Math.max(minimumStart, endValue.current - 0.5);
-      onChangeValue.current(Math.min(maximumStart, Math.max(minimumStart, next)), endValue.current);
+      const next = startDragOrigin + (gesture.dx / trackWidth) * duration;
+      const minimumStart = Math.max(0, end - VIDEO_MAX_DURATION_SECONDS);
+      const maximumStart = Math.max(minimumStart, end - 0.5);
+      onChange(Math.min(maximumStart, Math.max(minimumStart, next)), end);
     },
-  })).current;
-  const endHandle = useRef(PanResponder.create({
+  });
+  const endHandle = PanResponder.create({
     onStartShouldSetPanResponder: () => true,
     onMoveShouldSetPanResponder: () => true,
-    onPanResponderGrant: () => { dragOrigin.current = endValue.current; },
     onPanResponderMove: (_, gesture) => {
-      const total = durationValue.current;
-      const next = dragOrigin.current + (gesture.dx / trackWidth.current) * total;
-      const minimumEnd = Math.min(total, startValue.current + 0.5);
-      const maximumEnd = Math.min(total, startValue.current + VIDEO_MAX_DURATION_SECONDS);
-      onChangeValue.current(startValue.current, Math.max(minimumEnd, Math.min(maximumEnd, next)));
+      const next = endDragOrigin + (gesture.dx / trackWidth) * duration;
+      const minimumEnd = Math.min(duration, start + 0.5);
+      const maximumEnd = Math.min(duration, start + VIDEO_MAX_DURATION_SECONDS);
+      onChange(start, Math.max(minimumEnd, Math.min(maximumEnd, next)));
     },
-  })).current;
+  });
   const startPercent = duration > 0 ? (start / duration) * 100 : 0;
   const endPercent = duration > 0 ? (end / duration) * 100 : 100;
 
@@ -890,7 +1034,7 @@ function VideoRangeTrimmer({
       </View>
       <View
         style={styles.videoRangeTrack}
-        onLayout={(event) => { trackWidth.current = Math.max(1, event.nativeEvent.layout.width); }}
+        onLayout={(event) => setTrackWidth(Math.max(1, event.nativeEvent.layout.width))}
       >
         <View style={styles.videoRangeFrames} pointerEvents="none">
           {Array.from({ length: 12 }, (_, index) => <View key={index} style={styles.videoRangeFrame} />)}
@@ -917,6 +1061,24 @@ function VideoRangeTrimmer({
 }
 
 function FeedVideoItem({ media }: { media: QuestMediaItem }) {
+  const [retryAttempt, setRetryAttempt] = useState(0);
+  if (isIosUnsupportedVideoUrl(media.url, Platform.OS)) {
+    return <View style={styles.feedVideoItem} accessibilityRole="alert">
+      {media.thumbnailUrl ? <NativeImage source={{ uri: media.thumbnailUrl }} style={styles.feedMedia} /> : <View style={styles.feedVideoPosterFallback} />}
+      <View style={styles.feedVideoStatus}>
+        <Ionicons name="alert-circle-outline" size={24} color="#ffffff" />
+        <Text style={styles.feedVideoErrorText}>This video format is not supported on iPhone.</Text>
+      </View>
+    </View>;
+  }
+  return <FeedVideoItemSession
+    key={`feed-video-${media.url}-${retryAttempt}`}
+    media={media}
+    onRetry={() => setRetryAttempt((current) => current + 1)}
+  />;
+}
+
+function FeedVideoItemSession({ media, onRetry }: { media: QuestMediaItem; onRetry: () => void }) {
   const [started, setStarted] = useState(false);
   const player = useVideoPlayer({ uri: media.url }, (nextPlayer) => {
     nextPlayer.loop = false;
@@ -925,7 +1087,7 @@ function FeedVideoItem({ media }: { media: QuestMediaItem }) {
 
   useEffect(() => {
     if (!started && !media.thumbnailUrl && status === "readyToPlay") {
-      player.currentTime = 0.1;
+      player.seekBy(0.1 - player.currentTime);
     }
   }, [media.thumbnailUrl, player, started, status]);
 
@@ -945,7 +1107,7 @@ function FeedVideoItem({ media }: { media: QuestMediaItem }) {
       />
       {!started ? (
         <Pressable style={StyleSheet.absoluteFill} onPress={playVideo} accessibilityLabel="Play video">
-          {media.thumbnailUrl ? <Image source={{ uri: media.thumbnailUrl }} style={styles.feedMedia} /> : null}
+          {media.thumbnailUrl ? <NativeImage source={{ uri: media.thumbnailUrl }} style={styles.feedMedia} /> : null}
           <View style={styles.feedVideoPlayButton}>
             <Ionicons name="play" size={25} color="#082f3a" style={styles.feedVideoPlayIcon} />
           </View>
@@ -954,9 +1116,12 @@ function FeedVideoItem({ media }: { media: QuestMediaItem }) {
       ) : null}
       {status === "loading" ? <View pointerEvents="none" style={styles.feedVideoLoading}><ActivityIndicator color="#ffffff" /></View> : null}
       {status === "error" ? (
-        <View pointerEvents="none" style={styles.feedVideoStatus}>
+        <View style={styles.feedVideoStatus}>
           <Ionicons name="alert-circle-outline" size={24} color="#ffffff" />
           <Text style={styles.feedVideoErrorText}>{error?.message || "Video could not be loaded."}</Text>
+          <Pressable style={styles.videoRetryButton} onPress={onRetry} accessibilityRole="button" accessibilityLabel="Retry video">
+            <Text style={styles.videoRetryButtonText}>Retry</Text>
+          </Pressable>
         </View>
       ) : null}
     </View>
@@ -974,19 +1139,29 @@ function FeedMediaCarousel({
 }) {
   const [viewportWidth, setViewportWidth] = useState(1);
   const [activeIndex, setActiveIndex] = useState(0);
-  const items: QuestMediaItem[] = mediaItems.length ? mediaItems : [{ url: fallbackImageUrl, type: "image", label: null }];
-  const safeActiveIndex = Math.min(activeIndex, items.length - 1);
+  const carouselRef = useRef<ScrollView | null>(null);
+  const normalizedItems = normalizeQuestMediaItems(mediaItems) as QuestMediaItem[];
+  const items: QuestMediaItem[] = normalizedItems.length ? normalizedItems : [{ url: fallbackImageUrl, type: "image", label: null }];
+  const safeActiveIndex = clampMediaIndex(activeIndex, items.length);
+
+  function syncCarouselOffset() {
+    const nextIndex = clampMediaIndex(activeIndex, items.length);
+    if (nextIndex !== activeIndex) setActiveIndex(nextIndex);
+    carouselRef.current?.scrollTo({ x: nextIndex * viewportWidth, animated: false });
+  }
 
   return (
     <View style={styles.feedMediaCarousel} onLayout={(event) => setViewportWidth(Math.max(1, event.nativeEvent.layout.width))}>
       <ScrollView
+        ref={carouselRef}
         horizontal
         pagingEnabled
         nestedScrollEnabled
         directionalLockEnabled
         bounces={false}
         showsHorizontalScrollIndicator={false}
-        onMomentumScrollEnd={(event) => setActiveIndex(Math.max(0, Math.min(items.length - 1, Math.round(event.nativeEvent.contentOffset.x / viewportWidth))))}
+        onContentSizeChange={syncCarouselOffset}
+        onMomentumScrollEnd={(event) => setActiveIndex(clampMediaIndex(Math.round(event.nativeEvent.contentOffset.x / viewportWidth), items.length))}
         scrollEventThrottle={16}
       >
         {items.map((item, index) => (
@@ -994,13 +1169,13 @@ function FeedMediaCarousel({
             {item.type === "video" ? (
               index === safeActiveIndex ? <FeedVideoItem media={item} /> : (
                 <View style={styles.feedVideoItem}>
-                  {item.thumbnailUrl ? <Image source={{ uri: item.thumbnailUrl }} style={styles.feedMedia} /> : <View style={styles.feedVideoPosterFallback} />}
+                  {item.thumbnailUrl ? <NativeImage source={{ uri: item.thumbnailUrl }} style={styles.feedMedia} /> : <View style={styles.feedVideoPosterFallback} />}
                   <View style={styles.feedVideoPlayButton}><Ionicons name="play" size={25} color="#082f3a" style={styles.feedVideoPlayIcon} /></View>
                 </View>
               )
             ) : (
               <Pressable style={styles.feedMediaPressable} onPress={() => onPreviewImage(item)} accessibilityLabel="View image">
-                <Image source={{ uri: item.url || fallbackImageUrl }} style={styles.feedMedia} />
+                <NativeImage source={{ uri: item.url || fallbackImageUrl }} style={styles.feedMedia} />
               </Pressable>
             )}
           </View>
@@ -1030,6 +1205,7 @@ function QuestMediaPreviewModal({
   if (!media) return null;
 
   return (
+    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
     <View style={styles.mediaPreviewOverlay}>
       <Pressable style={styles.mediaPreviewBackdrop} onPress={onClose} />
       <View style={styles.mediaPreviewSheet}>
@@ -1046,9 +1222,10 @@ function QuestMediaPreviewModal({
             </Pressable>
           </View>
         </View>
-        {media.type === "video" ? <MediaVideoPlaceholder uri={media.url} /> : <Image source={{ uri: media.url }} style={styles.mediaPreviewImageLarge} />}
+        {media.type === "video" ? <MediaVideoPlaceholder uri={media.url} /> : <NativeImage source={{ uri: media.url }} style={styles.mediaPreviewImageLarge} />}
       </View>
     </View>
+    </Modal>
   );
 }
 
@@ -1119,7 +1296,7 @@ class AppErrorBoundary extends Component<{ children: ReactNode }, { hasError: bo
 
 function QuestHatApp() {
   const systemColorScheme = useColorScheme();
-  const { height: windowHeight } = useWindowDimensions();
+  const { height: windowHeight, width: windowWidth } = useWindowDimensions();
   const [authState, setAuthState] = useState<AuthState>(supabase ? "loading" : "signed-out");
   const [activeTab, setActiveTab] = useState<TabKey>("home");
   const [email, setEmail] = useState("");
@@ -1144,8 +1321,22 @@ function QuestHatApp() {
   const [status, setStatus] = useState(supabase ? "" : "Missing EXPO_PUBLIC_SUPABASE_URL or EXPO_PUBLIC_SUPABASE_ANON_KEY.");
   const statusToastProgress = useRef(new Animated.Value(1)).current;
   const [feedViewMode, setFeedViewMode] = useState<"list" | "map">("list");
+  const [homeFeedLoadStatus, setHomeFeedLoadStatus] = useState<HomeFeedLoadStatus>("loading");
+  const homeFeedRequestGate = useRef(createHomeFeedRequestGate()).current;
+  const homeAppendGate = useRef(createHomeAppendGate()).current;
+  const [homePageCursor, setHomePageCursor] = useState<HomePageCursor | null>(null);
+  const [homeHasMore, setHomeHasMore] = useState(false);
+  const [homeHasLoadedAdditionalPage, setHomeHasLoadedAdditionalPage] = useState(false);
+  const [homeLoadingMore, setHomeLoadingMore] = useState(false);
+  const [homeLoadMoreError, setHomeLoadMoreError] = useState("");
+  const refreshRequestGate = useRef(createHomeFeedRequestGate()).current;
   const [homeSearchQuery, setHomeSearchQuery] = useState("");
   const [homeCategoryFilter, setHomeCategoryFilter] = useState("All");
+  const [homeSortMode, setHomeSortMode] = useState<HomeSortMode>("soonest");
+  const [homeSortMenuVisible, setHomeSortMenuVisible] = useState(false);
+  const [homeSortAnchor, setHomeSortAnchor] = useState<HomeSortAnchor | null>(null);
+  const [homeTotalCount, setHomeTotalCount] = useState(0);
+  const [homeFeedUsesCompatibilityFallback, setHomeFeedUsesCompatibilityFallback] = useState(false);
   const [selectedMapQuestId, setSelectedMapQuestId] = useState<string | null>(null);
   const [deviceLocation, setDeviceLocation] = useState<DeviceLocation | null>(null);
   const [locationStatus, setLocationStatus] = useState<"idle" | "loading" | "ready" | "denied" | "error">("idle");
@@ -1158,44 +1349,55 @@ function QuestHatApp() {
   const [analyticsEnabled, setAnalyticsEnabled] = useState(false);
 
   useEffect(() => {
-    void AsyncStorage.getItem("questhat_optional_analytics").then((saved) => {
-      const enabled = saved === "granted";
-      setAnalyticsEnabled(enabled);
-      if (enabled) void posthogClient?.optIn();
-      else void posthogClient?.optOut();
-    });
+    void (async () => {
+      await optionalAnalytics.disable();
+      const saved = await AsyncStorage.getItem("questhat_optional_analytics").catch(() => null);
+      if (saved !== "granted") return;
+      await optionalAnalytics.enable();
+      setAnalyticsEnabled(true);
+    })();
   }, []);
 
   async function setAnalyticsPreference(enabled: boolean) {
-    setAnalyticsEnabled(enabled);
-    await AsyncStorage.setItem("questhat_optional_analytics", enabled ? "granted" : "denied");
-    if (enabled) await posthogClient?.optIn();
-    else await posthogClient?.optOut();
+    if (!enabled) {
+      setAnalyticsEnabled(false);
+      await optionalAnalytics.disable();
+      await AsyncStorage.setItem("questhat_optional_analytics", "denied");
+      return;
+    }
+    await AsyncStorage.setItem("questhat_optional_analytics", "granted");
+    await optionalAnalytics.enable();
+    setAnalyticsEnabled(true);
   }
 
   useEffect(() => {
     if (userId) {
-      posthogClient?.identify(userId, { platform: Platform.OS });
+      optionalAnalytics.identify(userId, { platform: Platform.OS });
     } else {
-      posthogClient?.reset();
+      optionalAnalytics.reset();
     }
   }, [userId]);
 
   useEffect(() => {
-    posthogClient?.capture("screen_viewed", { screen: activeTab, platform: Platform.OS });
+    optionalAnalytics.capture("screen_viewed", { screen: activeTab, platform: Platform.OS });
   }, [activeTab]);
   const [refreshing, setRefreshing] = useState(false);
   const [quests, setQuests] = useState<QuestPreview[]>([]);
   const [savedQuests, setSavedQuests] = useState<QuestPreview[]>([]);
   const [joinedQuests, setJoinedQuests] = useState<QuestPreview[]>([]);
+  const [authorizedExactLocationQuestIds, setAuthorizedExactLocationQuestIds] = useState<string[]>([]);
   const [calendarEventQuestIds, setCalendarEventQuestIds] = useState<string[]>([]);
+  const [storedCalendarEvents, setStoredCalendarEvents] = useState<StoredCalendarEvents>({});
+  const [calendarUpdatedQuestIds, setCalendarUpdatedQuestIds] = useState<string[]>([]);
+  const calendarUserRef = useRef(userId);
+  calendarUserRef.current = userId;
   const [calendarActionQuestId, setCalendarActionQuestId] = useState<string | null>(null);
   const [questCollectionView, setQuestCollectionView] = useState<"active" | "completed">("active");
   const [messages, setMessages] = useState<MessageRow[]>([]);
   const [inboxProfilesById, setInboxProfilesById] = useState<Record<string, { id: string; display_name: string | null; username: string | null; avatar_url: string | null }>>({});
   const [notifications, setNotifications] = useState<NotificationRow[]>([]);
   const [lastInboxSeenAt, setLastInboxSeenAt] = useState<string | null>(null);
-  const [lastNotificationsSeenAt, setLastNotificationsSeenAt] = useState<string | null>(null);
+  const [, setLastNotificationsSeenAt] = useState<string | null>(null);
   const [bookmarkedQuestIds, setBookmarkedQuestIds] = useState<string[]>([]);
   const [joinedQuestIds, setJoinedQuestIds] = useState<string[]>([]);
   const [membershipStatusByQuest, setMembershipStatusByQuest] = useState<Record<string, "pending" | "approved" | "declined" | null>>({});
@@ -1203,13 +1405,29 @@ function QuestHatApp() {
   const [shareCountByQuestId, setShareCountByQuestId] = useState<Record<string, number>>({});
   const [joinCountByQuestId, setJoinCountByQuestId] = useState<Record<string, number>>({});
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [hobbies, setHobbies] = useState<Hobby[]>([]);
-  const [categoryInput, setCategoryInput] = useState("");
-  const [categoryIsCustom, setCategoryIsCustom] = useState(false);
+  const { catalog, catalogStatus, refreshCatalog } = useCategoryCatalog();
+  const hobbies: Hobby[] = catalog.categories.map(c => ({ id: c.id, name: c.label, category: c.category }));
+  const createCategories = catalogChoices(catalog, "create");
+  const featuredCategories = createCategories.filter(c => c.featured);
+  const discoveryCategories = catalogChoices(catalog, "discovery");
+  const [originalHobbyId, setOriginalHobbyId] = useState("");
+
+  useEffect(() => {
+    const normalized = normalizeHomeCategoryFilter(homeCategoryFilter, discoveryCategories.map((category) => category.id));
+    if (normalized !== homeCategoryFilter) setHomeCategoryFilter(normalized);
+  }, [discoveryCategories, homeCategoryFilter]);
+  const catalogCoverRequest = useRef(0);
+  function getCategory(quest: QuestPreview) {
+    const id = quest.hobby_id || catalog.categories.find(c => c.name === getQuestHobby(quest)?.name)?.id;
+    return catalogLabel(catalog, id, getLegacyCategory(quest));
+  }
+  const discoveryLabel = (id: string) => id === "All" ? "For you" : catalogLabel(catalog, id, "Category");
+  const [categoryInput, setCategoryInput] = useState("Outdoors");
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const [startAt, setStartAt] = useState("");
   const [timeFlexible, setTimeFlexible] = useState(false);
   const [showStartAtPicker, setShowStartAtPicker] = useState(false);
+  const [startAtPickerValue, setStartAtPickerValue] = useState<Date | null>(null);
   const [locationMode, setLocationMode] = useState<"in_person" | "remote">("in_person");
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   const [skillLevel, setSkillLevel] = useState("any");
@@ -1223,6 +1441,7 @@ function QuestHatApp() {
   const [selectedCountrySuggestion, setSelectedCountrySuggestion] = useState<string | null>(null);
   const [selectedCountryCode, setSelectedCountryCode] = useState<string | null>(null);
   const [draftExactAddress, setDraftExactAddress] = useState("");
+  const [draftMeetingLink, setDraftMeetingLink] = useState("");
   const [locationConfirmationMode, setLocationConfirmationMode] = useState<"address" | "device" | null>(null);
   const [selectedApplePlaceId, setSelectedApplePlaceId] = useState<string | null>(null);
   const [draftLocationDetails, setDraftLocationDetails] = useState("");
@@ -1247,6 +1466,18 @@ function QuestHatApp() {
   const [optimizingMedia, setOptimizingMedia] = useState(false);
   const [creatingQuest, setCreatingQuest] = useState(false);
   const [editingQuestId, setEditingQuestId] = useState<string | null>(null);
+  const editingQuestIdRef = useRef<string | null>(null);
+  editingQuestIdRef.current = editingQuestId;
+  const suspendedCreateDraftRef = useRef<{
+    userId: string;
+    questId: string;
+    createDraft: CreateQuestDraftSnapshot;
+  } | null>(null);
+  useEffect(() => {
+    const selected = catalog.categories.find(c => c.id === draftHobbyId);
+    if (selected) setCategoryInput(selected.label);
+  }, [catalog, draftHobbyId]);
+  useEffect(() => { if (activeTab === "create" || showCategoryPicker) void refreshCatalog(); }, [activeTab, showCategoryPicker, refreshCatalog]);
   const [minimizedExpiredQuestIds, setMinimizedExpiredQuestIds] = useState<string[]>([]);
   const [settingsUsername, setSettingsUsername] = useState("");
   const [settingsCity, setSettingsCity] = useState("");
@@ -1254,6 +1485,13 @@ function QuestHatApp() {
   const [settingsAvatarUri, setSettingsAvatarUri] = useState("");
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [settingsTab, setSettingsTab] = useState<"profile" | "preferences" | "people" | "account">("profile");
+  const [showNativeFeedback, setShowNativeFeedback] = useState(false);
+  const [nativeFeedbackCategory, setNativeFeedbackCategory] = useState("suggestion");
+  const [nativeFeedbackMessage, setNativeFeedbackMessage] = useState("");
+  const [nativeFeedbackReply, setNativeFeedbackReply] = useState("");
+  const [nativeFeedbackDiagnostics, setNativeFeedbackDiagnostics] = useState(false);
+  const [nativeFeedbackSending, setNativeFeedbackSending] = useState(false);
+  const [nativeFeedbackStatus, setNativeFeedbackStatus] = useState("");
   const [settingsCountryCode, setSettingsCountryCode] = useState("US");
   const [settingsRegion, setSettingsRegion] = useState("");
   const [settingsRadiusKm, setSettingsRadiusKm] = useState(15);
@@ -1267,6 +1505,7 @@ function QuestHatApp() {
   const [enableDiscoveryAfterDob, setEnableDiscoveryAfterDob] = useState(false);
   const [settingsNewEmail, setSettingsNewEmail] = useState("");
   const [accountEmail, setAccountEmail] = useState("");
+  const [emailChangeNotice, setEmailChangeNotice] = useState("");
   const [showRecoveryEmailPrompt, setShowRecoveryEmailPrompt] = useState(false);
   const [recoveryEmail, setRecoveryEmail] = useState("");
   const [recoveryEmailStatus, setRecoveryEmailStatus] = useState("");
@@ -1279,11 +1518,11 @@ function QuestHatApp() {
   const [settingsPublicLocationWarningEnabled, setSettingsPublicLocationWarningEnabled] = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingPreferences, setSavingPreferences] = useState(false);
-  const [settingsBlockedRefreshTick, setSettingsBlockedRefreshTick] = useState(0);
+  const [, setSettingsBlockedRefreshTick] = useState(0);
   const [settingsFriendsProfiles, setSettingsFriendsProfiles] = useState<Array<{ id: string; display_name: string | null; username: string | null; avatar_url: string | null }>>([]);
   const [settingsFriendRequests, setSettingsFriendRequests] = useState<Array<{ id: string; display_name: string | null; username: string | null; avatar_url: string | null; direction: "incoming" | "outgoing"; edge: { requester_id: string; addressee_id: string; status: string } }>>([]);
   const [settingsBlockedProfiles, setSettingsBlockedProfiles] = useState<Array<{ id: string; display_name: string | null; username: string | null; avatar_url: string | null }>>([]);
-  const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
+  const [, setBlockedUserIds] = useState<string[]>([]);
   const [myProfileQuests, setMyProfileQuests] = useState<QuestPreview[]>([]);
   const [settingsInitialSnapshot, setSettingsInitialSnapshot] = useState<null | {
     username: string;
@@ -1307,19 +1546,26 @@ function QuestHatApp() {
   const [onboardingSaving, setOnboardingSaving] = useState(false);
   const [savingInterests, setSavingInterests] = useState(false);
   const [selectedQuest, setSelectedQuest] = useState<QuestDetail | null>(null);
+  const selectedQuestRef = useRef<QuestDetail | null>(null);
+  selectedQuestRef.current = selectedQuest;
   const [selectedQuestLoading, setSelectedQuestLoading] = useState(false);
   const [selectedQuestSaved, setSelectedQuestSaved] = useState(false);
-  const [selectedQuestJoined, setSelectedQuestJoined] = useState(false);
+  const [, setSelectedQuestJoined] = useState(false);
   const [selectedQuestMembershipStatus, setSelectedQuestMembershipStatus] = useState<"pending" | "approved" | "declined" | null>(null);
   const [selectedQuestMembers, setSelectedQuestMembers] = useState<QuestMemberProfileRow[]>([]);
   const [selectedQuestPendingMembers, setSelectedQuestPendingMembers] = useState<QuestMemberProfileRow[]>([]);
   const [selectedQuestCheckIns, setSelectedQuestCheckIns] = useState<QuestCheckInRow[]>([]);
+  const [postQuestAction, setPostQuestAction] = useState<string | null>(null);
   const [checkInAction, setCheckInAction] = useState<"check-in" | "leave" | null>(null);
   const [membershipActionKey, setMembershipActionKey] = useState<string | null>(null);
+  const [membershipTransitionQuestIds, setMembershipTransitionQuestIds] = useState<string[]>([]);
   const [coordinationReminderAction, setCoordinationReminderAction] = useState<"snooze" | "disable" | "enable" | null>(null);
   const [selectedQuestExactAccessUserIds, setSelectedQuestExactAccessUserIds] = useState<string[]>([]);
   const [selectedQuestManager, setSelectedQuestManager] = useState(false);
   const [selectedQuestComments, setSelectedQuestComments] = useState<MessageRow[]>([]);
+  const [commentSort, setCommentSort] = useState<CommentSort>("newest");
+  const [commentSortMenuOpen, setCommentSortMenuOpen] = useState(false);
+  const sortedQuestComments = useMemo(() => sortQuestComments(selectedQuestComments, commentSort), [selectedQuestComments, commentSort]);
   const [questInvitations, setQuestInvitations] = useState<QuestInvitationRow[]>([]);
   const [invitationActionId, setInvitationActionId] = useState<string | null>(null);
   const [showPeopleFinder, setShowPeopleFinder] = useState(false);
@@ -1351,7 +1597,7 @@ function QuestHatApp() {
   const handledPushResponseIdRef = useRef<string | null>(null);
   const [showPushPromptModal, setShowPushPromptModal] = useState(false);
   const [pushPromptLoading, setPushPromptLoading] = useState(false);
-  const [pushPromptDismissedAt, setPushPromptDismissedAt] = useState<number | null>(null);
+  const [, setPushPromptDismissedAt] = useState<number | null>(null);
   const [pushPromptContext, setPushPromptContext] = useState<"generic" | "message" | "comment" | "join_request" | "joined" | "published">("generic");
   const [pushPermissionStatus, setPushPermissionStatus] = useState<"granted" | "denied" | "undetermined" | "unavailable" | "error" | null>(null);
   const [upcomingQuestAnnouncement, setUpcomingQuestAnnouncement] = useState<QuestPreview | null>(null);
@@ -1359,7 +1605,7 @@ function QuestHatApp() {
   const [dismissedUpcomingQuestsLoaded, setDismissedUpcomingQuestsLoaded] = useState(false);
   const [pendingDeepLinkQuestId, setPendingDeepLinkQuestId] = useState<string | null>(null);
   const [countdownNow, setCountdownNow] = useState(Date.now());
-  const [liveActivityPushToStartSupported, setLiveActivityPushToStartSupported] = useState<boolean | null>(null);
+  const [, setLiveActivityPushToStartSupported] = useState<boolean | null>(null);
   const liveActivityPushTokenRef = useRef<{ token: string; environment: string } | null>(null);
   const shownUpcomingQuestIdRef = useRef<string | null>(null);
   const [showNotificationPreferences, setShowNotificationPreferences] = useState(false);
@@ -1376,12 +1622,15 @@ function QuestHatApp() {
   const [submittingProfileReport, setSubmittingProfileReport] = useState(false);
   const [showReportQuestModal, setShowReportQuestModal] = useState(false);
   const [reportQuestContext, setReportQuestContext] = useState<(typeof REPORT_CONTEXT_OPTIONS)[number]["value"]>("listing_content");
-  const [reportQuestReason, setReportQuestReason] = useState("spam_scam");
+  const [reportQuestReason, setReportQuestReason] = useState("");
   const [reportQuestDetails, setReportQuestDetails] = useState("");
   const [submittingQuestReport, setSubmittingQuestReport] = useState(false);
   const [reportQuestTarget, setReportQuestTarget] = useState<QuestPreview | QuestDetail | null>(null);
   const [showQuestActionsMenu, setShowQuestActionsMenu] = useState(false);
   const [questActionsTarget, setQuestActionsTarget] = useState<QuestPreview | null>(null);
+  const questActionsTargetRef = useRef<QuestPreview | null>(null);
+  questActionsTargetRef.current = questActionsTarget;
+  const [guestActionsTarget, setGuestActionsTarget] = useState<QuestGuestActionsTarget | null>(null);
   const [questionTarget, setQuestionTarget] = useState<QuestPreview | null>(null);
   const [questionMode, setQuestionMode] = useState<"public" | "private">("public");
   const [questionPartnerId, setQuestionPartnerId] = useState<string | null>(null);
@@ -1392,11 +1641,108 @@ function QuestHatApp() {
   const [conversationSearchQuery, setConversationSearchQuery] = useState("");
   const [showQuestionModal, setShowQuestionModal] = useState(false);
   const [sendingQuestion, setSendingQuestion] = useState(false);
+  const [conversationLoading, setConversationLoading] = useState(false);
+  const [conversationError, setConversationError] = useState("");
+  const conversationRequestRef = useRef(0);
+  const conversationThreadKeyRef = useRef<string | null>(null);
+  const conversationSendGate = useRef(createConversationSendGate()).current;
+  const membershipActionGate = useRef(createMembershipActionGate()).current;
+  const guestActionsMenuGate = useRef(createGuestActionMenuGate()).current;
+  const notificationPreferenceRequestGate = useRef(createNotificationPreferenceRequestGate()).current;
+  const profilePhotoOperationGate = useRef(createMediaOperationGate()).current;
+  const questMediaOperationGate = useRef(createMediaOperationGate()).current;
+  const peopleRequestGate = useRef(createPeopleRequestGate()).current;
+  const peopleActionGate = useRef(createPeopleActionGate()).current;
+  const questDetailRequestGate = useRef(createQuestDetailRequestGate()).current;
+  const questMembershipRequestGate = useRef(createLatestScopedRequestGate()).current;
+  const profileReportActionGate = useRef(createModerationActionGate()).current;
+  const questReportActionGate = useRef(createModerationActionGate()).current;
+  const blockActionGate = useRef(createModerationActionGate()).current;
+  const questDeleteActionGate = useRef(createScopedMutationGate()).current;
+  const accountLifecycleActionGate = useRef(createScopedMutationGate()).current;
+  const coordinationReminderActionGate = useRef(createScopedMutationGate()).current;
+  const membershipManagementActionGate = useRef(createScopedMutationGate()).current;
+  const locationShareActionGate = useRef(createScopedMutationGate()).current;
+  const invitationResponseActionGate = useRef(createScopedMutationGate()).current;
+  const checkInActionGate = useRef(createScopedMutationGate()).current;
+  const authedDataRequestGate = useRef(createLatestScopedRequestGate()).current;
+  const questEditorLoadGate = useRef(createLatestScopedRequestGate()).current;
+  const settingsPreferenceActionGate = useRef(createScopedMutationGate()).current;
+  const profileSaveActionGate = useRef(createScopedMutationGate()).current;
+  const notificationPreferenceSaveGate = useRef(createScopedMutationGate()).current;
+  const authSettingsActionGate = useRef(createScopedMutationGate()).current;
+  const bookmarkActionGate = useRef(createScopedMutationGate()).current;
+  const onboardingActionGate = useRef(createScopedMutationGate()).current;
+  const eulaActionGate = useRef(createScopedMutationGate()).current;
+  const calendarIntentGate = useRef(createNativeIntentGate()).current;
+  const shareIntentGate = useRef(createNativeIntentGate()).current;
+  const conversationUserRef = useRef(userId);
+  const emailChangeRefreshRef = useRef<{ generation: number; userId: string | null }>({ generation: 0, userId: null });
   const [inboxSearchQuery, setInboxSearchQuery] = useState("");
   const [joinedSearchQuery, setJoinedSearchQuery] = useState("");
   const [authActionLoading, setAuthActionLoading] = useState<null | "Creating account..." | "Signing in..." | "Sending code..." | "Verifying code..." | "Opening OAuth..." >(null);
   const [accountDeactivatedAt, setAccountDeactivatedAt] = useState<string | null>(null);
   const [accountActionLoading, setAccountActionLoading] = useState<null | "deactivate" | "restore" | "delete">(null);
+  const clearQuestEditorForAccountChange = useEffectEvent(() => {
+    const session = suspendedCreateDraftRef.current;
+    if (!session && !editingQuestIdRef.current) return;
+    session?.createDraft.draftMediaItems
+      .filter((media) => !media.existingUrl)
+      .forEach((media) => { void deleteGeneratedMediaFile(media); });
+    suspendedCreateDraftRef.current = null;
+    resetQuestDrafts();
+    setActiveTab("home");
+  });
+  useEffect(() => {
+    questDeleteActionGate.invalidate();
+    accountLifecycleActionGate.invalidate();
+    coordinationReminderActionGate.invalidate();
+    membershipManagementActionGate.invalidate();
+    locationShareActionGate.invalidate();
+    invitationResponseActionGate.invalidate();
+    checkInActionGate.invalidate();
+    authedDataRequestGate.invalidate();
+    questEditorLoadGate.invalidate();
+    questDetailRequestGate.invalidate();
+    questMembershipRequestGate.invalidate();
+    settingsPreferenceActionGate.invalidate();
+    profileSaveActionGate.invalidate();
+    notificationPreferenceSaveGate.invalidate();
+    authSettingsActionGate.invalidate();
+    bookmarkActionGate.invalidate();
+    onboardingActionGate.invalidate();
+    eulaActionGate.invalidate();
+    conversationSendGate.reset();
+    setSelectedQuest(null);
+    setSelectedQuestMembers([]);
+    setSelectedQuestPendingMembers([]);
+    setSelectedQuestCheckIns([]);
+    setSelectedQuestExactAccessUserIds([]);
+    setMembershipTransitionQuestIds([]);
+    setProfile(null);
+    setMessages([]);
+    setNotifications([]);
+    setInboxProfilesById({});
+    setSavedQuests([]);
+    setBookmarkedQuestIds([]);
+    setQuestInvitations([]);
+    setSettingsFriendsProfiles([]);
+    setSettingsFriendRequests([]);
+    setSettingsBlockedProfiles([]);
+    setCheckInAction(null);
+    setCoordinationReminderAction(null);
+    setAccountActionLoading(null);
+    setCalendarActionQuestId(null);
+    setNotificationPreferencesLoading(false);
+    setNotificationPreferencesSaving(false);
+    setSavingProfile(false);
+    setSavingPreferences(false);
+    setSavingInterests(false);
+    setOnboardingSaving(false);
+    setEulaSaving(false);
+    setSendingQuestion(false);
+    if (suspendedCreateDraftRef.current?.userId !== userId) clearQuestEditorForAccountChange();
+  }, [accountLifecycleActionGate, authSettingsActionGate, authedDataRequestGate, bookmarkActionGate, checkInActionGate, conversationSendGate, coordinationReminderActionGate, eulaActionGate, invitationResponseActionGate, locationShareActionGate, membershipManagementActionGate, notificationPreferenceSaveGate, onboardingActionGate, profileSaveActionGate, questDeleteActionGate, questDetailRequestGate, questEditorLoadGate, questMembershipRequestGate, settingsPreferenceActionGate, userId]);
   const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
   const [deleteAccountConfirmation, setDeleteAccountConfirmation] = useState("");
   const [eulaRequired, setEulaRequired] = useState(false);
@@ -1404,15 +1750,89 @@ function QuestHatApp() {
   const [eulaSaving, setEulaSaving] = useState(false);
   const homeCameraRef = useRef<CameraRef | null>(null);
   const appleMapRef = useRef<AppleMapNativeRef | null>(null);
+  const homeSortAnchorRef = useRef<View | null>(null);
+  const homeFilterRefreshReadyRef = useRef(false);
   const questionScrollRef = useRef<ScrollView | null>(null);
   const questDetailScrollRef = useRef<ScrollView | null>(null);
   const joinRequestsOffsetRef = useRef(0);
-  const addressInputRef = useRef<TextInput | null>(null);
+  const addressInputRef = useRef<NativeTextInput | null>(null);
   const homeFeedOffsetRef = useRef<number | null>(null);
   const homeVisibleQuestCountRef = useRef(0);
   const fourthQuestOffsetRef = useRef<number | null>(null);
   const signedOutAuthPromptShownRef = useRef(false);
   const locationRefreshAttemptedRef = useRef(false);
+
+  useEffect(() => {
+    if (conversationUserRef.current === userId) return;
+    conversationUserRef.current = userId;
+    conversationRequestRef.current++;
+    conversationThreadKeyRef.current = null;
+    setShowQuestionModal(false);
+    setQuestionTarget(null);
+    setQuestionPartnerId(null);
+    setQuestionPrivatePartnerId(null);
+    setQuestionComments([]);
+    setQuestionText("");
+    setConversationSearchQuery("");
+    setConversationError("");
+  }, [userId]);
+
+  useEffect(() => {
+    profilePhotoOperationGate.invalidate();
+    peopleRequestGate.invalidate();
+    peopleActionGate.reset();
+    profileReportActionGate.invalidate();
+    questReportActionGate.invalidate();
+    blockActionGate.invalidate();
+    setUploadingAvatar(false);
+    setSendingPeopleInvites(false);
+    setFriendActionUserId(null);
+  }, [blockActionGate, peopleActionGate, peopleRequestGate, profilePhotoOperationGate, profileReportActionGate, questReportActionGate, userId]);
+
+  useEffect(() => {
+    membershipManagementActionGate.invalidate();
+    locationShareActionGate.invalidate();
+    coordinationReminderActionGate.invalidate();
+    checkInActionGate.invalidate();
+    guestActionsMenuGate.invalidate();
+    setGuestActionsTarget(null);
+    setMembershipActionKey(null);
+    setCoordinationReminderAction(null);
+    setCheckInAction(null);
+  }, [checkInActionGate, coordinationReminderActionGate, guestActionsMenuGate, locationShareActionGate, membershipManagementActionGate, selectedQuest?.id]);
+
+  useEffect(() => {
+    if (!guestActionsTarget) return;
+    const targetIsCurrent = isGuestActionTargetCurrent(guestActionsTarget, selectedQuest?.id || null, selectedQuestMembers.map((member) => member.id), selectedQuestManager);
+    if (!targetIsCurrent) {
+      guestActionsMenuGate.invalidate();
+      setGuestActionsTarget(null);
+    }
+  }, [guestActionsMenuGate, guestActionsTarget, selectedQuest?.id, selectedQuestManager, selectedQuestMembers]);
+
+  useEffect(() => {
+    if (!guestActionsTarget) return;
+    const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
+      guestActionsMenuGate.invalidate();
+      setGuestActionsTarget(null);
+      return true;
+    });
+    return () => subscription.remove();
+  }, [guestActionsMenuGate, guestActionsTarget]);
+
+  useEffect(() => {
+    if (!showNativeFeedback) return;
+    const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
+      Keyboard.dismiss();
+      setShowNativeFeedback(false);
+      return true;
+    });
+    return () => subscription.remove();
+  }, [showNativeFeedback]);
+
+  useEffect(() => {
+    blockActionGate.invalidate();
+  }, [blockActionGate, selectedProfile?.id]);
 
   useEffect(() => {
     const updateKeyboardHeight = (event: { endCoordinates: { height: number } }) => {
@@ -1509,11 +1929,7 @@ function QuestHatApp() {
       cancelled = true;
     };
   }, [activeTab]);
-
-  useEffect(() => {
-    if (!showQuestionModal) return;
-    requestAnimationFrame(() => questionScrollRef.current?.scrollToEnd({ animated: true }));
-  }, [questionComments, showQuestionModal]);
+  const getQuestMapCoordinatesEvent = useEffectEvent(getQuestMapCoordinates);
 
   useEffect(() => {
     let cancelled = false;
@@ -1529,7 +1945,7 @@ function QuestHatApp() {
         while (!cancelled) {
           const quest = quests[nextIndex++];
           if (!quest) return;
-          const coords = await getQuestMapCoordinates(quest);
+          const coords = await getQuestMapCoordinatesEvent(quest);
           if (!coords || cancelled) continue;
           resolved[quest.id] = coords;
           setQuestCoordsById({ ...resolved });
@@ -1576,14 +1992,12 @@ function QuestHatApp() {
       active = false;
       clearTimeout(timer);
     };
-  }, [settingsInitialSnapshot?.username, settingsUsername, supabase, userId]);
+  }, [settingsInitialSnapshot?.username, settingsUsername, userId]);
 
   useEffect(() => {
     if (locationMode !== "in_person") {
       setCountrySuggestions([]);
       setLocationSuggestions([]);
-      setSelectedCountrySuggestion(null);
-      setSelectedCountryCode(null);
       setSelectedLocationSuggestion(null);
       setSelectedPublicLocation(null);
       setSelectedLocationCoordinates(null);
@@ -1596,6 +2010,13 @@ function QuestHatApp() {
       return;
     }
     const query = draftCountryQuery.trim();
+    const exactCountry = resolveExactCountrySelection(query, COUNTRY_OPTIONS);
+    if (exactCountry) {
+      if (selectedCountrySuggestion !== exactCountry.name) setSelectedCountrySuggestion(exactCountry.name);
+      if (selectedCountryCode !== exactCountry.code) setSelectedCountryCode(exactCountry.code);
+      setCountrySuggestions([]);
+      return;
+    }
     if (selectedCountrySuggestion && selectedCountrySuggestion.toLowerCase() === query.toLowerCase()) {
       setCountrySuggestions([]);
       return;
@@ -1616,7 +2037,7 @@ function QuestHatApp() {
       .slice(0, 8)
       .map((country) => ({ label: country.name, code: country.code }));
     setCountrySuggestions(matches);
-  }, [draftCountryQuery, locationMode, selectedCountrySuggestion]);
+  }, [draftCountryQuery, locationMode, selectedCountryCode, selectedCountrySuggestion]);
 
   useEffect(() => {
     if (activeTab !== "create" || editingQuestId || draftCountryQuery.trim() || selectedCountrySuggestion) return;
@@ -1692,7 +2113,7 @@ function QuestHatApp() {
     }
   }
 
-  async function useCurrentLocationForDraft() {
+  async function selectCurrentLocationForDraft() {
     const location = await requestDeviceLocation("Location access is required to use your current position as the meetup location.");
     if (!location) return;
     setSelectedLocationCoordinates({ lat: location.lat, lon: location.lon });
@@ -1837,40 +2258,99 @@ function QuestHatApp() {
   }
   const visibleTabs = useMemo(() => tabs.filter((tab) => signedIn || !tab.auth), [signedIn]);
 
+  async function refreshEmailChangeState(announce = false) {
+    if (!supabase) return;
+    const client = supabase;
+    const requestGeneration = emailChangeRefreshRef.current.generation + 1;
+    emailChangeRefreshRef.current.generation = requestGeneration;
+    const { data, error } = await client.auth.getUser();
+    if (error || !data.user) {
+      if (announce) setStatus(error?.message || "Could not refresh your email status.");
+      return;
+    }
+    if (emailChangeRefreshRef.current.generation !== requestGeneration
+      || emailChangeRefreshRef.current.userId !== data.user.id) return;
+    const pendingKey = `${STORED_EMAIL_CHANGE_PENDING}:${data.user.id}`;
+    const requestedEmail = await AsyncStorage.getItem(pendingKey) || "";
+    if (emailChangeRefreshRef.current.generation !== requestGeneration
+      || emailChangeRefreshRef.current.userId !== data.user.id) return;
+    const serverNewEmail = (data.user as typeof data.user & { new_email?: string | null }).new_email || "";
+    const next = resolveEmailChangeState({ requestedEmail, serverEmail: data.user.email, serverNewEmail });
+    setAccountEmail(next.email || "");
+    if (next.status === "complete") {
+      await AsyncStorage.removeItem(pendingKey);
+      setEmailChangeNotice("");
+      setSettingsNewEmail("");
+      if (announce) setStatus("Email address updated.");
+    } else if (next.status === "pending") {
+      setEmailChangeNotice(emailChangePendingMessage());
+      if (announce) setStatus(emailChangePendingMessage());
+    }
+  }
+
   async function handleAuthUrl(url: string) {
     if (!supabase) return;
-    let parsedUrl: URL;
-    try {
-      parsedUrl = new URL(url);
-    } catch {
-      return;
-    }
-    if (parsedUrl.protocol !== "questhat:" || parsedUrl.hostname !== "auth" || parsedUrl.pathname !== "/callback") {
-      return;
-    }
-    const params = getQueryParams(url);
-    const error = params.get("error_description") || params.get("error");
-    if (error) {
-      setStatus(error);
+    const callback = parseAuthCallback(url);
+    if (callback.kind === "ignored") return;
+    if (callback.kind === "error") {
+      setStatus(callback.error || "Authentication callback failed.");
       return;
     }
 
-    const code = params.get("code");
-    if (code) {
-      const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+    if (callback.kind === "token_hash") {
+      if (callback.type !== "email_change") {
+        setStatus("This confirmation link type is not supported in the app.");
+        return;
+      }
+      const { error: verifyError } = await supabase.auth.verifyOtp({
+        token_hash: callback.tokenHash || "",
+        type: callback.type as "email_change",
+      });
+      if (verifyError) {
+        setStatus(verifyError.message);
+        return;
+      }
+      await refreshEmailChangeState(true);
+      return;
+    }
+
+    if (callback.kind === "code") {
+      const { data: exchangeData, error: exchangeError } = await supabase.auth.exchangeCodeForSession(callback.code || "");
       if (exchangeError) setStatus(exchangeError.message);
+      else { await captureAppleProviderToken(exchangeData.session, false); await refreshEmailChangeState(true); }
       return;
     }
 
-    const accessToken = params.get("access_token");
-    const refreshToken = params.get("refresh_token");
-    if (accessToken && refreshToken) {
+    if (callback.kind === "session") {
       const { error: sessionError } = await supabase.auth.setSession({
-        access_token: accessToken,
-        refresh_token: refreshToken,
+        access_token: callback.accessToken || "",
+        refresh_token: callback.refreshToken || "",
       });
       if (sessionError) setStatus(sessionError.message);
+      else await refreshEmailChangeState(true);
+      return;
     }
+
+    await refreshEmailChangeState(true);
+  }
+
+  async function captureAppleProviderToken(session: Parameters<typeof appleProviderRefreshToken>[0] & { access_token?: string }, required: boolean) {
+    const providerRefreshToken = appleProviderRefreshToken(session);
+    if (!providerRefreshToken) {
+      if (required) throw new Error("Sign in with Apple did not return a refresh token. Try again before deleting your account.");
+      return false;
+    }
+    const response = await fetch(`${env.supabaseUrl.replace(/\/$/, "")}/functions/v1/apple-token-capture`, {
+      method: "POST",
+      headers: { apikey: env.supabaseAnonKey, Authorization: `Bearer ${session?.access_token || ""}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ providerRefreshToken }),
+    });
+    const result = await response.json().catch(() => ({})) as { ok?: boolean; error?: string };
+    if (!response.ok || !result.ok) {
+      if (required) throw new Error(result.error || "Could not prepare automatic Sign in with Apple cleanup.");
+      return false;
+    }
+    return true;
   }
 
   async function sendWelcomeEmail(accessToken?: string | null) {
@@ -1891,11 +2371,17 @@ function QuestHatApp() {
     }
   }
 
+  const handleAuthUrlEvent = useEffectEvent(handleAuthUrl);
+
   useEffect(() => {
     if (!supabase) return;
     const client = supabase;
+    let disposed = false;
+    let authObservation = 0;
 
     const syncAccountEmail = async (id?: string | null, nextEmail?: string | null) => {
+      const expectedUserId = id ?? null;
+      if (disposed || emailChangeRefreshRef.current.userId !== expectedUserId) return;
       const cleanEmail = nextEmail?.trim() || "";
       setAccountEmail(cleanEmail);
       if (!id) {
@@ -1905,27 +2391,45 @@ function QuestHatApp() {
       const storageKey = `${STORED_RECOVERY_EMAIL_PROMPTED_AT}:${id}`;
       if (cleanEmail) {
         await AsyncStorage.removeItem(storageKey);
+        if (disposed || emailChangeRefreshRef.current.userId !== expectedUserId) return;
         setShowRecoveryEmailPrompt(false);
         return;
       }
       const raw = await AsyncStorage.getItem(storageKey);
+      if (disposed || emailChangeRefreshRef.current.userId !== expectedUserId) return;
       const lastPromptedAt = raw ? Number(raw) : 0;
       if (!Number.isFinite(lastPromptedAt) || Date.now() - lastPromptedAt >= RECOVERY_EMAIL_REMINDER_MS) {
         setShowRecoveryEmailPrompt(true);
       }
     };
 
-    void client.auth.getSession().then(({ data }) => {
+    const initialObservation = ++authObservation;
+    void client.auth.getSession().then(async ({ data }) => {
+      if (disposed || initialObservation !== authObservation) return;
+      emailChangeRefreshRef.current = {
+        generation: emailChangeRefreshRef.current.generation + 1,
+        userId: data.session?.user?.id ?? null,
+      };
       setUserId(data.session?.user?.id ?? null);
       setAuthState(data.session?.user ? "signed-in" : "signed-out");
       void syncAccountEmail(data.session?.user?.id, data.session?.user?.email);
+      if (data.session?.user) await refreshEmailChangeState(false);
       if (data.session?.access_token) void sendWelcomeEmail(data.session.access_token);
     });
 
-    const { data } = client.auth.onAuthStateChange((_event, session) => {
+    const { data } = client.auth.onAuthStateChange((event, session) => {
+      authObservation += 1;
+      emailChangeRefreshRef.current = {
+        generation: emailChangeRefreshRef.current.generation + 1,
+        userId: session?.user?.id ?? null,
+      };
       setUserId(session?.user?.id ?? null);
       setAuthState(session?.user ? "signed-in" : "signed-out");
       void syncAccountEmail(session?.user?.id, session?.user?.email);
+      if (!session?.user) setEmailChangeNotice("");
+      if (session?.user && (event === "INITIAL_SESSION" || event === "SIGNED_IN" || event === "USER_UPDATED")) {
+        void refreshEmailChangeState(false);
+      }
       if (session?.user) setActiveTab((current) => (current === "home" ? current : current));
       if (session?.access_token) void sendWelcomeEmail(session.access_token);
     });
@@ -1938,7 +2442,7 @@ function QuestHatApp() {
         setPendingDeepLinkQuestId(questId);
         return;
       }
-      void handleAuthUrl(url);
+      void handleAuthUrlEvent(url);
     };
     const linkSub = Linking.addEventListener("url", ({ url }) => handleIncomingUrl(url));
     void Linking.getInitialURL().then((url) => {
@@ -1946,18 +2450,22 @@ function QuestHatApp() {
     });
 
     return () => {
+      disposed = true;
+      authObservation += 1;
       data.subscription.unsubscribe();
       linkSub.remove();
     };
   }, []);
 
+  const openQuestDetailEvent = useEffectEvent(openQuestDetail);
+
   useEffect(() => {
-    if (!pendingDeepLinkQuestId || !signedIn || !userId) return;
+    if (!pendingDeepLinkQuestId) return;
     const questId = pendingDeepLinkQuestId;
     setPendingDeepLinkQuestId(null);
     setActiveTab("home");
-    void openQuestDetail(questId);
-  }, [pendingDeepLinkQuestId, signedIn, userId]);
+    void openQuestDetailEvent(questId);
+  }, [pendingDeepLinkQuestId]);
 
   useEffect(() => {
     if (signedIn) {
@@ -1967,6 +2475,7 @@ function QuestHatApp() {
       setJoinedQuestIds([]);
       setMembershipStatusByQuest({});
       setJoinedQuests([]);
+      setAuthorizedExactLocationQuestIds([]);
       setSelectedQuestJoined(false);
     }
   }, [signedIn]);
@@ -2079,29 +2588,53 @@ function QuestHatApp() {
     };
   }, [signedIn, userId]);
 
+  const loadNotificationPreferencesEvent = useEffectEvent(loadNotificationPreferences);
+
+  const openPushNotificationEvent = useEffectEvent(openPushNotification);
+
   useEffect(() => {
     if (!signedIn || !userId) return;
-    void loadNotificationPreferences(userId);
+    void loadNotificationPreferencesEvent(userId);
   }, [signedIn, userId]);
+
+  const readStoredCalendarEventsEvent = useEffectEvent(readStoredCalendarEvents);
 
   useEffect(() => {
     if (!signedIn || !userId || Platform.OS === "web") {
       setCalendarEventQuestIds([]);
+      setStoredCalendarEvents({});
+      setCalendarUpdatedQuestIds([]);
       return;
     }
     let cancelled = false;
-    void readStoredCalendarEvents(userId).then((events) => {
-      if (!cancelled) setCalendarEventQuestIds(Object.keys(events));
+    void readStoredCalendarEventsEvent(userId).then((events) => {
+      if (!cancelled) {
+        setStoredCalendarEvents(events);
+        setCalendarEventQuestIds(Object.keys(events));
+      }
     });
     return () => { cancelled = true; };
   }, [signedIn, userId]);
 
   useEffect(() => {
-    if (!signedIn || !userId || Platform.OS === "web" || !joinedQuests.length) return;
-    void syncStoredCalendarEvents(userId, joinedQuests).catch((error) => {
-      console.warn("calendar event sync failed", error instanceof Error ? error.message : String(error));
+    if (!signedIn || !userId || Platform.OS === "web") {
+      setCalendarUpdatedQuestIds([]);
+      return;
+    }
+    const updated = joinedQuests.flatMap((quest) => {
+      const previous = storedCalendarEvents[quest.id];
+      if (!previous?.payloadFingerprint || !quest.starts_at) return [];
+      try {
+        const includePrivateLocation = authorizedExactLocationQuestIds.includes(quest.id);
+        const details = buildCalendarDetails(quest, previous, includePrivateLocation);
+        const fingerprint = createCalendarPayloadFingerprint(details, includePrivateLocation);
+        return getCalendarUpdateState(previous, fingerprint) === "updated" ? [quest.id] : [];
+      } catch {
+        return [];
+      }
     });
-  }, [joinedQuests, signedIn, userId]);
+    setCalendarUpdatedQuestIds(updated);
+  }, [authorizedExactLocationQuestIds, joinedQuests, signedIn, storedCalendarEvents, userId]);
 
   useEffect(() => {
     if (Platform.OS !== "ios" || !QuestHatLiveActivity || !signedIn || !userId || !supabase || accountDeactivatedAt) {
@@ -2109,6 +2642,7 @@ function QuestHatApp() {
       return;
     }
 
+    const liveActivityClient = supabase;
     let cancelled = false;
     const registerToken = async (result: LiveActivityPushToken) => {
       if (cancelled) return;
@@ -2116,7 +2650,7 @@ function QuestHatApp() {
       const token = typeof result.token === "string" ? result.token.trim().toLowerCase() : "";
       if (!token) return;
       if (liveActivityPushTokenRef.current?.token === token && liveActivityPushTokenRef.current.environment === result.environment) return;
-      const { error } = await supabase.rpc("register_live_activity_push_token", {
+      const { error } = await liveActivityClient.rpc("register_live_activity_push_token", {
         p_token: token,
         p_environment: result.environment,
       });
@@ -2274,7 +2808,7 @@ function QuestHatApp() {
       if (handledPushResponseIdRef.current === responseId) return;
       handledPushResponseIdRef.current = responseId;
       void Notifications.clearLastNotificationResponseAsync();
-      void openPushNotification(response.notification.request.content.data as PushNavigationData);
+      void openPushNotificationEvent(response.notification.request.content.data as PushNavigationData);
     };
 
     const responseListener = Notifications.addNotificationResponseReceivedListener(handleResponse);
@@ -2287,6 +2821,8 @@ function QuestHatApp() {
       responseListener.remove();
     };
   }, [signedIn, userId]);
+
+  const loadAuthedDataEvent = useEffectEvent(loadAuthedData);
 
   useEffect(() => {
     if (!supabase || !userId) return;
@@ -2305,7 +2841,7 @@ function QuestHatApp() {
         "postgres_changes",
         { event: "*", schema: "public", table: "messages" },
         () => {
-          void loadAuthedData(userId);
+          void loadAuthedDataEvent(userId);
         },
       )
       .subscribe();
@@ -2313,7 +2849,7 @@ function QuestHatApp() {
     return () => {
       void client.removeChannel(channel);
     };
-  }, [supabase, userId]);
+  }, [userId]);
 
   useEffect(() => {
     if (!signedIn || !userId) return;
@@ -2365,6 +2901,7 @@ function QuestHatApp() {
       console.warn("notification refresh failed", error.message);
       return;
     }
+    if (calendarUserRef.current !== uid) return;
 
     const nextNotifications = (data || []) as NotificationRow[];
     setNotifications(nextNotifications);
@@ -2376,78 +2913,165 @@ function QuestHatApp() {
     }
   }
 
-  async function loadHome() {
-    if (!supabase) return;
-    let excludedCreatorIds: string[] = [];
-    if (userId) {
-      const { data: blockRows } = await supabase
-        .from("friends")
-        .select("requester_id,addressee_id")
-        .eq("status", "blocked")
-        .or(`requester_id.eq.${userId},addressee_id.eq.${userId}`);
-      excludedCreatorIds = Array.from(new Set(
-        ((blockRows || []) as Array<{ requester_id: string; addressee_id: string }>)
-          .flatMap((row) => [row.requester_id, row.addressee_id])
-          .filter((id) => id !== userId),
-      ));
-      setBlockedUserIds(excludedCreatorIds);
-    } else {
-      setBlockedUserIds([]);
+  async function loadHome(options: { append?: boolean } = {}) {
+    const append = Boolean(options.append && homePageCursor);
+    const cursor = append ? homePageCursor : null;
+    const snapshotTime = cursor?.snapshotTime ?? new Date().toISOString();
+    const requestId = homeFeedRequestGate.begin();
+    if (!supabase) {
+      if (homeFeedRequestGate.isCurrent(requestId)) {
+        if (append) setHomeLoadMoreError("Could not load more quests. Try again.");
+        else setHomeFeedLoadStatus("error");
+      }
+      return;
     }
-    let query = supabase
-      .from("quests")
-      .select("id,creator_id,title,description,city,availability,starts_at,time_flexible,group_size,hobby_id,skill_level,join_mode,created_at,media_items,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,username,avatar_url)")
-      .order("created_at", { ascending: false })
-      .limit(HOME_QUEST_LIMIT);
-    const now = Date.now();
-    const nowIso = new Date(now).toISOString();
-    const completedCutoffIso = new Date(now - COMPLETED_FEED_WINDOW_MS).toISOString();
-    query = userId
-      ? query.or(`starts_at.gt.${nowIso},and(creator_id.eq.${userId},starts_at.gte.${completedCutoffIso})`)
-      : query.gt("starts_at", nowIso);
-    const { data, error } = await query;
-    if (error) throw error;
-    const nextQuests = ((data || []) as QuestPreview[]).filter((quest) => !excludedCreatorIds.includes(quest.creator_id || ""));
-    setQuests(nextQuests);
-    await loadQuestCardCounts(nextQuests.map((quest) => quest.id));
+    const client = supabase;
+    if (append) {
+      setHomeLoadingMore(true);
+      setHomeLoadMoreError("");
+    } else {
+      setHomeFeedLoadStatus("loading");
+      setHomeLoadMoreError("");
+      setHomeHasLoadedAdditionalPage(false);
+    }
+    try {
+      let excludedCreatorIds: string[] = [];
+      const result = await requestHomeFeedWithFallback<QuestPreview>({
+        skipRpc: cursor?.source === "fallback",
+        rpcRequest: async () => {
+          const rpcResult = await withHomeFeedTimeout(client.rpc("list_home_quests", buildHomeFeedRpcArgs({
+            sortMode: homeSortMode,
+            searchQuery: homeSearchQuery,
+            categoryFilter: homeCategoryFilter,
+            location: homeSortMode === "nearest" ? deviceLocation : null,
+            cursor: cursor?.source === "rpc" ? cursor : null,
+            pageSize: HOME_QUEST_PAGE_SIZE,
+            snapshotTime,
+          })));
+          return { data: (rpcResult.data || []) as QuestPreview[], error: rpcResult.error };
+        },
+        fallbackRequest: async () => {
+          if (userId) {
+            const blockResult = await withHomeFeedTimeout(client
+              .from("friends")
+              .select("requester_id,addressee_id")
+              .eq("status", "blocked")
+              .or(`requester_id.eq.${userId},addressee_id.eq.${userId}`));
+            if (blockResult.error) return { data: null, error: blockResult.error };
+            excludedCreatorIds = Array.from(new Set(
+              ((blockResult.data || []) as Array<{ requester_id: string; addressee_id: string }>)
+                .flatMap((row) => [row.requester_id, row.addressee_id])
+                .filter((id) => id !== userId),
+            ));
+            if (!homeFeedRequestGate.isCurrent(requestId)) return { data: [], error: null };
+          }
+          let fallbackQuery = applyHomeFallbackPageQuery(client
+            .from("quests")
+            .select("id,creator_id,title,description,city,availability,starts_at,time_flexible,group_size,hobby_id,skill_level,join_mode,created_at,media_items,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,username,avatar_url)"), HOME_QUEST_PAGE_SIZE, cursor?.source === "fallback" ? cursor : null);
+          const snapshotMs = Date.parse(snapshotTime);
+          const completedCutoffIso = new Date(snapshotMs - COMPLETED_FEED_WINDOW_MS).toISOString();
+          fallbackQuery = userId
+            ? fallbackQuery.or(`starts_at.gt.${snapshotTime},and(creator_id.eq.${userId},starts_at.gte.${completedCutoffIso})`)
+            : fallbackQuery.gt("starts_at", snapshotTime);
+          const fallbackResult = await withHomeFeedTimeout(fallbackQuery);
+          return { data: (fallbackResult.data || []) as QuestPreview[], error: fallbackResult.error };
+        },
+      });
+      const rpcPage = result.source === "rpc"
+        ? prepareHomePage(result.rows, HOME_QUEST_PAGE_SIZE, homeSortMode, snapshotTime)
+        : null;
+      const fallbackPage = result.source === "fallback"
+        ? prepareHomeFallbackPage(result.rows, HOME_QUEST_PAGE_SIZE, snapshotTime)
+        : null;
+      const fallbackItems = fallbackPage
+        ? filterHomeQuests({
+            quests: filterBlockedHomePage(fallbackPage.items, excludedCreatorIds),
+            query: homeSearchQuery,
+            categoryFilter: homeCategoryFilter,
+            categoryLabel: (quest: QuestPreview) => getCategory(quest),
+            profileLabel: (quest: QuestPreview) => getRelationOne(quest.profiles),
+          }) as QuestPreview[]
+        : [];
+      const nextQuests = rpcPage?.items || fallbackItems;
+      if (!homeFeedRequestGate.isCurrent(requestId)) return;
+      if (append) setQuests((current) => mergeHomePages(current, nextQuests));
+      else setQuests(nextQuests);
+      if (append) setHomeHasLoadedAdditionalPage(true);
+      setHomePageCursor(rpcPage?.nextCursor || fallbackPage?.nextCursor || null);
+      setHomeHasMore(Boolean(rpcPage?.hasMore || fallbackPage?.hasMore));
+      if (rpcPage) setHomeTotalCount(rpcPage.totalCount);
+      else setHomeTotalCount((current) => append ? current + nextQuests.length : nextQuests.length);
+      setHomeFeedUsesCompatibilityFallback(result.source === "fallback");
+      if (result.source === "fallback") setHomeSortMenuVisible(false);
+      setBlockedUserIds(result.source === "fallback" ? excludedCreatorIds : []);
+      setHomeFeedLoadStatus("ready");
+      if (!append) {
+        optionalAnalytics.capture("discovery_loaded", discoveryLoadedProperties({
+          platform: Platform.OS,
+          resultCount: rpcPage?.totalCount ?? nextQuests.length,
+          queryActive: Boolean(homeSearchQuery.trim()),
+          categoryFilterActive: homeCategoryFilter !== "All",
+        }));
+      }
+      void loadQuestCardCounts(nextQuests.map((quest) => quest.id), () => homeFeedRequestGate.isCurrent(requestId), append)
+        .catch((countError) => console.warn("Home card counts failed", countError instanceof Error ? countError.message : String(countError)));
+    } catch (error) {
+      if (!homeFeedRequestGate.isCurrent(requestId)) return;
+      if (append) setHomeLoadMoreError("Could not load more quests. Try again.");
+      else setHomeFeedLoadStatus("error");
+      throw error;
+    } finally {
+      if (append && homeFeedRequestGate.isCurrent(requestId)) setHomeLoadingMore(false);
+    }
   }
 
-  async function loadHobbies() {
-    if (!supabase) return;
-    const { data, error } = await supabase.from("hobbies").select("id,name,category").order("name");
-    if (error) throw error;
-    const rows = (data || []) as Hobby[];
-    setHobbies(rows);
-    setDraftHobbyId((current) => current || rows[0]?.id || "");
+  async function loadMoreHome() {
+    if (!homeHasMore || !homePageCursor || !homeAppendGate.begin()) return;
+    try {
+      await loadHome({ append: true });
+    } catch {
+      // The inline retry state is owned by loadHome; retain the current cards.
+    } finally {
+      homeAppendGate.end();
+      setHomeLoadingMore(false);
+    }
   }
+
+  async function loadHobbies() { await refreshCatalog(); }
 
   async function loadAuthedData(uid: string) {
     if (!supabase) return;
+    const request = authedDataRequestGate.begin(uid);
+    const canCommit = () => authedDataRequestGate.isCurrent(request, calendarUserRef.current || "");
     const { data: authUser } = await supabase.auth.getUser();
+    if (!canCommit() || authUser.user?.id !== uid) return;
     const authData = authUser.user?.user_metadata || {};
     const metaName = (typeof authData.full_name === "string" && authData.full_name.trim()) || (typeof authData.name === "string" && authData.name.trim()) || "";
     const [{ data: profileData }, { data: bookmarkRows }, { data: memberRows }, { data: notificationRows }, { data: acceptedRows }, { data: pendingRows }, { data: blockRows }, { data: myQuestRows }, { data: hobbyRows }, { data: myListingIds }] = await Promise.all([
       supabase.from("profiles").select("id,display_name,username,username_changed_at,city,region,country_code,bio,avatar_url,show_location,radius_km,friends_visibility,onboarding_done,photo_onboarding_done,eula_version,eula_accepted_at,people_discovery_enabled").eq("id", uid).maybeSingle(),
       supabase.from("quest_bookmarks").select("quest_id").eq("user_id", uid),
-      supabase.from("quest_members").select("quest_id,status,quests(id,creator_id,title,description,city,availability,starts_at,skill_level,join_mode,created_at,exact_address,exact_lat,exact_lng,apple_place_id,location_details,media_items,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,username,avatar_url))").eq("user_id", uid).order("joined_at", { ascending: false }),
+      supabase.from("quest_members").select("quest_id,status,quests(id,hobby_id,creator_id,title,description,city,availability,starts_at,time_flexible,skill_level,join_mode,created_at,exact_location_visibility,exact_address,exact_lat,exact_lng,apple_place_id,location_details,media_items,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,username,avatar_url))").eq("user_id", uid).order("joined_at", { ascending: false }),
       supabase.from("notifications").select("id,kind,title,body,href,quest_id,source_user_id,membership_user_id,meta,created_at,read_at,source_profile:profiles!notifications_source_user_id_fkey(id,display_name,username,avatar_url)").eq("user_id", uid).order("created_at", { ascending: false }).limit(100),
       supabase.from("friends").select("requester_id,addressee_id,status").eq("status", "accepted").or(`requester_id.eq.${uid},addressee_id.eq.${uid}`),
       supabase.from("friends").select("requester_id,addressee_id,status").eq("status", "pending").or(`requester_id.eq.${uid},addressee_id.eq.${uid}`),
       supabase.from("friends").select("requester_id,addressee_id,status").eq("status", "blocked").or(`requester_id.eq.${uid},addressee_id.eq.${uid}`),
-      supabase.from("quests").select("id,creator_id,title,description,city,availability,starts_at,skill_level,join_mode,created_at,exact_address,exact_lat,exact_lng,apple_place_id,location_details,media_items,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,username,avatar_url)").eq("creator_id", uid).order("created_at", { ascending: false }).limit(100),
+      supabase.from("quests").select("id,hobby_id,creator_id,title,description,city,availability,starts_at,time_flexible,skill_level,join_mode,created_at,exact_location_visibility,exact_address,exact_lat,exact_lng,apple_place_id,location_details,media_items,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,username,avatar_url)").eq("creator_id", uid).order("created_at", { ascending: false }).limit(100),
       supabase.from("user_hobbies").select("hobby_id,is_primary").eq("user_id", uid),
       supabase.from("quests").select("id").eq("creator_id", uid),
     ]);
+    if (!canCommit()) return;
 
     const [{ data: discoveryData }, { data: invitationData }] = await Promise.all([
       supabase.from("people_discovery_settings").select("birth_date,gender_identity").eq("user_id", uid).maybeSingle(),
       supabase
         .from("quest_invitations")
-        .select("id,quest_id,sender_id,recipient_id,message,status,created_at,quests(id,creator_id,title,city,starts_at),sender:profiles!quest_invitations_sender_id_fkey(id,display_name,username,avatar_url)")
+        .select("id,quest_id,sender_id,recipient_id,message,status,created_at,quests(id,hobby_id,creator_id,title,city,starts_at),sender:profiles!quest_invitations_sender_id_fkey(id,display_name,username,avatar_url)")
         .eq("recipient_id", uid)
+        .eq("status", "pending")
         .order("created_at", { ascending: false })
         .limit(100),
     ]);
+    if (!canCommit()) return;
 
     const ownerQuestIds = ((myListingIds || []) as Array<{ id: string }>).map((row) => row.id);
     const [sentPrivateRes, ownedPrivateRes, privateForMeRes] = await Promise.all([
@@ -2474,6 +3098,7 @@ function QuestHatApp() {
         .order("created_at", { ascending: false })
         .limit(300),
     ]);
+    if (!canCommit()) return;
 
     const nextProfile = (profileData || null) as Profile | null;
     const metadataEulaAccepted = authData.accepted_eula === true && authData.eula_version === CURRENT_EULA_VERSION;
@@ -2494,6 +3119,7 @@ function QuestHatApp() {
         onboarding_done: false,
         photo_onboarding_done: false,
       });
+      if (!canCommit()) return;
     }
     const fallbackProfile: Profile = {
       id: uid,
@@ -2571,6 +3197,7 @@ function QuestHatApp() {
     const { data: inboxProfileRows } = inboxPartnerIds.length
       ? await supabase.from("profiles").select("id,display_name,username,avatar_url").in("id", inboxPartnerIds)
       : { data: [] };
+    if (!canCommit()) return;
     setInboxProfilesById(Object.fromEntries(((inboxProfileRows || []) as Array<{ id: string; display_name: string | null; username: string | null; avatar_url: string | null }>).map((row) => [row.id, row])));
 
     setMessages(dedupedPrivate);
@@ -2588,6 +3215,7 @@ function QuestHatApp() {
     const acceptedFriendIds = Array.from(new Set(acceptedEdges.map((row) => (row.requester_id === uid ? row.addressee_id : row.requester_id)).filter((id) => id !== uid)));
     if (acceptedFriendIds.length) {
       const { data: profiles } = await supabase.from("profiles").select("id,display_name,avatar_url,username").in("id", acceptedFriendIds);
+      if (!canCommit()) return;
       setSettingsFriendsProfiles(((profiles || []) as Array<{ id: string; display_name: string | null; username: string | null; avatar_url: string | null }>));
     } else {
       setSettingsFriendsProfiles([]);
@@ -2597,6 +3225,7 @@ function QuestHatApp() {
     const pendingIds = Array.from(new Set(pendingEdges.flatMap((row) => [row.requester_id, row.addressee_id]).filter((id) => id !== uid)));
     if (pendingIds.length) {
       const { data: profiles } = await supabase.from("profiles").select("id,display_name,avatar_url,username").in("id", pendingIds);
+      if (!canCommit()) return;
       const profileMap = new Map(((profiles || []) as Array<{ id: string; display_name: string | null; username: string | null; avatar_url: string | null }>).map((profile) => [profile.id, profile]));
       const rows: Array<{ id: string; display_name: string | null; username: string | null; avatar_url: string | null; direction: "incoming" | "outgoing"; edge: { requester_id: string; addressee_id: string; status: string } }> = [];
       pendingEdges.forEach((edge) => {
@@ -2617,6 +3246,7 @@ function QuestHatApp() {
     const blockedIds = Array.from(new Set(blockedEdges.flatMap((row) => [row.requester_id, row.addressee_id]).filter((id) => id !== uid)));
     if (blockedIds.length) {
       const { data: profiles } = await supabase.from("profiles").select("id,display_name,avatar_url,username").in("id", blockedIds);
+      if (!canCommit()) return;
       const blockedMap = new Map(((profiles || []) as Array<{ id: string; display_name: string | null; username: string | null; avatar_url: string | null }>).map((profile) => [profile.id, profile]));
       const rows = blockedEdges
         .map((edge) => blockedMap.get(edge.requester_id === uid ? edge.addressee_id : edge.requester_id))
@@ -2631,8 +3261,9 @@ function QuestHatApp() {
     if (savedIds.length) {
       const { data } = await supabase
         .from("quests")
-        .select("id,creator_id,title,description,city,availability,starts_at,skill_level,join_mode,created_at,media_items,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,username,avatar_url)")
+        .select("id,hobby_id,creator_id,title,description,city,availability,starts_at,skill_level,join_mode,created_at,media_items,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,username,avatar_url)")
         .in("id", savedIds);
+      if (!canCommit()) return;
       setSavedQuests((data || []) as QuestPreview[]);
     } else {
       setSavedQuests([]);
@@ -2652,6 +3283,7 @@ function QuestHatApp() {
           .select("quest_id,exact_address,exact_lat,exact_lng,apple_place_id,location_details")
           .in("quest_id", joinedIds)
       : { data: [] };
+    if (!canCommit()) return;
     const joinedPrivateLocationByQuest = new Map(
       ((joinedPrivateLocationRows || []) as Array<{
         quest_id: string;
@@ -2670,15 +3302,25 @@ function QuestHatApp() {
       .filter((row) => row.status === "approved")
       .map((row) => getRelationOne((row as { quests?: QuestPreview[] | QuestPreview | null }).quests))
       .filter((quest): quest is QuestPreview => Boolean(quest));
+    const publicExactLocationQuestIds = [...hosted, ...approvedMemberQuests]
+      .filter((quest) => quest.exact_location_visibility === "public")
+      .map((quest) => quest.id);
+    setAuthorizedExactLocationQuestIds(Array.from(new Set([
+      ...joinedPrivateLocationByQuest.keys(),
+      ...publicExactLocationQuestIds,
+    ])));
     setJoinedQuests(Array.from(new Map([...hosted, ...approvedMemberQuests].map((quest) => [quest.id, withAuthorizedLocation(quest)])).values()));
 
   }
 
-  async function loadQuestCardCounts(questIds: string[]) {
+  async function loadQuestCardCounts(questIds: string[], canCommit = () => true, append = false) {
     if (!supabase || !questIds.length) {
-      setCommentCountByQuestId({});
-      setShareCountByQuestId({});
-      setJoinCountByQuestId({});
+      if (!canCommit()) return;
+      if (!append) {
+        setCommentCountByQuestId({});
+        setShareCountByQuestId({});
+        setJoinCountByQuestId({});
+      }
       return;
     }
     const [{ data: messageRows }, { data: shareRows }, { data: memberRows }] = await Promise.all([
@@ -2707,24 +3349,28 @@ function QuestHatApp() {
         return acc;
       }, {});
 
-    setCommentCountByQuestId(comments);
-    setShareCountByQuestId(shares);
-    setJoinCountByQuestId(joins);
+    if (!canCommit()) return;
+    setCommentCountByQuestId((current) => mergeHomePageCounts(current, comments, append));
+    setShareCountByQuestId((current) => mergeHomePageCounts(current, shares, append));
+    setJoinCountByQuestId((current) => mergeHomePageCounts(current, joins, append));
   }
 
   async function loadSelectedQuestDetails(questId: string) {
     if (!supabase) return null;
+    let questSelect: string = "id,creator_id,title,description,city,availability,starts_at,time_flexible,group_size,hobby_id,skill_level,created_at,join_mode,exact_location_visibility,exact_address,exact_lat,exact_lng,apple_place_id,location_details,media_video_url,media_source,media_items,host_coordination_reminders_disabled,host_coordination_reminders_snoozed_until,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,username,city,bio,avatar_url)";
+    if (POST_QUEST_FOLLOW_UPS_ENABLED) questSelect = questSelect.replace(",hobbies(", ",ends_at,completed_at,status,hobbies(");
     const [{ data, error }, { data: privateLocation, error: privateLocationError }] = await Promise.all([
-      supabase
+      (supabase
         .from("quests")
-        .select("id,creator_id,title,description,city,availability,starts_at,time_flexible,group_size,hobby_id,skill_level,created_at,join_mode,exact_location_visibility,exact_address,exact_lat,exact_lng,apple_place_id,location_details,media_video_url,media_source,media_items,host_coordination_reminders_disabled,host_coordination_reminders_snoozed_until,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,username,city,bio,avatar_url)")
-        .eq("id", questId)
-        .maybeSingle(),
-      supabase
-        .from("quest_private_locations")
-        .select("exact_address,exact_lat,exact_lng,apple_place_id,location_details")
-        .eq("quest_id", questId)
-        .maybeSingle(),
+        .select(questSelect) as unknown as { eq: (column: string, value: string) => { maybeSingle: () => Promise<{ data: QuestDetail | null; error: Error | null }> } })
+        .eq("id", questId).maybeSingle(),
+      userId
+        ? supabase
+            .from("quest_private_locations")
+            .select("exact_address,exact_lat,exact_lng,apple_place_id,location_details")
+            .eq("quest_id", questId)
+            .maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
     ]);
     if (error) throw error;
     if (privateLocationError) throw privateLocationError;
@@ -2792,24 +3438,15 @@ function privateThreadIncludesUsers(
   );
 }
 
-  function getQuestionDraftKey(questId: string, mode: "public" | "private") {
-    return `${questId}:${mode}`;
-  }
-
-  function saveQuestionDraft(questId?: string | null, mode?: "public" | "private", text?: string) {
-    if (!questId || !mode) return;
-    const key = getQuestionDraftKey(questId, mode);
-    setQuestionDrafts((current) => {
-      const next = { ...current };
-      const value = text ?? questionText;
-      if (value.trim()) next[key] = value;
-      else delete next[key];
-      return next;
-    });
+  function saveQuestionDraft(questId?: string | null, mode?: "public" | "private", text?: string, partnerId?: string | null) {
+    if (!userId || !questId || !mode) return;
+    setQuestionDrafts((current) => saveConversationDraft(current, userId, questId, mode, partnerId, text ?? questionText));
   }
 
   function closeQuestionModal(clearTarget = true) {
-    saveQuestionDraft(questionTarget?.id, questionMode);
+    saveQuestionDraft(questionTarget?.id, questionMode, undefined, questionPartnerId);
+    conversationRequestRef.current++;
+    conversationThreadKeyRef.current = null;
     setShowQuestionModal(false);
     if (clearTarget) {
       setQuestionTarget(null);
@@ -2820,7 +3457,7 @@ function privateThreadIncludesUsers(
     setConversationSearchQuery("");
   }
 
-  async function openQuestConversation(quest: QuestPreview, mode: "public" | "private" = "public", partnerId?: string | null) {
+  async function openQuestConversation(quest: QuestPreview, mode: "public" | "private" = "public", partnerId?: string | null, preserveDraft = false) {
     if (!supabase || !userId) {
       promptAuth("login");
       return;
@@ -2840,32 +3477,35 @@ function privateThreadIncludesUsers(
     } else if (questionTarget?.id !== quest.id) {
       setQuestionPrivatePartnerId(quest.creator_id && quest.creator_id !== userId ? quest.creator_id : null);
     }
-    setQuestionText(questionDrafts[getQuestionDraftKey(quest.id, mode)] || "");
+    if (!preserveDraft) setQuestionText(questionDrafts[conversationThreadKey(userId, quest.id, mode, resolvedPartnerId)] || "");
     setShowQuestionModal(true);
-    const { data } = await supabase
+    conversationThreadKeyRef.current = conversationThreadKey(userId, quest.id, mode, resolvedPartnerId);
+    const request = ++conversationRequestRef.current;
+    setConversationLoading(true); setConversationError(""); setQuestionComments([]);
+    try {
+    const { data, error } = await supabase
       .from("messages")
       .select("id,quest_id,sender_id,body,created_at,profiles:profiles!messages_sender_id_fkey(id,display_name,username,avatar_url)")
       .eq("quest_id", quest.id)
       .order("created_at", { ascending: false })
       .limit(100);
+    if (request !== conversationRequestRef.current) return;
+    setConversationLoading(false);
+    if (error) { setConversationError(error.message); return; }
     const rows = ((data || []) as MessageRow[]).filter((row) => {
       if (mode === "public") return isPublicMessageBody(row.body);
       return resolvedPartnerId ? privateThreadIncludesUsers(row, userId, resolvedPartnerId) : false;
     });
     setQuestionComments(rows.sort((a, b) => +new Date(a.created_at) - +new Date(b.created_at)));
+    } catch (failure) { if (request === conversationRequestRef.current) { setConversationLoading(false); setConversationError(failure instanceof Error ? failure.message : "Messages could not be loaded. Try again."); } }
   }
 
   async function openPushNotification(data: PushNavigationData) {
     if (!supabase || !userId) return;
 
-    const href = typeof data.href === "string" ? data.href : "";
-    const questIdFromHref = href.match(/^\/listing\/([0-9a-f-]+)/i)?.[1]
-      || href.match(/[?&]thread=([0-9a-f-]+)/i)?.[1]
-      || null;
-    const questId = typeof data.questId === "string" ? data.questId : questIdFromHref;
+    const destination = resolveNotificationDestination(data);
+    const questId = destination.questId;
     const sourceUserId = typeof data.sourceUserId === "string" ? data.sourceUserId : null;
-    const kind = typeof data.kind === "string" ? data.kind : "";
-    const isPrivateMessage = kind === "message" && (data.meta as Record<string, unknown> | undefined)?.private === true;
 
     const notificationId = typeof data.notificationId === "string" ? data.notificationId : null;
     if (notificationId) {
@@ -2874,10 +3514,10 @@ function privateThreadIncludesUsers(
       setNotifications((current) => current.map((item) => item.id === notificationId ? { ...item, read_at: readAt } : item));
     }
 
-    setSelectedQuest(null);
+    closeQuestDetail();
     setShowQuestionModal(false);
 
-    if ((isPrivateMessage || href.startsWith("/inbox")) && questId) {
+    if (destination.conversation && questId) {
       const quest = await loadSelectedQuestDetails(questId);
       if (quest) {
         setActiveTab("inbox");
@@ -2885,6 +3525,9 @@ function privateThreadIncludesUsers(
         await openQuestConversation(quest, "private", sourceUserId);
         return;
       }
+      setActiveTab("inbox");
+      setStatus("Quest is no longer available.");
+      return;
     }
 
     if (questId) {
@@ -2893,7 +3536,7 @@ function privateThreadIncludesUsers(
       return;
     }
 
-    setActiveTab(href.startsWith("/inbox") ? "inbox" : "notifications");
+    setActiveTab(destination.tab as TabKey);
   }
 
   async function openDeliveredNotification(item: NotificationRow) {
@@ -2907,28 +3550,79 @@ function privateThreadIncludesUsers(
     });
   }
 
+  function openCommentSort() {
+    setCommentSortMenuOpen((open) => !open);
+  }
+
+  function chooseCommentSort(nextSort: CommentSort) {
+    setCommentSort(nextSort);
+    setCommentSortMenuOpen(false);
+  }
+
+  function closeCommentSortMenu() {
+    setCommentSortMenuOpen(false);
+  }
+
+  useEffect(() => {
+    if (!selectedQuest) {
+      setCommentSortMenuOpen(false);
+      setPreviewMedia(null);
+      setFullscreenMedia(null);
+      questDetailRequestGate.invalidate();
+      questMembershipRequestGate.invalidate();
+    }
+  }, [questDetailRequestGate, questMembershipRequestGate, selectedQuest]);
+
+  useEffect(() => {
+    if (!commentSortMenuOpen) return;
+    const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
+      closeCommentSortMenu();
+      return true;
+    });
+    return () => subscription.remove();
+  }, [commentSortMenuOpen]);
+
+  function closeQuestDetail() {
+    questDetailRequestGate.invalidate();
+    questMembershipRequestGate.invalidate();
+    setSelectedQuest(null);
+    setSelectedQuestLoading(false);
+    setPreviewMedia(null);
+    setFullscreenMedia(null);
+  }
+
   async function openQuestDetail(questId: string) {
     if (!supabase) return;
-    setSelectedQuestLoading(true);
-    setSelectedQuestMembers([]);
-    setSelectedQuestPendingMembers([]);
-    setSelectedQuestCheckIns([]);
-    setSelectedQuestExactAccessUserIds([]);
-    setSelectedQuestManager(false);
-    setSelectedQuestMembershipStatus(null);
-    setSelectedQuestComments([]);
+    const request = questDetailRequestGate.begin(questId);
+    const isSameQuestRefresh = selectedQuestRef.current?.id === questId;
+    setSelectedQuestLoading(!isSameQuestRefresh);
+    setPreviewMedia(null);
+    setFullscreenMedia(null);
+    if (!isSameQuestRefresh) {
+      setSelectedQuestMembers([]);
+      setSelectedQuestPendingMembers([]);
+      setSelectedQuestCheckIns([]);
+      setSelectedQuestExactAccessUserIds([]);
+      setSelectedQuestManager(false);
+      setSelectedQuestMembershipStatus(null);
+      setSelectedQuestComments([]);
+    }
     try {
       const detail = await loadSelectedQuestDetails(questId);
+      if (!questDetailRequestGate.isCurrent(request)) return;
       if (!detail) {
+        setSelectedQuest(null);
         setStatus("Quest not found.");
         return;
       }
       setSelectedQuest(detail);
+      void requestNeutralEngagementReview("quest_detail_opened").catch(() => undefined);
       if (userId) {
         const [{ data: savedRow }, { data: memberRow }] = await Promise.all([
           supabase.from("quest_bookmarks").select("quest_id").eq("user_id", userId).eq("quest_id", questId).maybeSingle(),
           supabase.from("quest_members").select("status,role").eq("user_id", userId).eq("quest_id", questId).maybeSingle(),
         ]);
+        if (!questDetailRequestGate.isCurrent(request)) return;
         setSelectedQuestSaved(Boolean(savedRow));
         const membershipStatus = (memberRow?.status as "pending" | "approved" | "declined" | null) || null;
         const memberRole = (memberRow?.role as string | null) || null;
@@ -2945,6 +3639,7 @@ function privateThreadIncludesUsers(
           supabase.from("quest_exact_location_access").select("user_id").eq("quest_id", questId),
           supabase.from("quest_checkins").select("user_id,checked_in_at,profiles:profiles!quest_checkins_user_id_fkey(id,display_name,username,avatar_url)").eq("quest_id", questId).order("checked_in_at", { ascending: true }),
         ]);
+        if (!questDetailRequestGate.isCurrent(request)) return;
         const allMembers = ((memberRows || []) as Array<{ user_id: string; role?: string | null; status?: "pending" | "approved" | "declined" | null; profiles?: Array<{ id: string; display_name: string | null; username: string | null; avatar_url: string | null }> | { id: string; display_name: string | null; username: string | null; avatar_url: string | null } | null }>)
           .map((row) => {
             const profile = getRelationOne(row.profiles);
@@ -2967,14 +3662,101 @@ function privateThreadIncludesUsers(
         setSelectedQuestPendingMembers([]);
         setSelectedQuestCheckIns([]);
         const { data: commentRows } = await supabase.from("messages").select("id,sender_id,body,created_at,profiles:profiles!messages_sender_id_fkey(id,display_name,avatar_url)").eq("quest_id", questId).like("body", "[PUBLIC] %").order("created_at", { ascending: false }).limit(100);
+        if (!questDetailRequestGate.isCurrent(request)) return;
         setSelectedQuestComments((commentRows || []) as MessageRow[]);
       }
     } catch (error) {
+      if (!questDetailRequestGate.isCurrent(request)) return;
+      setSelectedQuest(null);
       setStatus(error instanceof Error ? error.message : "Could not load quest.");
     } finally {
-      setSelectedQuestLoading(false);
+      if (questDetailRequestGate.isCurrent(request)) setSelectedQuestLoading(false);
     }
   }
+
+  async function refreshSelectedQuestMembershipState(questId: string, viewerId: string) {
+    if (!supabase) return;
+    const scope = `${viewerId}:${questId}`;
+    const request = questMembershipRequestGate.begin(scope);
+    const membershipClient = supabase;
+    try {
+      const [{ data: viewerRow, error: viewerError }, { data: memberRows, error: membersError }, { data: accessRows, error: accessError }] = await Promise.all([
+        membershipClient.from("quest_members").select("status,role").eq("user_id", viewerId).eq("quest_id", questId).maybeSingle(),
+        membershipClient.from("quest_members").select("user_id,role,status,profiles:profiles!quest_members_user_id_fkey(id,display_name,username,avatar_url)").eq("quest_id", questId),
+        membershipClient.from("quest_exact_location_access").select("user_id").eq("quest_id", questId),
+      ]);
+      if (viewerError || membersError || accessError) throw viewerError || membersError || accessError;
+      const currentScope = `${calendarUserRef.current || ""}:${selectedQuestRef.current?.id || ""}`;
+      if (!questMembershipRequestGate.isCurrent(request, currentScope)) return;
+
+      const membershipStatus = (viewerRow?.status as "pending" | "approved" | "declined" | null) || null;
+      const memberRole = (viewerRow?.role as string | null) || null;
+      const currentQuest = selectedQuestRef.current;
+      if (!currentQuest) return;
+      const isManager = Boolean(
+        currentQuest.creator_id === viewerId
+        || (membershipStatus === "approved" && memberRole === "cohost"),
+      );
+      const allMembers = ((memberRows || []) as Array<{ user_id: string; role?: string | null; status?: "pending" | "approved" | "declined" | null; profiles?: Array<{ id: string; display_name: string | null; username: string | null; avatar_url: string | null }> | { id: string; display_name: string | null; username: string | null; avatar_url: string | null } | null }>)
+        .map((row) => {
+          const memberProfile = getRelationOne(row.profiles);
+          const member: QuestMemberProfileRow | null = memberProfile
+            ? { ...memberProfile, id: memberProfile.id || row.user_id, role: row.role ?? null, status: row.status ?? null }
+            : null;
+          return member;
+        })
+        .filter((value): value is QuestMemberProfileRow => Boolean(value));
+      const approvedMembers = allMembers.filter((member) => member.status === "approved");
+      const canViewMembers = isManager || membershipStatus === "approved";
+
+      setSelectedQuestJoined(membershipStatus === "approved");
+      setSelectedQuestMembershipStatus(membershipStatus);
+      setSelectedQuestManager(isManager);
+      setSelectedQuestMembers(canViewMembers ? approvedMembers : []);
+      setSelectedQuestPendingMembers(isManager ? allMembers.filter((member) => member.status === "pending") : []);
+      setSelectedQuestExactAccessUserIds(((accessRows || []) as Array<{ user_id: string | null }>).map((row) => row.user_id).filter((value): value is string => Boolean(value)));
+      setJoinCountByQuestId((current) => ({ ...current, [questId]: approvedMembers.length }));
+    } catch (error) {
+      const currentScope = `${calendarUserRef.current || ""}:${selectedQuestRef.current?.id || ""}`;
+      if (questMembershipRequestGate.isCurrent(request, currentScope)) {
+        console.warn("quest membership refresh failed", error instanceof Error ? error.message : String(error));
+      }
+    }
+  }
+
+  const refreshSelectedQuestMembershipStateEvent = useEffectEvent(refreshSelectedQuestMembershipState);
+
+  useEffect(() => {
+    const questId = selectedQuest?.id;
+    if (!supabase || !questId || !userId) return undefined;
+    const membershipClient = supabase;
+    let cancelled = false;
+    const refreshMembership = () => {
+      if (
+        cancelled
+        || calendarUserRef.current !== userId
+        || selectedQuestRef.current?.id !== questId
+      ) return;
+      void refreshSelectedQuestMembershipStateEvent(questId, userId);
+    };
+    const channel = membershipClient
+      .channel(`quest-members-${questId}-${userId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "quest_members" }, (payload) => {
+        if (shouldRefreshQuestMembershipFromPayload(payload, questId)) refreshMembership();
+      })
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") refreshMembership();
+      });
+    const appStateSub = AppState.addEventListener("change", (nextState) => {
+      if (nextState === "active") refreshMembership();
+    });
+    return () => {
+      cancelled = true;
+      questMembershipRequestGate.invalidate();
+      appStateSub.remove();
+      void membershipClient.removeChannel(channel);
+    };
+  }, [questMembershipRequestGate, selectedQuest?.id, userId]);
 
   useEffect(() => {
     const questId = selectedQuest?.id;
@@ -2983,65 +3765,139 @@ function privateThreadIncludesUsers(
     );
     if (!supabase || !questId || !canSeePresence) return undefined;
 
+    const presenceClient = supabase;
+    let cancelled = false;
     const refreshPresence = async () => {
-      const { data, error } = await supabase
+      const { data, error } = await presenceClient
         .from("quest_checkins")
         .select("user_id,checked_in_at,profiles:profiles!quest_checkins_user_id_fkey(id,display_name,username,avatar_url)")
         .eq("quest_id", questId)
         .order("checked_in_at", { ascending: true });
-      if (!error) setSelectedQuestCheckIns((data || []) as QuestCheckInRow[]);
+      if (
+        !error
+        && !cancelled
+        && calendarUserRef.current === userId
+        && selectedQuestRef.current?.id === questId
+      ) setSelectedQuestCheckIns((data || []) as QuestCheckInRow[]);
     };
 
-    const channel = supabase
+    const channel = presenceClient
       .channel(`quest-checkins-${questId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "quest_checkins", filter: `quest_id=eq.${questId}` }, () => {
         void refreshPresence();
       })
       .subscribe();
-    return () => { void supabase.removeChannel(channel); };
+    return () => {
+      cancelled = true;
+      void presenceClient.removeChannel(channel);
+    };
   }, [selectedQuest?.id, selectedQuestManager, selectedQuestMembershipStatus, userId]);
 
   async function checkInToSelectedQuest() {
     if (!supabase || !userId || !selectedQuest || checkInAction) return;
+    const operationUserId = userId;
+    const questId = selectedQuest.id;
+    const scope = `${operationUserId}:${questId}`;
+    const actionToken = checkInActionGate.begin(scope);
+    if (!actionToken) return;
+    const actionIsCurrent = () => checkInActionGate.isCurrent(
+      actionToken,
+      `${calendarUserRef.current || ""}:${selectedQuestRef.current?.id || ""}`,
+    );
     setCheckInAction("check-in");
     setStatus("Verifying that you're near the meetup...");
     try {
       const location = await requestDeviceLocation("Location access is required to verify that you're near the meetup.");
-      if (!location) return;
-      const { error } = await supabase.rpc("check_in_to_quest", {
-        p_quest_id: selectedQuest.id,
+      if (!location || !actionIsCurrent()) return;
+      const { data: checkedIn, error } = await supabase.rpc("check_in_to_quest", {
+        p_quest_id: questId,
         p_lat: location.lat,
         p_lng: location.lon,
         p_accuracy_m: location.accuracy ?? null,
       });
       if (error) throw error;
+      const outcome = resolveCheckInResult(checkedIn);
+      if (!outcome.ok) throw new Error(outcome.message);
+      if (!actionIsCurrent()) return;
       const { data } = await supabase
         .from("quest_checkins")
         .select("user_id,checked_in_at,profiles:profiles!quest_checkins_user_id_fkey(id,display_name,username,avatar_url)")
-        .eq("quest_id", selectedQuest.id)
+        .eq("quest_id", questId)
         .order("checked_in_at", { ascending: true });
+      if (!actionIsCurrent()) return;
       setSelectedQuestCheckIns((data || []) as QuestCheckInRow[]);
       setStatus("You're checked in. Your precise location was not shared.");
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not check in. Try again.");
+      if (actionIsCurrent()) setStatus(error instanceof Error ? error.message : "Could not check in. Try again.");
     } finally {
-      setCheckInAction(null);
+      if (actionIsCurrent()) setCheckInAction(null);
+      checkInActionGate.finish(actionToken);
     }
   }
 
   async function leaveSelectedQuestCheckIn() {
     if (!supabase || !userId || !selectedQuest || checkInAction) return;
+    const operationUserId = userId;
+    const questId = selectedQuest.id;
+    const scope = `${operationUserId}:${questId}`;
+    const actionToken = checkInActionGate.begin(scope);
+    if (!actionToken) return;
+    const actionIsCurrent = () => checkInActionGate.isCurrent(
+      actionToken,
+      `${calendarUserRef.current || ""}:${selectedQuestRef.current?.id || ""}`,
+    );
     setCheckInAction("leave");
     try {
-      const { error } = await supabase.rpc("leave_quest_check_in", { p_quest_id: selectedQuest.id });
+      const { data: changed, error } = await supabase.rpc("leave_quest_check_in", { p_quest_id: questId });
       if (error) throw error;
-      setSelectedQuestCheckIns((current) => current.filter((row) => row.user_id !== userId));
+      const outcome = resolveCheckInUndoResult(changed);
+      if (!outcome.ok) throw new Error(outcome.message);
+      if (!actionIsCurrent()) return;
+      setSelectedQuestCheckIns((current) => current.filter((row) => row.user_id !== operationUserId));
       setStatus("Check-in removed.");
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not remove your check-in.");
+      if (actionIsCurrent()) setStatus(error instanceof Error ? error.message : "Could not remove your check-in.");
     } finally {
-      setCheckInAction(null);
+      if (actionIsCurrent()) setCheckInAction(null);
+      checkInActionGate.finish(actionToken);
     }
+  }
+
+  async function saveSelectedQuestLifecycle(endsAt: string, completed: boolean) {
+    if (!POST_QUEST_FOLLOW_UPS_ENABLED || !supabase || !userId || !selectedQuest || selectedQuest.creator_id !== userId || postQuestAction) return;
+    const questId = selectedQuest.id;
+    const endTime = new Date(endsAt);
+    if (!Number.isFinite(endTime.getTime())) return setStatus("Enter a valid end time.");
+    setPostQuestAction("lifecycle");
+    try {
+      const { data, error } = await supabase.rpc("set_quest_lifecycle", { p_quest_id: questId, p_ends_at: endTime.toISOString(), p_mark_completed: completed });
+      if (error) throw error;
+      if (calendarUserRef.current !== userId || selectedQuestRef.current?.id !== questId) return;
+      setSelectedQuest((current) => current?.id === questId ? { ...current, ...(data || {} as QuestDetail) } : current);
+      setStatus(completed ? "Quest marked complete. Follow-ups can now be submitted." : "End time saved. A later end time keeps follow-ups closed.");
+    } catch (error) {
+      if (calendarUserRef.current === userId && selectedQuestRef.current?.id === questId) setStatus(error instanceof Error ? error.message : "Could not update the quest lifecycle.");
+    } finally { if (calendarUserRef.current === userId && selectedQuestRef.current?.id === questId) setPostQuestAction(null); }
+  }
+
+  async function saveSelectedQuestFollowUp(payload: { p_quest_id: string; p_went: boolean; p_rating: number | null }) {
+    if (!POST_QUEST_FOLLOW_UPS_ENABLED || !supabase || !userId || !selectedQuest || postQuestAction) return;
+    const questId = selectedQuest.id; setPostQuestAction("follow-up");
+    try {
+      const { error } = await supabase.rpc("submit_quest_follow_up", payload); if (error) throw error;
+      if (calendarUserRef.current === userId && selectedQuestRef.current?.id === questId) setStatus("Your private follow-up was saved.");
+    } catch (error) { if (calendarUserRef.current === userId && selectedQuestRef.current?.id === questId) setStatus(error instanceof Error ? error.message : "Could not save your follow-up."); }
+    finally { if (calendarUserRef.current === userId && selectedQuestRef.current?.id === questId) setPostQuestAction(null); }
+  }
+
+  async function confirmSelectedQuestAttendance(attendeeId: string, attended: boolean) {
+    if (!POST_QUEST_FOLLOW_UPS_ENABLED || !supabase || !userId || !selectedQuest || selectedQuest.creator_id !== userId || postQuestAction) return;
+    const questId = selectedQuest.id; setPostQuestAction("attendance");
+    try {
+      const { error } = await supabase.rpc("confirm_quest_attendance", { p_quest_id: questId, p_user_id: attendeeId, p_attended: attended }); if (error) throw error;
+      if (calendarUserRef.current === userId && selectedQuestRef.current?.id === questId) setStatus("Attendance confirmation saved. Any conflict remains disputed.");
+    } catch (error) { if (calendarUserRef.current === userId && selectedQuestRef.current?.id === questId) setStatus(error instanceof Error ? error.message : "Could not confirm attendance."); }
+    finally { if (calendarUserRef.current === userId && selectedQuestRef.current?.id === questId) setPostQuestAction(null); }
   }
 
   async function toggleSaveSelectedQuest() {
@@ -3049,16 +3905,27 @@ function privateThreadIncludesUsers(
       promptAuth("login");
       return;
     }
+    const operationUserId = userId;
+    const questId = selectedQuest.id;
+    const actionScope = `${operationUserId}:${questId}`;
+    const actionToken = bookmarkActionGate.begin(actionScope);
+    if (!actionToken) return;
+    const actionIsCurrent = () => bookmarkActionGate.isCurrent(actionToken, `${calendarUserRef.current || ""}:${selectedQuestRef.current?.id || ""}`);
     const nextSaved = !selectedQuestSaved;
+    try {
     const response = nextSaved
-      ? await supabase.from("quest_bookmarks").upsert({ user_id: userId, quest_id: selectedQuest.id })
-      : await supabase.from("quest_bookmarks").delete().eq("user_id", userId).eq("quest_id", selectedQuest.id);
+      ? await supabase.from("quest_bookmarks").upsert({ user_id: operationUserId, quest_id: questId })
+      : await supabase.from("quest_bookmarks").delete().eq("user_id", operationUserId).eq("quest_id", questId);
+    if (!actionIsCurrent()) return;
     if (response.error) {
       setStatus(response.error.message);
       return;
     }
     setSelectedQuestSaved(nextSaved);
     await refreshAll();
+    } finally {
+      bookmarkActionGate.finish(actionToken);
+    }
   }
 
   async function toggleJoinSelectedQuest(skipSafetyPrompt = false) {
@@ -3070,13 +3937,16 @@ function privateThreadIncludesUsers(
       setStatus("You can't join your own listing.");
       return;
     }
+    if (!membershipActionGate.begin(selectedQuest.id)) return;
+    setMembershipTransitionQuestIds((current) => current.includes(selectedQuest.id) ? current : [...current, selectedQuest.id]);
+    try {
     const currentStatus = selectedQuestMembershipStatus || membershipStatusByQuest[selectedQuest.id] || null;
     const hasJoined = currentStatus === "approved";
     const hasPending = currentStatus === "pending";
     if (hasJoined || hasPending) {
       const { error } = await supabase.from("quest_members").delete().eq("quest_id", selectedQuest.id).eq("user_id", userId);
       if (error) {
-        setStatus(error.message);
+        setStatus(authChallengeMessage(error) || error.message);
         return;
       }
       await supabase.from("quest_exact_location_access").delete().eq("quest_id", selectedQuest.id).eq("user_id", userId);
@@ -3105,7 +3975,7 @@ function privateThreadIncludesUsers(
     }
     setSelectedQuestJoined(nextStatus === "approved");
     setSelectedQuestMembershipStatus(nextStatus);
-    posthogClient?.capture("quest_join_requested", {
+    optionalAnalytics.capture("quest_join_requested", {
       platform: Platform.OS,
       join_status: nextStatus,
       join_mode: selectedQuest.join_mode || "open",
@@ -3113,6 +3983,10 @@ function privateThreadIncludesUsers(
     setStatus(nextStatus === "pending" ? "Request to join sent ✅" : "Joined quest ✅");
     await Promise.all([refreshAll(), openQuestDetail(selectedQuest.id)]);
     void maybeShowContextualPushPrompt(nextStatus === "pending" ? "join_request" : "joined");
+    } finally {
+      membershipActionGate.finish(selectedQuest.id);
+      setMembershipTransitionQuestIds((current) => current.filter((id) => id !== selectedQuest.id));
+    }
   }
 
   async function toggleBookmark(quest: QuestPreview) {
@@ -3120,16 +3994,27 @@ function privateThreadIncludesUsers(
       promptAuth("login");
       return;
     }
-    const isSaved = bookmarkedQuestIds.includes(quest.id);
+    const operationUserId = userId;
+    const questId = quest.id;
+    const actionScope = `${operationUserId}:${questId}`;
+    const actionToken = bookmarkActionGate.begin(actionScope);
+    if (!actionToken) return;
+    const actionIsCurrent = () => bookmarkActionGate.isCurrent(actionToken, `${calendarUserRef.current || ""}:${questId}`);
+    const isSaved = bookmarkedQuestIds.includes(questId);
+    try {
     const response = isSaved
-      ? await supabase.from("quest_bookmarks").delete().eq("user_id", userId).eq("quest_id", quest.id)
-      : await supabase.from("quest_bookmarks").insert({ user_id: userId, quest_id: quest.id });
+      ? await supabase.from("quest_bookmarks").delete().eq("user_id", operationUserId).eq("quest_id", questId)
+      : await supabase.from("quest_bookmarks").insert({ user_id: operationUserId, quest_id: questId });
+    if (!actionIsCurrent()) return;
     if (response.error) {
       setStatus(response.error.message);
       return;
     }
-    setBookmarkedQuestIds((current) => isSaved ? current.filter((id) => id !== quest.id) : [...current, quest.id]);
+    setBookmarkedQuestIds((current) => isSaved ? current.filter((id) => id !== questId) : [...current, questId]);
     await refreshAll();
+    } finally {
+      bookmarkActionGate.finish(actionToken);
+    }
   }
 
   async function toggleJoinQuestMobile(quest: QuestPreview, skipSafetyPrompt = false) {
@@ -3141,6 +4026,9 @@ function privateThreadIncludesUsers(
       setStatus("You can't join your own listing.");
       return;
     }
+    if (!membershipActionGate.begin(quest.id)) return;
+    setMembershipTransitionQuestIds((current) => current.includes(quest.id) ? current : [...current, quest.id]);
+    try {
     const currentStatus = membershipStatusByQuest[quest.id] || null;
     const hasJoined = currentStatus === "approved";
     const hasPending = currentStatus === "pending";
@@ -3175,7 +4063,7 @@ function privateThreadIncludesUsers(
     }
     setMembershipStatusByQuest((current) => ({ ...current, [quest.id]: nextStatus }));
     if (nextStatus === "approved") setJoinedQuestIds((current) => [...new Set([...current, quest.id])]);
-    posthogClient?.capture("quest_join_requested", {
+    optionalAnalytics.capture("quest_join_requested", {
       platform: Platform.OS,
       join_status: nextStatus,
       join_mode: quest.join_mode || "open",
@@ -3183,6 +4071,10 @@ function privateThreadIncludesUsers(
     setStatus(nextStatus === "pending" ? "Request to join sent ✅" : "Joined quest ✅");
     await refreshAll();
     void maybeShowContextualPushPrompt(nextStatus === "pending" ? "join_request" : "joined");
+    } finally {
+      membershipActionGate.finish(quest.id);
+      setMembershipTransitionQuestIds((current) => current.filter((id) => id !== quest.id));
+    }
   }
 
   async function resolveJoinRequestNotifications(
@@ -3280,7 +4172,7 @@ function privateThreadIncludesUsers(
     if (!signedIn || !userId || showPushPromptModal) return;
     const currentStatus = await getPushPermissionStatus();
     setPushPermissionStatus(currentStatus);
-    if (currentStatus === "granted" || currentStatus === "unavailable" || currentStatus === "error") return;
+    if (currentStatus === "granted" || currentStatus === "unavailable") return;
 
     const storageKey = `${STORED_CONTEXTUAL_PUSH_PROMPT_AT}:${userId}`;
     const raw = await AsyncStorage.getItem(storageKey);
@@ -3304,6 +4196,7 @@ function privateThreadIncludesUsers(
 
   async function loadNotificationPreferences(uid: string) {
     if (!supabase) return;
+    const request = notificationPreferenceRequestGate.begin(uid);
     setNotificationPreferencesLoading(true);
     try {
       const { data, error } = await supabase
@@ -3312,6 +4205,7 @@ function privateThreadIncludesUsers(
         .eq("user_id", uid)
         .maybeSingle();
       if (error) throw error;
+      if (!notificationPreferenceRequestGate.isCurrent(request) || calendarUserRef.current !== uid) return;
       setNotificationPreferences(data ? {
         messages: data.messages !== false,
         comments: data.comments !== false,
@@ -3324,30 +4218,38 @@ function privateThreadIncludesUsers(
         quest_reminders: data.quest_reminders !== false,
       } : DEFAULT_NOTIFICATION_PREFERENCES);
     } catch (error) {
+      if (!notificationPreferenceRequestGate.isCurrent(request) || calendarUserRef.current !== uid) return;
       console.warn("notification preferences load failed", error instanceof Error ? error.message : String(error));
     } finally {
-      setNotificationPreferencesLoading(false);
+      if (notificationPreferenceRequestGate.isCurrent(request) && calendarUserRef.current === uid) setNotificationPreferencesLoading(false);
     }
   }
 
   async function saveNotificationPreferences() {
     if (!supabase || !userId) return;
+    const operationUserId = userId;
+    const actionToken = notificationPreferenceSaveGate.begin(operationUserId);
+    if (!actionToken) return;
+    const actionIsCurrent = () => notificationPreferenceSaveGate.isCurrent(actionToken, calendarUserRef.current || "");
+    const values = { ...notificationPreferences };
     setNotificationPreferencesSaving(true);
     try {
       const { error } = await supabase
         .from("notification_preferences")
         .upsert({
-          user_id: userId,
-          ...notificationPreferences,
+          user_id: operationUserId,
+          ...values,
           updated_at: new Date().toISOString(),
         });
+      if (!actionIsCurrent()) return;
       if (error) throw error;
       setStatus("Notification preferences saved.");
       setShowNotificationPreferences(false);
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not save notification preferences.");
+      if (actionIsCurrent()) setStatus(error instanceof Error ? error.message : "Could not save notification preferences.");
     } finally {
-      setNotificationPreferencesSaving(false);
+      if (actionIsCurrent()) setNotificationPreferencesSaving(false);
+      notificationPreferenceSaveGate.finish(actionToken);
     }
   }
 
@@ -3358,8 +4260,16 @@ function privateThreadIncludesUsers(
     options?: { shareExactAddress?: boolean; removingApprovedMember?: boolean },
   ) {
     if (!supabase || !userId) return;
+    const operationUserId = userId;
+    const originQuestId = selectedQuestRef.current?.id || "none";
     const actionKey = `${questId}:${targetUserId}`;
-    if (membershipActionKey === actionKey) return;
+    const actionScope = `${operationUserId}:${questId}:${targetUserId}`;
+    const actionToken = membershipManagementActionGate.begin(actionScope);
+    if (!actionToken) return;
+    const actionIsCurrent = () => membershipManagementActionGate.isCurrent(
+      actionToken,
+      `${calendarUserRef.current || ""}:${selectedQuestRef.current?.id || "none"}:${targetUserId}`,
+    );
     setMembershipActionKey(actionKey);
     try {
     const { data: questRow, error: questError } = await supabase
@@ -3367,27 +4277,50 @@ function privateThreadIncludesUsers(
       .select("id,title,creator_id")
       .eq("id", questId)
       .maybeSingle();
+    if (!actionIsCurrent()) return;
     if (questError || !questRow) {
       setStatus(questError?.message || "Quest not found.");
       return;
     }
+    const { data: requestRow } = await supabase
+      .from("quest_members")
+      .select("joined_at")
+      .eq("quest_id", questId)
+      .eq("user_id", targetUserId)
+      .maybeSingle();
+    if (!actionIsCurrent()) return;
     const { data: changed, error } = await supabase.rpc("manage_quest_membership", {
       p_quest_id: questId,
       p_target_user_id: targetUserId,
       p_status: nextStatus,
       p_share_exact_address: options?.shareExactAddress === true,
     });
+    if (!actionIsCurrent()) return;
     if (error) {
       setStatus(error.message);
       return;
     }
     if (changed !== true) {
-      setStatus("This join request is no longer pending. Refreshing…");
-      await openQuestDetail(questId);
+      setStatus(options?.removingApprovedMember
+        ? "This guest is no longer an approved member. Refreshing…"
+        : "This join request is no longer pending. Refreshing…");
+      if ((selectedQuestRef.current?.id || "none") === originQuestId) await openQuestDetail(questId);
       return;
     }
     if (nextStatus === "approved" || nextStatus === "declined") {
       await resolveJoinRequestNotifications(questId, targetUserId, nextStatus);
+      if (!actionIsCurrent()) return;
+      const { count: approvedGuestCount } = nextStatus === "approved"
+        ? await supabase.from("quest_members").select("user_id", { count: "exact", head: true }).eq("quest_id", questId).eq("status", "approved").neq("role", "creator")
+        : { count: null };
+      if (!actionIsCurrent()) return;
+      optionalAnalytics.capture("quest_join_reviewed", joinReviewedProperties({
+        platform: Platform.OS,
+        decision: nextStatus,
+        requestedAt: requestRow?.joined_at,
+        reviewedAt: new Date().toISOString(),
+        firstApprovedGuest: nextStatus === "approved" ? approvedGuestCount === 1 : null,
+      }));
     }
     setStatus(
       nextStatus === "approved"
@@ -3397,78 +4330,106 @@ function privateThreadIncludesUsers(
           : "Moved back to pending.",
     );
     await Promise.all([
-      loadAuthedData(userId),
+      loadAuthedData(operationUserId),
       refreshAll(),
-      openQuestDetail(questId),
+      (selectedQuestRef.current?.id || "none") === originQuestId ? openQuestDetail(questId) : Promise.resolve(),
     ]);
+    } catch (error) {
+      if (actionIsCurrent()) {
+        setStatus(error instanceof Error ? error.message : "Could not update this join request.");
+      }
     } finally {
-      setMembershipActionKey((current) => current === actionKey ? null : current);
+      if (actionIsCurrent()) {
+        setMembershipActionKey((current) => current === actionKey ? null : current);
+      }
+      membershipManagementActionGate.finish(actionToken);
     }
   }
 
   async function setQuestExactAddressAccess(questId: string, targetUserId: string, allow: boolean) {
     if (!supabase || !userId) return;
+    const operationUserId = userId;
     const actionKey = `${questId}:${targetUserId}`;
-    if (membershipActionKey === actionKey) return;
-    const previousAccessUserIds = selectedQuestExactAccessUserIds;
+    const actionScope = `${operationUserId}:${questId}:${targetUserId}`;
+    const actionToken = membershipManagementActionGate.begin(actionScope);
+    if (!actionToken) return;
+    const actionIsCurrent = () => membershipManagementActionGate.isCurrent(
+      actionToken,
+      `${calendarUserRef.current || ""}:${selectedQuestRef.current?.id || "none"}:${targetUserId}`,
+    );
     setMembershipActionKey(actionKey);
-    setSelectedQuestExactAccessUserIds((current) => allow
-      ? Array.from(new Set([...current, targetUserId]))
-      : current.filter((id) => id !== targetUserId));
     try {
       if (allow) {
-        const { error } = await supabase.from("quest_exact_location_access").upsert({ quest_id: questId, user_id: targetUserId, granted_by: userId });
+        const { error } = await supabase.from("quest_exact_location_access").upsert({ quest_id: questId, user_id: targetUserId, granted_by: operationUserId });
         if (error) throw error;
-        setStatus("Exact address shared.");
       } else {
         const { error } = await supabase.from("quest_exact_location_access").delete().eq("quest_id", questId).eq("user_id", targetUserId);
         if (error) throw error;
-        setStatus("Exact address hidden.");
       }
+      if (!actionIsCurrent()) return;
+      setSelectedQuestExactAccessUserIds((current) => allow
+        ? Array.from(new Set([...current, targetUserId]))
+        : current.filter((id) => id !== targetUserId));
+      setStatus(allow ? "Exact address shared." : "Exact address hidden.");
       await Promise.all([
-        openQuestDetail(questId),
-        loadAuthedData(userId),
+        selectedQuestRef.current?.id === questId ? openQuestDetail(questId) : Promise.resolve(),
+        loadAuthedData(operationUserId),
         refreshAll(),
       ]);
     } catch (error) {
-      setSelectedQuestExactAccessUserIds(previousAccessUserIds);
-      setStatus(error instanceof Error ? error.message : "Could not update location access.");
+      if (actionIsCurrent()) setStatus(error instanceof Error ? error.message : "Could not update location access.");
     } finally {
-      setMembershipActionKey((current) => current === actionKey ? null : current);
+      if (actionIsCurrent()) setMembershipActionKey((current) => current === actionKey ? null : current);
+      membershipManagementActionGate.finish(actionToken);
     }
   }
 
   async function shareQuestAddressWithAllGuests(quest: QuestDetail) {
     if (!supabase || !userId) return;
-    const missingGuestIds = selectedQuestMembers
-      .filter((member) => member.id !== quest.creator_id && member.role !== "creator" && !selectedQuestExactAccessUserIds.includes(member.id))
-      .map((member) => member.id);
+    const operationUserId = userId;
+    const missingGuestIds = approvedGuestsMissingLocation(selectedQuestMembers, quest.creator_id, selectedQuestExactAccessUserIds);
     if (!missingGuestIds.length) {
       setStatus("The location is already shared with every guest.");
       return;
     }
     const actionKey = `${quest.id}:all-location`;
-    if (membershipActionKey) return;
-    const previousAccessUserIds = selectedQuestExactAccessUserIds;
+    const actionScope = `${operationUserId}:${quest.id}`;
+    const actionToken = locationShareActionGate.begin(actionScope);
+    if (!actionToken) return;
+    const actionIsCurrent = () => locationShareActionGate.isCurrent(actionToken, `${calendarUserRef.current || ""}:${selectedQuestRef.current?.id || "none"}`);
     setMembershipActionKey(actionKey);
-    setSelectedQuestExactAccessUserIds((current) => Array.from(new Set([...current, ...missingGuestIds])));
     try {
       const { error } = await supabase.from("quest_exact_location_access").upsert(
-        missingGuestIds.map((guestId) => ({ quest_id: quest.id, user_id: guestId, granted_by: userId })),
+        missingGuestIds.map((guestId) => ({ quest_id: quest.id, user_id: guestId, granted_by: operationUserId })),
       );
+      if (!actionIsCurrent()) return;
       if (error) throw error;
+      if (selectedQuestRef.current?.id === quest.id) {
+        setSelectedQuestExactAccessUserIds((current) => Array.from(new Set([...current, ...missingGuestIds])));
+      }
       setStatus(`Location shared with ${missingGuestIds.length} ${missingGuestIds.length === 1 ? "guest" : "guests"}.`);
-      await Promise.all([openQuestDetail(quest.id), loadAuthedData(userId)]);
+      await Promise.all([
+        selectedQuestRef.current?.id === quest.id ? openQuestDetail(quest.id) : Promise.resolve(),
+        loadAuthedData(operationUserId),
+      ]);
     } catch (error) {
-      setSelectedQuestExactAccessUserIds(previousAccessUserIds);
-      setStatus(error instanceof Error ? error.message : "Could not share the location.");
+      if (actionIsCurrent()) setStatus(error instanceof Error ? error.message : "Could not share the location.");
     } finally {
-      setMembershipActionKey((current) => current === actionKey ? null : current);
+      if (actionIsCurrent()) setMembershipActionKey((current) => current === actionKey ? null : current);
+      locationShareActionGate.finish(actionToken);
     }
   }
 
   async function updateHostCoordinationReminders(quest: QuestDetail, action: "snooze" | "disable" | "enable") {
-    if (!supabase || !userId || coordinationReminderAction) return;
+    if (!supabase || !userId) return;
+    const operationUserId = userId;
+    const actionScope = `${operationUserId}:${quest.id}`;
+    const actionToken = coordinationReminderActionGate.begin(actionScope);
+    if (!actionToken) return;
+    const actionIsCurrent = () => coordinationReminderActionGate.isCurrent(
+      actionToken,
+      `${calendarUserRef.current || ""}:${selectedQuestRef.current?.id || "none"}`,
+    );
     setCoordinationReminderAction(action);
     const snoozedUntil = action === "snooze" ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() : null;
     try {
@@ -3479,6 +4440,7 @@ function privateThreadIncludesUsers(
       });
       if (error) throw error;
       if (changed !== true) throw new Error("Only the quest host can change these reminders.");
+      if (!actionIsCurrent()) return;
       setSelectedQuest((current) => current?.id === quest.id ? {
         ...current,
         host_coordination_reminders_disabled: action === "disable",
@@ -3486,9 +4448,14 @@ function privateThreadIncludesUsers(
       } : current);
       setStatus(action === "disable" ? "Host reminders turned off for this quest." : action === "snooze" ? "Host reminders paused until tomorrow." : "Host reminders turned on.");
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not update host reminders.");
+      if (actionIsCurrent()) {
+        setStatus(error instanceof Error ? error.message : "Could not update host reminders.");
+      }
     } finally {
-      setCoordinationReminderAction(null);
+      if (actionIsCurrent()) {
+        setCoordinationReminderAction(null);
+      }
+      coordinationReminderActionGate.finish(actionToken);
     }
   }
 
@@ -3509,10 +4476,31 @@ function privateThreadIncludesUsers(
   }
 
   function openProfileReport(target: Pick<ProfileDetail, "id" | "display_name" | "username">) {
+    profileReportActionGate.invalidate();
+    setSubmittingProfileReport(false);
     setReportProfileTarget(target);
     setReportProfileReason("inappropriate_profile");
     setReportProfileDetails("");
     setShowReportProfileModal(true);
+  }
+
+  function closeProfileReportModal() {
+    if (submittingProfileReport) return;
+    profileReportActionGate.invalidate();
+    setShowReportProfileModal(false);
+    setReportProfileTarget(null);
+    setReportProfileReason("inappropriate_profile");
+    setReportProfileDetails("");
+  }
+
+  function closeQuestReportModal() {
+    if (submittingQuestReport) return;
+    questReportActionGate.invalidate();
+    setShowReportQuestModal(false);
+    setReportQuestTarget(null);
+    setReportQuestContext("listing_content");
+    setReportQuestReason("");
+    setReportQuestDetails("");
   }
 
   function confirmBlockQuestGuest(quest: QuestPreview, member: QuestMemberProfileRow) {
@@ -3534,77 +4522,118 @@ function privateThreadIncludesUsers(
     );
   }
 
+  function closeQuestGuestActionsMenu() {
+    guestActionsMenuGate.invalidate();
+    setGuestActionsTarget(null);
+  }
+
   function openQuestGuestActions(quest: QuestPreview, member: QuestMemberProfileRow, isManager: boolean) {
-    const actions: NonNullable<Parameters<typeof Alert.alert>[2]> = [
-      { text: "View profile", onPress: () => void openProfileFromQuest(member.id) },
-    ];
-    if (isManager) {
-      actions.push({ text: "Remove from quest", style: "destructive", onPress: () => confirmRemoveQuestGuest(quest, member) });
+    guestActionsMenuGate.invalidate();
+    setGuestActionsTarget({ quest, member, isManager, questId: quest.id, memberId: member.id });
+  }
+
+  function handleQuestGuestAction(actionId: string) {
+    const target = guestActionsTarget;
+    const scope = guestActionScope(target);
+    const action = guestActionsMenuGate.begin(scope);
+    if (!target || !scope || !action) return;
+    const targetIsCurrent = isGuestActionTargetCurrent(target, selectedQuest?.id || null, selectedQuestMembers.map((member) => member.id), selectedQuestManager);
+    if (!targetIsCurrent) {
+      closeQuestGuestActionsMenu();
+      return;
     }
-    actions.push(
-      { text: "Block user", style: "destructive", onPress: () => confirmBlockQuestGuest(quest, member) },
-      { text: "Report user", style: "destructive", onPress: () => openProfileReport(member) },
-      { text: "Cancel", style: "cancel" },
-    );
-    Alert.alert(member.display_name || member.username || "Guest options", "Choose an action for this guest.", actions);
+    setGuestActionsTarget(null);
+    try {
+      switch (actionId) {
+        case GUEST_ACTION_IDS.VIEW_PROFILE:
+          void openProfileFromQuest(target.member.id);
+          break;
+        case GUEST_ACTION_IDS.REMOVE:
+          if (target.isManager) confirmRemoveQuestGuest(target.quest, target.member);
+          break;
+        case GUEST_ACTION_IDS.BLOCK:
+          confirmBlockQuestGuest(target.quest, target.member);
+          break;
+        case GUEST_ACTION_IDS.REPORT:
+          openProfileReport(target.member);
+          break;
+        default:
+          break;
+      }
+    } finally {
+      guestActionsMenuGate.finish(action);
+    }
   }
 
   async function sendQuestionFromModal() {
-    if (!supabase || !userId || !questionTarget) return;
+    if (!supabase || !userId || !questionTarget || sendingQuestion) return;
+    const activeUserId = userId;
+    const targetQuestId = questionTarget.id;
+    const activeMode = questionMode;
+    const privateRecipientId = activeMode === "private"
+      ? (questionPartnerId || questionTarget.creator_id || null)
+      : null;
+    const activeThreadKey = conversationThreadKey(activeUserId, targetQuestId, activeMode, privateRecipientId);
+    const sendToken = conversationSendGate.begin(activeThreadKey);
+    if (!sendToken) return;
+    const actionIsCurrent = () => (
+      calendarUserRef.current === activeUserId
+      && conversationThreadKeyRef.current === activeThreadKey
+      && conversationSendGate.isCurrent(sendToken, activeThreadKey)
+    );
+    setConversationError("");
     const trimmed = questionText.trim();
     if (!trimmed) {
+      conversationSendGate.finish(sendToken);
       setStatus("Please enter your question.");
       return;
     }
     if (trimmed.length > 500) {
+      conversationSendGate.finish(sendToken);
       setStatus("Question is too long (max 500 chars).");
       return;
     }
     const normalizedDraft = trimmed.replace(/\s+/g, " ").toLowerCase();
-    const recentOwnMessages = questionComments.filter((comment) => comment.sender_id === userId);
+    const recentOwnMessages = questionComments.filter((comment) => comment.sender_id === activeUserId);
     const newestOwnMessage = recentOwnMessages.at(-1);
     const secondsSinceLastMessage = newestOwnMessage
       ? Math.floor((Date.now() - new Date(newestOwnMessage.created_at).getTime()) / 1000)
       : Number.POSITIVE_INFINITY;
-    const minimumDelay = questionMode === "public" ? 4 : 1;
+    const minimumDelay = activeMode === "public" ? 4 : 1;
     if (secondsSinceLastMessage < minimumDelay) {
+      conversationSendGate.finish(sendToken);
       setStatus(`Please wait ${minimumDelay - secondsSinceLastMessage} more second${minimumDelay - secondsSinceLastMessage === 1 ? "" : "s"} before sending again.`);
       return;
     }
-    if (questionMode === "public" && recentOwnMessages.some((comment) => (
+    if (activeMode === "public" && recentOwnMessages.some((comment) => (
       Date.now() - new Date(comment.created_at).getTime() < 10 * 60 * 1000
       && normalizeMessageBody(comment.body).trim().replace(/\s+/g, " ").toLowerCase() === normalizedDraft
     ))) {
+      conversationSendGate.finish(sendToken);
       setStatus("You already posted that comment recently.");
       return;
     }
     setSendingQuestion(true);
-    const privateRecipientId = questionMode === "private"
-      ? (questionPartnerId || questionTarget.creator_id || null)
-      : null;
-    if (questionMode === "private" && !privateRecipientId) {
+    if (activeMode === "private" && !privateRecipientId) {
+      conversationSendGate.finish(sendToken);
       setSendingQuestion(false);
       setStatus("We couldn't determine who should receive this message.");
       return;
     }
-    const prefix = questionMode === "private" ? `[PRIVATE to=${privateRecipientId}] ` : "[PUBLIC] ";
-    const targetQuestId = questionTarget.id;
-    const activeMode = questionMode;
+    const prefix = activeMode === "private" ? `[PRIVATE to=${privateRecipientId}] ` : "[PUBLIC] ";
+    try {
     const { data: insertedMessage, error } = await supabase.from("messages").insert({
       quest_id: targetQuestId,
-      sender_id: userId,
+      sender_id: activeUserId,
       body: `${prefix}${trimmed}`,
     }).select("id,quest_id,sender_id,body,created_at,profiles:profiles!messages_sender_id_fkey(id,display_name,username,avatar_url)").single();
-    setSendingQuestion(false);
+    if (!actionIsCurrent()) return;
     if (error) {
+      setConversationError(error.message);
       setStatus(error.message);
       return;
     }
-    setQuestionDrafts((current) => {
-      const next = { ...current };
-      delete next[getQuestionDraftKey(targetQuestId, activeMode)];
-      return next;
-    });
+    setQuestionDrafts((current) => clearConversationDraft(current, activeUserId, targetQuestId, activeMode, privateRecipientId));
     setQuestionText("");
     if (insertedMessage) {
       setQuestionComments((current) => [...current, insertedMessage as MessageRow].sort((a, b) => +new Date(a.created_at) - +new Date(b.created_at)));
@@ -3612,35 +4641,53 @@ function privateThreadIncludesUsers(
     setStatus(`${activeMode === "private" ? "Message" : "Comment"} sent.`);
     requestAnimationFrame(() => questionScrollRef.current?.scrollToEnd({ animated: true }));
     await refreshAll();
-    void maybeShowContextualPushPrompt(activeMode === "private" ? "message" : "comment");
+    if (actionIsCurrent()) void maybeShowContextualPushPrompt(activeMode === "private" ? "message" : "comment");
+    } catch (failure) {
+      if (actionIsCurrent()) {
+        setConversationError(failure instanceof Error ? failure.message : "Message was not sent. Try again.");
+      }
+    } finally {
+      if (actionIsCurrent()) setSendingQuestion(false);
+      conversationSendGate.finish(sendToken);
+    }
   }
 
   async function loadPeopleForQuest(quest: QuestPreview) {
     if (!supabase || !userId) return;
+    const scope = `${userId}:${quest.id}`;
+    const request = peopleRequestGate.begin(scope);
+    const filters = normalizePeopleFilters({ minAge: peopleMinAge, maxAge: peopleMaxAge, distanceKm: peopleMaxDistanceKm, genders: peopleGenderFilters });
     setPeopleLoading(true);
     setStatus("");
     try {
       await persistPeopleDiscoverySettings(settingsPeopleDiscoveryEnabled, settingsDob, settingsGenderIdentity);
+      if (!peopleRequestGate.isCurrent(request, scope)) return;
       const { data, error } = await supabase.rpc("find_people", {
-        p_min_age: peopleMinAge,
-        p_max_age: peopleMaxAge,
-        p_gender_identities: peopleGenderFilters.length ? peopleGenderFilters : null,
-        p_max_distance_km: peopleMaxDistanceKm,
+        p_min_age: filters.minAge,
+        p_max_age: filters.maxAge,
+        p_gender_identities: filters.genders.length ? filters.genders : null,
+        p_max_distance_km: filters.distanceKm,
         p_limit: 60,
         p_offset: 0,
       });
       if (error) throw error;
+      if (!peopleRequestGate.isCurrent(request, scope)) return;
       const existingMemberIds = new Set(selectedQuest?.id === quest.id ? selectedQuestMembers.map((member) => member.id) : []);
       setPeopleResults(((data || []) as PeopleDiscoveryResult[]).filter((person) => !existingMemberIds.has(person.id)));
     } catch (error) {
+      if (!peopleRequestGate.isCurrent(request, scope)) return;
       setPeopleResults([]);
       setStatus(error instanceof Error ? error.message : "Could not load people nearby.");
     } finally {
-      setPeopleLoading(false);
+      if (peopleRequestGate.isCurrent(request, scope)) setPeopleLoading(false);
     }
   }
 
   async function openPeopleFinder(quest: QuestPreview) {
+    if (quest.starts_at && new Date(quest.starts_at).getTime() <= Date.now()) {
+      Alert.alert("This quest has ended", "You can only invite people to an upcoming quest.");
+      return;
+    }
     if (!settingsPeopleDiscoveryEnabled) {
       setShowPeopleDiscoveryPrompt(true);
       return;
@@ -3673,50 +4720,96 @@ function privateThreadIncludesUsers(
 
   async function sendSelectedPeopleInvitations() {
     if (!supabase || !peopleFinderQuest || !peopleSelectedIds.length || sendingPeopleInvites) return;
+    if (peopleFinderQuest.starts_at && new Date(peopleFinderQuest.starts_at).getTime() <= Date.now()) {
+      setShowPeopleFinder(false);
+      setStatus("This quest has ended, so invitations are no longer available.");
+      return;
+    }
+    const operationUserId = userId;
+    if (!operationUserId) return;
+    const actionKey = `${operationUserId}:invite:${peopleFinderQuest.id}`;
+    const actionToken = peopleActionGate.begin(actionKey);
+    if (!actionToken) return;
+    const actionIsCurrent = () => calendarUserRef.current === operationUserId && peopleActionGate.isCurrent(actionToken, actionKey);
+    const invitationClient = supabase;
+    const selectedRecipientIds = [...peopleSelectedIds];
     setSendingPeopleInvites(true);
     try {
-      const results = await Promise.all(peopleSelectedIds.map((recipientId) => supabase.rpc("send_quest_invitation", {
+      const results = await Promise.all(selectedRecipientIds.map((recipientId) => invitationClient.rpc("send_quest_invitation", {
         p_quest_id: peopleFinderQuest.id,
         p_recipient_id: recipientId,
         p_message: peopleInviteMessage.trim() || null,
       })));
-      const firstError = results.find((result) => result.error)?.error;
-      if (firstError) throw firstError;
-      const sentCount = peopleSelectedIds.length;
+      if (!actionIsCurrent()) return;
+      const { succeededIds, failedIds: failedRecipientIds, firstErrorMessage } = partitionInvitationResults(selectedRecipientIds, results);
+      const sentCount = succeededIds.length;
+      if (failedRecipientIds.length) {
+        setPeopleSelectedIds(failedRecipientIds);
+        setStatus(`${sentCount ? `${sentCount} sent. ` : ""}${failedRecipientIds.length} ${failedRecipientIds.length === 1 ? "invitation" : "invitations"} failed${firstErrorMessage ? `: ${firstErrorMessage}` : "."}`);
+        return;
+      }
       setPeopleSelectedIds([]);
       setPeopleInviteMessage("");
       setStatus(`${sentCount} ${sentCount === 1 ? "invitation" : "invitations"} sent.`);
       setShowPeopleFinder(false);
-      await loadAuthedData(userId!);
+      await loadAuthedData(operationUserId);
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not send invitations.");
+      if (actionIsCurrent()) setStatus(error instanceof Error ? error.message : "Could not send invitations.");
     } finally {
-      setSendingPeopleInvites(false);
+      if (actionIsCurrent()) setSendingPeopleInvites(false);
+      peopleActionGate.finish(actionToken);
     }
   }
 
   async function respondToQuestInvitation(invitation: QuestInvitationRow, accept: boolean) {
-    if (!supabase || !userId || invitationActionId) return;
+    if (!supabase || !userId || invitation.status !== "pending") return;
+    const operationUserId = userId;
+    const actionKey = `${operationUserId}:invitation:${invitation.id}`;
+    const actionToken = invitationResponseActionGate.begin(actionKey);
+    if (!actionToken) return;
+    const actionIsCurrent = () => invitationResponseActionGate.isCurrent(actionToken, `${calendarUserRef.current || ""}:invitation:${invitation.id}`);
     setInvitationActionId(invitation.id);
     try {
-      const { error } = await supabase.rpc("respond_to_quest_invitation", { p_invitation_id: invitation.id, p_accept: accept });
+      const { data: changed, error } = await supabase.rpc("respond_to_quest_invitation", { p_invitation_id: invitation.id, p_accept: accept });
+      if (!actionIsCurrent()) return;
       if (error) throw error;
+      if (changed !== true) throw new Error("This invitation is no longer available.");
+      await loadAuthedData(operationUserId);
+      if (!actionIsCurrent()) return;
       setStatus(accept ? "Invitation accepted. You are in the quest." : "Invitation declined.");
-      await loadAuthedData(userId);
       if (accept) await openQuestDetail(invitation.quest_id);
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not respond to the invitation.");
+      if (actionIsCurrent()) {
+        if (isTerminalInvitationError(error)) {
+          setQuestInvitations((current) => current.map((item) => item.id === invitation.id ? { ...item, status: "expired" } : item));
+        }
+        setStatus(error instanceof Error ? error.message : "Could not respond to the invitation.");
+      }
     } finally {
-      setInvitationActionId(null);
+      if (actionIsCurrent()) setInvitationActionId((current) => current === invitation.id ? null : current);
+      invitationResponseActionGate.finish(actionToken);
     }
   }
 
+  function getPendingInvitationForNotification(notification: NotificationRow) {
+    if (notification.meta?.kind !== "quest_invitation") return null;
+    const invitationId = typeof notification.meta.invitation_id === "string" ? notification.meta.invitation_id : null;
+    return questInvitations.find((invitation) => invitation.status === "pending" && (invitationId ? invitation.id === invitationId : invitation.quest_id === notification.quest_id)) || null;
+  }
+
+  async function openProfileFromPeopleFinder(profileId: string) {
+    await openProfile(profileId);
+  }
+
   async function shareQuest(quest: QuestPreview) {
-    const url = `https://questhat.com/listing/${quest.id}`;
+    const actionKey = `share:${quest.id}`;
+    if (!shareIntentGate.begin(actionKey)) return;
     try {
-      await Share.share({ message: `${quest.title} ${url}`, url });
+      await Share.share(buildQuestSharePayload(quest, env.siteUrl));
     } catch {
       setStatus("Could not open share sheet.");
+    } finally {
+      shareIntentGate.finish(actionKey);
     }
   }
 
@@ -3728,7 +4821,21 @@ function privateThreadIncludesUsers(
     try {
       const raw = await AsyncStorage.getItem(calendarStorageKey(uid));
       const parsed = raw ? JSON.parse(raw) : {};
-      return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as StoredCalendarEvents : {};
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+      const sanitized = Object.fromEntries(Object.entries(parsed).flatMap(([questId, value]) => {
+        if (!value || typeof value !== "object" || Array.isArray(value)) return [];
+        const candidate = value as Partial<StoredCalendarEvent>;
+        if (typeof candidate.eventId !== "string" || !candidate.eventId) return [];
+        return [[questId, {
+          eventId: candidate.eventId,
+          calendarId: typeof candidate.calendarId === "string" ? candidate.calendarId : "",
+          ...(typeof candidate.payloadFingerprint === "string" ? { payloadFingerprint: candidate.payloadFingerprint } : {}),
+        }]];
+      })) as StoredCalendarEvents;
+      if (JSON.stringify(sanitized) !== JSON.stringify(parsed)) {
+        await AsyncStorage.setItem(calendarStorageKey(uid), JSON.stringify(sanitized));
+      }
+      return sanitized;
     } catch {
       return {};
     }
@@ -3736,6 +4843,8 @@ function privateThreadIncludesUsers(
 
   async function writeStoredCalendarEvents(uid: string, events: StoredCalendarEvents) {
     await AsyncStorage.setItem(calendarStorageKey(uid), JSON.stringify(events));
+    if (!canCommitCalendarTracking(uid, calendarUserRef.current)) return;
+    setStoredCalendarEvents(events);
     setCalendarEventQuestIds(Object.keys(events));
   }
 
@@ -3749,45 +4858,42 @@ function privateThreadIncludesUsers(
     return preferred.id;
   }
 
-  function buildCalendarDetails(quest: QuestPreview | QuestDetail, previous?: StoredCalendarEvent) {
-    if (!quest.starts_at) throw new Error("This quest does not have a start time yet.");
-    const startDate = new Date(quest.starts_at);
-    if (!Number.isFinite(startDate.getTime())) throw new Error("This quest has an invalid start time.");
-    const listingUrl = `${env.siteUrl.replace(/\/$/, "")}/listing/${quest.id}`;
-    const rawLocation = quest.exact_address?.trim() || quest.city?.trim() || "";
-    const location = rawLocation === "Virtual" ? "Online" : rawLocation;
-    const hasCoordinates = Number.isFinite(quest.exact_lat) && Number.isFinite(quest.exact_lng);
-    const directionsUrl = hasCoordinates
-      ? `https://www.google.com/maps/dir/?api=1&destination=${quest.exact_lat},${quest.exact_lng}`
-      : rawLocation && rawLocation !== "Virtual" && !/^https?:\/\//i.test(rawLocation)
-        ? `https://maps.apple.com/?daddr=${encodeURIComponent(rawLocation)}`
-        : null;
-    const details = [
-      quest.description?.trim(),
-      quest.availability?.trim() ? `Schedule: ${quest.availability.trim()}` : null,
-      quest.location_details?.trim() ? `Meeting details: ${quest.location_details.trim()}` : null,
-      /^https?:\/\//i.test(rawLocation) ? `Join online: ${rawLocation}` : null,
-      directionsUrl ? `Directions: ${directionsUrl}` : null,
-      `QuestHat listing: ${listingUrl}`,
-    ].filter(Boolean).join("\n\n");
-    return {
-      title: quest.title,
-      startDate,
-      endDate: new Date(startDate.getTime() + 60 * 60 * 1000),
-      location,
-      notes: details || previous?.notes || `QuestHat listing: ${listingUrl}`,
-      url: listingUrl,
-      alarms: [{ relativeOffset: -1440 }, { relativeOffset: -30 }],
-      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-    };
+  async function refreshQuestLocationForNativeIntent(quest: QuestPreview | QuestDetail, includePrivateLocation: boolean) {
+    return refreshQuestPrivateLocationForIntent(quest, {
+      includePrivateLocation,
+      userId,
+      loadPrivateLocation: async (questId: string) => {
+        if (!supabase) return null;
+        const { data, error } = await supabase
+          .from("quest_private_locations")
+          .select("exact_address,exact_lat,exact_lng,apple_place_id,location_details")
+          .eq("quest_id", questId)
+          .maybeSingle();
+        return error ? null : data;
+      },
+    });
   }
 
-  async function addOrUpdateQuestCalendarEvent(quest: QuestPreview | QuestDetail) {
-    if (!userId || calendarActionQuestId) return;
+  function buildCalendarDetails(quest: QuestPreview | QuestDetail, previous?: StoredCalendarEvent, includePrivateLocation = true) {
+    return buildQuestCalendarDetails(quest, {
+      includePrivateLocation,
+      siteUrl: env.siteUrl,
+      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    });
+  }
+
+  async function addOrUpdateQuestCalendarEvent(quest: QuestPreview | QuestDetail, includePrivateLocation = true) {
+    if (!userId) return;
+    const operationUserId = userId;
+    const actionKey = `calendar:${operationUserId}:${quest.id}`;
+    if (!calendarIntentGate.begin(actionKey)) return;
+    const actionIsCurrent = () => canCommitCalendarTracking(operationUserId, calendarUserRef.current);
     setCalendarActionQuestId(quest.id);
     try {
       const permission = await Calendar.getCalendarPermissionsAsync();
+      if (!actionIsCurrent()) return;
       const granted = permission.granted ? permission : await Calendar.requestCalendarPermissionsAsync();
+      if (!actionIsCurrent()) return;
       if (!granted.granted) {
         Alert.alert("Calendar access is off", "Allow calendar access in your device settings to add this quest.", [
           { text: "Not now", style: "cancel" },
@@ -3795,90 +4901,86 @@ function privateThreadIncludesUsers(
         ]);
         return;
       }
-      const stored = await readStoredCalendarEvents(userId);
+      const stored = await readStoredCalendarEvents(operationUserId);
+      if (!actionIsCurrent()) return;
       const previous = stored[quest.id];
-      const details = buildCalendarDetails(quest, previous);
-      let eventId = previous?.eventId;
-      let calendarId = previous?.calendarId;
-      if (eventId) {
-        try {
-          await Calendar.updateEventAsync(eventId, details);
-        } catch {
-          eventId = undefined;
+      const resolvedLocation = await refreshQuestLocationForNativeIntent(quest, includePrivateLocation);
+      if (!actionIsCurrent()) return;
+      const details = buildCalendarDetails(resolvedLocation.quest, previous, resolvedLocation.includePrivateLocation);
+      const payloadFingerprint = createCalendarPayloadFingerprint(details, resolvedLocation.includePrivateLocation);
+      let eventId: string | undefined;
+      let calendarId: string | undefined;
+      if (previous?.eventId) {
+        const result = await tryUpdateStoredCalendarEvent(previous, details, {
+          getEvent: async (id: string) => {
+            if (!actionIsCurrent()) throw new Error("Calendar action is stale.");
+            const event = await Calendar.getEventAsync(id);
+            if (!actionIsCurrent()) throw new Error("Calendar action is stale.");
+            return event;
+          },
+          updateEvent: async (id: string, nextDetails: Calendar.Event) => {
+            if (!actionIsCurrent()) throw new Error("Calendar action is stale.");
+            await Calendar.updateEventAsync(id, nextDetails);
+            if (!actionIsCurrent()) throw new Error("Calendar action is stale.");
+          },
+        });
+        if (!actionIsCurrent()) return;
+        if (result.status === "updated") {
+          eventId = result.eventId;
+          calendarId = result.calendarId;
+        } else {
+          const addAsNew = await new Promise<boolean>((resolve) => {
+            Alert.alert(
+              "Saved calendar event unavailable",
+              "QuestHat could not verify or update the saved event. Check Calendar first to avoid a duplicate, or add this quest as a new event.",
+              [
+                { text: "Not now", style: "cancel", onPress: () => resolve(false) },
+                { text: "Add as new", onPress: () => resolve(true) },
+              ],
+              { cancelable: true, onDismiss: () => resolve(false) },
+            );
+          });
+          if (!addAsNew || !actionIsCurrent()) return;
         }
       }
       if (!eventId) {
         calendarId = await getWritableCalendarId();
+        if (!actionIsCurrent()) return;
         eventId = await Calendar.createEventAsync(calendarId, details);
+        if (!actionIsCurrent()) return;
       }
-      stored[quest.id] = {
+      await persistCalendarExportBaseline(stored, quest.id, {
         eventId,
         calendarId: calendarId || "",
-        startsAt: quest.starts_at!,
-        title: quest.title,
-        location: details.location || "",
-        notes: details.notes || "",
-      };
-      await writeStoredCalendarEvents(userId, stored);
+        payloadFingerprint,
+      }, (next: StoredCalendarEvents) => writeStoredCalendarEvents(operationUserId, next));
+      if (!actionIsCurrent()) return;
+      setCalendarUpdatedQuestIds((current) => current.filter((questId) => questId !== quest.id));
       setStatus(previous ? "Calendar event updated." : "Quest added to your calendar.");
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not update your calendar.");
+      if (actionIsCurrent()) setStatus(error instanceof Error ? error.message : "Could not update your calendar.");
     } finally {
-      setCalendarActionQuestId(null);
+      if (actionIsCurrent()) setCalendarActionQuestId((current) => current === quest.id ? null : current);
+      calendarIntentGate.finish(actionKey);
     }
   }
 
-  async function syncStoredCalendarEvents(uid: string, currentQuests: QuestPreview[]) {
-    const permission = await Calendar.getCalendarPermissionsAsync();
-    if (!permission.granted) return;
-    const stored = await readStoredCalendarEvents(uid);
-    let changed = false;
-    for (const quest of currentQuests) {
-      const previous = stored[quest.id];
-      if (!previous || !quest.starts_at) continue;
-      try {
-        const details = buildCalendarDetails(quest, previous);
-        if (
-          previous.startsAt === quest.starts_at
-          && previous.title === quest.title
-          && previous.location === (details.location || "")
-          && previous.notes === (details.notes || "")
-        ) continue;
-        await Calendar.updateEventAsync(previous.eventId, details);
-        stored[quest.id] = {
-          ...previous,
-          startsAt: quest.starts_at,
-          title: quest.title,
-          location: details.location || "",
-          notes: details.notes || "",
-        };
-        changed = true;
-      } catch {
-        // The user may have deleted the event or removed calendar access; a later tap will recreate it.
-      }
-    }
-    if (changed) await writeStoredCalendarEvents(uid, stored);
-  }
-
-  async function openQuestLocation(quest: QuestPreview | QuestDetail) {
-    const destination = quest.exact_address?.trim() || quest.city?.trim();
-    if (!destination) {
+  async function openQuestLocation(quest: QuestPreview | QuestDetail, includePrivateLocation = true) {
+    const resolvedLocation = await refreshQuestLocationForNativeIntent(quest, includePrivateLocation);
+    const safeQuest = resolvedLocation.quest;
+    const options = buildQuestDirectionsOptions(safeQuest, { includePrivateLocation: resolvedLocation.includePrivateLocation, platform: Platform.OS });
+    if (!options.length) {
       setStatus("This quest does not have a location yet.");
       return;
     }
-    if (/^https?:\/\//i.test(destination)) {
+    if (options.length === 1 && options[0].label === "Open quest link") {
       try {
-        await RNLinking.openURL(destination);
+        await RNLinking.openURL(options[0].url);
       } catch {
         setStatus("Could not open this quest link.");
       }
       return;
     }
-    const encodedDestination = encodeURIComponent(destination);
-    const hasCoordinates = Number.isFinite(quest.exact_lat) && Number.isFinite(quest.exact_lng);
-    const coordinates = hasCoordinates ? `${quest.exact_lat},${quest.exact_lng}` : "";
-    const encodedCoordinates = encodeURIComponent(coordinates);
-    const encodedPlaceId = quest.apple_place_id ? encodeURIComponent(quest.apple_place_id) : "";
     const openMapUrl = async (url: string) => {
       try {
         await RNLinking.openURL(url);
@@ -3886,15 +4988,9 @@ function privateThreadIncludesUsers(
         setStatus("Could not open that map service on this device.");
       }
     };
+    const destination = resolvedLocation.includePrivateLocation ? safeQuest.exact_address?.trim() || safeQuest.city?.trim() || "" : safeQuest.city?.trim() || "";
     Alert.alert("Open directions", destination, [
-      ...(encodedPlaceId
-        ? [{ text: "Apple Maps", onPress: () => void openMapUrl(`https://maps.apple.com/directions?destination=${encodedDestination}&destination-place-id=${encodedPlaceId}&mode=driving`) }]
-        : Platform.OS === "ios"
-          ? [{ text: "Apple Maps", onPress: () => void openMapUrl(`http://maps.apple.com/?daddr=${encodedDestination}&dirflg=d`) }]
-          : []),
-      ...(Platform.OS === "android" ? [{ text: "Maps", onPress: () => void openMapUrl(hasCoordinates ? `geo:${coordinates}?q=${encodedCoordinates}` : `geo:0,0?q=${encodedDestination}`) }] : []),
-      { text: "Google Maps", onPress: () => void openMapUrl(`https://www.google.com/maps/dir/?api=1&destination=${hasCoordinates ? encodedCoordinates : encodedDestination}&travelmode=driving`) },
-      { text: "Waze", onPress: () => void openMapUrl(hasCoordinates ? `https://waze.com/ul?ll=${encodedCoordinates}&navigate=yes` : `https://waze.com/ul?q=${encodedDestination}&navigate=yes`) },
+      ...options.map((option) => ({ text: option.label, onPress: () => void openMapUrl(option.url) })),
       { text: "Cancel", style: "cancel" },
     ]);
   }
@@ -3910,7 +5006,7 @@ function privateThreadIncludesUsers(
     try {
       const [{ data: profileData }, { data: questData }] = await Promise.all([
         supabase.from("profiles").select("id,display_name,username,city,region,country_code,bio,avatar_url,show_location,radius_km,friends_visibility").eq("id", profileId).maybeSingle(),
-        supabase.from("quests").select("id,creator_id,title,description,city,availability,starts_at,skill_level,join_mode,exact_address,created_at,media_items,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,username,avatar_url)").eq("creator_id", profileId).order("created_at", { ascending: false }).limit(12),
+        supabase.from("quests").select("id,hobby_id,creator_id,title,description,city,availability,starts_at,skill_level,join_mode,exact_address,created_at,media_items,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,username,avatar_url)").eq("creator_id", profileId).order("created_at", { ascending: false }).limit(12),
       ]);
       if (!profileData && profileId === userId && profile) {
         setSelectedProfile({ ...(profile as ProfileDetail), quests: (questData || []) as QuestPreview[] });
@@ -3971,22 +5067,22 @@ function privateThreadIncludesUsers(
 
   async function openProfileFromQuest(profileId?: string | null) {
     if (!profileId) return;
-    setSelectedQuest(null);
-    await new Promise((resolve) => setTimeout(resolve, 150));
     await openProfile(profileId);
   }
 
   async function refreshAll() {
-    if (!supabase) return;
+    const requestId = refreshRequestGate.begin();
     setRefreshing(true);
     setStatus("");
     try {
       await Promise.all([loadHome(), loadHobbies()]);
       if (userId) await loadAuthedData(userId);
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not refresh.");
+      if (refreshRequestGate.isCurrent(requestId)) {
+        setStatus(error instanceof Error ? error.message : "Could not refresh.");
+      }
     } finally {
-      setRefreshing(false);
+      if (refreshRequestGate.isCurrent(requestId)) setRefreshing(false);
     }
   }
 
@@ -3995,6 +5091,21 @@ function privateThreadIncludesUsers(
     // Initial and session-change refreshes are intentionally keyed by user id.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
+
+  const nearestLocationRefreshKey = homeSortMode === "nearest" && deviceLocation
+    ? `${deviceLocation.lat.toFixed(4)}:${deviceLocation.lon.toFixed(4)}`
+    : "";
+  useEffect(() => {
+    if (!homeFilterRefreshReadyRef.current) {
+      homeFilterRefreshReadyRef.current = true;
+      return;
+    }
+    if (activeTab !== "home") return;
+    const delay = homeSearchQuery.trim() ? 350 : 0;
+    const timeout = setTimeout(() => { void loadHome().catch(() => {}); }, delay);
+    return () => clearTimeout(timeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, homeCategoryFilter, homeSearchQuery, homeSortMode, nearestLocationRefreshKey]);
 
   async function passwordAuth() {
     if (!supabase) return;
@@ -4053,7 +5164,7 @@ function privateThreadIncludesUsers(
           await persistPeopleDiscoverySettings(true, dob, signupGenderIdentity);
         }
       }
-      setStatus(result.error ? result.error.message : authMode === "signup" && !result.data.session ? "Check your email to confirm your account." : "");
+      setStatus(result.error ? (authChallengeMessage(result.error) || result.error.message) : authMode === "signup" && !result.data.session ? "Check your email to confirm your account." : "");
     } finally {
       setAuthActionLoading(null);
     }
@@ -4182,7 +5293,7 @@ function privateThreadIncludesUsers(
       });
     }
     await supabase.auth.signOut();
-    posthogClient?.reset();
+    optionalAnalytics.reset();
     setActiveTab("home");
     setSavedQuests([]);
     setJoinedQuests([]);
@@ -4254,7 +5365,7 @@ function privateThreadIncludesUsers(
   }
 
   function persistedDraftLocation() {
-    return draftExactAddress.trim();
+    return activeLocationDraftValue(locationMode, draftExactAddress, draftMeetingLink).trim();
   }
 
   function getQuestDistanceQueries(quest: QuestPreview | QuestDetail) {
@@ -4274,7 +5385,7 @@ function privateThreadIncludesUsers(
     const exactParts = exact.split(",").map((part) => part.trim()).filter(Boolean);
     const postalCode = [...rawParts, ...exactParts].find((part) => /^\d{4,6}$/.test(part));
     const simpleCity = rawParts.find((part) => /[a-z]/i.test(part) && !/^(united states|usa)$/i.test(part));
-    return Array.from(new Set([rawCity, simpleCity, postalCode, cityFromExact, exact, region, country].filter(Boolean)));
+    return Array.from(new Set([rawCity, simpleCity, postalCode, cityFromExact, exact, region, country].filter((query): query is string => Boolean(query))));
   }
 
   async function fetchQuestCoordinates(query: string): Promise<DeviceLocation | null> {
@@ -4376,11 +5487,6 @@ function privateThreadIncludesUsers(
     }
   }
 
-  async function getDeviceLocation(requiredMessage?: string) {
-    if (deviceLocation) return deviceLocation;
-    return requestDeviceLocation(requiredMessage);
-  }
-
   function confirmDistanceWarning(message: string) {
     return new Promise<boolean>((resolve) => {
       Alert.alert("This quest is far away", message, [
@@ -4414,11 +5520,94 @@ function privateThreadIncludesUsers(
     );
   }
 
+  function captureCreateQuestDraft(): CreateQuestDraftSnapshot {
+    return {
+      locationMode,
+      originalHobbyId,
+      categoryInput,
+      draftHobbyId,
+      startAt,
+      timeFlexible,
+      draftTitle,
+      draftDescription,
+      draftCountryQuery,
+      selectedCountrySuggestion,
+      selectedCountryCode,
+      draftExactAddress,
+      draftMeetingLink,
+      locationConfirmationMode,
+      selectedApplePlaceId,
+      draftLocationDetails,
+      showLocationDetails,
+      selectedLocationSuggestion,
+      selectedPublicLocation,
+      selectedLocationCoordinates: selectedLocationCoordinates ? { ...selectedLocationCoordinates } : null,
+      skillLevel,
+      groupSizeChoice,
+      groupSizeCustom,
+      draftJoinMode,
+      draftLocationVisibility,
+      draftGroupSize,
+      draftMediaItems: [...draftMediaItems],
+      showAdvancedSettings,
+    };
+  }
+
+  function restoreCreateQuestDraft(draft: CreateQuestDraftSnapshot) {
+    setLocationMode(draft.locationMode);
+    setOriginalHobbyId(draft.originalHobbyId);
+    setCategoryInput(draft.categoryInput);
+    setDraftHobbyId(draft.draftHobbyId);
+    setStartAt(draft.startAt);
+    setTimeFlexible(draft.timeFlexible);
+    setDraftTitle(draft.draftTitle);
+    setDraftDescription(draft.draftDescription);
+    setDraftCountryQuery(draft.draftCountryQuery);
+    setSelectedCountrySuggestion(draft.selectedCountrySuggestion);
+    setSelectedCountryCode(draft.selectedCountryCode);
+    setDraftExactAddress(draft.draftExactAddress);
+    setDraftMeetingLink(draft.draftMeetingLink);
+    setLocationConfirmationMode(draft.locationConfirmationMode);
+    setSelectedApplePlaceId(draft.selectedApplePlaceId);
+    setDraftLocationDetails(draft.draftLocationDetails);
+    setShowLocationDetails(draft.showLocationDetails);
+    setSelectedLocationSuggestion(draft.selectedLocationSuggestion);
+    setSelectedPublicLocation(draft.selectedPublicLocation);
+    setSelectedLocationCoordinates(draft.selectedLocationCoordinates ? { ...draft.selectedLocationCoordinates } : null);
+    setSkillLevel(draft.skillLevel);
+    setGroupSizeChoice(draft.groupSizeChoice);
+    setGroupSizeCustom(draft.groupSizeCustom);
+    setDraftJoinMode(draft.draftJoinMode);
+    setDraftLocationVisibility(draft.draftLocationVisibility);
+    setDraftGroupSize(draft.draftGroupSize);
+    setDraftMediaItems([...draft.draftMediaItems]);
+    setShowAdvancedSettings(draft.showAdvancedSettings);
+  }
+
+  function finishQuestEditingSession() {
+    const result = consumeQuestEditorDraftSession(suspendedCreateDraftRef.current, calendarUserRef.current);
+    suspendedCreateDraftRef.current = result.session;
+    resetQuestDrafts();
+    if (result.draft) restoreCreateQuestDraft(result.draft as CreateQuestDraftSnapshot);
+  }
+
   async function beginEditQuest(questId: string) {
     if (!supabase || !userId) return;
+    const operationUserId = userId;
+    const editorScope = `${operationUserId}:${questId}`;
+    const editorRequest = questEditorLoadGate.begin(editorScope);
     setStatus("Loading quest editor...");
-    const quest = await loadSelectedQuestDetails(questId);
-    if (!quest || quest.creator_id !== userId) {
+    let quest: QuestDetail | null = null;
+    try {
+      quest = await loadSelectedQuestDetails(questId);
+    } catch (error) {
+      if (questEditorLoadGate.isCurrent(editorRequest, `${calendarUserRef.current || ""}:${questId}`)) {
+        setStatus(error instanceof Error ? error.message : "Could not load the quest editor.");
+      }
+      return;
+    }
+    if (!questEditorLoadGate.isCurrent(editorRequest, `${calendarUserRef.current || ""}:${questId}`)) return;
+    if (!quest || quest.creator_id !== operationUserId) {
       setStatus("Only the host can edit this quest.");
       return;
     }
@@ -4434,17 +5623,24 @@ function privateThreadIncludesUsers(
       ...((quest.media_items || []).filter((item) => Boolean(item?.url))),
     ].slice(0, 3);
 
-    resetQuestDrafts();
+    suspendedCreateDraftRef.current = beginQuestEditorDraftSession(
+      suspendedCreateDraftRef.current,
+      operationUserId,
+      quest.id,
+      captureCreateQuestDraft(),
+    );
+    resetQuestDrafts({ preserveLocalMediaFiles: !editingQuestIdRef.current });
     setEditingQuestId(quest.id);
+    setOriginalHobbyId(quest.hobby_id || "");
     setDraftTitle(quest.title || "");
     setDraftDescription(quest.description || "");
     setCategoryInput(category);
-    setCategoryIsCustom(false);
     setDraftHobbyId(quest.hobby_id || hobbies.find((hobby) => hobby.name.toLowerCase() === category.toLowerCase())?.id || "");
     setStartAt(quest.starts_at || "");
     setTimeFlexible(quest.time_flexible === true);
     setLocationMode(isRemote ? "remote" : "in_person");
-    setDraftExactAddress(exactLocation);
+    setDraftExactAddress(isRemote ? "" : exactLocation);
+    setDraftMeetingLink(isRemote ? exactLocation : "");
     setSelectedApplePlaceId(quest.apple_place_id || null);
     setLocationConfirmationMode(isRemote ? null : quest.apple_place_id ? "address" : null);
     setDraftLocationDetails(quest.location_details || "");
@@ -4497,29 +5693,24 @@ function privateThreadIncludesUsers(
       setStatus("Wait for video optimization to finish.");
       return;
     }
-    const typedCategory = resolveCanonicalCategory(categoryInput) || categoryInput.trim();
-    const parsedCustomGroupSize = Number.parseInt(groupSizeCustom || draftGroupSize, 10);
-    const selectedGroupSize = groupSizeChoice === "custom" ? parsedCustomGroupSize : Number.parseInt(draftGroupSize, 10);
-    if (!draftTitle.trim() || !typedCategory) {
-      setStatus("Title and category are required.");
+    const typedCategory = categoryInput.trim();
+    const rawGroupSize = groupSizeChoice === "custom" ? groupSizeCustom : draftGroupSize;
+    const validation = validateQuestDraft({
+      title: draftTitle,
+      category: typedCategory,
+      locationMode,
+      meetingLocation: activeLocationDraftValue(locationMode, draftExactAddress, draftMeetingLink),
+      selectedCountry: selectedCountrySuggestion,
+      selectedLocation: selectedLocationSuggestion,
+      locationConfirmationMode,
+      applePlaceId: selectedApplePlaceId,
+      groupSize: rawGroupSize,
+    });
+    if (validation.error) {
+      setStatus(validation.error);
       return;
     }
-    if (locationMode === "in_person" && !selectedCountrySuggestion) {
-      setStatus("Choose a country first.");
-      return;
-    }
-    if (!draftExactAddress.trim()) {
-      setStatus(locationMode === "remote" ? "Meeting link is required." : "Meetup address is required.");
-      return;
-    }
-    if (locationMode === "in_person" && locationConfirmationMode !== "device" && !selectedLocationSuggestion) {
-      setStatus("Search for and choose the meetup place, or use your current location.");
-      return;
-    }
-    if (locationMode === "in_person" && locationConfirmationMode !== "device" && !selectedApplePlaceId) {
-      setStatus("Choose a verified Apple location from the search results.");
-      return;
-    }
+    const selectedGroupSize = validation.groupSize;
     if (!startAt.trim()) {
       setStatus("Choose a date and start time.");
       return;
@@ -4529,36 +5720,10 @@ function privateThreadIncludesUsers(
       setStatus("Choose a start time in the future.");
       return;
     }
-    if (!Number.isFinite(selectedGroupSize) || selectedGroupSize <= 0) {
-      setStatus("Group size is required.");
-      return;
-    }
-
-    let finalHobbyId = draftHobbyId;
-    if (!finalHobbyId && typedCategory) {
-      const existingHobby = hobbies.find((hobby) => hobby.name.trim().toLowerCase() === typedCategory.toLowerCase());
-      if (existingHobby?.id) {
-        finalHobbyId = existingHobby.id;
-      } else {
-        const { data: existing } = await supabase.from("hobbies").select("id,name").ilike("name", typedCategory).limit(1).maybeSingle();
-        if (existing?.id) {
-          finalHobbyId = existing.id;
-        } else {
-          const { data: created, error: hobbyErr } = await supabase
-            .from("hobbies")
-            .insert({ slug: slugify(typedCategory), name: typedCategory, category: typedCategory })
-            .select("id")
-            .single();
-          if (hobbyErr) {
-            setStatus(`Could not create category "${typedCategory}": ${hobbyErr.message}`);
-            return;
-          }
-          if (created?.id) finalHobbyId = created.id;
-        }
-      }
-    }
-    if (!finalHobbyId) {
-      setStatus("Category is required. Please select or enter one again.");
+    const finalHobbyId = draftHobbyId;
+    if (!canChooseCategory(catalog, finalHobbyId, wasEditing ? originalHobbyId : null)) {
+      void refreshCatalog(true);
+      setStatus("Choose an active category from the catalog. Reconnect if categories are unavailable.");
       return;
     }
 
@@ -4653,14 +5818,15 @@ function privateThreadIncludesUsers(
       if (data?.id && !editingQuestId) {
         await supabase.from("quest_members").insert({ quest_id: data.id, user_id: userId, role: "creator", status: "approved" });
       }
-      posthogClient?.capture(wasEditing ? "quest_updated" : "quest_created", {
+      optionalAnalytics.capture(wasEditing ? "quest_updated" : "quest_created", {
         platform: Platform.OS,
         category: typedCategory,
         location_mode: locationMode === "remote" ? "virtual" : "in_person",
         join_mode: draftJoinMode,
         media_count: mediaItems.length,
       });
-      resetQuestDrafts();
+      if (wasEditing) finishQuestEditingSession();
+      else resetQuestDrafts();
       setStatus(wasEditing ? "Quest updated." : "Quest created.");
       await refreshAll();
       setActiveTab("home");
@@ -4672,18 +5838,26 @@ function privateThreadIncludesUsers(
     }
   }
 
-  function resetQuestDrafts() {
-    draftMediaItems.filter((media) => !media.existingUrl).forEach((media) => { void deleteGeneratedMediaFile(media); });
+  function resetQuestDrafts(options: { preserveLocalMediaFiles?: boolean } = {}) {
+    questMediaOperationGate.invalidate();
+    catalogCoverRequest.current += 1;
+    if (!options.preserveLocalMediaFiles) {
+      draftMediaItems.filter((media) => !media.existingUrl).forEach((media) => { void deleteGeneratedMediaFile(media); });
+    }
+    setLocationMode("in_person");
+    setOriginalHobbyId("");
+    setShowCategoryPicker(false);
+    closeStartDateTimePicker();
     setDraftTitle("");
     setDraftDescription("");
     setDraftExactAddress("");
+    setDraftMeetingLink("");
     setLocationConfirmationMode(null);
     setSelectedApplePlaceId(null);
     setDraftLocationDetails("");
     setShowLocationDetails(false);
     setLocationSuggestions([]);
-    setCategoryInput("");
-    setCategoryIsCustom(false);
+    setCategoryInput("Outdoors");
     setDraftHobbyId("");
     setStartAt("");
     setTimeFlexible(false);
@@ -4706,6 +5880,8 @@ function privateThreadIncludesUsers(
     setDraftMediaItems([]);
     setVideoTrimDraft(null);
     setVideoTrimIndex(null);
+    setVideoTrimStart(0);
+    setVideoTrimEnd(VIDEO_MAX_DURATION_SECONDS);
     setShowVideoTrimmer(false);
     setShowAdvancedSettings(false);
     setEditingQuestId(null);
@@ -4725,6 +5901,42 @@ function privateThreadIncludesUsers(
     });
     const { data } = supabase.storage.from("quest-media").getPublicUrl(path);
     return data.publicUrl;
+  }
+
+  async function selectSeededQuestCover(asset: ImageSourcePropType, assetKey: string, mimeType: "image/jpeg" | "image/png" | "image/webp") {
+    const request = ++catalogCoverRequest.current;
+    try {
+      const resolved = NativeImage.resolveAssetSource(asset);
+      if (!resolved?.uri) throw new Error("This cover photo is unavailable.");
+      const extension = mimeType === "image/png" ? "png" : mimeType === "image/webp" ? "webp" : "jpg";
+      const selectedFileName = `questhat-${assetKey}.${extension}`;
+      const existingIndex = draftMediaItems.findIndex((item) => item.fileName === selectedFileName);
+      if (existingIndex >= 0) {
+        setStatus("Cover photo selected.");
+        return;
+      }
+      const destination = `${FileSystem.cacheDirectory}questhat-${assetKey}-${Date.now()}.${extension}`;
+      if (/^https?:/i.test(resolved.uri)) {
+        const download = await FileSystem.downloadAsync(resolved.uri, destination, {
+          sessionType: FileSystem.FileSystemSessionType.FOREGROUND,
+        });
+        if (download.status !== 200) throw new Error("This cover photo is unavailable.");
+      }
+      else await FileSystem.copyAsync({ from: resolved.uri, to: destination });
+      if (request !== catalogCoverRequest.current) return;
+      draftMediaItems
+        .filter((item) => item.fileName.startsWith("questhat-"))
+        .forEach((item) => { void deleteGeneratedMediaFile(item); });
+      setDraftMediaItems((current) => [...current.filter((item) => !item.fileName.startsWith("questhat-")), {
+        uri: destination,
+        mimeType,
+        fileName: selectedFileName,
+        type: "image",
+      }]);
+      setStatus("Cover photo selected.");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not use that cover photo.");
+    }
   }
 
   async function uploadQuestVideo(file: DraftMedia) {
@@ -4754,7 +5966,11 @@ function privateThreadIncludesUsers(
       setStatus("A quest can include up to 3 media items.");
       return;
     }
-    const pickedType = asset.type === "video" || (asset.mimeType || "").startsWith("video/") ? "video" : "image";
+    const pickedType = classifyPickedMedia(asset);
+    if (!pickedType) {
+      setStatus("Please choose an image or video file.");
+      return;
+    }
     const nextVideoDuration = pickedType === "video" && typeof asset.duration === "number"
       ? asset.duration / 1000
       : 0;
@@ -4840,6 +6056,8 @@ function privateThreadIncludesUsers(
 
   async function finishVideoTrim() {
     if (!videoTrimDraft || optimizingMedia) return;
+    const mediaOperation = questMediaOperationGate.begin(editingQuestId || "new-draft");
+    const mediaScope = editingQuestId || "new-draft";
     const sourceDuration = videoTrimDraft.duration || 0;
     const clipDuration = videoTrimEnd - videoTrimStart;
     if (clipDuration <= 0.1 || clipDuration > VIDEO_MAX_DURATION_SECONDS + 0.2) {
@@ -4889,6 +6107,11 @@ function privateThreadIncludesUsers(
 
       if (typeof selectedMedia.fileSize === "number" && selectedMedia.fileSize > VIDEO_MAX_SIZE_BYTES) {
         throw new Error("This clip is still over 60MB. Choose a shorter clip.");
+      }
+
+      if (!questMediaOperationGate.isCurrent(mediaOperation, mediaScope)) {
+        await deleteGeneratedMediaFile(selectedMedia);
+        return;
       }
 
       setDraftMediaItems((current) => {
@@ -4969,11 +6192,12 @@ function privateThreadIncludesUsers(
     ]);
   }
 
-  async function persistPeopleDiscoverySettings(enabled: boolean, birthDate: string, genderIdentity: string) {
+  async function persistPeopleDiscoverySettings(enabled: boolean, birthDate: string, genderIdentity: string, actionIsCurrent: () => boolean = () => true) {
     if (!supabase) throw new Error("People discovery is unavailable.");
     let coordinates = deviceLocation;
     if (enabled && !coordinates) {
       const permission = await Location.requestForegroundPermissionsAsync();
+      if (!actionIsCurrent()) throw new Error("Account changed before People discovery finished saving.");
       if (permission.status !== Location.PermissionStatus.GRANTED) {
         throw new Error("Allow location once to join People discovery. QuestHat only shows rounded distance, never your pin.");
       }
@@ -4981,9 +6205,11 @@ function privateThreadIncludesUsers(
         Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
         new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Could not get your location. Try again somewhere with a clearer signal.")), 12000)),
       ]);
+      if (!actionIsCurrent()) throw new Error("Account changed before People discovery finished saving.");
       coordinates = { lat: current.coords.latitude, lon: current.coords.longitude, accuracy: current.coords.accuracy ?? undefined };
       setDeviceLocation(coordinates);
     }
+    if (!actionIsCurrent()) throw new Error("Account changed before People discovery finished saving.");
     const { error } = await supabase.rpc("update_people_discovery_settings", {
       p_enabled: enabled,
       p_birth_date: birthDate.trim() || null,
@@ -5065,13 +6291,20 @@ function privateThreadIncludesUsers(
       setStatus("Wait for the availability check to finish.");
       return;
     }
-    if (settingsPeopleDiscoveryEnabled) {
+    const discoveryChanged = initial.peopleDiscoveryEnabled !== settingsPeopleDiscoveryEnabled
+      || initial.dob.trim() !== settingsDob.trim()
+      || initial.genderIdentity.trim() !== settingsGenderIdentity.trim();
+    if (discoveryChanged && settingsPeopleDiscoveryEnabled) {
       const eligibilityError = getPeopleDiscoveryEligibilityError(settingsDob);
       if (eligibilityError) {
         setStatus(`${eligibilityError} Turn People discovery off to save your other changes.`);
         return;
       }
     }
+    const operationUserId = userId;
+    const actionToken = profileSaveActionGate.begin(operationUserId);
+    if (!actionToken) return;
+    const actionIsCurrent = () => profileSaveActionGate.isCurrent(actionToken, calendarUserRef.current || "");
     setSavingProfile(true);
 
     const usernameChangedAtMs = initial.usernameChangedAt ? new Date(initial.usernameChangedAt).getTime() : 0;
@@ -5096,7 +6329,7 @@ function privateThreadIncludesUsers(
     const usernameBlocked = usernameChanged && usernameCooldownActive;
     const savedUsername = usernameBlocked ? normalizedInitialUsername : normalizedUsername;
     const profileUpdate = {
-      id: userId,
+      id: operationUserId,
       display_name: savedUsername,
       username: savedUsername,
       username_changed_at: usernameChanged && !usernameBlocked ? new Date().toISOString() : initial.usernameChangedAt || null,
@@ -5111,14 +6344,15 @@ function privateThreadIncludesUsers(
       onboarding_done: true,
     };
 
+    let profileSaved = false;
+    let saveStage = "profile";
     try {
       const { error } = await client.from("profiles").upsert(profileUpdate);
+      if (!actionIsCurrent()) return;
       if (error) {
         setStatus(usernameErrorMessage(error.message).replace(/username/gi, "name"));
         return;
       }
-      await persistPeopleDiscoverySettings(settingsPeopleDiscoveryEnabled, settingsDob, settingsGenderIdentity);
-
       const nextInitial = {
         username: savedUsername,
         dob: settingsDob.trim(),
@@ -5133,15 +6367,26 @@ function privateThreadIncludesUsers(
         radiusKm: settingsRadiusKm,
         usernameChangedAt: profileUpdate.username_changed_at,
       };
-      setSettingsInitialSnapshot(nextInitial);
-      setProfile((current) => current ? ({ ...current, display_name: savedUsername, username: savedUsername, username_changed_at: nextInitial.usernameChangedAt, city: settingsCity.trim() || null, region: settingsRegion.trim() || null, country_code: settingsCountryCode || null, bio: settingsBio.trim() || null, show_location: settingsShowLocation, radius_km: settingsRadiusKm, friends_visibility: settingsFriendsVisibility, avatar_url: settingsAvatarUri || null, people_discovery_enabled: settingsPeopleDiscoveryEnabled }) : current);
-      setStatus(
-        usernameBlocked
-          ? `You can only change your name once every 24 hours.${changedFields.filter((field) => field !== "name").length ? ` Other changes saved: ${changedFields.filter((field) => field !== "name").join(", ")}.` : ""}`
-          : `Profile saved${changedFields.length ? `: ${changedFields.join(", ")}.` : "."}`,
-      );
+      // Profile and discovery are separate writes. Keep the baseline honest if
+      // the later discovery request fails, so Reset never resurrects saved edits.
+      profileSaved = true;
+      setSettingsInitialSnapshot({
+        ...nextInitial,
+        dob: initial.dob,
+        genderIdentity: initial.genderIdentity,
+        peopleDiscoveryEnabled: initial.peopleDiscoveryEnabled,
+      });
+      setProfile((current) => current ? ({ ...current, ...profileUpdate }) : current);
       setSettingsUsername(savedUsername);
-      await supabase.auth.updateUser({
+      if (discoveryChanged) {
+        saveStage = "People discovery changes";
+        await persistPeopleDiscoverySettings(settingsPeopleDiscoveryEnabled, settingsDob, settingsGenderIdentity, actionIsCurrent);
+        if (!actionIsCurrent()) return;
+      }
+      setSettingsInitialSnapshot(nextInitial);
+      setProfile((current) => current ? ({ ...current, people_discovery_enabled: settingsPeopleDiscoveryEnabled }) : current);
+      saveStage = "account details sync";
+      const { error: metadataError } = await client.auth.updateUser({
         data: {
           full_name: savedUsername,
           name: savedUsername,
@@ -5157,115 +6402,194 @@ function privateThreadIncludesUsers(
           show_location: settingsShowLocation,
         },
       });
-      await loadAuthedData(userId);
+      if (!actionIsCurrent()) return;
+      if (metadataError) throw metadataError;
+      saveStage = "profile refresh";
+      await loadAuthedData(operationUserId);
+      if (!actionIsCurrent()) return;
+      setStatus(
+        usernameBlocked
+          ? `You can only change your name once every 24 hours.${changedFields.filter((field) => field !== "name").length ? ` Other changes saved: ${changedFields.filter((field) => field !== "name").join(", ")}.` : ""}`
+          : `Profile saved${changedFields.length ? `: ${changedFields.join(", ")}.` : "."}`,
+      );
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not save profile.");
+      const message = error instanceof Error ? error.message
+        : error && typeof error === "object" && "message" in error ? String(error.message)
+        : "Could not save profile.";
+      if (actionIsCurrent()) setStatus(profileSaved ? `Profile saved, but ${saveStage} failed: ${message}` : message);
     } finally {
-      setSavingProfile(false);
+      if (actionIsCurrent()) setSavingProfile(false);
+      profileSaveActionGate.finish(actionToken);
     }
   }
 
-  async function persistUserInterests(interestIds: string[]) {
-    if (!supabase || !userId) throw new Error("Sign in to save your interests.");
+  async function persistUserInterests(interestIds: string[], operationUserId: string, actionIsCurrent: () => boolean) {
+    if (!supabase) throw new Error("Sign in to save your interests.");
     const uniqueIds = [...new Set(interestIds)];
-    const { error: deleteError } = await supabase.from("user_hobbies").delete().eq("user_id", userId);
-    if (deleteError) throw deleteError;
-    if (!uniqueIds.length) return;
-    const { error: insertError } = await supabase.from("user_hobbies").insert(
-      uniqueIds.map((hobbyId, index) => ({
-        user_id: userId,
-        hobby_id: hobbyId,
-        is_primary: index === 0,
-      })),
-    );
-    if (insertError) throw insertError;
+    if (uniqueIds.length) {
+      const { error: upsertError } = await supabase.from("user_hobbies").upsert(
+        uniqueIds.map((hobbyId, index) => ({
+          user_id: operationUserId,
+          hobby_id: hobbyId,
+          is_primary: index === 0,
+        })),
+        { onConflict: "user_id,hobby_id" },
+      );
+      if (upsertError) throw upsertError;
+      if (!actionIsCurrent()) throw new Error("Account changed before interests finished saving.");
+    }
+    let removal = supabase.from("user_hobbies").delete().eq("user_id", operationUserId);
+    if (uniqueIds.length) removal = removal.not("hobby_id", "in", `(${uniqueIds.join(",")})`);
+    const { error: deleteError } = await removal;
+    if (deleteError) throw new Error(`Selected interests were saved, but old interests could not be removed: ${deleteError.message}`);
   }
 
   async function saveInterests() {
     if (!supabase || !userId) return;
+    const operationUserId = userId;
+    const actionToken = onboardingActionGate.begin(operationUserId);
+    if (!actionToken) return;
+    const actionIsCurrent = () => onboardingActionGate.isCurrent(actionToken, calendarUserRef.current || "");
+    const selectedInterestIds = [...onboardingInterestIds];
     setSavingInterests(true);
     try {
-      await persistUserInterests(onboardingInterestIds);
+      await persistUserInterests(selectedInterestIds, operationUserId, actionIsCurrent);
+      if (!actionIsCurrent()) return;
       setStatus("Interests saved. Your recommendations will adjust as new quests appear.");
-      await loadAuthedData(userId);
+      await loadAuthedData(operationUserId);
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not save interests.");
+      if (actionIsCurrent()) setStatus(error instanceof Error ? error.message : "Could not save interests.");
     } finally {
-      setSavingInterests(false);
+      if (actionIsCurrent()) setSavingInterests(false);
+      onboardingActionGate.finish(actionToken);
     }
   }
 
   async function saveOnboarding() {
     if (!supabase || !userId) return;
+    const operationUserId = userId;
+    const actionToken = onboardingActionGate.begin(operationUserId);
+    if (!actionToken) return;
+    const actionIsCurrent = () => onboardingActionGate.isCurrent(actionToken, calendarUserRef.current || "");
+    const onboardingDraft = {
+      username: settingsUsername.trim().toLowerCase(),
+      city: settingsCity.trim(),
+      region: settingsRegion.trim(),
+      countryCode: settingsCountryCode,
+      bio: settingsBio.trim(),
+      showLocation: settingsShowLocation,
+      radiusKm: settingsRadiusKm,
+      friendsVisibility: settingsFriendsVisibility,
+      dob: settingsDob.trim(),
+      marketingOptIn: settingsMarketingOptIn,
+      interestIds: [...onboardingInterestIds],
+    };
     setOnboardingSaving(true);
     try {
       const { error: profileError } = await supabase.from("profiles").upsert({
-        id: userId,
-        display_name: settingsUsername.trim().toLowerCase() || null,
-        username: settingsUsername.trim().toLowerCase() || null,
-        city: settingsCity.trim() || null,
-        region: settingsRegion.trim() || null,
-        country_code: settingsCountryCode || null,
-        bio: settingsBio.trim() || null,
-        show_location: settingsShowLocation,
-        radius_km: settingsRadiusKm,
-        friends_visibility: settingsFriendsVisibility,
+        id: operationUserId,
+        display_name: onboardingDraft.username || null,
+        username: onboardingDraft.username || null,
+        city: onboardingDraft.city || null,
+        region: onboardingDraft.region || null,
+        country_code: onboardingDraft.countryCode || null,
+        bio: onboardingDraft.bio || null,
+        show_location: onboardingDraft.showLocation,
+        radius_km: onboardingDraft.radiusKm,
+        friends_visibility: onboardingDraft.friendsVisibility,
         onboarding_done: true,
       });
       if (profileError) throw profileError;
+      if (!actionIsCurrent()) return;
 
-      await persistUserInterests(onboardingInterestIds);
+      await persistUserInterests(onboardingDraft.interestIds, operationUserId, actionIsCurrent);
+      if (!actionIsCurrent()) return;
 
-      await supabase.auth.updateUser({
+      const { error: metadataError } = await supabase.auth.updateUser({
         data: {
-          full_name: settingsUsername.trim().toLowerCase(),
-          name: settingsUsername.trim().toLowerCase(),
-          username: settingsUsername.trim().toLowerCase(),
-          dob: settingsDob.trim(),
-          city: settingsCity.trim(),
-          region: settingsRegion.trim(),
-          country_code: settingsCountryCode || "US",
-          show_location: settingsShowLocation,
-          marketing_opt_in: settingsMarketingOptIn,
+          full_name: onboardingDraft.username,
+          name: onboardingDraft.username,
+          username: onboardingDraft.username,
+          dob: onboardingDraft.dob,
+          city: onboardingDraft.city,
+          region: onboardingDraft.region,
+          country_code: onboardingDraft.countryCode || "US",
+          show_location: onboardingDraft.showLocation,
+          marketing_opt_in: onboardingDraft.marketingOptIn,
         },
       });
+      if (!actionIsCurrent()) return;
+      if (metadataError) throw metadataError;
 
       setShowOnboardingWizard(false);
       setStatus("Onboarding saved ✅");
-      await loadAuthedData(userId);
+      await loadAuthedData(operationUserId);
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not save onboarding.");
+      if (actionIsCurrent()) setStatus(error instanceof Error ? error.message : "Could not save onboarding.");
     } finally {
-      setOnboardingSaving(false);
+      if (actionIsCurrent()) setOnboardingSaving(false);
+      onboardingActionGate.finish(actionToken);
     }
   }
 
   async function changeEmail() {
-    if (!supabase) return;
+    if (!supabase || !userId) return;
+    const client = supabase;
+    const operationUserId = userId;
+    const actionScope = `${operationUserId}:email`;
+    const actionToken = authSettingsActionGate.begin(actionScope);
+    if (!actionToken) return;
+    const actionIsCurrent = () => authSettingsActionGate.isCurrent(actionToken, `${calendarUserRef.current || ""}:email`);
     const cleanEmail = settingsNewEmail.trim().toLowerCase();
-    if (!cleanEmail) return setStatus("Enter an email address.");
+    if (!cleanEmail) {
+      authSettingsActionGate.finish(actionToken);
+      return setStatus("Enter an email address.");
+    }
     const addingRecoveryEmail = !accountEmail;
-    const { error } = await supabase.auth.updateUser({ email: cleanEmail }, { emailRedirectTo: getRedirectUrl() });
-    setStatus(error
-      ? error.message
-      : addingRecoveryEmail
+    try {
+      const { error } = await client.auth.updateUser({ email: cleanEmail }, { emailRedirectTo: getRedirectUrl() });
+      if (!actionIsCurrent()) return;
+      if (error) {
+        setStatus(error.message);
+        return;
+      }
+      await AsyncStorage.setItem(`${STORED_EMAIL_CHANGE_PENDING}:${operationUserId}`, cleanEmail);
+      if (!actionIsCurrent()) return;
+      setEmailChangeNotice(emailChangePendingMessage());
+      setStatus(addingRecoveryEmail
         ? "Recovery email requested. Check your inbox to verify it."
-        : "Email change requested. Check your inboxes to confirm it.");
+        : "Email change requested. Check both your current and new inboxes if Secure email change is enabled.");
+    } finally {
+      authSettingsActionGate.finish(actionToken);
+    }
   }
 
   async function changePassword() {
-    if (!supabase || !accountEmail) return;
+    if (!supabase || !userId || !accountEmail) return;
     if (!settingsOldPassword) return setStatus("Enter your current password.");
     if (settingsNewPassword.length < 8) return setStatus("Password must be at least 8 characters.");
     if (settingsNewPassword !== settingsConfirmPassword) return setStatus("Passwords do not match.");
-    const { error: verifyError } = await supabase.auth.signInWithPassword({ email: accountEmail, password: settingsOldPassword });
-    if (verifyError) return setStatus("Current password is incorrect.");
-    const { error } = await supabase.auth.updateUser({ password: settingsNewPassword });
-    if (error) return setStatus(error.message);
-    setSettingsOldPassword("");
-    setSettingsNewPassword("");
-    setSettingsConfirmPassword("");
-    setStatus("Password updated ✅");
+    const client = supabase;
+    const operationUserId = userId;
+    const actionScope = `${operationUserId}:password`;
+    const actionToken = authSettingsActionGate.begin(actionScope);
+    if (!actionToken) return;
+    const actionIsCurrent = () => authSettingsActionGate.isCurrent(actionToken, `${calendarUserRef.current || ""}:password`);
+    const credentials = { email: accountEmail, oldPassword: settingsOldPassword, newPassword: settingsNewPassword };
+    try {
+      const { error: verifyError } = await client.auth.signInWithPassword({ email: credentials.email, password: credentials.oldPassword });
+      if (!actionIsCurrent()) return;
+      if (verifyError) return setStatus("Current password is incorrect.");
+      const { error } = await client.auth.updateUser({ password: credentials.newPassword });
+      if (!actionIsCurrent()) return;
+      if (error) return setStatus(error.message);
+      setSettingsOldPassword("");
+      setSettingsNewPassword("");
+      setSettingsConfirmPassword("");
+      setStatus("Password updated ✅");
+    } finally {
+      authSettingsActionGate.finish(actionToken);
+    }
   }
 
   function confirmTemporaryDeactivation() {
@@ -5281,266 +6605,412 @@ function privateThreadIncludesUsers(
   }
 
   async function deactivateAccount() {
-    if (!supabase || !userId || accountActionLoading) return;
+    if (!supabase || !userId) return;
+    const operationUserId = userId;
+    const actionToken = accountLifecycleActionGate.begin(operationUserId);
+    if (!actionToken) return;
     setAccountActionLoading("deactivate");
     setStatus("");
     try {
       const { error } = await supabase.rpc("deactivate_my_account");
       if (error) throw error;
-      await signOut();
+      if (!accountLifecycleActionGate.isCurrent(actionToken, calendarUserRef.current || "")) return;
       setStatus("Account deactivated. Sign in whenever you want to restore it.");
+      await signOut();
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not deactivate the account.");
+      if (accountLifecycleActionGate.isCurrent(actionToken, calendarUserRef.current || "")) {
+        setStatus(error instanceof Error ? error.message : "Could not deactivate the account.");
+      }
     } finally {
-      setAccountActionLoading(null);
+      if (accountLifecycleActionGate.isCurrent(actionToken, calendarUserRef.current || "")) setAccountActionLoading(null);
+      accountLifecycleActionGate.finish(actionToken);
     }
   }
 
   async function restoreAccount() {
-    if (!supabase || !userId || accountActionLoading) return;
+    if (!supabase || !userId) return;
+    const operationUserId = userId;
+    const actionToken = accountLifecycleActionGate.begin(operationUserId);
+    if (!actionToken) return;
     setAccountActionLoading("restore");
     setStatus("");
     try {
       const { error } = await supabase.rpc("reactivate_my_account");
       if (error) throw error;
+      if (!accountLifecycleActionGate.isCurrent(actionToken, calendarUserRef.current || "")) return;
       setAccountDeactivatedAt(null);
       pushTokenRegisteredForUserRef.current = null;
       await loadAuthedData(userId);
       setStatus("Account restored ✅");
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not restore the account.");
+      if (accountLifecycleActionGate.isCurrent(actionToken, calendarUserRef.current || "")) {
+        setStatus(error instanceof Error ? error.message : "Could not restore the account.");
+      }
     } finally {
-      setAccountActionLoading(null);
+      if (accountLifecycleActionGate.isCurrent(actionToken, calendarUserRef.current || "")) setAccountActionLoading(null);
+      accountLifecycleActionGate.finish(actionToken);
     }
   }
 
   async function acceptCurrentEula() {
     if (!supabase || !userId || !eulaConsentChecked || eulaSaving) return;
+    const operationUserId = userId;
+    const actionToken = eulaActionGate.begin(operationUserId);
+    if (!actionToken) return;
+    const actionIsCurrent = () => eulaActionGate.isCurrent(actionToken, calendarUserRef.current || "");
     setEulaSaving(true);
     setStatus("");
     try {
       const { data: accepted, error } = await supabase.rpc("accept_current_eula", { accepted_version: CURRENT_EULA_VERSION });
+      if (!actionIsCurrent()) return;
       if (error) throw error;
       if (accepted !== true) throw new Error("Could not attach the EULA acceptance to your profile.");
-      await supabase.auth.updateUser({
+      const { error: metadataError } = await supabase.auth.updateUser({
         data: { accepted_eula: true, eula_version: CURRENT_EULA_VERSION },
       });
+      if (!actionIsCurrent()) return;
       setEulaRequired(false);
       setEulaConsentChecked(false);
-      setStatus("");
+      setStatus(metadataError ? "EULA accepted, but account metadata could not be refreshed." : "");
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not record EULA acceptance.");
+      if (actionIsCurrent()) setStatus(error instanceof Error ? error.message : "Could not record EULA acceptance.");
     } finally {
-      setEulaSaving(false);
+      if (actionIsCurrent()) setEulaSaving(false);
+      eulaActionGate.finish(actionToken);
     }
   }
 
   async function permanentlyDeleteAccount() {
-    if (!supabase || deleteAccountConfirmation !== "DELETE" || accountActionLoading) return;
+    if (!supabase || !userId || deleteAccountConfirmation !== "DELETE") return;
+    const operationUserId = userId;
+    const actionToken = accountLifecycleActionGate.begin(operationUserId);
+    if (!actionToken) return;
     setAccountActionLoading("delete");
     setStatus("");
     try {
       const { data } = await supabase.auth.getSession();
       const accessToken = data.session?.access_token;
       if (!accessToken) throw new Error("Your session has expired. Sign in again and retry.");
-      const response = await fetch(`${env.supabaseUrl.replace(/\/$/, "")}/functions/v1/account-deletion`, {
-        method: "POST",
-        headers: {
-          apikey: env.supabaseAnonKey,
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ confirmation: deleteAccountConfirmation }),
-      });
-      const result = (await response.json().catch(() => ({}))) as {
-        ok?: boolean;
-        error?: string;
-        appleRevocationRequired?: boolean;
-        appleAccountUrl?: string;
+      const requestDeletion = async (bearerToken: string) => {
+        const response = await fetch(`${env.supabaseUrl.replace(/\/$/, "")}/functions/v1/account-deletion`, {
+          method: "POST",
+          headers: {
+            apikey: env.supabaseAnonKey,
+            Authorization: `Bearer ${bearerToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            confirmation: deleteAccountConfirmation,
+            supportsAppleReauthentication: true,
+          }),
+        });
+        const result = (await response.json().catch(() => ({}))) as AppleDeletionResponse;
+        return { response, result };
       };
-      if (!response.ok || !result.ok) throw new Error(result.error || "Could not delete the account.");
-      await signOut();
-      if (result.appleRevocationRequired) {
-        Alert.alert(
-          "Account deleted",
-          "QuestHat deleted your account. To also stop Sign in with Apple access, open account.apple.com, choose Sign-In & Security → Sign in with Apple, then remove QuestHat.",
-          [
-            { text: "Later", style: "cancel" },
-            { text: "Open Apple", onPress: () => void RNLinking.openURL(result.appleAccountUrl || "https://account.apple.com/") },
-          ],
-        );
+      let { response, result } = await requestDeletion(accessToken);
+      if (response.status === 409 && result.code === "APPLE_REAUTH_REQUIRED" && result.appleReauthenticationRequired) {
+        const originalSession = data.session;
+        const redirectTo = getRedirectUrl();
+        const oauth = await supabase.auth.signInWithOAuth({
+          provider: "apple",
+          options: { redirectTo, skipBrowserRedirect: true },
+        });
+        if (oauth.error) throw oauth.error;
+        if (!oauth.data.url) throw new Error("No Sign in with Apple URL returned.");
+        const authResult = await WebBrowser.openAuthSessionAsync(oauth.data.url, redirectTo);
+        if (authResult.type !== "success") throw new Error("Sign in with Apple was canceled. Your account was not deleted.");
+        const callback = parseAuthCallback(authResult.url);
+        if (callback.kind !== "code" || !callback.code) throw new Error("Sign in with Apple did not return a reusable authorization code.");
+        const exchange = await supabase.auth.exchangeCodeForSession(callback.code);
+        if (exchange.error || !exchange.data.session) throw exchange.error || new Error("Sign in with Apple did not create a session.");
+        if (exchange.data.session.user.id !== operationUserId) {
+          if (originalSession) {
+            await supabase.auth.setSession({
+              access_token: originalSession.access_token,
+              refresh_token: originalSession.refresh_token,
+            });
+          }
+          throw new Error("Sign in with Apple returned a different QuestHat account. Your account was not deleted.");
+        }
+        await captureAppleProviderToken(exchange.data.session, true);
+        ({ response, result } = await requestDeletion(exchange.data.session.access_token));
       }
+      if (!response.ok || !result.ok) throw new Error(result.error || "Could not delete the account.");
+      if (!accountLifecycleActionGate.isCurrent(actionToken, calendarUserRef.current || "")) return;
       setStatus("Your account was permanently deleted.");
+      await signOut();
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not delete the account.");
+      if (accountLifecycleActionGate.isCurrent(actionToken, calendarUserRef.current || "")) {
+        setStatus(error instanceof Error ? error.message : "Could not delete the account.");
+      }
     } finally {
-      setAccountActionLoading(null);
+      if (accountLifecycleActionGate.isCurrent(actionToken, calendarUserRef.current || "")) setAccountActionLoading(null);
+      accountLifecycleActionGate.finish(actionToken);
     }
   }
 
   async function savePreferences() {
-    if (!supabase) return;
+    if (!supabase || !userId) return;
+    const client = supabase;
+    const operationUserId = userId;
+    const actionToken = settingsPreferenceActionGate.begin(operationUserId);
+    if (!actionToken) return;
+    const actionIsCurrent = () => settingsPreferenceActionGate.isCurrent(actionToken, calendarUserRef.current || "");
+    const preferences = {
+      themePref: settingsThemePref,
+      publicLocationWarningEnabled: settingsPublicLocationWarningEnabled,
+      marketingOptIn: settingsMarketingOptIn,
+    };
     setSavingPreferences(true);
-    await AsyncStorage.setItem("sidequest_theme_pref", settingsThemePref);
-    if (settingsPublicLocationWarningEnabled) {
-      await AsyncStorage.removeItem("sidequest_public_location_warning_muted_until");
-    } else {
-      await AsyncStorage.setItem("sidequest_public_location_warning_muted_until", String(Date.now() + 30 * 24 * 60 * 60 * 1000));
-    }
     try {
-      const { error } = await supabase.auth.updateUser({
-        data: {
-          marketing_opt_in: settingsMarketingOptIn,
-          theme_pref: settingsThemePref,
-          public_location_warning_enabled: settingsPublicLocationWarningEnabled,
+      await persistSettingsPreferences({
+        storage: {
+          setItem: async (key: string, value: string) => {
+            if (!actionIsCurrent()) throw new Error("Account changed before preferences finished saving.");
+            await AsyncStorage.setItem(key, value);
+            if (!actionIsCurrent()) throw new Error("Account changed before preferences finished saving.");
+          },
+          removeItem: async (key: string) => {
+            if (!actionIsCurrent()) throw new Error("Account changed before preferences finished saving.");
+            await AsyncStorage.removeItem(key);
+            if (!actionIsCurrent()) throw new Error("Account changed before preferences finished saving.");
+          },
         },
+        updateAccount: async (data: Record<string, boolean | string>) => {
+          if (!actionIsCurrent()) return { error: { message: "Account changed before preferences finished saving." } };
+          const result = await client.auth.updateUser({ data });
+          if (!actionIsCurrent()) return { error: { message: "Account changed before preferences finished saving." } };
+          return result;
+        },
+        ...preferences,
       });
-      if (error) return setStatus(error.message);
+      if (!actionIsCurrent()) return;
       setStatus("Preferences saved ✅");
+    } catch (error) {
+      if (actionIsCurrent()) setStatus(error instanceof Error ? error.message : "Could not save preferences.");
     } finally {
-      setSavingPreferences(false);
+      if (actionIsCurrent()) setSavingPreferences(false);
+      settingsPreferenceActionGate.finish(actionToken);
     }
   }
 
   async function restartOnboarding() {
     if (!supabase || !userId) return;
-    const { error } = await supabase.from("profiles").upsert({ id: userId, onboarding_done: false });
-    if (error) return setStatus(error.message);
-    setShowOnboardingWizard(true);
-    setOnboardingStep(0);
-    setStatus("Setup reopened. Your current choices are ready to edit.");
+    const operationUserId = userId;
+    const actionToken = onboardingActionGate.begin(operationUserId);
+    if (!actionToken) return;
+    const actionIsCurrent = () => onboardingActionGate.isCurrent(actionToken, calendarUserRef.current || "");
+    try {
+      const { error } = await supabase.from("profiles").upsert({ id: operationUserId, onboarding_done: false });
+      if (!actionIsCurrent()) return;
+      if (error) return setStatus(error.message);
+      setShowOnboardingWizard(true);
+      setOnboardingStep(0);
+      setStatus("Setup reopened. Your current choices are ready to edit.");
+    } finally {
+      onboardingActionGate.finish(actionToken);
+    }
   }
 
   async function skipOnboarding() {
     if (!supabase || !userId) return;
+    const operationUserId = userId;
+    const actionToken = onboardingActionGate.begin(operationUserId);
+    if (!actionToken) return;
+    const actionIsCurrent = () => onboardingActionGate.isCurrent(actionToken, calendarUserRef.current || "");
     setOnboardingSaving(true);
     try {
-      const { error } = await supabase.from("profiles").upsert({ id: userId, onboarding_done: true });
+      const { error } = await supabase.from("profiles").upsert({ id: operationUserId, onboarding_done: true });
+      if (!actionIsCurrent()) return;
       if (error) throw error;
       setShowOnboardingWizard(false);
       setStatus("You can finish setup later in Settings.");
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not skip onboarding.");
+      if (actionIsCurrent()) setStatus(error instanceof Error ? error.message : "Could not skip onboarding.");
     } finally {
-      setOnboardingSaving(false);
+      if (actionIsCurrent()) setOnboardingSaving(false);
+      onboardingActionGate.finish(actionToken);
     }
   }
 
   async function acceptFriendRequest(requesterId: string) {
     if (!supabase || !userId) return;
+    const operationUserId = userId;
+    const actionKey = `friend:${operationUserId}:${requesterId}`;
+    const actionToken = peopleActionGate.begin(actionKey);
+    if (!actionToken) return;
+    const actionIsCurrent = () => calendarUserRef.current === operationUserId && peopleActionGate.isCurrent(actionToken, actionKey);
     setFriendActionUserId(requesterId);
     try {
-      const { error } = await supabase.from("friends").update({ status: "accepted" }).eq("requester_id", requesterId).eq("addressee_id", userId);
+      const { error } = await supabase.from("friends").update({ status: "accepted" }).eq("requester_id", requesterId).eq("addressee_id", operationUserId);
+      if (!actionIsCurrent()) return;
       if (error) return setStatus(error.message);
       if (selectedProfile?.id === requesterId) {
-        setSelectedProfileRelationship({ requester_id: requesterId, addressee_id: userId, status: "accepted" });
+        setSelectedProfileRelationship({ requester_id: requesterId, addressee_id: operationUserId, status: "accepted" });
       }
       await refreshAll();
-      setStatus("Friend request accepted ✅");
+      if (actionIsCurrent()) setStatus("Friend request accepted ✅");
     } finally {
-      setFriendActionUserId((current) => current === requesterId ? null : current);
+      if (actionIsCurrent()) setFriendActionUserId((current) => current === requesterId ? null : current);
+      peopleActionGate.finish(actionToken);
     }
   }
 
   async function declineFriendRequest(requesterId: string) {
     if (!supabase || !userId) return;
+    const operationUserId = userId;
+    const actionKey = `friend:${operationUserId}:${requesterId}`;
+    const actionToken = peopleActionGate.begin(actionKey);
+    if (!actionToken) return;
+    const actionIsCurrent = () => calendarUserRef.current === operationUserId && peopleActionGate.isCurrent(actionToken, actionKey);
     setFriendActionUserId(requesterId);
     try {
-      const { error } = await supabase.from("friends").delete().eq("requester_id", requesterId).eq("addressee_id", userId);
+      const { error } = await supabase.from("friends").delete().eq("requester_id", requesterId).eq("addressee_id", operationUserId);
+      if (!actionIsCurrent()) return;
       if (error) return setStatus(error.message);
       if (selectedProfile?.id === requesterId) setSelectedProfileRelationship(null);
       await refreshAll();
-      setStatus("Request declined.");
+      if (actionIsCurrent()) setStatus("Request declined.");
     } finally {
-      setFriendActionUserId((current) => current === requesterId ? null : current);
+      if (actionIsCurrent()) setFriendActionUserId((current) => current === requesterId ? null : current);
+      peopleActionGate.finish(actionToken);
     }
   }
 
   async function cancelOutgoingFriendRequest(targetId: string) {
     if (!supabase || !userId) return;
+    const operationUserId = userId;
+    const actionKey = `friend:${operationUserId}:${targetId}`;
+    const actionToken = peopleActionGate.begin(actionKey);
+    if (!actionToken) return;
+    const actionIsCurrent = () => calendarUserRef.current === operationUserId && peopleActionGate.isCurrent(actionToken, actionKey);
     setFriendActionUserId(targetId);
     try {
-      const { error } = await supabase.from("friends").delete().eq("requester_id", userId).eq("addressee_id", targetId).eq("status", "pending");
+      const { error } = await supabase.from("friends").delete().eq("requester_id", operationUserId).eq("addressee_id", targetId).eq("status", "pending");
+      if (!actionIsCurrent()) return;
       if (error) return setStatus(error.message);
       if (selectedProfile?.id === targetId) setSelectedProfileRelationship(null);
       await refreshAll();
-      setStatus("Friend request canceled.");
+      if (actionIsCurrent()) setStatus("Friend request canceled.");
     } finally {
-      setFriendActionUserId((current) => current === targetId ? null : current);
+      if (actionIsCurrent()) setFriendActionUserId((current) => current === targetId ? null : current);
+      peopleActionGate.finish(actionToken);
     }
   }
 
   async function addFriend(targetId: string) {
     if (!supabase || !userId || userId === targetId) return;
+    const operationUserId = userId;
+    const actionKey = `friend:${operationUserId}:${targetId}`;
+    const actionToken = peopleActionGate.begin(actionKey);
+    if (!actionToken) return;
+    const actionIsCurrent = () => calendarUserRef.current === operationUserId && peopleActionGate.isCurrent(actionToken, actionKey);
     setFriendActionUserId(targetId);
     try {
       let successMessage = "Friend request sent ✅";
-      const { data: reverse } = await supabase.from("friends").select("requester_id,addressee_id,status").eq("requester_id", targetId).eq("addressee_id", userId).maybeSingle();
+      const { data: reverse } = await supabase.from("friends").select("requester_id,addressee_id,status").eq("requester_id", targetId).eq("addressee_id", operationUserId).maybeSingle();
+      if (!actionIsCurrent()) return;
       if ((reverse as { status?: string } | null)?.status === "pending") {
-        const { error } = await supabase.from("friends").update({ status: "accepted" }).eq("requester_id", targetId).eq("addressee_id", userId);
+        const { error } = await supabase.from("friends").update({ status: "accepted" }).eq("requester_id", targetId).eq("addressee_id", operationUserId);
+        if (!actionIsCurrent()) return;
         if (error) return setStatus(error.message);
-        if (selectedProfile?.id === targetId) setSelectedProfileRelationship({ requester_id: targetId, addressee_id: userId, status: "accepted" });
+        if (selectedProfile?.id === targetId) setSelectedProfileRelationship({ requester_id: targetId, addressee_id: operationUserId, status: "accepted" });
         successMessage = "Friend request accepted ✅";
       } else {
-        const { error } = await supabase.from("friends").insert({ requester_id: userId, addressee_id: targetId, status: "pending" });
+        const { error } = await supabase.from("friends").insert({ requester_id: operationUserId, addressee_id: targetId, status: "pending" });
+        if (!actionIsCurrent()) return;
         if (error && !error.message.toLowerCase().includes("duplicate") && !error.message.toLowerCase().includes("unique")) return setStatus(error.message);
-        if (selectedProfile?.id === targetId) setSelectedProfileRelationship({ requester_id: userId, addressee_id: targetId, status: "pending" });
+        if (selectedProfile?.id === targetId) setSelectedProfileRelationship({ requester_id: operationUserId, addressee_id: targetId, status: "pending" });
       }
       await refreshAll();
-      setStatus(successMessage);
+      if (actionIsCurrent()) setStatus(successMessage);
     } finally {
-      setFriendActionUserId((current) => current === targetId ? null : current);
+      if (actionIsCurrent()) setFriendActionUserId((current) => current === targetId ? null : current);
+      peopleActionGate.finish(actionToken);
     }
   }
 
   async function blockProfile(targetId: string) {
     if (!supabase || !userId || userId === targetId) return;
-    const { data: hostedQuests } = await supabase.from("quests").select("id").eq("creator_id", userId);
-    const hostedQuestIds = ((hostedQuests || []) as Array<{ id: string }>).map((q) => q.id);
-    await supabase.from("friends").delete().or(`and(requester_id.eq.${userId},addressee_id.eq.${targetId}),and(requester_id.eq.${targetId},addressee_id.eq.${userId})`);
-    const { error } = await supabase.from("friends").upsert({ requester_id: userId, addressee_id: targetId, status: "blocked" });
-    if (error) return setStatus(error.message);
-    if (hostedQuestIds.length) {
-      await supabase.from("quest_members").delete().eq("user_id", targetId).in("quest_id", hostedQuestIds);
-      await supabase.from("quest_exact_location_access").delete().eq("user_id", targetId).in("quest_id", hostedQuestIds);
+    const actorId = userId;
+    const action = blockActionGate.begin(`${actorId}:${targetId}:block`);
+    if (!action) return;
+    const actionIsCurrent = () => calendarUserRef.current === actorId && blockActionGate.isCurrent(action);
+    setFriendActionUserId(targetId);
+    try {
+      const { data: blocked, error } = await supabase.rpc("block_profile_and_cleanup", {
+        p_target_user_id: targetId,
+      });
+      if (!actionIsCurrent()) return;
+      const mutationError = confirmedBlockMutationError(blocked, error);
+      if (mutationError) throw mutationError;
+      setBlockedUserIds((current) => current.includes(targetId) ? current : [...current, targetId]);
+      setSelectedProfileRelationship((current) => selectedProfile?.id === targetId ? { requester_id: actorId, addressee_id: targetId, status: "blocked" } : current);
+      setQuests((current) => current.filter((quest) => quest.creator_id !== targetId));
+      setSavedQuests((current) => current.filter((quest) => quest.creator_id !== targetId));
+      setJoinedQuests((current) => current.filter((quest) => quest.creator_id !== targetId));
+      setMessages((current) => current.filter((message) => message.sender_id !== targetId));
+      setNotifications((current) => current.filter((notification) => notification.source_user_id !== targetId));
+      if (selectedQuest?.creator_id === targetId) closeQuestDetail();
+      if (actionIsCurrent()) await refreshAll();
+      if (actionIsCurrent()) setStatus("User blocked, removed from your feed, and reported to moderation.");
+    } catch (error) {
+      if (actionIsCurrent()) setStatus(error instanceof Error ? error.message : "Could not block user.");
+    } finally {
+      if (actionIsCurrent()) setFriendActionUserId((current) => current === targetId ? null : current);
+      blockActionGate.finish(action);
     }
-    setBlockedUserIds((current) => current.includes(targetId) ? current : [...current, targetId]);
-    setQuests((current) => current.filter((quest) => quest.creator_id !== targetId));
-    setSavedQuests((current) => current.filter((quest) => quest.creator_id !== targetId));
-    setJoinedQuests((current) => current.filter((quest) => quest.creator_id !== targetId));
-    setMessages((current) => current.filter((message) => message.sender_id !== targetId));
-    setNotifications((current) => current.filter((notification) => notification.source_user_id !== targetId));
-    if (selectedQuest?.creator_id === targetId) setSelectedQuest(null);
-    if (selectedProfile?.id === targetId) setSelectedProfile(null);
-    setStatus("User blocked, removed from your feed, and reported to moderation.");
-    await refreshAll();
   }
 
   async function unblockProfile(targetId: string) {
     if (!supabase || !userId) return;
-    const { error } = await supabase
-      .from("friends")
-      .delete()
-      .or(`and(requester_id.eq.${userId},addressee_id.eq.${targetId}),and(requester_id.eq.${targetId},addressee_id.eq.${userId})`);
-    if (error) return setStatus(error.message);
-    setStatus("User unblocked.");
-    await refreshAll();
+    const actorId = userId;
+    const action = blockActionGate.begin(`${actorId}:${targetId}:unblock`);
+    if (!action) return;
+    setFriendActionUserId(targetId);
+    try {
+      const { error } = await supabase
+        .from("friends")
+        .delete()
+        .or(`and(requester_id.eq.${actorId},addressee_id.eq.${targetId}),and(requester_id.eq.${targetId},addressee_id.eq.${actorId})`);
+      if (error) throw error;
+      if (!blockActionGate.isCurrent(action)) return;
+      setBlockedUserIds((current) => current.filter((id) => id !== targetId));
+      setSettingsBlockedProfiles((current) => current.filter((item) => item.id !== targetId));
+      if (selectedProfile?.id === targetId) setSelectedProfileRelationship(null);
+      setStatus("User unblocked.");
+      await refreshAll();
+    } catch (error) {
+      if (blockActionGate.isCurrent(action)) setStatus(error instanceof Error ? error.message : "Could not unblock user.");
+    } finally {
+      if (blockActionGate.isCurrent(action)) setFriendActionUserId((current) => current === targetId ? null : current);
+      blockActionGate.finish(action);
+    }
   }
 
   async function submitProfileReport() {
     const target = reportProfileTarget || selectedProfile;
     if (!supabase || !userId || !target || target.id === userId) return;
+    const actorId = userId;
+    const reason = reportProfileReason;
+    const details = reportProfileDetails;
+    if (!isAllowedReportReason(reason, REPORT_REASON_OPTIONS.profile_account)) {
+      setStatus("Choose a valid report reason.");
+      return;
+    }
+    const action = profileReportActionGate.begin(`${actorId}:${target.id}`);
+    if (!action) return;
     setSubmittingProfileReport(true);
     try {
       const reportId = crypto.randomUUID();
       const { error } = await supabase.from("reports").insert({
         id: reportId,
-        reporter_id: userId,
+        reporter_id: actorId,
         reported_user_id: target.id,
         context_type: "profile_account",
-        reason_code: reportProfileReason,
-        details: reportProfileDetails.trim() || null,
-        severity: reportProfileReason === "child_safety_csae" ? "critical" : "normal",
+        reason_code: reason,
+        details: details.trim() || null,
+        severity: reason === "child_safety_csae" ? "critical" : "normal",
         auto_flags: {
           report_target_type: "user",
           report_target_id: target.id,
@@ -5550,17 +7020,20 @@ function privateThreadIncludesUsers(
           reported_user_username: target.username || null,
         },
       });
-      if (error) {
-        setStatus(error.message);
-        return;
-      }
+      if (error) throw error;
+      if (!profileReportActionGate.isCurrent(action)) return;
       const notify = await fetch(`${env.siteUrl.replace(/\/$/, "")}/api/report-alert`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ report_id: reportId }),
       });
+      if (!profileReportActionGate.isCurrent(action)) return;
       if (!notify.ok) {
         const body = await notify.text().catch(() => "");
+        if (!profileReportActionGate.isCurrent(action)) return;
+        setShowReportProfileModal(false);
+        setReportProfileTarget(null);
+        setReportProfileDetails("");
         setStatus(body || "Profile report saved, but email alert failed.");
         return;
       }
@@ -5569,49 +7042,64 @@ function privateThreadIncludesUsers(
       setReportProfileDetails("");
       setStatus("Profile report submitted.");
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not submit profile report.");
+      if (profileReportActionGate.isCurrent(action)) setStatus(error instanceof Error ? error.message : "Could not submit profile report.");
     } finally {
-      setSubmittingProfileReport(false);
+      if (profileReportActionGate.isCurrent(action)) setSubmittingProfileReport(false);
+      profileReportActionGate.finish(action);
     }
   }
 
   async function submitQuestReport() {
     if (!supabase || !userId || !reportQuestTarget) return;
+    const actorId = userId;
+    const target = reportQuestTarget;
+    const context = reportQuestContext;
+    const reason = reportQuestReason;
+    const details = reportQuestDetails;
+    if (!REPORT_CONTEXT_OPTIONS.some((option) => option.value === context) || !isAllowedReportReason(reason, REPORT_REASON_OPTIONS[context])) {
+      setStatus("Choose a valid report reason.");
+      return;
+    }
+    const action = questReportActionGate.begin(`${actorId}:${target.id}`);
+    if (!action) return;
     setSubmittingQuestReport(true);
     try {
-      const creator = getRelationOne(reportQuestTarget.profiles) as { id?: string | null; display_name: string | null; username: string | null } | null;
+      const creator = getRelationOne(target.profiles) as { id?: string | null; display_name: string | null; username: string | null } | null;
       const reportId = crypto.randomUUID();
       const { error } = await supabase.from("reports").insert({
         id: reportId,
-        reporter_id: userId,
-        reported_user_id: creator?.id || reportQuestTarget.creator_id || null,
-        quest_id: reportQuestTarget.id,
-        context_type: reportQuestContext,
-        reason_code: reportQuestReason,
-        details: reportQuestDetails.trim() || null,
-        severity: reportQuestReason === "child_safety_csae" ? "critical" : "normal",
+        reporter_id: actorId,
+        reported_user_id: creator?.id || target.creator_id || null,
+        quest_id: target.id,
+        context_type: context,
+        reason_code: reason,
+        details: details.trim() || null,
+        severity: reason === "child_safety_csae" ? "critical" : "normal",
         auto_flags: {
           reporter_name: profile?.display_name || profile?.username || "you",
-          listing_title: reportQuestTarget.title || null,
-          host_name: creator?.display_name || reportQuestTarget.creator_id || null,
+          listing_title: target.title || null,
+          host_name: creator?.display_name || target.creator_id || null,
           host_username: creator?.username || null,
           report_target_type: "listing",
-          report_target_id: reportQuestTarget.id,
-          report_target_key: `listing:${reportQuestTarget.id}`,
-          report_target_label: reportQuestTarget.title || null,
+          report_target_id: target.id,
+          report_target_key: `listing:${target.id}`,
+          report_target_label: target.title || null,
         },
       });
-      if (error) {
-        setStatus(error.message);
-        return;
-      }
+      if (error) throw error;
+      if (!questReportActionGate.isCurrent(action)) return;
       const notify = await fetch(`${env.siteUrl.replace(/\/$/, "")}/api/report-alert`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ report_id: reportId }),
       });
+      if (!questReportActionGate.isCurrent(action)) return;
       if (!notify.ok) {
         const body = await notify.text().catch(() => "");
+        if (!questReportActionGate.isCurrent(action)) return;
+        setShowReportQuestModal(false);
+        setReportQuestTarget(null);
+        setReportQuestDetails("");
         setStatus(body || "Listing report saved, but email alert failed.");
         return;
       }
@@ -5620,19 +7108,22 @@ function privateThreadIncludesUsers(
       setReportQuestDetails("");
       setStatus("Listing report submitted.");
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not submit listing report.");
+      if (questReportActionGate.isCurrent(action)) setStatus(error instanceof Error ? error.message : "Could not submit listing report.");
     } finally {
-      setSubmittingQuestReport(false);
+      if (questReportActionGate.isCurrent(action)) setSubmittingQuestReport(false);
+      questReportActionGate.finish(action);
     }
   }
 
   function openQuestReportModal(quest: QuestPreview | QuestDetail) {
+    questReportActionGate.invalidate();
+    setSubmittingQuestReport(false);
     setSelectedQuest(null);
     setQuestActionsTarget(null);
     setShowQuestActionsMenu(false);
     setReportQuestTarget(quest);
     setReportQuestContext("listing_content");
-    setReportQuestReason("spam_scam");
+    setReportQuestReason("");
     setReportQuestDetails("");
     setShowReportQuestModal(true);
   }
@@ -5652,54 +7143,48 @@ function privateThreadIncludesUsers(
       promptAuth("login");
       return;
     }
-
-    const ok = await new Promise<boolean>((resolve) => {
-      Alert.alert("Delete listing", "Delete this listing? This cannot be undone.", [
-        { text: "Cancel", style: "cancel", onPress: () => resolve(false) },
-        { text: "Delete", style: "destructive", onPress: () => resolve(true) },
-      ]);
-    });
-    if (!ok) return;
-
-    const { data: sessionData } = await supabase.auth.getSession();
-    const token = sessionData.session?.access_token;
-    if (!token) {
-      setStatus("Log in to delete this listing.");
-      return;
-    }
-
-    const { data: quest, error: readError } = await supabase.from("quests").select("creator_id").eq("id", questId).maybeSingle();
-    if (readError) {
-      setStatus(readError.message);
-      return;
-    }
-    if (!quest) {
-      setStatus("Listing was already deleted.");
-      return;
-    }
-    if (quest.creator_id !== userId) {
-      setStatus("Only the listing creator can delete this listing.");
-      return;
-    }
-
-    const response = await fetch(`${env.siteUrl.replace(/\/$/, "")}/api/quests/delete`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
+    const client = supabase;
+    const operationUserId = userId;
+    const actionScope = `${operationUserId}:${questId}`;
+    const outcome = await runConfirmedScopedMutation({
+      gate: questDeleteActionGate,
+      scope: actionScope,
+      currentScope: () => `${calendarUserRef.current || ""}:${questId}`,
+      confirm: () => new Promise<boolean>((resolve) => {
+        Alert.alert("Delete listing", "Delete this listing? This cannot be undone.", [
+          { text: "Cancel", style: "cancel", onPress: () => resolve(false) },
+          { text: "Delete", style: "destructive", onPress: () => resolve(true) },
+        ], { cancelable: true, onDismiss: () => resolve(false) });
+      }),
+      mutate: async () => {
+        const { data: sessionData } = await client.auth.getSession();
+        const token = sessionData.session?.access_token;
+        if (!token) throw new Error("Log in to delete this listing.");
+        const { data: quest, error: readError } = await client.from("quests").select("creator_id").eq("id", questId).maybeSingle();
+        if (readError) throw readError;
+        if (!quest) throw new Error("Listing was already deleted.");
+        if (quest.creator_id !== operationUserId) throw new Error("Only the listing creator can delete this listing.");
+        const response = await fetch(`${env.siteUrl.replace(/\/$/, "")}/api/quests/delete`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ quest_id: questId }),
+        });
+        const result = (await response.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
+        if (!response.ok || !result?.ok) throw new Error(result?.error || "Listing was not deleted. Please try again.");
       },
-      body: JSON.stringify({ quest_id: questId }),
     });
-    const result = (await response.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
-    if (!response.ok || !result?.ok) {
-      setStatus(result?.error || "Listing was not deleted. Please try again.");
+    if (outcome.status === "failed") {
+      setStatus(outcome.error instanceof Error ? outcome.error.message : "Listing was not deleted. Please try again.");
       return;
     }
-    if (selectedQuest?.id === questId) {
-      setSelectedQuest(null);
-    }
-    if (questActionsTarget?.id === questId) {
-      closeQuestActionsMenu();
+    if (outcome.status !== "succeeded") return;
+    setSelectedQuest((current) => current?.id === questId ? null : current);
+    if (questActionsTargetRef.current?.id === questId) {
+      setQuestActionsTarget(null);
+      setShowQuestActionsMenu(false);
     }
     setStatus("Listing deleted.");
     await refreshAll();
@@ -5707,24 +7192,32 @@ function privateThreadIncludesUsers(
 
   async function removeFriend(friendId: string) {
     if (!supabase || !userId) return;
+    const operationUserId = userId;
+    const actionKey = `friend:${operationUserId}:${friendId}`;
+    const actionToken = peopleActionGate.begin(actionKey);
+    if (!actionToken) return;
+    const actionIsCurrent = () => calendarUserRef.current === operationUserId && peopleActionGate.isCurrent(actionToken, actionKey);
     setFriendActionUserId(friendId);
     try {
       const { error } = await supabase
         .from("friends")
         .delete()
-        .or(`and(requester_id.eq.${userId},addressee_id.eq.${friendId}),and(requester_id.eq.${friendId},addressee_id.eq.${userId})`);
+        .or(`and(requester_id.eq.${operationUserId},addressee_id.eq.${friendId}),and(requester_id.eq.${friendId},addressee_id.eq.${operationUserId})`);
+      if (!actionIsCurrent()) return;
       if (error) return setStatus(error.message);
       if (selectedProfile?.id === friendId) setSelectedProfileRelationship(null);
       setSettingsBlockedRefreshTick((tick) => tick + 1);
       await refreshAll();
-      setStatus("Friend removed.");
+      if (actionIsCurrent()) setStatus("Friend removed.");
     } finally {
-      setFriendActionUserId((current) => current === friendId ? null : current);
+      if (actionIsCurrent()) setFriendActionUserId((current) => current === friendId ? null : current);
+      peopleActionGate.finish(actionToken);
     }
   }
 
   async function uploadProfilePhoto(source?: "camera" | "library") {
     if (!supabase || !userId) return;
+    const operationUserId = userId;
     if (!source) {
       Alert.alert("Profile photo", "Add a new photo from your camera or photo library.", [
         { text: "Take a photo", onPress: () => void uploadProfilePhoto("camera") },
@@ -5736,6 +7229,7 @@ function privateThreadIncludesUsers(
     const permission = source === "camera"
       ? await ImagePicker.requestCameraPermissionsAsync()
       : await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (calendarUserRef.current !== operationUserId) return;
     if (!permission.granted) {
       const sourceLabel = source === "camera" ? "Camera" : "Photo library";
       const message = `${sourceLabel} permission is required. Allow access in ${Platform.OS === "android" ? "Android" : "iPhone"} Settings, then try again.`;
@@ -5757,15 +7251,21 @@ function privateThreadIncludesUsers(
       allowsEditing: true,
       quality: 0.9,
         });
+    if (calendarUserRef.current !== operationUserId) return;
     if (result.canceled || !result.assets?.length) return;
     const asset = result.assets[0];
     if (!asset.uri) return;
+    const photoOperation = profilePhotoOperationGate.begin(operationUserId);
+    const actionIsCurrent = () => profilePhotoOperationGate.isCurrent(photoOperation, calendarUserRef.current || "");
+    let uploadedPhotoPath: string | null = null;
+    let profilePersisted = false;
     setUploadingAvatar(true);
     try {
       if (!asset.mimeType?.startsWith("image/") && asset.mimeType) throw new Error("Please choose an image file.");
       const fileName = asset.fileName || "profile-photo.jpg";
       const ext = getFileExtension(fileName, "jpg");
-      const path = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+      const path = `${operationUserId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+      uploadedPhotoPath = path;
       await uploadLocalFileToStorage({
         bucket: "profile-photos",
         path,
@@ -5774,8 +7274,12 @@ function privateThreadIncludesUsers(
       });
       const { data } = supabase.storage.from("profile-photos").getPublicUrl(path);
       const avatarUrl = data.publicUrl;
+      if (!actionIsCurrent()) {
+        await supabase.storage.from("profile-photos").remove([path]);
+        return;
+      }
       const { error: profileUpdateError } = await supabase.from("profiles").upsert({
-        id: userId,
+        id: operationUserId,
         avatar_url: avatarUrl,
         avatar_source_url: avatarUrl,
         photo_onboarding_done: true,
@@ -5783,42 +7287,54 @@ function privateThreadIncludesUsers(
       let profileError = profileUpdateError;
       if (profileError?.message.toLowerCase().includes("avatar_source_url")) {
         const retry = await supabase.from("profiles").upsert({
-          id: userId,
+          id: operationUserId,
           avatar_url: avatarUrl,
           photo_onboarding_done: true,
         });
         profileError = retry.error;
       }
       if (profileError) throw profileError;
+      profilePersisted = true;
+      if (!actionIsCurrent()) return;
       const { error: metaError } = await supabase.auth.updateUser({ data: { avatar_url: avatarUrl } });
-      if (metaError) throw new Error(metaError.message);
+      if (!actionIsCurrent()) return;
       setSettingsAvatarUri(avatarUrl);
       setProfile((current) => current ? { ...current, avatar_url: avatarUrl } : current);
-      setStatus("Profile photo updated.");
-      await loadAuthedData(userId);
+      setStatus(metaError ? "Profile photo updated. Account metadata could not be refreshed." : "Profile photo updated.");
+      await loadAuthedData(operationUserId);
     } catch (error) {
+      if (uploadedPhotoPath && !profilePersisted) {
+        await supabase.storage.from("profile-photos").remove([uploadedPhotoPath]);
+      }
       const message = error instanceof Error ? error.message : "Could not upload profile photo.";
-      setStatus(message);
-      Alert.alert("Couldn’t update photo", message);
+      if (actionIsCurrent()) {
+        setStatus(message);
+        Alert.alert("Couldn’t update photo", message);
+      }
     } finally {
-      setUploadingAvatar(false);
+      if (actionIsCurrent()) setUploadingAvatar(false);
     }
   }
 
   async function deleteProfilePhoto() {
     if (!supabase || !userId) return;
-    const currentPhotoPath = getOwnedPublicStoragePath(settingsAvatarUri, "profile-photos", userId);
+    const operationUserId = userId;
+    const photoOperation = profilePhotoOperationGate.begin(operationUserId);
+    const actionIsCurrent = () => profilePhotoOperationGate.isCurrent(photoOperation, calendarUserRef.current || "");
+    const currentPhotoPath = getOwnedPublicStoragePath(settingsAvatarUri, "profile-photos", operationUserId);
     setUploadingAvatar(true);
     try {
-      const { error: profileUpdateError } = await supabase.from("profiles").upsert({ id: userId, avatar_url: null, avatar_source_url: null });
+      const { error: profileUpdateError } = await supabase.from("profiles").upsert({ id: operationUserId, avatar_url: null, avatar_source_url: null });
       let profileError = profileUpdateError;
       if (profileError?.message.toLowerCase().includes("avatar_source_url")) {
-        const retry = await supabase.from("profiles").upsert({ id: userId, avatar_url: null });
+        const retry = await supabase.from("profiles").upsert({ id: operationUserId, avatar_url: null });
         profileError = retry.error;
       }
       if (profileError) throw profileError;
+      if (!actionIsCurrent()) return;
       const { error: metaError } = await supabase.auth.updateUser({ data: { avatar_url: null } });
       if (metaError) throw new Error(metaError.message);
+      if (!actionIsCurrent()) return;
       setSettingsAvatarUri("");
       setProfile((current) => current ? { ...current, avatar_url: null } : current);
       let storageDeleteError: { message: string } | null = null;
@@ -5827,11 +7343,11 @@ function privateThreadIncludesUsers(
         storageDeleteError = error;
       }
       setStatus(storageDeleteError ? "Profile photo removed. Its old stored file could not be deleted." : "Profile photo removed.");
-      await loadAuthedData(userId);
+      await loadAuthedData(operationUserId);
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not delete profile photo.");
+      if (actionIsCurrent()) setStatus(error instanceof Error ? error.message : "Could not delete profile photo.");
     } finally {
-      setUploadingAvatar(false);
+      if (actionIsCurrent()) setUploadingAvatar(false);
     }
   }
 
@@ -5880,11 +7396,6 @@ function privateThreadIncludesUsers(
       if (raw) setLastNotificationsSeenAt(raw);
     });
   }, []);
-
-  const hasUnreadNotifications = useMemo(
-    () => notifications.some((item) => !item.read_at),
-    [notifications],
-  );
 
   const unreadNotificationCount = useMemo(
     () => notifications.filter((item) => !item.read_at).length,
@@ -6055,8 +7566,26 @@ function privateThreadIncludesUsers(
     return `${year}-${month}-${day}`;
   }
 
+  function closeStartDateTimePicker() {
+    setShowStartAtPicker(false);
+    setStartAtPickerValue(null);
+  }
+
+  function confirmStartDateTimePicker() {
+    if (!startAtPickerValue || !Number.isFinite(startAtPickerValue.getTime()) || startAtPickerValue.getTime() <= Date.now()) {
+      setStatus("Choose a future start time.");
+      return;
+    }
+    setStartAt(startAtPickerValue.toISOString());
+    setStatus("");
+    closeStartDateTimePicker();
+  }
+
   function openStartDateTimePicker() {
     if (Platform.OS !== "android") {
+      const fallback = new Date(Date.now() + 60 * 60 * 1000);
+      const parsed = startAt ? new Date(startAt) : fallback;
+      setStartAtPickerValue(Number.isFinite(parsed.getTime()) ? parsed : fallback);
       setShowStartAtPicker(true);
       return;
     }
@@ -6164,7 +7693,7 @@ function privateThreadIncludesUsers(
                 <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color="#8c96a9" />
               </Pressable>
             </View>
-            <Pressable style={styles.authForgotButton} onPress={() => void Linking.openURL(`${env.siteUrl.replace(/\/$/, "")}/reset-password`)} disabled={authBusy}>
+            <Pressable style={styles.authForgotButton} onPress={() => void Linking.openURL(`${env.siteUrl.replace(/\/$/, "")}/?auth=recovery`)} disabled={authBusy}>
               <Text style={styles.authForgotText}>Forgot password?</Text>
             </Pressable>
             <Pressable style={[styles.authPrimaryButton, authBusy && styles.authButtonDisabled]} onPress={passwordAuth} disabled={authBusy}>
@@ -6744,7 +8273,7 @@ function privateThreadIncludesUsers(
             </Pressable>
             <Pressable style={styles.upcomingQuestDismissEvent} onPress={dismissForEvent}>
               <Ionicons name="eye-off-outline" size={16} color="#afc2c9" />
-              <Text style={styles.upcomingQuestDismissEventText}>Don't show this again for this event</Text>
+              <Text style={styles.upcomingQuestDismissEventText}>Don’t show this again for this event</Text>
             </Pressable>
             </ScrollView>
           </LinearGradient>
@@ -6775,12 +8304,111 @@ function privateThreadIncludesUsers(
     );
   }
 
+  function renderHomeFeedError() {
+    if (homeFeedLoadStatus !== "error") return null;
+    const presentation = getHomeFeedPresentation(homeFeedLoadStatus, 0);
+    return <View accessibilityRole="alert" style={[styles.homeEmptyCard, { backgroundColor: isLightTheme ? "#ffffff" : "#151722", borderColor: shellBorder }]}>
+      <Text style={[styles.homeEmptyTitle, { color: shellText }]}>{presentation.title}</Text>
+      <Text style={[styles.homeEmptyCopy, { color: shellMuted }]}>{presentation.copy}</Text>
+      <Pressable style={styles.homeClearButton} onPress={() => void refreshAll()} accessibilityRole="button" accessibilityLabel="Retry loading quests">
+        <Text style={styles.homeClearButtonText}>Retry</Text>
+      </Pressable>
+    </View>;
+  }
+
+  function renderHomePagination() {
+    if (homeFeedLoadStatus !== "ready") return null;
+    if (homeHasMore) {
+      return <View style={[styles.homePaginationCard, { borderColor: shellBorder }]}>
+        {homeLoadMoreError ? <Text accessibilityRole="alert" style={[styles.homePaginationCopy, { color: shellMuted }]}>{homeLoadMoreError}</Text> : null}
+        <Pressable
+          style={[styles.homePaginationButton, homeLoadingMore && styles.homePaginationButtonDisabled]}
+          onPress={() => void loadMoreHome()}
+          disabled={homeLoadingMore}
+          accessibilityRole="button"
+          accessibilityLabel={homeLoadMoreError ? "Retry loading more quests" : "Load more quests"}
+          accessibilityState={{ busy: homeLoadingMore, disabled: homeLoadingMore }}
+        >
+          {homeLoadingMore ? <ActivityIndicator size="small" color="#082f3a" /> : null}
+          <Text style={styles.homePaginationButtonText}>{homeLoadingMore ? "Loading…" : homeLoadMoreError ? "Retry" : "Load more"}</Text>
+        </Pressable>
+      </View>;
+    }
+    if (!homeHasLoadedAdditionalPage) return null;
+    return <Text accessibilityRole="text" style={[styles.homePaginationEnd, { color: shellMuted }]}>You’ve reached the end.</Text>;
+  }
+
+  function openHomeSortMenu() {
+    Keyboard.dismiss();
+    const anchor = homeSortAnchorRef.current as unknown as { measureInWindow?: (callback: (x: number, y: number, width: number, height: number) => void) => void } | null;
+    if (!anchor?.measureInWindow) { setHomeSortAnchor(null); setHomeSortMenuVisible(true); return; }
+    anchor.measureInWindow((x, y, width, height) => { setHomeSortAnchor({ x, y, width, height }); setHomeSortMenuVisible(true); });
+  }
+
+  async function chooseHomeSort(mode: HomeSortMode) {
+    setHomeSortMenuVisible(false);
+    if (homeFeedUsesCompatibilityFallback) return;
+    if (mode === homeSortMode) return;
+    if (mode === "nearest" && !deviceLocation) {
+      const location = await requestDeviceLocation("Choose a location to sort quests by nearest.");
+      if (!location) return;
+    }
+    setSelectedMapQuestId(null);
+    setHomePageCursor(null);
+    setHomeSortMode(mode);
+  }
+
+  function renderHomeSortMenu() {
+    if (homeFeedUsesCompatibilityFallback) return null;
+    const menuTop = Math.min(homeSortAnchor ? homeSortAnchor.y + homeSortAnchor.height + 6 : 150, windowHeight - 218);
+    const menuRight = Math.max(14, homeSortAnchor ? windowWidth - (homeSortAnchor.x + homeSortAnchor.width) : 14);
+    return <Modal transparent visible={homeSortMenuVisible} animationType="fade" onRequestClose={() => setHomeSortMenuVisible(false)}>
+      <View style={{ flex: 1 }}>
+        <Pressable accessibilityLabel="Close sort menu" style={StyleSheet.absoluteFill} onPress={() => setHomeSortMenuVisible(false)} />
+        <View accessibilityRole="menu" accessibilityLabel="Sort quests" style={{ position: "absolute", right: menuRight, top: menuTop, minWidth: 178, padding: 6, borderRadius: 14, borderWidth: 1, backgroundColor: isLightTheme ? "#ffffff" : "#151722", borderColor: shellBorder }}>
+          {HOME_SORT_OPTIONS.map((option) => {
+            const selected = option.value === homeSortMode;
+            return <Pressable key={option.value} accessibilityRole="menuitem" accessibilityLabel={`Sort by ${option.label}`} accessibilityState={{ selected }} onPress={() => void chooseHomeSort(option.value)} style={{ minHeight: 44, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderRadius: 10, backgroundColor: selected ? (isLightTheme ? "#e8f3f5" : "rgba(109,174,194,0.12)") : "transparent" }}>
+              <Text style={{ color: shellText, fontWeight: "700" }}>{option.label}</Text>
+              {selected ? <Ionicons name="checkmark" size={18} color={isLightTheme ? "#0f5f73" : "#9bd8e4"} /> : null}
+            </Pressable>;
+          })}
+        </View>
+      </View>
+    </Modal>;
+  }
+
   function renderHomeDiscoveryHeader(categories: string[], resultCount: number) {
-    const firstName = (profile?.display_name || profile?.username || "").trim().split(/\s+/)[0];
+    const feedPresentation = getHomeFeedPresentation(homeFeedLoadStatus, resultCount);
     const locationLabel = profile?.city || (deviceLocation ? "Near you" : "Choose your area");
+    const displayedHomeSortMode = homeFeedUsesCompatibilityFallback ? "recent" : homeSortMode;
+    const renderHomeFindPeopleCard = () => (
+      <Pressable
+        style={[
+          styles.homeFindPeopleCard,
+          {
+            backgroundColor: isLightTheme ? "#eef8fa" : "rgba(109,174,194,0.1)",
+            borderColor: isLightTheme ? "rgba(15,95,115,0.18)" : "rgba(109,174,194,0.24)",
+          },
+        ]}
+        onPress={() => signedIn ? openPeopleFinderFromInbox() : promptAuth("login")}
+        accessibilityRole="button"
+        accessibilityLabel="Find people for your quest"
+      >
+        <View style={styles.homeFindPeopleIcon}>
+          <Ionicons name="people" size={21} color="#082f3a" />
+        </View>
+        <View style={styles.homeFindPeopleCopy}>
+          <Text maxFontSizeMultiplier={1.5} style={[styles.homeFindPeopleTitle, { color: isLightTheme ? "#101827" : "#f8fafc" }]}>Find people for your quest</Text>
+          <Text maxFontSizeMultiplier={1.5} style={[styles.homeFindPeopleSubtitle, { color: isLightTheme ? "#536273" : "#9aa7b7" }]}>Browse nearby people who chose to be discoverable.</Text>
+        </View>
+        <Ionicons name="arrow-forward" size={19} color="#6daec2" />
+      </Pressable>
+    );
     if (feedViewMode === "map") {
       return (
         <View style={styles.mapDiscovery}>
+          {renderHomeFeedError()}
           <View style={styles.mapDiscoveryHeading}>
             <View style={styles.mapDiscoveryTitleBlock}>
               <Text style={[styles.mapDiscoveryEyebrow, { color: isLightTheme ? "#0f5f73" : "#79bfd0" }]}>EXPLORE NEARBY</Text>
@@ -6802,6 +8430,7 @@ function privateThreadIncludesUsers(
           >
             <Ionicons name="search" size={19} color={isLightTheme ? "#64748b" : "#8e98a8"} />
             <TextInput
+              maxFontSizeMultiplier={1.5}
               value={homeSearchQuery}
               onChangeText={setHomeSearchQuery}
               placeholder="Search this area"
@@ -6811,7 +8440,7 @@ function privateThreadIncludesUsers(
               clearButtonMode="while-editing"
             />
             <View style={[styles.mapSearchCount, { backgroundColor: isLightTheme ? "#edf6f7" : "rgba(109,174,194,0.1)" }]}>
-              <Text style={[styles.mapSearchCountText, { color: isLightTheme ? "#0f5f73" : "#9bd8e4" }]}>{resultCount}</Text>
+              <Text style={[styles.mapSearchCountText, { color: isLightTheme ? "#0f5f73" : "#9bd8e4" }]} >{feedPresentation.countLabel}</Text>
             </View>
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.homeCategoryRail}>
@@ -6829,38 +8458,19 @@ function privateThreadIncludesUsers(
                   ]}
                   onPress={() => setHomeCategoryFilter(category)}
                 >
-                  <Ionicons name={category === "All" ? "compass-outline" : getCategoryIcon(category)} size={15} color={active ? "#ffffff" : "#6daec2"} />
-                  <Text style={[styles.homeCategoryChipText, { color: active ? "#ffffff" : isLightTheme ? "#334155" : "#c7ced9" }]}>{category === "All" ? "All quests" : category}</Text>
+                  <Ionicons name={category === "All" ? "compass-outline" : (catalog.categories.find(c => c.id === category)?.icon || "sparkles-outline")} size={15} color={active ? "#ffffff" : "#6daec2"} />
+              <Text maxFontSizeMultiplier={1.5} style={[styles.homeCategoryChipText, { color: active ? "#ffffff" : isLightTheme ? "#334155" : "#c7ced9" }]}>{category === "All" ? "All quests" : discoveryLabel(category)}</Text>
                 </Pressable>
               );
             })}
           </ScrollView>
+          {renderHomeFindPeopleCard()}
         </View>
       );
     }
     return (
       <View style={styles.homeDiscovery}>
-        <LinearGradient colors={["#d9f1f4", "#a9d8e1", "#6daec2"]} style={styles.homeHero}>
-          <View style={styles.homeHeroTop}>
-            <View style={styles.homeLocalPill}>
-              <Ionicons name="navigate" size={13} color="#0b5364" />
-              <Text style={styles.homeLocalPillText} numberOfLines={1}>{locationLabel}</Text>
-            </View>
-            <View style={styles.homeLivePill}>
-              <View style={styles.homeLiveDot} />
-              <Text style={styles.homeLiveText}>{quests.length} live</Text>
-            </View>
-          </View>
-          <Text style={styles.homeEyebrow}>{firstName ? `HEY ${firstName.toUpperCase()}` : "DISCOVER SOMETHING REAL"}</Text>
-          <Text style={styles.homeHeroTitle}>What are you up for?</Text>
-          <Text style={styles.homeHeroCopy}>Find a plan worth leaving the group chat for.</Text>
-          <Pressable style={styles.homeCreateButton} onPress={() => openAuthedTab("create")}>
-            <View style={styles.homeCreateIcon}><Ionicons name="add" size={20} color="#ffffff" /></View>
-            <Text style={styles.homeCreateText}>Start your own quest</Text>
-            <Ionicons name="arrow-forward" size={17} color="#082f3a" />
-          </Pressable>
-        </LinearGradient>
-
+        {renderHomeFeedError()}
         <View
           style={[
             styles.homeSearchShell,
@@ -6872,6 +8482,7 @@ function privateThreadIncludesUsers(
         >
           <Ionicons name="search" size={19} color={isLightTheme ? "#64748b" : "#8e98a8"} />
           <TextInput
+            maxFontSizeMultiplier={1.5}
             value={homeSearchQuery}
             onChangeText={setHomeSearchQuery}
             placeholder="Search plans, places, or interests"
@@ -6903,24 +8514,33 @@ function privateThreadIncludesUsers(
                 onPress={() => setHomeCategoryFilter(category)}
               >
                 {category === "All" ? <Ionicons name="sparkles-outline" size={15} color={active ? "#ffffff" : "#6daec2"} /> : null}
-                <Text style={[styles.homeCategoryChipText, { color: active ? "#ffffff" : isLightTheme ? "#334155" : "#c7ced9" }]}>{category === "All" ? "For you" : category}</Text>
+                <Text maxFontSizeMultiplier={1.5} style={[styles.homeCategoryChipText, { color: active ? "#ffffff" : isLightTheme ? "#334155" : "#c7ced9" }]}>{discoveryLabel(category)}</Text>
               </Pressable>
             );
           })}
         </ScrollView>
 
+        {renderHomeFindPeopleCard()}
+
         <View style={styles.homeSectionHeading}>
-          <View>
-            <Text style={[styles.homeSectionEyebrow, { color: isLightTheme ? "#0f5f73" : "#6daec2" }]}>
-              {homeCategoryFilter === "All" ? "FRESH PICKS" : homeCategoryFilter.toUpperCase()}
+          <View style={{ flex: 1 }}>
+            <Text maxFontSizeMultiplier={1.5} style={[styles.homeSectionEyebrow, { color: isLightTheme ? "#0f5f73" : "#6daec2" }]}>
+              {homeCategoryFilter === "All" ? "FRESH PICKS" : discoveryLabel(homeCategoryFilter).toUpperCase()}
             </Text>
-            <Text style={[styles.homeSectionTitle, { color: isLightTheme ? "#101827" : "#f8fafc" }]}>
+            <Text maxFontSizeMultiplier={1.5} style={[styles.homeSectionTitle, { color: isLightTheme ? "#101827" : "#f8fafc" }]}>
               {homeSearchQuery.trim() ? "Search results" : "Plans happening now"}
             </Text>
           </View>
-          <View style={[styles.homeResultPill, { backgroundColor: isLightTheme ? "#e8f3f5" : "rgba(109,174,194,0.1)" }]}>
-            <Text style={[styles.homeResultText, { color: isLightTheme ? "#0f5f73" : "#9bd8e4" }]}>{resultCount}</Text>
+          <View style={styles.homeSectionActions}>
+            <Pressable ref={homeSortAnchorRef} accessibilityRole="button" accessibilityLabel={`Sort quests, currently ${HOME_SORT_OPTIONS.find((option) => option.value === displayedHomeSortMode)?.label || "Soonest"}`} accessibilityHint={homeFeedUsesCompatibilityFallback ? "Additional sorting is unavailable until the feed service is updated" : "Opens the quest sorting menu"} accessibilityState={{ expanded: homeSortMenuVisible, disabled: homeFeedUsesCompatibilityFallback }} disabled={homeFeedUsesCompatibilityFallback} onPress={openHomeSortMenu} style={{ minHeight: 34, paddingHorizontal: 10, borderRadius: 12, borderWidth: 1, flexDirection: "row", alignItems: "center", gap: 5, opacity: homeFeedUsesCompatibilityFallback ? 0.72 : 1, backgroundColor: isLightTheme ? "#ffffff" : "#171923", borderColor: isLightTheme ? "rgba(15,95,115,0.2)" : "rgba(109,174,194,0.3)" }}>
+              <Text maxFontSizeMultiplier={1.5} style={{ color: isLightTheme ? "#0f5f73" : "#9bd8e4", fontWeight: "700", fontSize: 12 }}>Sort: {HOME_SORT_OPTIONS.find((option) => option.value === displayedHomeSortMode)?.label || "Soonest"}</Text>
+              <Ionicons name={homeFeedUsesCompatibilityFallback ? "lock-closed-outline" : homeSortMenuVisible ? "chevron-up" : "chevron-down"} size={13} color={isLightTheme ? "#0f5f73" : "#9bd8e4"} />
+            </Pressable>
+            <View style={[styles.homeResultPill, { backgroundColor: isLightTheme ? "#e8f3f5" : "rgba(109,174,194,0.1)" }]}>
+              <Text maxFontSizeMultiplier={1.5} style={[styles.homeResultText, { color: isLightTheme ? "#0f5f73" : "#9bd8e4" }]}>{feedPresentation.countLabel}</Text>
+            </View>
           </View>
+          {renderHomeSortMenu()}
         </View>
       </View>
     );
@@ -6928,9 +8548,9 @@ function privateThreadIncludesUsers(
 
   function renderFeedCard(quest: QuestPreview) {
     const creator = getRelationOne(quest.profiles);
-    const mediaItems = (quest.media_items || []).filter((item): item is QuestMediaItem => Boolean(item?.url));
+    const mediaItems = normalizeQuestMediaItems(quest.media_items) as QuestMediaItem[];
     const fallbackVisual = getCategoryFallbackMedia(getCategory(quest));
-    const fallbackImageUrl = `https://questhat.com${fallbackVisual.imagePath}`;
+    const fallbackImageUrl = catalogCovers(catalog, quest.hobby_id || "", quest.title)[0]?.imageUrl || `https://questhat.com${fallbackVisual.imagePath}`;
     const questCoords = questCoordsById[quest.id];
     const distanceLabel = locationStatus === "loading"
       ? "Locating..."
@@ -6971,6 +8591,7 @@ function privateThreadIncludesUsers(
     const hostName = creator?.display_name || creator?.username || "QuestHat host";
     const totalJoined = joinCountByQuestId[quest.id] || 0;
     const isJoinActionDisabled = isOwner && !isExpired;
+    const isMembershipTransitioning = membershipTransitionQuestIds.includes(quest.id);
     const joinButtonTone = membershipStatus === "pending"
       ? styles.feedJoinButtonPending
       : isJoined || isOwner
@@ -7047,7 +8668,7 @@ function privateThreadIncludesUsers(
           <View style={styles.feedTopOverlay} pointerEvents="box-none">
             <Pressable style={styles.feedCreatorPill} onPress={() => void openProfile(creator?.id)}>
               {creator?.avatar_url ? (
-                <Image source={{ uri: creator.avatar_url }} style={styles.feedAvatar} />
+                <NativeImage source={{ uri: creator.avatar_url }} style={styles.feedAvatar} />
               ) : (
                 <View style={styles.feedAvatarFallback}>
                   <Ionicons name="person" size={14} color="#dff7fb" />
@@ -7114,8 +8735,9 @@ function privateThreadIncludesUsers(
                       void toggleJoinQuestMobile(quest);
                     }
                   }}
-                  disabled={isJoinActionDisabled}
+                  disabled={isJoinActionDisabled || isMembershipTransitioning}
                   accessibilityLabel={joinLabel}
+                  accessibilityState={{ disabled: isJoinActionDisabled || isMembershipTransitioning, busy: isMembershipTransitioning }}
                 >
                   <Ionicons name={joinIcon} size={17} color={joinButtonContentColor} />
                   <Text style={[styles.feedJoinButtonText, { color: joinButtonContentColor }]} numberOfLines={1}>{joinLabel}</Text>
@@ -7130,8 +8752,12 @@ function privateThreadIncludesUsers(
         <View style={[styles.feedActionsRow, { borderTopColor: isLightTheme ? "rgba(15,23,42,0.07)" : "rgba(255,255,255,0.06)" }]}>
           <Pressable
             style={styles.feedActionButton}
-            onPress={() => void openQuestConversation(quest, "public")}
+            onPress={() => {
+              if (!isMembershipTransitioning) void openQuestConversation(quest, "public");
+            }}
+            disabled={isMembershipTransitioning}
             accessibilityLabel="Open comments"
+            accessibilityState={{ disabled: isMembershipTransitioning, busy: isMembershipTransitioning }}
           >
             <Ionicons name="chatbox-outline" size={20} color={isLightTheme ? "#344054" : "#d5dbe5"} />
             <Text style={[styles.feedActionText, { color: isLightTheme ? "#475569" : "#b7c0cd" }]}>{commentCountByQuestId[quest.id] || 0}</Text>
@@ -7183,12 +8809,7 @@ function privateThreadIncludesUsers(
       })
       .filter((point): point is QuestMapPoint => Boolean(point));
 
-    const sortedPoints = points.slice().sort((a, b) => {
-      if (!deviceLocation) return a.quest.title.localeCompare(b.quest.title);
-      const aMiles = haversineMiles(deviceLocation.lat, deviceLocation.lon, a.coords.lat, a.coords.lon);
-      const bMiles = haversineMiles(deviceLocation.lat, deviceLocation.lon, b.coords.lat, b.coords.lon);
-      return aMiles - bMiles;
-    });
+    const sortedPoints = points;
     const selectedPoint = sortedPoints.find((point) => point.quest.id === selectedMapQuestId) || sortedPoints[0] || null;
     const mapPoints = [...points.map((point) => point.coords), ...(deviceLocation ? [deviceLocation] : [])];
     const center = deviceLocation || (mapPoints.length
@@ -7419,7 +9040,7 @@ function privateThreadIncludesUsers(
             <View style={styles.mapPreviewCard}>
               <Pressable style={styles.mapPreviewMain} onPress={() => void openQuestDetail(selectedQuest.id)}>
                 {selectedMediaUrl ? (
-                  <Image source={{ uri: selectedMediaUrl }} style={styles.mapPreviewImage} />
+                  <NativeImage source={{ uri: selectedMediaUrl }} style={styles.mapPreviewImage} />
                 ) : (
                   <View style={styles.mapPreviewImageFallback}><Ionicons name={getCategoryIcon(selectedCategory)} size={24} color="#9bd8e4" /></View>
                 )}
@@ -7495,7 +9116,7 @@ function privateThreadIncludesUsers(
                 ]}
                 onPress={() => focusMapPoint(point)}
               >
-                <Image source={{ uri: imageUrl }} style={styles.mapQuestTileImage} />
+                <NativeImage source={{ uri: imageUrl }} style={styles.mapQuestTileImage} />
                 <View style={styles.mapQuestTileCopy}>
                   <View style={styles.mapQuestTileMeta}>
                     <Ionicons name={getCategoryIcon(category)} size={13} color="#6daec2" />
@@ -7513,10 +9134,25 @@ function privateThreadIncludesUsers(
   }
 
   function renderScreen() {
+    async function submitNativeFeedback() {
+      if (!NATIVE_FEEDBACK_ENABLED) return setNativeFeedbackStatus("Feedback is not enabled in this app build yet.");
+      if (!supabase || !userId) return setNativeFeedbackStatus("Feedback was not sent: sign in is required.");
+      if (nativeFeedbackMessage.trim().length < 20) return setNativeFeedbackStatus("Feedback was not sent: add at least 20 characters.");
+      setNativeFeedbackSending(true); setNativeFeedbackStatus("");
+      try {
+        const { data } = await supabase.auth.getSession();
+        if (!data.session?.access_token) throw new Error("Sign in is required.");
+        const response = await fetch(`${env.siteUrl.replace(/\/$/, "")}/api/app-feedback`, { method: "POST", headers: { "Content-Type": "application/json", authorization: `Bearer ${data.session.access_token}` }, body: JSON.stringify({ category: nativeFeedbackCategory, message: nativeFeedbackMessage, replyContact: nativeFeedbackReply, diagnostics: nativeFeedbackDiagnostics, diagnosticsInfo: nativeFeedbackDiagnostics ? { platform: Platform.OS, appVersion: Constants.nativeAppVersion || null } : null }) });
+        const result = await response.json().catch(() => null) as { ok?: boolean; error?: string; captchaRequired?: boolean } | null;
+        if (!response.ok || !result?.ok) { setNativeFeedbackStatus(result?.captchaRequired ? "Feedback was not sent: verification is required. This native build cannot complete it yet." : `Feedback was not sent: ${result?.error || "Please try again."}`); return; }
+        setNativeFeedbackStatus("Thanks — your feedback was sent."); setNativeFeedbackMessage("");
+      } catch (error) { setNativeFeedbackStatus(`Feedback was not sent: ${error instanceof Error ? error.message : "Please try again."}`); }
+      finally { setNativeFeedbackSending(false); }
+    }
     if (authState === "loading") {
       return (
         <View style={styles.launchScreen}>
-          <Image source={require("../assets/launch-logo.png")} style={styles.launchLogo} resizeMode="contain" />
+          <NativeImage source={launchLogo} style={styles.launchLogo} resizeMode="contain" />
           <View style={styles.launchBrandFooter}>
             <Text style={styles.launchBrandTitle}>QUESTHAT</Text>
             <Text style={styles.launchBrandSubtitle}>Real plans. Real people.</Text>
@@ -7528,48 +9164,21 @@ function privateThreadIncludesUsers(
     if (!signedIn && activeTab !== "home") return renderAuthCard();
 
     if (activeTab === "home") {
-      const categoryCounts = quests.reduce<Record<string, number>>((counts, quest) => {
-        const category = getCategory(quest);
-        counts[category] = (counts[category] || 0) + 1;
-        return counts;
-      }, {});
-      const homeCategories = [
-        "All",
-        ...Object.entries(categoryCounts)
-          .sort(([, countA], [, countB]) => countB - countA)
-          .map(([category]) => category)
-          .slice(0, 10),
-      ];
-      const normalizedHomeSearch = homeSearchQuery.trim().toLowerCase();
-      const filteredHomeQuests = quests.filter((quest) => {
-        const category = getCategory(quest);
-        if (homeCategoryFilter !== "All" && category !== homeCategoryFilter) return false;
-        if (!normalizedHomeSearch) return true;
-        const searchable = [
-          quest.title,
-          quest.description,
-          quest.city,
-          quest.availability,
-          category,
-          getRelationOne(quest.profiles)?.display_name,
-          getRelationOne(quest.profiles)?.username,
-        ].filter(Boolean).join(" ").toLowerCase();
-        return searchable.includes(normalizedHomeSearch);
-      });
-      homeVisibleQuestCountRef.current = filteredHomeQuests.length;
+      const homeCategories = ["All", ...discoveryCategories.map(c => c.id)];
+      homeVisibleQuestCountRef.current = quests.length;
       return (
         <>
-          {renderHomeDiscoveryHeader(homeCategories, filteredHomeQuests.length)}
+          {renderHomeDiscoveryHeader(homeCategories, homeTotalCount)}
           {feedViewMode === "map" ? (
-            renderMapView(filteredHomeQuests.filter((quest) => !quest.starts_at || new Date(quest.starts_at).getTime() > countdownNow))
-          ) : filteredHomeQuests.length ? (
+            renderMapView(quests)
+          ) : quests.length ? (
             <View
               style={styles.homeFeedStack}
               onLayout={(event) => {
                 homeFeedOffsetRef.current = event.nativeEvent.layout.y;
               }}
             >
-              {filteredHomeQuests.map((quest, index) => (
+              {quests.map((quest, index) => (
                 <View
                   key={quest.id}
                   onLayout={index === 3 ? (event) => {
@@ -7580,11 +9189,11 @@ function privateThreadIncludesUsers(
                 </View>
               ))}
             </View>
-          ) : (
+          ) : homeFeedLoadStatus === "error" ? null : (
             <View style={[styles.homeEmptyCard, { backgroundColor: isLightTheme ? "#ffffff" : "#151722", borderColor: shellBorder }]}>
               <View style={styles.homeEmptyIcon}><Ionicons name="compass-outline" size={25} color="#0f5f73" /></View>
-              <Text style={[styles.homeEmptyTitle, { color: shellText }]}>No quests match that yet</Text>
-              <Text style={[styles.homeEmptyCopy, { color: shellMuted }]}>Try another category or start the first one yourself.</Text>
+              <Text style={[styles.homeEmptyTitle, { color: shellText }]}>{getHomeFeedPresentation(homeFeedLoadStatus, 0).title}</Text>
+              <Text style={[styles.homeEmptyCopy, { color: shellMuted }]}>{getHomeFeedPresentation(homeFeedLoadStatus, 0).copy}</Text>
               <View style={styles.homeEmptyActions}>
                 <Pressable
                   style={styles.homeClearButton}
@@ -7595,13 +9204,14 @@ function privateThreadIncludesUsers(
                 >
                   <Text style={styles.homeClearButtonText}>Clear filters</Text>
                 </Pressable>
-                <Pressable style={styles.homeEmptyCreateButton} onPress={() => openAuthedTab("create")}>
+                {homeFeedLoadStatus === "ready" && !homeHasMore ? <Pressable style={styles.homeEmptyCreateButton} onPress={() => openAuthedTab("create")}>
                   <Ionicons name="add" size={17} color="#082f3a" />
                   <Text style={styles.homeEmptyCreateText}>Create one</Text>
-                </Pressable>
+                </Pressable> : null}
               </View>
             </View>
           )}
+          {renderHomePagination()}
         </>
       );
     }
@@ -7609,7 +9219,7 @@ function privateThreadIncludesUsers(
     if (activeTab === "create") {
       const titleSuggestions = getTitleSuggestionsByCategory(categoryInput);
       const locationReady = locationMode === "remote"
-        ? Boolean(draftExactAddress.trim())
+        ? Boolean(draftMeetingLink.trim())
         : Boolean(
           selectedCountrySuggestion
           && (locationConfirmationMode === "device" || (selectedLocationSuggestion && selectedApplePlaceId))
@@ -7621,9 +9231,15 @@ function privateThreadIncludesUsers(
       const scheduleReady = Boolean(startAt.trim() && new Date(startAt).getTime() > Date.now());
       const parsedCreateGroupSize = Number.parseInt(groupSizeChoice === "custom" ? groupSizeCustom : draftGroupSize, 10);
       const groupSizeReady = Number.isFinite(parsedCreateGroupSize) && parsedCreateGroupSize > 0;
-      const ideaReady = Boolean(categoryInput.trim() && draftTitle.trim());
+      const ideaReady = Boolean(canChooseCategory(catalog, draftHobbyId, editingQuestId ? originalHobbyId : null) && draftTitle.trim());
       const canPublishQuest = ideaReady && locationReady && scheduleReady && groupSizeReady && !optimizingMedia && !uploadingMedia && !creatingQuest;
       const requiredStepsComplete = [ideaReady, scheduleReady, locationReady].filter(Boolean).length;
+      const createCategoryCardWidth = Math.max(52, Math.min(56, Math.round(windowWidth * 0.13)));
+      const createCategoryCardHeight = Math.round(createCategoryCardWidth * 1.22);
+      const createCategoryIconSize = Math.round(createCategoryCardWidth * 0.36);
+      const createCoverViewportWidth = windowWidth - 56;
+      const createCoverThumbnailSize = Math.round(Math.max(64, Math.min(78, (createCoverViewportWidth - 32) / 5.05)));
+      const createAddCoverWidth = Math.round(createCoverThumbnailSize * 1.3);
       const visibilityCopy = locationMode === "remote"
         ? {
             private: "Only you can reveal the meeting link.",
@@ -7644,12 +9260,11 @@ function privateThreadIncludesUsers(
         compact = false,
       ) => (
         <View style={[styles.createSectionHeader, compact && styles.createSectionHeaderCompact]}>
-          <View style={[styles.createSectionIcon, compact && styles.createSectionIconCompact, complete && styles.createSectionIconComplete]}>
-            <Ionicons name={complete ? "checkmark" : icon} size={compact ? 16 : 18} color={complete ? "#052e2b" : "#9bd8e4"} />
+          <View style={[styles.createSectionIcon, compact && styles.createSectionIconCompact, step && styles.createSectionIconNumbered, complete && styles.createSectionIconComplete]}>
+            {step ? <Text style={styles.createSectionNumber}>{step.replace(/^0/, "")}</Text> : <Ionicons name={complete ? "checkmark" : icon} size={compact ? 16 : 18} color={complete ? "#052e2b" : "#9bd8e4"} />}
           </View>
           <View style={styles.createSectionHeadingCopy}>
             <View style={styles.createSectionTitleRow}>
-              <Text style={styles.createSectionStep}>{step}</Text>
               <Text style={[styles.createSectionTitle, compact && styles.createSectionTitleCompact]}>{title}</Text>
             </View>
             <Text style={[styles.createSectionSubtitle, compact && styles.createSectionSubtitleCompact]}>{subtitle}</Text>
@@ -7659,38 +9274,58 @@ function privateThreadIncludesUsers(
       return (
         <>
           <View style={styles.createShell}>
-            <LinearGradient colors={["#174655", "#102c37"]} style={styles.createQuickHeader}>
-              <View style={styles.createHeroMark}><Ionicons name="sparkles" size={18} color="#082f3a" /></View>
-              <View style={styles.createQuickHeaderCopy}>
-                <Text style={styles.createHeroEyebrow}>{editingQuestId ? "EDIT QUEST" : "NEW QUEST"}</Text>
-                <Text style={styles.createQuickHeaderTitle}>{editingQuestId ? "Update your plan" : "Make a plan"}</Text>
-                <Text style={styles.createQuickHeaderSubtitle}>{editingQuestId ? "Everything is editable. A future date keeps it active." : "Three details. Publish in under a minute."}</Text>
+            <View style={styles.createFlowHeader}>
+              <View style={styles.createFlowNavRow}>
+                <Pressable accessibilityLabel="Back" style={styles.createFlowBack} onPress={() => setActiveTab("home")}>
+                  <Ionicons name="chevron-back" size={23} color="#f8fbff" />
+                </Pressable>
+                <View style={styles.createFlowProgress}>
+                  <View style={styles.createFlowProgressLine} />
+                  {[0, 1, 2].map((index) => (
+                    <View key={index} style={[styles.createFlowProgressDot, index < requiredStepsComplete && styles.createFlowProgressDotActive]} />
+                  ))}
+                </View>
+                <View style={styles.createDraftPill}>
+                  <Ionicons name="document-text-outline" size={15} color="#e7f3fa" />
+                  <Text style={styles.createDraftPillText}>Draft</Text>
+                </View>
               </View>
-              <View style={styles.createQuickProgress}>
-                <Text style={styles.createQuickProgressValue}>{requiredStepsComplete}/3</Text>
-                <Text style={styles.createQuickProgressLabel}>READY</Text>
+              <Text style={styles.createFlowTitle}>{editingQuestId ? "Update your Quest" : "Create a Quest"}</Text>
+              <Text style={styles.createFlowSubtitle}>Share your plan and find people to do it with.</Text>
+            </View>
+
+            <View style={styles.createMemorableFrame}>
+              <View style={styles.createMemorableCard}>
+                <View style={styles.createMemorableCopyWrap}>
+                  <View style={styles.createMemorableIcon}><Ionicons name="sparkles" size={23} color="#03151e" /></View>
+                  <View style={styles.createMemorableCopy}>
+                    <Text style={styles.createMemorableTitle}>Make it memorable</Text>
+                    <Text style={styles.createMemorableSubtitle}>A clear title, good details, and a photo gets more people to join.</Text>
+                  </View>
+                </View>
+                <View pointerEvents="none" style={styles.createMemorablePhotoStack}>
+                  <NativeImage source={CREATE_QUEST_BANNER_ASSETS[0]} style={styles.createMemorableLargePhoto} resizeMode="cover" />
+                  <NativeImage source={CREATE_QUEST_BANNER_ASSETS[1]} style={styles.createMemorableSmallPhoto} resizeMode="cover" />
+                </View>
               </View>
-              <Pressable accessibilityLabel="Close create quest" style={styles.createQuickClose} onPress={() => { resetQuestDrafts(); setActiveTab("home"); }}>
-                <Ionicons name="close" size={18} color="#dff7fb" />
-              </Pressable>
-            </LinearGradient>
+            </View>
 
             <View style={styles.createQuickCard}>
             <View style={styles.createQuickSection}>
               {renderCreateSectionHeader("01", "What are you doing?", "Choose a category and give it a clear title.", "bulb-outline", ideaReady, true)}
-              <View style={styles.createFieldGroup}>
-                <Text style={styles.createFieldLabel}>Category</Text>
-                <Pressable style={styles.createSelectField} onPress={() => setShowCategoryPicker(true)}>
-                  <View style={styles.createFieldLeading}><Ionicons name="grid-outline" size={17} color="#0f5f73" /></View>
-                  <Text style={[styles.createSelectValue, !categoryInput.trim() && styles.dropdownPlaceholder]} numberOfLines={1}>
-                    {categoryInput.trim() || "Choose a category"}
-                  </Text>
-                  <Ionicons name="chevron-down" size={17} color="#64748b" />
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.createCategoryRail}>
+                {featuredCategories.map(category => {
+                  const active = draftHobbyId === category.id;
+                  return <Pressable key={category.id} style={[styles.createCategoryTile, { width: createCategoryCardWidth, height: createCategoryCardHeight }, active && styles.createCategoryTileActive]} onPress={() => { setCategoryInput(category.label); setDraftHobbyId(category.id); }}>
+                    <Ionicons name={category.icon} size={createCategoryIconSize} color={active ? "#03151e" : "#edf7fb"} />
+                    <Text style={[styles.createCategoryTileText, active && styles.createCategoryTileTextActive]} numberOfLines={2}>{category.label}</Text>
+                  </Pressable>;
+                })}
+                <Pressable style={[styles.createCategoryTile, { width: createCategoryCardWidth, height: createCategoryCardHeight }]} onPress={() => setShowCategoryPicker(true)}>
+                  <Ionicons name="ellipsis-horizontal" size={createCategoryIconSize} color="#edf7fb" /><Text style={styles.createCategoryTileText}>More</Text>
                 </Pressable>
-                {categoryIsCustom ? (
-                  <TextInput placeholder="Name your category" placeholderTextColor="#94a3b8" style={styles.createInput} value={categoryInput} onChangeText={setCategoryInput} autoFocus />
-                ) : null}
-              </View>
+              </ScrollView>
+              {!createCategories.length ? <Text style={styles.createHelperText}>{catalogStatus === "loading" ? "Loading categories…" : catalogStatus === "offline" ? "Categories unavailable. Reconnect and try again." : "No categories are available right now."}</Text> : null}
               <View style={styles.createFieldGroup}>
                 <View style={styles.createFieldLabelRow}>
                   <Text style={styles.createFieldLabel}>Quest title</Text>
@@ -7707,24 +9342,52 @@ function privateThreadIncludesUsers(
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.createSuggestionRail}>
                     {titleSuggestions.map((suggestion) => (
                       <Pressable key={suggestion} style={[styles.createSuggestionChip, draftTitle === suggestion && styles.createSuggestionChipActive]} onPress={() => setDraftTitle(suggestion)}>
+                        <Ionicons name="sparkles" size={13} color={draftTitle === suggestion ? "#5ee8ff" : "#7868ff"} />
                         <Text style={[styles.createSuggestionText, draftTitle === suggestion && styles.createSuggestionTextActive]}>{suggestion}</Text>
                       </Pressable>
                     ))}
                   </ScrollView>
                 ) : null}
               </View>
+              <View style={styles.createFieldGroup}>
+                <Text style={styles.createFieldLabel}>Add a cover photo</Text>
+                <Text style={styles.createHelperText}>A photo helps more people join.</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.createCoverRail}>
+                  <Pressable style={[styles.createAddCoverTile, { width: createAddCoverWidth, height: createCoverThumbnailSize }]} onPress={() => void pickQuestMedia()}>
+                    <View style={styles.createAddCoverIcon}><Ionicons name="add" size={22} color="#43dcff" /></View>
+                    <Text style={styles.createAddCoverText}>Add photo</Text>
+                  </Pressable>
+                  {catalogCovers(catalog, draftHobbyId, draftTitle).map(cover => (
+                    <Pressable key={cover.id} style={[styles.createCoverTile, { width: createCoverThumbnailSize, height: createCoverThumbnailSize }]} onPress={() => void selectSeededQuestCover({ uri: cover.imageUrl }, cover.id, cover.mimeType)}>
+                      <NativeImage source={{ uri: cover.imageUrl }} style={styles.createCoverImage} accessibilityLabel={cover.label} />
+                      {draftMediaItems.some(item => item.fileName === `questhat-${cover.id}.${cover.mimeType === "image/png" ? "png" : cover.mimeType === "image/webp" ? "webp" : "jpg"}`) ? <View style={styles.createCoverSelected}><Ionicons name="checkmark" size={15} color="#03151e" /></View> : null}
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              </View>
             </View>
 
             <View style={styles.createQuickDivider} />
             <View style={styles.createQuickSection}>
               {renderCreateSectionHeader("02", "When?", "Every quest needs a date and start time.", "calendar-outline", scheduleReady, true)}
-              <Pressable style={styles.createSelectField} onPress={openStartDateTimePicker}>
-                <View style={styles.createFieldLeading}><Ionicons name="calendar-clear-outline" size={17} color="#0f5f73" /></View>
-                <Text style={[styles.createSelectValue, !startAt && styles.dropdownPlaceholder]} numberOfLines={1}>
-                  {startAt ? formatQuestDateTime(startAt) : "Choose date and time"}
-                </Text>
-                <Ionicons name="chevron-forward" size={17} color="#64748b" />
-              </Pressable>
+              <View style={styles.createDateTimeRow}>
+                <Pressable style={styles.createDateTimeCard} onPress={openStartDateTimePicker}>
+                  <View style={styles.createDateTimeIcon}><Ionicons name="calendar-clear-outline" size={20} color="#43dcff" /></View>
+                  <View style={styles.createDateTimeCopy}>
+                    <Text style={styles.createDateTimeLabel}>Date</Text>
+                    <Text style={[styles.createDateTimeValue, !startAt && styles.createDateTimePlaceholder]} numberOfLines={1}>{startAt ? new Date(startAt).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" }) : "Choose date"}</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={16} color="#9aaec2" />
+                </Pressable>
+                <Pressable style={styles.createDateTimeCard} onPress={openStartDateTimePicker}>
+                  <View style={styles.createDateTimeIcon}><Ionicons name="time-outline" size={21} color="#43dcff" /></View>
+                  <View style={styles.createDateTimeCopy}>
+                    <Text style={styles.createDateTimeLabel}>Start time</Text>
+                    <Text style={[styles.createDateTimeValue, !startAt && styles.createDateTimePlaceholder]} numberOfLines={1}>{startAt ? new Date(startAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : "Choose time"}</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={16} color="#9aaec2" />
+                </Pressable>
+              </View>
               <View style={styles.createSwitchRow}>
                 <View style={styles.createSwitchIcon}><Ionicons name="swap-horizontal-outline" size={19} color="#9bd8e4" /></View>
                 <View style={styles.createSwitchCopy}>
@@ -7739,15 +9402,25 @@ function privateThreadIncludesUsers(
             <View style={styles.createQuickSection}>
               {renderCreateSectionHeader("03", "Where?", "Choose a place or add a virtual link. Exact details stay private by default.", "location-outline", locationReady, true)}
               <View style={styles.createChoiceRow}>
-                <Pressable style={[styles.createChoiceCard, locationMode === "in_person" && styles.createChoiceCardActive]} onPress={() => { setLocationMode("in_person"); void showSafetyPromptIfNeeded("host"); }}>
-                  <Ionicons name="location-outline" size={21} color={locationMode === "in_person" ? "#082f3a" : "#9bd8e4"} />
-                  <Text style={[styles.createChoiceTitle, locationMode === "in_person" && styles.createChoiceTitleActive]}>In person</Text>
-                  <Text style={[styles.createChoiceCopy, locationMode === "in_person" && styles.createChoiceCopyActive]}>A real-world place</Text>
+                <Pressable style={[styles.createLocationModeCard, locationMode === "in_person" && styles.createLocationModeCardActive]} onPress={() => { setLocationMode("in_person"); void showSafetyPromptIfNeeded("host"); }}>
+                  <ImageBackground source={CREATE_LOCATION_ASSETS.inPerson} style={styles.createLocationModeBackground} imageStyle={styles.createLocationModeBackgroundImage} resizeMode="cover">
+                    <LinearGradient pointerEvents="none" colors={["rgba(3,10,19,0.82)", "rgba(3,10,19,0.36)", "rgba(3,10,19,0)"]} locations={[0, 0.52, 1]} start={{ x: 0, y: 1 }} end={{ x: 1, y: 0 }} style={styles.createLocationModeGradient} />
+                    <View style={styles.createLocationModeContent}>
+                      <Ionicons name="location" size={23} color="#46dcff" />
+                      <Text style={styles.createLocationModeTitle}>In person</Text>
+                      <Text style={styles.createLocationModeCopy}>A real-world place</Text>
+                    </View>
+                  </ImageBackground>
                 </Pressable>
-                <Pressable style={[styles.createChoiceCard, locationMode === "remote" && styles.createChoiceCardActive]} onPress={() => setLocationMode("remote")}>
-                  <Ionicons name="videocam-outline" size={21} color={locationMode === "remote" ? "#082f3a" : "#9bd8e4"} />
-                  <Text style={[styles.createChoiceTitle, locationMode === "remote" && styles.createChoiceTitleActive]}>Virtual</Text>
-                  <Text style={[styles.createChoiceCopy, locationMode === "remote" && styles.createChoiceCopyActive]}>Meet online</Text>
+                <Pressable style={[styles.createLocationModeCard, locationMode === "remote" && styles.createLocationModeCardActive]} onPress={() => setLocationMode("remote")}>
+                  <ImageBackground source={CREATE_LOCATION_ASSETS.virtual} style={styles.createLocationModeBackground} imageStyle={styles.createLocationModeBackgroundImage} resizeMode="cover">
+                    <LinearGradient pointerEvents="none" colors={["rgba(3,10,19,0.82)", "rgba(3,10,19,0.36)", "rgba(3,10,19,0)"]} locations={[0, 0.52, 1]} start={{ x: 0, y: 1 }} end={{ x: 1, y: 0 }} style={styles.createLocationModeGradient} />
+                    <View style={styles.createLocationModeContent}>
+                      <Ionicons name="videocam-outline" size={23} color="#46dcff" />
+                      <Text style={styles.createLocationModeTitle}>Virtual</Text>
+                      <Text style={styles.createLocationModeCopy}>Meet online</Text>
+                    </View>
+                  </ImageBackground>
                 </Pressable>
               </View>
               {locationMode === "in_person" ? (
@@ -7818,8 +9491,12 @@ function privateThreadIncludesUsers(
                     placeholder={locationMode === "remote" ? "Paste a Meet, Zoom, or Teams link" : selectedCountrySuggestion ? "Exact address or Barnes & Noble Miami" : "Choose a country first"}
                     placeholderTextColor="#94a3b8"
                     style={styles.createInputInline}
-                    value={draftExactAddress}
+                    value={activeLocationDraftValue(locationMode, draftExactAddress, draftMeetingLink)}
                     onChangeText={(text) => {
+                      if (locationMode === "remote") {
+                        setDraftMeetingLink(text);
+                        return;
+                      }
                       setDraftExactAddress(text);
                       setSelectedApplePlaceId(null);
                       setLocationConfirmationMode(null);
@@ -7928,7 +9605,7 @@ function privateThreadIncludesUsers(
                       : "Select the exact place so guests get the correct directions."}
                 </Text>
                 {locationMode === "in_person" ? (
-                  <Pressable style={styles.locationDetailsToggle} onPress={() => void useCurrentLocationForDraft()} accessibilityRole="button">
+                  <Pressable style={styles.locationDetailsToggle} onPress={() => void selectCurrentLocationForDraft()} accessibilityRole="button">
                     <View style={styles.locationDetailsToggleIcon}><Ionicons name="navigate-outline" size={18} color="#9bd8e4" /></View>
                     <Text style={styles.locationDetailsToggleText}>Use my current location</Text>
                   </Pressable>
@@ -7999,6 +9676,18 @@ function privateThreadIncludesUsers(
               <Ionicons name={showAdvancedSettings ? "chevron-up" : "chevron-down"} size={18} color="#94a3b8" />
             </Pressable>
 
+            {showAdvancedSettings ? (
+              <View style={styles.createAdvancedVisualGrid}>
+                {CREATE_ADVANCED_ASSETS.map((item) => (
+                  <View key={item.label} style={styles.createAdvancedVisualCard}>
+                    <NativeImage source={item.image} style={styles.createAdvancedVisualImage} />
+                    <LinearGradient pointerEvents="none" colors={["rgba(5,15,28,0.05)", "rgba(5,15,28,0.92)"]} style={styles.createAdvancedVisualGradient} />
+                    <Text style={styles.createAdvancedVisualLabel}>{item.label}</Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+
             {showAdvancedSettings ? <View style={styles.createSectionCard}>
               {renderCreateSectionHeader("", "Privacy & joining", "Control access to your quest and its exact details.", "shield-checkmark-outline", groupSizeReady)}
               <View style={styles.createFieldGroup}>
@@ -8051,6 +9740,7 @@ function privateThreadIncludesUsers(
 
             {showAdvancedSettings ? <View style={styles.createSectionCard}>
               {renderCreateSectionHeader("", "More details", "Help people understand the plan before joining.", "create-outline", Boolean(draftDescription.trim() || draftMediaItems.length))}
+              {!createCategories.length ? <Text style={styles.createHelperText}>{catalogStatus === "loading" ? "Loading categories…" : catalogStatus === "offline" ? "Categories unavailable. Reconnect and try again." : "No categories are available right now."}</Text> : null}
               <View style={styles.createFieldGroup}>
                 <View style={styles.createFieldLabelRow}><Text style={styles.createFieldLabel}>Description</Text><Text style={styles.createOptionalLabel}>Optional</Text></View>
                 <TextInput multiline placeholder="What should people know before joining?" placeholderTextColor="#94a3b8" style={[styles.createInput, styles.createTextArea]} value={draftDescription} onChangeText={setDraftDescription} />
@@ -8065,7 +9755,7 @@ function privateThreadIncludesUsers(
                         <Text style={styles.createMediaNumberText}>{index + 1} of 3</Text>
                       </View>
                       {media.type === "image" ? (
-                        <Image source={{ uri: media.uri }} style={styles.createMediaImage} />
+                        <NativeImage source={{ uri: media.uri }} style={styles.createMediaImage} />
                       ) : (
                         <QuestVideoPreview key={media.uri} media={media} compact />
                       )}
@@ -8156,7 +9846,7 @@ function privateThreadIncludesUsers(
                 style={styles.createDiscardButton}
                 onPress={() => Alert.alert(editingQuestId ? "Cancel editing?" : "Discard draft?", editingQuestId ? "Your saved quest will not be changed." : "This clears everything in this quest draft.", [
                   { text: "Keep editing", style: "cancel" },
-                  { text: editingQuestId ? "Cancel editing" : "Discard", style: "destructive", onPress: () => { resetQuestDrafts(); setActiveTab("home"); } },
+                  { text: editingQuestId ? "Cancel editing" : "Discard", style: "destructive", onPress: () => { if (editingQuestId) finishQuestEditingSession(); else resetQuestDrafts(); setActiveTab("home"); } },
                 ])}
               >
                 <Text style={styles.createDiscardText}>{editingQuestId ? "Cancel editing" : "Discard draft"}</Text>
@@ -8215,17 +9905,17 @@ function privateThreadIncludesUsers(
             </View>
           </Modal>
 
-          {Platform.OS === "ios" ? <Modal visible={showStartAtPicker} transparent animationType="fade" onRequestClose={() => setShowStartAtPicker(false)}>
+          {Platform.OS === "ios" ? <Modal visible={showStartAtPicker} transparent animationType="fade" onRequestClose={closeStartDateTimePicker}>
             <View style={styles.pickerModalOverlay}>
-              <Pressable style={styles.modalBackdropPressable} onPress={() => setShowStartAtPicker(false)} />
+              <Pressable style={styles.modalBackdropPressable} onPress={closeStartDateTimePicker} />
               <View style={[styles.pickerModalCard, styles.createPickerModalCard]}>
                 <View style={styles.row}>
                   <Text style={styles.questCategory}>Choose start time</Text>
-                  <Pressable onPress={() => setShowStartAtPicker(false)}><Text style={styles.link}>Close</Text></Pressable>
+                  <Pressable onPress={closeStartDateTimePicker}><Text style={styles.link}>Close</Text></Pressable>
                 </View>
                 <View style={styles.pickerModalBody}>
                   <DateTimePicker
-                    value={startAt ? new Date(startAt) : new Date(Date.now() + 60 * 60 * 1000)}
+                    value={startAtPickerValue ?? new Date(Date.now() + 60 * 60 * 1000)}
                     minimumDate={new Date()}
                     mode="datetime"
                     display="spinner"
@@ -8234,11 +9924,11 @@ function privateThreadIncludesUsers(
                     accentColor="#9bd8e4"
                     style={styles.createDatePicker}
                     onChange={(_, selectedDate) => {
-                      if (selectedDate) setStartAt(selectedDate.toISOString());
+                      if (selectedDate) setStartAtPickerValue(selectedDate);
                     }}
                   />
                 </View>
-                <Pressable style={styles.primaryButton} onPress={() => setShowStartAtPicker(false)}><Text style={styles.primaryButtonText}>Done</Text></Pressable>
+                <Pressable style={styles.primaryButton} onPress={confirmStartDateTimePicker}><Text style={styles.primaryButtonText}>Done</Text></Pressable>
               </View>
             </View>
           </Modal> : null}
@@ -8251,42 +9941,20 @@ function privateThreadIncludesUsers(
                     <Text style={styles.questCategory}>Category</Text>
                     <Text style={styles.createPickerSubtitle}>Choose what best fits your quest.</Text>
                   </View>
+                  <Pressable accessibilityLabel="Refresh categories" onPress={() => void refreshCatalog(true)}><Ionicons name="refresh-outline" size={19} color="#dce3ec" /></Pressable>
                   <Pressable style={styles.createPickerClose} onPress={() => setShowCategoryPicker(false)}>
                     <Ionicons name="close" size={19} color="#dce3ec" />
                   </Pressable>
                 </View>
                 <ScrollView style={styles.pickerModalScroll} contentContainerStyle={styles.pickerModalContent} nestedScrollEnabled showsVerticalScrollIndicator={false}>
                   <View style={styles.createCategoryGrid}>
-                  {CANONICAL_CATEGORIES.map((category) => {
-                    const active = categoryInput.trim().toLowerCase() === category.toLowerCase() && !categoryIsCustom;
-                    return (
-                    <Pressable
-                      key={category}
-                      style={[styles.createCategoryOption, active && styles.createCategoryOptionActive]}
-                      onPress={() => {
-                        setCategoryInput(category);
-                        setCategoryIsCustom(false);
-                        const matchedHobby = hobbies.find((hobby) => hobby.name.trim().toLowerCase() === category.toLowerCase() || (hobby.category || "").trim().toLowerCase() === category.toLowerCase());
-                        setDraftHobbyId(matchedHobby?.id ?? "");
-                        setShowCategoryPicker(false);
-                      }}
-                    >
-                      <Ionicons name={getCategoryIcon(category)} size={17} color={active ? "#082f3a" : "#9bd8e4"} />
-                      <Text style={[styles.createCategoryOptionText, active && styles.createCategoryOptionTextActive]} numberOfLines={2}>{category}</Text>
-                    </Pressable>
-                  );})}
-                  <Pressable
-                    style={[styles.createCategoryOption, categoryIsCustom && styles.createCategoryOptionActive]}
-                    onPress={() => {
-                      setCategoryInput("");
-                      setCategoryIsCustom(true);
-                      setDraftHobbyId("");
-                      setShowCategoryPicker(false);
-                    }}
-                  >
-                    <Ionicons name="create-outline" size={17} color={categoryIsCustom ? "#082f3a" : "#9bd8e4"} />
-                    <Text style={[styles.createCategoryOptionText, categoryIsCustom && styles.createCategoryOptionTextActive]}>Custom</Text>
-                  </Pressable>
+                  {createCategories.map(category => {
+                    const active = draftHobbyId === category.id;
+                    return <Pressable key={category.id} style={[styles.createCategoryOption, active && styles.createCategoryOptionActive]} onPress={() => { setCategoryInput(category.label); setDraftHobbyId(category.id); setShowCategoryPicker(false); }}>
+                      <Ionicons name={category.icon} size={17} color={active ? "#082f3a" : "#9bd8e4"} />
+                      <Text style={[styles.createCategoryOptionText, active && styles.createCategoryOptionTextActive]} numberOfLines={2}>{category.label}</Text>
+                    </Pressable>;
+                  })}
                   </View>
                 </ScrollView>
               </View>
@@ -8348,7 +10016,7 @@ function privateThreadIncludesUsers(
                   const cardCountdown = quest.starts_at ? formatFeedCountdown(quest.starts_at, countdownNow) : null;
                   return (
                     <Pressable key={quest.id} style={[styles.joinedQuestCard, isCompleted && styles.joinedQuestCardCompleted, { backgroundColor: isLightTheme ? "#ffffff" : "#151722", borderColor: shellBorder }]} onPress={() => void openQuestDetail(quest.id)}>
-                      <Image source={{ uri: media?.url || fallback }} style={styles.joinedQuestImage} />
+                      <NativeImage source={{ uri: media?.url || fallback }} style={styles.joinedQuestImage} />
                       <LinearGradient colors={["transparent", "rgba(5,10,15,0.84)"]} style={StyleSheet.absoluteFill} pointerEvents="none" />
                       <View style={styles.joinedQuestRolePill}><Ionicons name={isCompleted ? "checkmark-done" : isHost ? "sparkles" : "checkmark-circle"} size={12} color="#082f3a" /><Text style={styles.joinedQuestRoleText}>{isCompleted ? "Completed" : isHost ? "Hosting" : "Joined"}</Text></View>
                       {!isCompleted && quest.starts_at ? (
@@ -8359,15 +10027,16 @@ function privateThreadIncludesUsers(
                       ) : null}
                       {!isCompleted && quest.starts_at ? (
                         <Pressable
-                          style={[styles.joinedQuestCalendarButton, calendarEventQuestIds.includes(quest.id) && styles.joinedQuestCalendarButtonAdded]}
-                          onPress={(event) => { event.stopPropagation(); void addOrUpdateQuestCalendarEvent(quest); }}
+                          style={[styles.joinedQuestCalendarButton, calendarEventQuestIds.includes(quest.id) && styles.joinedQuestCalendarButtonAdded, calendarUpdatedQuestIds.includes(quest.id) && styles.joinedQuestCalendarButtonUpdated]}
+                          onPress={(event) => { event.stopPropagation(); void addOrUpdateQuestCalendarEvent(quest, authorizedExactLocationQuestIds.includes(quest.id)); }}
                           disabled={calendarActionQuestId === quest.id}
                           accessibilityRole="button"
-                          accessibilityLabel={`${calendarActionQuestId === quest.id ? "Updating" : calendarEventQuestIds.includes(quest.id) ? "Update" : "Add"} ${quest.title} in your calendar`}
+                          accessibilityLabel={`${calendarActionQuestId === quest.id ? "Updating" : calendarUpdatedQuestIds.includes(quest.id) ? "Updated quest. Update" : calendarEventQuestIds.includes(quest.id) ? "Update" : "Add"} ${quest.title} in your calendar`}
                         >
                           {calendarActionQuestId === quest.id
                             ? <ActivityIndicator size="small" color="#082f3a" />
-                            : <Ionicons name={calendarEventQuestIds.includes(quest.id) ? "refresh" : "calendar-outline"} size={18} color="#082f3a" />}
+                            : <Ionicons name={calendarUpdatedQuestIds.includes(quest.id) ? "alert-circle" : calendarEventQuestIds.includes(quest.id) ? "refresh" : "calendar-outline"} size={18} color="#082f3a" />}
+                          {calendarUpdatedQuestIds.includes(quest.id) ? <View pointerEvents="none" style={styles.calendarUpdatedDot} /> : null}
                         </Pressable>
                       ) : null}
                       {isCompleted ? <View pointerEvents="none" style={styles.joinedQuestCompletedStamp}><Text style={styles.joinedQuestCompletedStampText}>COMPLETED</Text></View> : null}
@@ -8405,8 +10074,8 @@ function privateThreadIncludesUsers(
               <Ionicons name="search" size={18} color={shellMuted} />
               <TextInput value={inboxSearchQuery} onChangeText={setInboxSearchQuery} placeholder="Search people, quests, or messages" placeholderTextColor={shellMuted} style={[styles.inboxSearchInput, { color: shellText }]} clearButtonMode="while-editing" />
             </View>
-            {pendingInvitations.length ? <View style={styles.inboxInvitationSection}><View style={styles.inboxInvitationHeading}><Text style={[styles.settingsSectionTitle, { color: shellText }]}>Quest invitations</Text><View style={styles.requestCountBadge}><Text style={styles.requestCountBadgeText}>{pendingInvitations.length} new</Text></View></View>{pendingInvitations.map((invitation) => { const sender = getRelationOne(invitation.sender); const invitedQuest = getRelationOne(invitation.quests); const busy = invitationActionId === invitation.id; return <View key={invitation.id} style={[styles.inboxInvitationCard, { backgroundColor: isLightTheme ? "#ffffff" : "#151722", borderColor: shellBorder }]}><View style={styles.inboxInvitationTop}>{sender?.avatar_url ? <Image source={{ uri: sender.avatar_url }} style={styles.inboxAvatar} /> : <View style={styles.inboxAvatarFallback}><Ionicons name="person" size={19} color="#9bd8e4" /></View>}<View style={styles.inboxThreadBody}><Text style={[styles.inboxThreadName, { color: shellText }]}>{sender?.display_name || sender?.username || "A host"}</Text><Text style={styles.inboxQuestLabel} numberOfLines={1}>{invitedQuest?.title || "Quest invitation"}</Text>{invitation.message ? <Text style={[styles.inboxThreadPreview, { color: shellMuted }]} numberOfLines={3}>{invitation.message}</Text> : null}</View></View><View style={styles.inboxInvitationActions}><Pressable style={styles.requestDeclineButton} onPress={() => void respondToQuestInvitation(invitation, false)} disabled={busy}><Text style={styles.requestDeclineText}>Decline</Text></Pressable><Pressable style={styles.requestApproveButton} onPress={() => void respondToQuestInvitation(invitation, true)} disabled={busy}>{busy ? <ActivityIndicator size="small" color="#08121a" /> : <Ionicons name="checkmark" size={18} color="#08121a" />}<Text style={styles.requestApproveText}>{busy ? "Joining…" : "Accept & join"}</Text></Pressable></View></View>; })}</View> : null}
-            {!inboxSearchQuery && inboxThreads.length <= 2 ? <Pressable style={styles.inboxFindPeopleCard} onPress={openPeopleFinderFromInbox}><View style={styles.inboxFindPeopleIcon}><Ionicons name="people" size={22} color="#082f3a" /></View><View style={styles.inboxThreadBody}><Text style={[styles.inboxThreadName, { color: shellText }]}>Find people for your quest</Text><Text style={[styles.inboxThreadPreview, { color: shellMuted }]}>Browse opted-in adults nearby, start a conversation, or send an invitation.</Text></View><Ionicons name="arrow-forward" size={20} color="#6daec2" /></Pressable> : null}
+            {pendingInvitations.length ? <View style={styles.inboxInvitationSection}><View style={styles.inboxInvitationHeading}><Text style={[styles.settingsSectionTitle, { color: shellText }]}>Quest invitations</Text><View style={styles.requestCountBadge}><Text style={styles.requestCountBadgeText}>{pendingInvitations.length} new</Text></View></View>{pendingInvitations.map((invitation) => { const sender = getRelationOne(invitation.sender); const invitedQuest = getRelationOne(invitation.quests); const busy = invitationActionId === invitation.id; return <View key={invitation.id} style={[styles.inboxInvitationCard, { backgroundColor: isLightTheme ? "#ffffff" : "#151722", borderColor: shellBorder }]}><View style={styles.inboxInvitationTop}>{sender?.avatar_url ? <NativeImage source={{ uri: sender.avatar_url }} style={styles.inboxAvatar} /> : <View style={styles.inboxAvatarFallback}><Ionicons name="person" size={19} color="#9bd8e4" /></View>}<View style={styles.inboxThreadBody}><Text style={[styles.inboxThreadName, { color: shellText }]}>{sender?.display_name || sender?.username || "A host"}</Text><Text style={styles.inboxQuestLabel} numberOfLines={1}>{invitedQuest?.title || "Quest invitation"}</Text>{invitation.message ? <Text style={[styles.inboxThreadPreview, { color: shellMuted }]} numberOfLines={3}>{invitation.message}</Text> : null}</View></View><View style={styles.inboxInvitationActions}><Pressable style={styles.requestDeclineButton} onPress={() => void respondToQuestInvitation(invitation, false)} disabled={busy}><Text style={styles.requestDeclineText}>Decline</Text></Pressable><Pressable style={styles.requestApproveButton} onPress={() => void respondToQuestInvitation(invitation, true)} disabled={busy}>{busy ? <ActivityIndicator size="small" color="#08121a" /> : <Ionicons name="checkmark" size={18} color="#08121a" />}<Text style={styles.requestApproveText}>{busy ? "Joining…" : "Accept & join"}</Text></Pressable></View></View>; })}</View> : null}
+            <Pressable style={styles.inboxFindPeopleCard} onPress={openPeopleFinderFromInbox} accessibilityRole="button" accessibilityLabel="Find people for your quest"><View style={styles.inboxFindPeopleIcon}><Ionicons name="people" size={22} color="#082f3a" /></View><View style={styles.inboxThreadBody}><Text style={[styles.inboxThreadName, { color: shellText }]}>Find people for your quest</Text><Text style={[styles.inboxThreadPreview, { color: shellMuted }]}>Browse opted-in adults nearby, start a conversation, or send an invitation.</Text></View><Ionicons name="arrow-forward" size={20} color="#6daec2" /></Pressable>
             {!filteredThreads.length ? <EmptyState label={inboxSearchQuery ? "No messages match that search." : "No private messages yet."} /> : <View style={styles.inboxThreadList}>{filteredThreads.map((thread) => {
               const quest = thread.quest;
               const avatarUrl = thread.partnerAvatarUrl;
@@ -8414,7 +10083,7 @@ function privateThreadIncludesUsers(
                 <Pressable key={thread.threadKey} style={[styles.inboxThreadCard, { backgroundColor: isLightTheme ? "#ffffff" : "#151722", borderColor: shellBorder }]} onPress={() => quest && void openQuestConversation(quest, "private", thread.partnerId || null)}>
                   <Pressable style={styles.inboxAvatarWrap} onPress={(event) => { event.stopPropagation(); if (thread.partnerId) void openProfile(thread.partnerId); }} accessibilityLabel={`Open ${thread.partnerName}'s profile`}>
                     {avatarUrl ? (
-                      <Image source={{ uri: avatarUrl }} style={styles.inboxAvatar} />
+                      <NativeImage source={{ uri: avatarUrl }} style={styles.inboxAvatar} />
                     ) : (
                       <View style={styles.inboxAvatarFallback}><Ionicons name="person" size={19} color="#9bd8e4" /></View>
                     )}
@@ -8490,7 +10159,7 @@ function privateThreadIncludesUsers(
                       disabled={!sourceProfile?.id}
                     >
                       {avatarUrl ? (
-                        <Image source={{ uri: avatarUrl }} style={styles.notificationAvatar} />
+                        <NativeImage source={{ uri: avatarUrl }} style={styles.notificationAvatar} />
                       ) : (
                         <View style={styles.notificationAvatarFallback}>
                           <Ionicons name="person" size={14} color="#9bc8d2" />
@@ -8508,6 +10177,22 @@ function privateThreadIncludesUsers(
               <Text style={styles.questTitle}>{item.title}</Text>
               <Text style={styles.questDescription}>{item.body}</Text>
               <View style={styles.reportStack}>
+                {(() => {
+                  const invitation = getPendingInvitationForNotification(item);
+                  if (!invitation) return null;
+                  const busy = invitationActionId === invitation.id;
+                  return (
+                    <Pressable
+                      style={styles.primaryButton}
+                      onPress={() => void respondToQuestInvitation(invitation, true)}
+                      disabled={busy}
+                      accessibilityLabel="Accept invitation and join quest"
+                    >
+                      {busy ? <ActivityIndicator size="small" color="#082f3a" /> : <Ionicons name="checkmark" size={18} color="#082f3a" />}
+                      <Text style={styles.primaryButtonText}>{busy ? "Joining…" : "Accept & join"}</Text>
+                    </Pressable>
+                  );
+                })()}
                 {item.kind === "join_request" && item.quest_id && item.membership_user_id ? (
                   (() => {
                     const requestState = isSupersededJoinRequestNotification(item, notifications)
@@ -8638,7 +10323,8 @@ function privateThreadIncludesUsers(
 
     return (
         <>
-          <ScreenHeader title="Settings" subtitle="Make QuestHat feel like yours." titleColor={shellText} subtitleColor={shellMuted} />
+          <ScreenHeader title="Settings" subtitle="Make QuestHat feel like yours." titleColor={shellText} subtitleColor={shellMuted} action={<Pressable onPress={() => { setShowNativeFeedback(true); setNativeFeedbackStatus(""); }} accessibilityRole="button" accessibilityLabel="Suggest or report a problem"><Text style={{ color: shellMuted, textDecorationLine: "underline" }}>Feedback</Text></Pressable>} />
+          {showNativeFeedback ? <View style={[styles.panel, { gap: 10 }]} accessibilityViewIsModal accessibilityLabel="Suggest or report a problem" onAccessibilityEscape={() => { Keyboard.dismiss(); setShowNativeFeedback(false); }}><View style={styles.row}><Text style={styles.detailLabel}>Suggest or report a problem</Text><Pressable onPress={() => { Keyboard.dismiss(); setShowNativeFeedback(false); }} accessibilityRole="button" accessibilityLabel="Close feedback form"><Text style={styles.link}>Close</Text></Pressable></View><Text style={styles.muted}>For app feedback only, not reports about people or content.</Text><TextInput value={nativeFeedbackCategory} onChangeText={setNativeFeedbackCategory} placeholder="Category: suggestion, bug, usability, other" placeholderTextColor="#718096" style={styles.settingsInput} /><TextInput multiline value={nativeFeedbackMessage} onChangeText={setNativeFeedbackMessage} placeholder="What happened or what would help?" placeholderTextColor="#718096" style={[styles.settingsInput, styles.settingsBioInput]} maxLength={3000} /><TextInput value={nativeFeedbackReply} onChangeText={setNativeFeedbackReply} keyboardType="email-address" autoCapitalize="none" placeholder="Reply email (optional)" placeholderTextColor="#718096" style={styles.settingsInput} /><View style={styles.settingsControlRow}><Text style={styles.settingsControlTitle}>Share app/version/platform diagnostics</Text><Switch value={nativeFeedbackDiagnostics} onValueChange={setNativeFeedbackDiagnostics} /></View><Pressable style={[styles.primaryButton, nativeFeedbackSending && styles.primaryButtonDisabled]} onPress={() => void submitNativeFeedback()} disabled={nativeFeedbackSending}><Text style={styles.primaryButtonText}>{nativeFeedbackSending ? "Sending…" : "Send feedback"}</Text></Pressable>{nativeFeedbackStatus ? <Text accessibilityRole="alert" style={styles.muted}>{nativeFeedbackStatus}</Text> : null}</View> : null}
         <View style={styles.settingsShell}>
           <LinearGradient colors={["#173743", "#10202b", "#12141d"]} style={styles.settingsIdentityCard}>
             <View style={styles.settingsIdentityTop}>
@@ -8650,7 +10336,7 @@ function privateThreadIncludesUsers(
                 disabled={uploadingAvatar}
               >
                 {settingsAvatarUri ? (
-                  <Image source={{ uri: settingsAvatarUri }} style={styles.settingsAvatar} />
+                  <NativeImage source={{ uri: settingsAvatarUri }} style={styles.settingsAvatar} />
                 ) : (
                   <View style={styles.settingsAvatarFallback}>
                     <Text style={styles.settingsAvatarInitial}>{(settingsUsername || "Q").trim().charAt(0).toUpperCase()}</Text>
@@ -8668,7 +10354,7 @@ function privateThreadIncludesUsers(
                 </View>
               </View>
               <Pressable style={styles.settingsProfileLink} onPress={() => (userId ? void openProfile(userId) : setStatus("Profile is still loading."))} disabled={!userId}>
-                <Ionicons name="arrow-up-forward" size={18} color="#e8f7fa" />
+                <Ionicons name="arrow-up-right-box-outline" size={18} color="#e8f7fa" />
               </Pressable>
             </View>
           </LinearGradient>
@@ -8868,7 +10554,7 @@ function privateThreadIncludesUsers(
                   <View style={styles.settingsInterestCount}><Text style={styles.settingsInterestCountText}>{onboardingInterestIds.length}</Text></View>
                 </View>
                 <View style={styles.settingsInterestGrid}>
-                  {hobbies.map((option) => {
+                  {hobbies.filter(option => catalog.categories.find(c => c.id === option.id)?.active || onboardingInterestIds.includes(option.id)).map((option) => {
                     const active = onboardingInterestIds.includes(option.id);
                     return (
                       <Pressable
@@ -8967,7 +10653,7 @@ function privateThreadIncludesUsers(
                 ) : settingsFriendsProfiles.map((friend, index) => (
                   <View key={friend.id} style={[styles.settingsPersonRow, index > 0 && styles.settingsPersonRowBorder]}>
                     <Pressable style={styles.settingsPersonMain} onPress={() => void openProfile(friend.id)}>
-                      {friend.avatar_url ? <Image source={{ uri: friend.avatar_url }} style={styles.settingsPersonAvatar} /> : <View style={styles.settingsPersonAvatarFallback}><Ionicons name="person" size={17} color="#9bc8d2" /></View>}
+                      {friend.avatar_url ? <NativeImage source={{ uri: friend.avatar_url }} style={styles.settingsPersonAvatar} /> : <View style={styles.settingsPersonAvatarFallback}><Ionicons name="person" size={17} color="#9bc8d2" /></View>}
                       <View style={styles.settingsControlCopy}><Text style={styles.settingsPersonName}>{friend.display_name || friend.username || "Friend"}</Text><Text style={styles.settingsPersonHandle}>{friend.username ? `@${friend.username}` : "View profile"}</Text></View>
                     </Pressable>
                     <Pressable style={styles.settingsPersonMenuButton} onPress={() => void removeFriend(friend.id)}><Ionicons name="person-remove-outline" size={18} color="#94a3b8" /></Pressable>
@@ -8984,7 +10670,7 @@ function privateThreadIncludesUsers(
                 {!settingsFriendRequests.length ? <Text style={styles.settingsEmptyInline}>No pending friend requests.</Text> : settingsFriendRequests.map((request, index) => (
                   <View key={`${request.edge.requester_id}-${request.edge.addressee_id}`} style={[styles.settingsRequestRow, index > 0 && styles.settingsPersonRowBorder]}>
                     <Pressable style={styles.settingsPersonMain} onPress={() => void openProfile(request.id)}>
-                      {request.avatar_url ? <Image source={{ uri: request.avatar_url }} style={styles.settingsPersonAvatar} /> : <View style={styles.settingsPersonAvatarFallback}><Ionicons name="person" size={17} color="#9bc8d2" /></View>}
+                      {request.avatar_url ? <NativeImage source={{ uri: request.avatar_url }} style={styles.settingsPersonAvatar} /> : <View style={styles.settingsPersonAvatarFallback}><Ionicons name="person" size={17} color="#9bc8d2" /></View>}
                       <View style={styles.settingsControlCopy}><Text style={styles.settingsPersonName}>{request.display_name || request.username || "User"}</Text><Text style={styles.settingsPersonHandle}>{request.direction === "incoming" ? "Wants to connect" : "Request sent"}</Text></View>
                     </Pressable>
                     {request.direction === "incoming" ? (
@@ -9013,7 +10699,7 @@ function privateThreadIncludesUsers(
                 {!settingsBlockedProfiles.length ? <View style={styles.settingsSafeState}><Ionicons name="checkmark-circle-outline" size={20} color="#34d399" /><Text style={styles.settingsSafeStateText}>No blocked accounts</Text></View> : settingsBlockedProfiles.map((blocked, index) => (
                   <View key={blocked.id} style={[styles.settingsPersonRow, index > 0 && styles.settingsPersonRowBorder]}>
                     <Pressable style={styles.settingsPersonMain} onPress={() => void openProfile(blocked.id)}>
-                      {blocked.avatar_url ? <Image source={{ uri: blocked.avatar_url }} style={styles.settingsPersonAvatar} /> : <View style={styles.settingsPersonAvatarFallback}><Ionicons name="person" size={17} color="#9bc8d2" /></View>}
+                      {blocked.avatar_url ? <NativeImage source={{ uri: blocked.avatar_url }} style={styles.settingsPersonAvatar} /> : <View style={styles.settingsPersonAvatarFallback}><Ionicons name="person" size={17} color="#9bc8d2" /></View>}
                       <View style={styles.settingsControlCopy}><Text style={styles.settingsPersonName}>{blocked.display_name || blocked.username || "Blocked user"}</Text><Text style={styles.settingsPersonHandle}>Blocked</Text></View>
                     </Pressable>
                     <Pressable style={styles.settingsTextAction} onPress={() => void unblockProfile(blocked.id)}><Text style={styles.settingsTextActionLabel}>Unblock</Text></Pressable>
@@ -9044,6 +10730,7 @@ function privateThreadIncludesUsers(
                   <View style={styles.settingsCardHeadingCopy}><Text style={styles.settingsCardTitle}>Email address</Text><Text style={styles.settingsCardSubtitle}>Used for sign-in and account recovery.</Text></View>
                 </View>
                 <View style={styles.settingsCurrentValue}><Ionicons name={accountEmail ? "checkmark-circle" : "alert-circle-outline"} size={17} color={accountEmail ? "#34d399" : "#fbbf24"} /><Text style={styles.settingsCurrentValueText} numberOfLines={1}>{accountEmail || "No recovery email added"}</Text><Text style={styles.settingsVerifiedText}>{accountEmail ? "Verified" : "Missing"}</Text></View>
+                {emailChangeNotice ? <View accessibilityRole="alert" style={styles.settingsEmailChangeNotice}><Ionicons name="mail-unread-outline" size={18} color="#fbbf24" /><Text style={styles.settingsEmailChangeNoticeText}>{emailChangeNotice}</Text></View> : null}
                 <View style={styles.settingsField}><Text style={styles.settingsFieldLabel}>{accountEmail ? "New email" : "Recovery email"}</Text><TextInput autoCapitalize="none" keyboardType="email-address" placeholder="name@example.com" placeholderTextColor="#718096" style={styles.settingsInput} value={settingsNewEmail} onChangeText={setSettingsNewEmail} /></View>
                 <Pressable style={styles.settingsOutlineButton} onPress={() => void changeEmail()}><Text style={styles.settingsOutlineButtonText}>{accountEmail ? "Update email" : "Add recovery email"}</Text><Ionicons name="arrow-forward" size={17} color="#dff7fb" /></Pressable>
               </View>
@@ -9161,17 +10848,15 @@ function privateThreadIncludesUsers(
     const isJoined = membershipStatus === "approved";
     const isOwner = Boolean(userId && selectedQuest.creator_id === userId);
     const isManager = selectedQuestManager || isOwner;
-    const viewerHasExactAccess = Boolean(userId && selectedQuestExactAccessUserIds.includes(userId));
-    const canViewExactAddress = Boolean(
-      userId && (() => {
-        if (isManager) return true;
-        if (selectedQuest.exact_location_visibility === "public") return true;
-        if (selectedQuest.exact_location_visibility === "approved_members") {
-          return membershipStatus === "approved" && viewerHasExactAccess;
-        }
-        return viewerHasExactAccess;
-      })()
-    );
+    const canViewExactAddress = canIncludeQuestPrivateLocation({
+      userId,
+      creatorId: selectedQuest.creator_id,
+      isManager,
+      visibility: selectedQuest.exact_location_visibility,
+      membershipStatus,
+      accessUserIds: selectedQuestExactAccessUserIds,
+    });
+    const selectedQuestCalendarUpdated = calendarUpdatedQuestIds.includes(selectedQuest.id);
     const visibleApprovedMembers = selectedQuestMembers.filter((member) => (member.status || "approved") === "approved");
     const visibleGuests = visibleApprovedMembers.filter((member) => member.id !== selectedQuest.creator_id && member.role !== "creator");
     const showMembersSection = isManager || membershipStatus === "approved";
@@ -9179,22 +10864,22 @@ function privateThreadIncludesUsers(
     const joinedCount = joinCountByQuestId[selectedQuest.id] || 0;
     const fallbackVisual = getCategoryFallbackMedia(category);
     const fallbackImageUrl = `https://questhat.com${fallbackVisual.imagePath}`;
-    const mediaItems = selectedQuest.media_items || [];
+    const mediaItems = normalizeQuestMediaItems(selectedQuest.media_items) as QuestMediaItem[];
     const startsAtTime = selectedQuest.starts_at ? new Date(selectedQuest.starts_at).getTime() : 0;
     const isInPersonQuest = !/^virtual$/i.test(selectedQuest.city || "");
-    const checkInWindowOpen = Boolean(
-      isInPersonQuest
-      && startsAtTime
-      && Date.now() >= startsAtTime - 4 * 60 * 60 * 1000
-      && Date.now() <= startsAtTime + 12 * 60 * 60 * 1000,
-    );
     const myCheckIn = userId ? selectedQuestCheckIns.find((row) => row.user_id === userId) : null;
     const hostCheckIn = selectedQuestCheckIns.find((row) => row.user_id === selectedQuest.creator_id);
     const checkedInNames = selectedQuestCheckIns
       .map((row) => getRelationOne(row.profiles))
       .map((person) => person?.display_name || person?.username || null)
       .filter((name): name is string => Boolean(name));
-    const showCheckIn = Boolean((isManager || isJoined) && isInPersonQuest && (checkInWindowOpen || myCheckIn));
+    const showCheckIn = canShowCheckIn({
+      isManager,
+      isJoined,
+      isVirtual: !isInPersonQuest,
+      startsAt: selectedQuest.starts_at,
+      myCheckIn,
+    });
     const startsWithinDay = startsAtTime > Date.now() && startsAtTime <= Date.now() + 24 * 60 * 60 * 1000;
     const guestsMissingLocation = selectedQuest.exact_address && selectedQuest.exact_location_visibility !== "public" && startsWithinDay
       ? visibleGuests.filter((member) => !selectedQuestExactAccessUserIds.includes(member.id))
@@ -9205,9 +10890,10 @@ function privateThreadIncludesUsers(
       && new Date(selectedQuest.host_coordination_reminders_snoozed_until).getTime() > Date.now()
     );
     const showHostChecklist = isOwner && (selectedQuestPendingMembers.length > 0 || guestsMissingLocation.length > 0);
+    const isMembershipTransitioning = membershipTransitionQuestIds.includes(selectedQuest.id);
     return (
       <View style={styles.modalOverlay} pointerEvents="box-none">
-        <Pressable style={styles.modalBackdropPressable} onPress={() => setSelectedQuest(null)} />
+        <Pressable style={styles.modalBackdropPressable} onPress={closeQuestDetail} />
         <View style={[styles.modalCard, styles.modalCardScrollable, styles.modalCardElevated]}>
           <ScrollView
             ref={questDetailScrollRef}
@@ -9226,7 +10912,7 @@ function privateThreadIncludesUsers(
                   <Ionicons name={getCategoryIcon(category)} size={15} color="#082f3a" />
                   <Text style={styles.questDetailCategoryText}>{category}</Text>
                 </View>
-                <Pressable style={styles.questDetailCloseButton} onPress={() => setSelectedQuest(null)} accessibilityLabel="Close quest details">
+                <Pressable style={styles.questDetailCloseButton} onPress={closeQuestDetail} accessibilityLabel="Close quest details">
                   <Ionicons name="close" size={21} color="#f8fafc" />
                 </Pressable>
               </View>
@@ -9251,7 +10937,7 @@ function privateThreadIncludesUsers(
             <View style={styles.questDetailFactsCard}>
               <Pressable
                 style={styles.questDetailFactRow}
-                onPress={canViewExactAddress && selectedQuest.exact_address ? () => void openQuestLocation(selectedQuest) : undefined}
+                onPress={canViewExactAddress && selectedQuest.exact_address ? () => void openQuestLocation(selectedQuest, canViewExactAddress) : undefined}
                 disabled={!canViewExactAddress || !selectedQuest.exact_address}
                 accessibilityLabel={canViewExactAddress && selectedQuest.exact_address ? "Choose a map for directions to this quest" : undefined}
               >
@@ -9283,17 +10969,18 @@ function privateThreadIncludesUsers(
                   <Text style={styles.questDetailFactValue}>{formatQuestTiming(selectedQuest.starts_at, selectedQuest.availability, "Let's find the best time")}</Text>
                   {(isJoined || isOwner) && selectedQuest.starts_at ? (
                     <Pressable
-                      style={styles.questCalendarButton}
-                      onPress={() => void addOrUpdateQuestCalendarEvent(selectedQuest)}
+                      style={[styles.questCalendarButton, selectedQuestCalendarUpdated && styles.questCalendarButtonUpdated]}
+                      onPress={() => void addOrUpdateQuestCalendarEvent(selectedQuest, canViewExactAddress)}
                       disabled={calendarActionQuestId === selectedQuest.id}
-                      accessibilityLabel={`${calendarEventQuestIds.includes(selectedQuest.id) ? "Update" : "Add"} ${selectedQuest.title} in your calendar`}
+                      accessibilityLabel={`${selectedQuestCalendarUpdated ? "Updated quest. Update" : calendarEventQuestIds.includes(selectedQuest.id) ? "Update" : "Add"} ${selectedQuest.title} in your calendar`}
                     >
                       {calendarActionQuestId === selectedQuest.id
                         ? <ActivityIndicator size="small" color="#082f3a" />
-                        : <Ionicons name={calendarEventQuestIds.includes(selectedQuest.id) ? "refresh" : "calendar-clear-outline"} size={16} color="#082f3a" />}
+                        : <Ionicons name={selectedQuestCalendarUpdated ? "alert-circle" : calendarEventQuestIds.includes(selectedQuest.id) ? "refresh" : "calendar-clear-outline"} size={16} color="#082f3a" />}
                       <Text style={styles.questCalendarButtonText}>
                         {calendarActionQuestId === selectedQuest.id ? "Updating…" : calendarEventQuestIds.includes(selectedQuest.id) ? "Update calendar" : "Add to calendar"}
                       </Text>
+                      {selectedQuestCalendarUpdated ? <View style={styles.calendarUpdatedBadge}><Text style={styles.calendarUpdatedBadgeText}>Updated</Text></View> : null}
                     </Pressable>
                   ) : null}
                 </View>
@@ -9407,7 +11094,7 @@ function privateThreadIncludesUsers(
                 disabled={!creator?.id}
               >
                 {creator?.avatar_url ? (
-                  <Image source={{ uri: creator.avatar_url }} style={styles.hostAvatar} />
+                  <NativeImage source={{ uri: creator.avatar_url }} style={styles.hostAvatar} />
                 ) : (
                   <View style={styles.hostAvatarFallback}>
                     <Ionicons name="person" size={20} color="#9bc8d2" />
@@ -9435,7 +11122,13 @@ function privateThreadIncludesUsers(
                         style={styles.detailMediaCardPressable}
                         onPress={() => setPreviewMedia({ ...item, url: item.url || fallbackImageUrl })}
                       >
-                        <Image source={{ uri: item.thumbnailUrl || item.url || fallbackImageUrl }} style={styles.detailMediaImage} />
+                        {item.type === "video" && !item.thumbnailUrl ? (
+                          <View style={[styles.detailMediaImage, styles.videoFallback]}>
+                            <Ionicons name="videocam-outline" size={25} color="#9bd8e4" />
+                          </View>
+                        ) : (
+                          <NativeImage source={{ uri: item.thumbnailUrl || item.url || fallbackImageUrl }} style={styles.detailMediaImage} />
+                        )}
                         {item.type === "video" ? (
                           <View style={styles.detailVideoBadge}>
                             <Ionicons name="expand-outline" size={14} color="#fff" />
@@ -9448,7 +11141,7 @@ function privateThreadIncludesUsers(
                 </ScrollView>
               ) : (
                 <View style={styles.detailMediaFallbackCard}>
-                  <Image source={{ uri: fallbackImageUrl }} style={styles.detailMediaImage} />
+                  <NativeImage source={{ uri: fallbackImageUrl }} style={styles.detailMediaImage} />
                   <Text style={styles.detailMuted}>No media attached yet.</Text>
                 </View>
               )}
@@ -9469,7 +11162,7 @@ function privateThreadIncludesUsers(
                     <View key={member.id} style={styles.personRow}>
                       <Pressable style={styles.personRowProfile} onPress={() => void openProfileFromQuest(member.id)}>
                         {member.avatar_url ? (
-                          <Image source={{ uri: member.avatar_url }} style={styles.commentAvatar} />
+                          <NativeImage source={{ uri: member.avatar_url }} style={styles.commentAvatar} />
                         ) : (
                           <View style={styles.commentAvatarFallback}>
                             <Ionicons name="person" size={16} color="#9bc8d2" />
@@ -9535,7 +11228,7 @@ function privateThreadIncludesUsers(
                   <View key={`pending-${member.id}`} style={styles.requestCard}>
                     <Pressable style={styles.personRowProfile} onPress={() => void openProfileFromQuest(member.id)}>
                       {member.avatar_url ? (
-                        <Image source={{ uri: member.avatar_url }} style={styles.commentAvatar} />
+                        <NativeImage source={{ uri: member.avatar_url }} style={styles.commentAvatar} />
                       ) : (
                         <View style={styles.commentAvatarFallback}>
                           <Ionicons name="person" size={16} color="#9bc8d2" />
@@ -9565,20 +11258,59 @@ function privateThreadIncludesUsers(
                 ))}
               </View>
             ) : null}
-            <View style={styles.commentThreadCard}>
+            <View style={[styles.commentThreadCard, commentSortMenuOpen && styles.commentThreadCardMenuOpen]}>
+              {commentSortMenuOpen ? (
+                <Pressable
+                  style={styles.commentSortDismissLayer}
+                  onPress={closeCommentSortMenu}
+                  accessibilityRole="button"
+                  accessibilityLabel="Close comment sorting options"
+                />
+              ) : null}
               <View style={styles.commentThreadHeader}>
-                <Pressable style={styles.commentSortPill} onPress={() => {}}>
-                  <Text style={styles.commentSortText}>Most relevant</Text>
-                  <Ionicons name="chevron-down" size={14} color={shellMuted} />
-                </Pressable>
+                <View style={styles.commentSortAnchor}>
+                  <Pressable
+                    style={styles.commentSortPill}
+                    onPress={openCommentSort}
+                    accessibilityRole="button"
+                    accessibilityLabel="Sort comments"
+                    accessibilityHint={commentSortMenuOpen ? "Double tap to close sorting options" : "Double tap to choose newest or oldest comments"}
+                    accessibilityState={{ expanded: commentSortMenuOpen }}
+                    accessibilityValue={{ text: commentSort === "newest" ? "Newest first" : "Oldest first" }}
+                  >
+                    <Text style={styles.commentSortText}>{commentSort === "newest" ? "Newest first" : "Oldest first"}</Text>
+                    <Ionicons name={commentSortMenuOpen ? "chevron-up" : "chevron-down"} size={14} color={shellMuted} />
+                  </Pressable>
+                </View>
                 <Text style={styles.detailMuted}>{selectedQuestComments.length} comments</Text>
               </View>
-              {selectedQuestComments.length ? selectedQuestComments.map((comment) => {
+              {commentSortMenuOpen ? (
+                <View style={styles.commentSortMenu} accessibilityRole="menu">
+                  {(["newest", "oldest"] as const).map((order) => {
+                    const selected = commentSort === order;
+                    const label = order === "newest" ? "Newest first" : "Oldest first";
+                    return (
+                      <Pressable
+                        key={order}
+                        style={[styles.commentSortMenuOption, selected && styles.commentSortMenuOptionSelected]}
+                        onPress={() => chooseCommentSort(order)}
+                        accessibilityRole="menuitem"
+                        accessibilityLabel={label}
+                        accessibilityState={{ selected }}
+                      >
+                        <Text style={[styles.commentSortMenuOptionText, selected && styles.commentSortMenuOptionTextSelected]}>{label}</Text>
+                        {selected ? <Ionicons name="checkmark" size={17} color="#9bd8e4" /> : null}
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              ) : null}
+              {sortedQuestComments.length ? sortedQuestComments.map((comment) => {
                 const commentProfile = getRelationOne(comment.profiles);
                 return (
                 <Pressable key={comment.id} style={styles.commentThreadItem} onPress={commentProfile?.id ? () => void openProfileFromQuest(commentProfile.id) : undefined}>
                     {commentProfile?.avatar_url ? (
-                      <Image source={{ uri: commentProfile.avatar_url }} style={styles.commentThreadAvatar} />
+                      <NativeImage source={{ uri: commentProfile.avatar_url }} style={styles.commentThreadAvatar} />
                     ) : (
                       <View style={styles.commentThreadAvatarFallback}>
                         <Ionicons name="person" size={14} color="#9bc8d2" />
@@ -9608,7 +11340,12 @@ function privateThreadIncludesUsers(
                 <Text style={styles.detailActionLabel}>{selectedQuestSaved ? "Saved" : "Save"}</Text>
               </Pressable>
               {!isOwner ? (
-                <Pressable style={styles.detailActionItem} onPress={() => void toggleJoinSelectedQuest()}>
+                <Pressable
+                  style={styles.detailActionItem}
+                  onPress={() => void toggleJoinSelectedQuest()}
+                  disabled={isMembershipTransitioning}
+                  accessibilityState={{ disabled: isMembershipTransitioning, busy: isMembershipTransitioning }}
+                >
                   <View style={[styles.detailActionIcon, isJoined && styles.detailActionIconActive]}>
                     <Ionicons name={isJoined ? "checkmark" : "person-add-outline"} size={21} color={isJoined ? "#08121a" : "#f8fafc"} />
                   </View>
@@ -9620,7 +11357,11 @@ function privateThreadIncludesUsers(
               <Pressable
                 style={styles.detailActionItem}
                 onStartShouldSetResponder={() => true}
-                onPress={() => void openQuestConversation(selectedQuest, "public")}
+                onPress={() => {
+                  if (!isMembershipTransitioning) void openQuestConversation(selectedQuest, "public");
+                }}
+                disabled={isMembershipTransitioning}
+                accessibilityState={{ disabled: isMembershipTransitioning, busy: isMembershipTransitioning }}
               >
                 <View style={styles.detailActionIcon}>
                   <Ionicons name="chatbox-outline" size={21} color="#f8fafc" />
@@ -9638,6 +11379,18 @@ function privateThreadIncludesUsers(
                 <Text style={styles.detailActionLabel}>Message</Text>
               </Pressable>
             </View>
+            <PostQuestFollowUpCard
+              enabled={POST_QUEST_FOLLOW_UPS_ENABLED}
+              quest={selectedQuest}
+              userId={userId}
+              participant={isJoined}
+              host={isOwner}
+              members={selectedQuestMembers.map((member) => ({ id: member.id, display_name: member.display_name }))}
+              busy={Boolean(postQuestAction)}
+              onSaveFollowUp={(payload) => void saveSelectedQuestFollowUp(payload)}
+              onConfirmAttendance={(attendeeId, attended) => void confirmSelectedQuestAttendance(attendeeId, attended)}
+              onSaveEndTime={(endsAt, completed) => void saveSelectedQuestLifecycle(endsAt, completed)}
+            />
             <View style={styles.detailDangerZone}>
               {isOwner ? (
                 <>
@@ -9755,7 +11508,7 @@ function privateThreadIncludesUsers(
               <View style={styles.onboardingFormCard}>
                 <View style={styles.onboardingSelectionHeader}><Text style={styles.onboardingSelectionTitle}>Pick at least three</Text><Text style={styles.onboardingSelectionCount}>{onboardingInterestIds.length} selected</Text></View>
                 <View style={styles.onboardingInterestGrid}>
-                  {hobbies.map((option) => {
+                  {hobbies.filter(option => catalog.categories.find(c => c.id === option.id)?.active || onboardingInterestIds.includes(option.id)).map((option) => {
                     const active = onboardingInterestIds.includes(option.id);
                     return (
                       <Pressable
@@ -9778,7 +11531,7 @@ function privateThreadIncludesUsers(
             {onboardingStep === 3 ? (
               <View style={styles.onboardingPhotoCard}>
                 <Pressable style={styles.onboardingAvatarButton} onPress={() => void uploadProfilePhoto()} disabled={uploadingAvatar}>
-                  {settingsAvatarUri ? <Image source={{ uri: settingsAvatarUri }} style={styles.onboardingAvatar} /> : <LinearGradient colors={["#1d3d49", "#0f212a"]} style={styles.onboardingAvatarFallback}><Ionicons name="person-outline" size={48} color="#9bd8e4" /></LinearGradient>}
+                  {settingsAvatarUri ? <NativeImage source={{ uri: settingsAvatarUri }} style={styles.onboardingAvatar} /> : <LinearGradient colors={["#1d3d49", "#0f212a"]} style={styles.onboardingAvatarFallback}><Ionicons name="person-outline" size={48} color="#9bd8e4" /></LinearGradient>}
                   <View style={styles.onboardingCameraBadge}>{uploadingAvatar ? <ActivityIndicator size="small" color="#082f3a" /> : <Ionicons name="camera" size={18} color="#082f3a" />}</View>
                 </Pressable>
                 <Text style={styles.onboardingPhotoTitle}>{settingsAvatarUri ? "Looking good" : "Add a clear profile photo"}</Text>
@@ -9827,8 +11580,8 @@ function privateThreadIncludesUsers(
               {peopleLoading ? <View style={styles.peopleLoadingState}><ActivityIndicator color="#9bd8e4" /><Text style={styles.detailMuted}>Finding opted-in people nearby…</Text></View> : !peopleResults.length ? <View style={styles.peopleEmptyState}><Ionicons name="telescope-outline" size={30} color="#6daec2" /><Text style={styles.peopleEmptyTitle}>No matches yet</Text><Text style={styles.detailMuted}>Try a wider distance or fewer filters. Only people who chose to appear here are shown.</Text></View> : peopleResults.map((person) => {
                 const selected = peopleSelectedIds.includes(person.id);
                 return <View key={person.id} style={[styles.peopleResultCard, selected && styles.peopleResultCardSelected]}>
-                  <Pressable style={styles.peopleResultMain} onPress={() => void openProfile(person.id)}>
-                    {person.avatar_url ? <Image source={{ uri: person.avatar_url }} style={styles.peopleResultAvatar} /> : <View style={styles.peopleResultAvatarFallback}><Ionicons name="person" size={23} color="#9bc8d2" /></View>}
+                  <Pressable style={styles.peopleResultMain} onPress={() => void openProfileFromPeopleFinder(person.id)}>
+                    {person.avatar_url ? <NativeImage source={{ uri: person.avatar_url }} style={styles.peopleResultAvatar} /> : <View style={styles.peopleResultAvatarFallback}><Ionicons name="person" size={23} color="#9bc8d2" /></View>}
                     <View style={styles.peopleResultCopy}><View style={styles.peopleResultNameRow}><Text style={styles.peopleResultName} numberOfLines={1}>{person.display_name || person.username || "QuestHat member"}</Text><Text style={styles.peopleResultAge}>{person.age}</Text></View><Text style={styles.peopleResultMeta}>{person.distance_km} km away{person.gender_identity && person.gender_identity !== "Prefer not to say" ? `  •  ${person.gender_identity}` : ""}</Text>{person.shared_interests > 0 ? <Text style={styles.peopleSharedInterests}>{person.shared_interests} shared {person.shared_interests === 1 ? "interest" : "interests"}</Text> : null}<Text style={styles.peopleResultBio} numberOfLines={2}>{person.bio || "Open to making real plans."}</Text></View>
                   </Pressable>
                   <View style={styles.peopleResultActions}><Pressable style={styles.peopleMessageButton} onPress={() => { setShowPeopleFinder(false); void openQuestConversation(peopleFinderQuest, "private", person.id); }}><Ionicons name="chatbubble-outline" size={16} color="#dff7fb" /><Text style={styles.peopleMessageButtonText}>Message</Text></Pressable><Pressable style={[styles.peopleSelectButton, selected && styles.peopleSelectButtonActive]} onPress={() => setPeopleSelectedIds((current) => selected ? current.filter((id) => id !== person.id) : [...current, person.id])}><Ionicons name={selected ? "checkmark-circle" : "add-circle-outline"} size={17} color={selected ? "#082f3a" : "#9bd8e4"} /><Text style={[styles.peopleSelectButtonText, selected && styles.peopleSelectButtonTextActive]}>{selected ? "Selected" : "Select"}</Text></Pressable></View>
@@ -9848,149 +11601,35 @@ function privateThreadIncludesUsers(
     const conversationPartner = (questionPartnerId ? inboxProfilesById[questionPartnerId] : null)
       || (questionPartnerId && creator?.id === questionPartnerId ? creator : null)
       || (questionPartnerId ? selectedQuestMembers.find((member) => member.id === questionPartnerId) : null)
-      || (questionMode === "public" ? creator : null);
-    const conversationPartnerName = conversationPartner?.display_name || conversationPartner?.username || "QuestHat member";
+      || (questionMode === "public" ? creator : null)
+      || null;
     const openConversationProfile = (profileId?: string | null) => {
       if (!profileId) return;
       closeQuestionModal();
       void openProfileFromQuest(profileId);
     };
-    const normalizedConversationSearch = conversationSearchQuery.trim().toLowerCase();
-    const visibleConversationItems = questionComments.filter((comment) => {
-      if (!normalizedConversationSearch) return true;
-      const author = getRelationOne(comment.profiles);
-      return [normalizeMessageBody(comment.body), author?.display_name, author?.username]
-        .some((value) => (value || "").toLowerCase().includes(normalizedConversationSearch));
-    });
-    return (
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={styles.modalOverlay}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 72 : 0}
-        pointerEvents="box-none"
-      >
+    const conversationOverlay = (
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.modalOverlay} keyboardVerticalOffset={Platform.OS === "ios" ? 72 : 0} pointerEvents="box-none">
         <Pressable style={styles.modalBackdropPressable} onPress={() => closeQuestionModal()} />
-        <View style={[styles.modalCard, styles.modalCardKeyboard, styles.modalCardKeyboardRaised, styles.conversationModalCard, { height: Math.min(Math.max(windowHeight - 80, 320), 760) }]}>
-            <View style={[styles.modalContent, styles.modalContentKeyboard, styles.conversationLayout]}>
-              <View style={styles.conversationHeader}>
-                <View style={styles.conversationHeaderTop}>
-                  <Pressable
-                    style={styles.conversationHeaderIcon}
-                    onPress={questionMode === "private" && questionPartnerId ? () => openConversationProfile(questionPartnerId) : undefined}
-                    disabled={questionMode !== "private" || !questionPartnerId}
-                    accessibilityLabel={questionMode === "private" ? `Open ${conversationPartnerName}'s profile` : undefined}
-                  >
-                    {questionMode === "private" && conversationPartner?.avatar_url
-                      ? <Image source={{ uri: conversationPartner.avatar_url }} style={styles.conversationHeaderAvatar} />
-                      : <Ionicons name={questionMode === "public" ? "chatbox" : "person"} size={20} color="#082f3a" />}
-                  </Pressable>
-                  <View style={styles.conversationHeaderCopy}>
-                    <Text style={styles.conversationEyebrow}>{questionMode === "public" ? "QUEST COMMENTS" : "DIRECT MESSAGE"}</Text>
-                    <Pressable onPress={questionMode === "private" && questionPartnerId ? () => openConversationProfile(questionPartnerId) : undefined} disabled={questionMode !== "private" || !questionPartnerId}>
-                      <Text style={styles.conversationTitle} numberOfLines={2}>{questionMode === "private" ? conversationPartnerName : questionTarget.title}</Text>
-                    </Pressable>
-                    <Text style={styles.conversationSubtitle} numberOfLines={1}>{questionMode === "public" ? `${questionComments.length} comments` : `About ${questionTarget.title}`}</Text>
-                  </View>
-                  <Pressable style={styles.conversationClose} onPress={() => closeQuestionModal()}><Ionicons name="close" size={20} color="#cbd5e1" /></Pressable>
-                </View>
-                <View style={styles.conversationModeSwitch}>
-                  {([['public', 'Comments', 'chatbox-outline'], ['private', 'Messages', 'mail-outline']] as const).map(([mode, label, icon]) => (
-                    <Pressable
-                      key={mode}
-                      style={[styles.conversationModeButton, questionMode === mode && styles.conversationModeButtonActive]}
-                      onPress={() => {
-                        if (questionMode === mode) return;
-                        saveQuestionDraft(questionTarget.id, questionMode);
-                        setQuestionMode(mode);
-                        setConversationSearchQuery("");
-                        setQuestionText(questionDrafts[getQuestionDraftKey(questionTarget.id, mode)] || "");
-                        void openQuestConversation(questionTarget, mode, mode === "private" ? (questionPrivatePartnerId || questionTarget.creator_id || null) : null);
-                      }}
-                    >
-                      <Ionicons name={icon} size={15} color={questionMode === mode ? "#082f3a" : "#9aa5b5"} />
-                      <Text style={[styles.conversationModeText, questionMode === mode && styles.conversationModeTextActive]}>{label}</Text>
-                    </Pressable>
-                  ))}
-                </View>
-              </View>
-
-              <View style={styles.conversationSearchShell}>
-                <Ionicons name="search" size={17} color="#7f8998" />
-                <TextInput value={conversationSearchQuery} onChangeText={setConversationSearchQuery} placeholder={`Search ${questionMode === "public" ? "comments" : "messages"}`} placeholderTextColor="#7f8998" style={styles.conversationSearchInput} clearButtonMode="while-editing" />
-              </View>
-              <ScrollView
-                ref={questionScrollRef}
-                style={styles.conversationListScroll}
-                contentContainerStyle={styles.conversationListContent}
-                automaticallyAdjustKeyboardInsets={Platform.OS === "ios"}
-                keyboardShouldPersistTaps="handled"
-                keyboardDismissMode="interactive"
-                nestedScrollEnabled
-                showsVerticalScrollIndicator={false}
-                onContentSizeChange={() => {
-                  if (!conversationSearchQuery) questionScrollRef.current?.scrollToEnd({ animated: false });
-                }}
-              >
-                <View style={styles.commentThreadCard}>
-                  {visibleConversationItems.length ? visibleConversationItems.map((comment) => {
-                    const isOwnMessage = comment.sender_id === userId;
-                    const commentProfile = questionMode === "private" && !isOwnMessage && comment.sender_id === questionPartnerId
-                      ? conversationPartner
-                      : getRelationOne(comment.profiles);
-                    return (
-                      <View key={comment.id} style={[styles.commentThreadItem, isOwnMessage && styles.commentThreadItemOwn]}>
-                        {!isOwnMessage && commentProfile?.avatar_url ? (
-                          <Pressable onPress={() => openConversationProfile(comment.sender_id)} accessibilityLabel={`Open ${commentProfile.display_name || commentProfile.username || "sender"}'s profile`}>
-                            <Image source={{ uri: commentProfile.avatar_url }} style={styles.commentThreadAvatar} />
-                          </Pressable>
-                        ) : !isOwnMessage ? (
-                          <Pressable style={styles.commentThreadAvatarFallback} onPress={() => openConversationProfile(comment.sender_id)} accessibilityLabel="Open sender profile">
-                            <Ionicons name="person" size={14} color="#9bc8d2" />
-                          </Pressable>
-                        ) : null}
-                        <View style={[styles.commentThreadBody, styles.conversationBubble, isOwnMessage && styles.conversationBubbleOwn]}>
-                          <View style={styles.commentThreadMetaRow}>
-                            {isOwnMessage ? (
-                              <Text style={[styles.commentThreadName, styles.conversationBubbleNameOwn]} numberOfLines={1}>You</Text>
-                            ) : (
-                              <Pressable style={styles.commentThreadNameButton} onPress={() => openConversationProfile(comment.sender_id)}>
-                                <Text style={styles.commentThreadName} numberOfLines={1}>{commentProfile?.display_name || commentProfile?.username || "Someone"}</Text>
-                              </Pressable>
-                            )}
-                            <Text style={[styles.commentThreadTime, isOwnMessage && styles.conversationBubbleTimeOwn]}>{formatDate(comment.created_at)}</Text>
-                          </View>
-                          <Text style={[styles.commentThreadText, isOwnMessage && styles.conversationBubbleTextOwn]}>{normalizeMessageBody(comment.body)}</Text>
-                        </View>
-                      </View>
-                    );
-                  }) : <View style={styles.conversationEmpty}><Ionicons name="chatbubbles-outline" size={25} color="#6daec2" /><Text style={styles.detailMuted}>{conversationSearchQuery ? "No results found." : `No ${questionMode === "public" ? "comments" : "messages"} yet.`}</Text></View>}
-                </View>
-              </ScrollView>
-              <View style={styles.commentComposerCard}>
-                <View style={styles.commentComposerRow}>
-                  <TextInput
-                    multiline
-                    placeholder={questionMode === "public" ? "Write a comment..." : "Write a direct message..."}
-                    placeholderTextColor="#94a3b8"
-                    style={[styles.input, styles.textArea, styles.questionInput, styles.commentComposerInput]}
-                    value={questionText}
-                    onChangeText={setQuestionText}
-                    onFocus={() => setTimeout(() => questionScrollRef.current?.scrollToEnd({ animated: true }), 120)}
-                    maxLength={500}
-                  />
-                  <Pressable style={styles.commentSendButton} onPress={() => void sendQuestionFromModal()} disabled={sendingQuestion}>
-                    {sendingQuestion ? <ActivityIndicator size="small" color="#ffffff" /> : <Ionicons name="send" size={18} color="#ffffff" />}
-                  </Pressable>
-                </View>
-                <View style={styles.commentComposerActions}>
-                  <Ionicons name={questionMode === "public" ? "earth-outline" : "lock-closed-outline"} size={14} color="#7f8998" />
-                  <Text style={styles.commentComposerHint}>{questionMode === "public" ? "Visible to everyone on this quest" : questionPartnerId ? `Only you and ${conversationPartnerName} can see this.` : "Only conversation participants can see this."}</Text>
-                  <Text style={styles.commentComposerCount}>{questionText.length}/500</Text>
-                </View>
-              </View>
-            </View>
-          </View>
+        <View style={[styles.modalCard, styles.modalCardKeyboard, styles.modalCardKeyboardRaised, styles.conversationModalCard, { height: Math.min(Math.max(windowHeight - 80, 320), 760), padding: 0, backgroundColor: "#fff" }]}>
+          <ConversationPanel key={`${userId || "signed-out"}:${questionTarget.id}:${questionMode}:${questionPartnerId || "public"}`} messages={questionComments} userId={userId} ownProfile={profile} partner={conversationPartner} partnerId={questionPartnerId} creatorId={questionTarget.creator_id || null} mode={questionMode} questTitle={questionTarget.title} draft={questionText} search={conversationSearchQuery} loading={conversationLoading} error={conversationError} sending={sendingQuestion}
+            onDraft={setQuestionText} onSearch={setConversationSearchQuery} onSend={() => void sendQuestionFromModal()} onRetry={() => void openQuestConversation(questionTarget, questionMode, questionPartnerId, true)} onBack={() => { closeQuestionModal(); setSelectedQuest(null); setActiveTab("inbox"); }}
+            onListing={() => { const questId = questionTarget.id; closeQuestionModal(); void openQuestDetail(questId); }} onProfile={openConversationProfile}
+            onMode={mode => { if (mode === questionMode) return; saveQuestionDraft(questionTarget.id, questionMode, undefined, questionPartnerId); setConversationSearchQuery(""); void openQuestConversation(questionTarget, mode, mode === "private" ? questionPrivatePartnerId || questionTarget.creator_id || null : null); }} />
+        </View>
       </KeyboardAvoidingView>
+    );
+    if (Platform.OS !== "android") return conversationOverlay;
+    return (
+      <Modal visible transparent animationType="none" onRequestClose={() => {
+        if (Keyboard.isVisible()) {
+          Keyboard.dismiss();
+          return;
+        }
+        closeQuestionModal();
+      }}>
+        {conversationOverlay}
+      </Modal>
     );
   }
 
@@ -10017,9 +11656,10 @@ function privateThreadIncludesUsers(
             ? "Request pending"
             : "New connection";
     return (
-      <View style={styles.modalOverlay} pointerEvents="box-none">
-        <Pressable style={styles.modalBackdropPressable} onPress={() => setSelectedProfile(null)} />
-        <View style={[styles.modalCard, styles.modalCardScrollable, styles.modalCardElevated, styles.publicProfileModal]}>
+      <Modal visible transparent animationType="slide" onRequestClose={() => setSelectedProfile(null)}>
+        <View style={styles.modalOverlay} pointerEvents="box-none">
+          <Pressable style={styles.modalBackdropPressable} onPress={() => setSelectedProfile(null)} />
+          <View style={[styles.modalCard, styles.modalCardScrollable, styles.modalCardElevated, styles.publicProfileModal]}>
           <ScrollView
             style={styles.modalScroll}
             contentContainerStyle={styles.publicProfileContent}
@@ -10037,7 +11677,7 @@ function privateThreadIncludesUsers(
               <View style={styles.publicProfileIdentity}>
                 <View style={styles.publicProfileAvatarRing}>
                   {selectedProfile.avatar_url ? (
-                    <Image source={{ uri: selectedProfile.avatar_url }} style={styles.publicProfileAvatar} />
+                    <NativeImage source={{ uri: selectedProfile.avatar_url }} style={styles.publicProfileAvatar} />
                   ) : (
                     <LinearGradient colors={["#9bd8e4", "#5b9daf"]} style={styles.publicProfileAvatarFallback}>
                       <Text style={styles.publicProfileInitial}>{profileHandle.charAt(0).toUpperCase()}</Text>
@@ -10068,7 +11708,7 @@ function privateThreadIncludesUsers(
                 <>
                   <View style={styles.publicProfileFriendGrid}>{selectedProfileFriends.slice(0, selectedProfileFriendsExpanded ? selectedProfileFriends.length : 5).map((friend) => (
                     <Pressable key={friend.id} style={styles.publicProfileFriend} onPress={() => void openProfile(friend.id)}>
-                      {friend.avatar_url ? <Image source={{ uri: friend.avatar_url }} style={styles.publicProfileFriendAvatar} /> : <View style={styles.publicProfileFriendFallback}><Text style={styles.publicProfileFriendInitial}>{(friend.username || friend.display_name || "F").charAt(0).toUpperCase()}</Text></View>}
+                      {friend.avatar_url ? <NativeImage source={{ uri: friend.avatar_url }} style={styles.publicProfileFriendAvatar} /> : <View style={styles.publicProfileFriendFallback}><Text style={styles.publicProfileFriendInitial}>{(friend.username || friend.display_name || "F").charAt(0).toUpperCase()}</Text></View>}
                       <Text style={styles.publicProfileFriendName} numberOfLines={1}>@{friend.username || friend.display_name || "friend"}</Text>
                     </Pressable>
                   ))}</View>
@@ -10152,7 +11792,7 @@ function privateThreadIncludesUsers(
                       void openQuestDetail(quest.id);
                     }}
                   >
-                    <Image source={{ uri: questImage }} style={styles.publicProfileQuestImage} />
+                    <NativeImage source={{ uri: questImage }} style={styles.publicProfileQuestImage} />
                     <LinearGradient colors={["rgba(8,15,22,0.05)", "rgba(8,15,22,0.92)"]} style={StyleSheet.absoluteFill} />
                     <View style={styles.publicProfileQuestCopy}>
                       <Text style={styles.publicProfileQuestCategory}>{getCategory(quest)}</Text>
@@ -10165,8 +11805,9 @@ function privateThreadIncludesUsers(
               }) : <View style={styles.publicProfileEmpty}><Ionicons name="compass-outline" size={22} color="#6daec2" /><Text style={styles.publicProfilePrivateText}>No hosted quests yet.</Text></View>}
             </View>
           </ScrollView>
+          </View>
         </View>
-      </View>
+      </Modal>
     );
   }
 
@@ -10175,71 +11816,85 @@ function privateThreadIncludesUsers(
     if (!showReportProfileModal || !target) return null;
     const currentReasons = REPORT_REASON_OPTIONS.profile_account;
     return (
-      <View style={styles.modalOverlay} pointerEvents="box-none">
-        <Pressable style={styles.modalBackdropPressable} onPress={() => { setShowReportProfileModal(false); setReportProfileTarget(null); }} />
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={{ width: "100%" }}
-          keyboardVerticalOffset={72}
+      <Modal
+        visible
+        transparent
+        animationType="fade"
+        presentationStyle="overFullScreen"
+        onRequestClose={closeProfileReportModal}
+      >
+        <View
+          style={[styles.modalOverlay, styles.modalOverlayRaised]}
+          pointerEvents="box-none"
+          accessibilityViewIsModal
+          onAccessibilityEscape={closeProfileReportModal}
         >
-          <View style={[styles.modalCard, styles.modalCardKeyboard, styles.modalCardKeyboardRaised, styles.modalCardElevated]}>
-            <ScrollView
-              contentContainerStyle={[styles.modalContent, styles.modalContentKeyboard]}
-              automaticallyAdjustKeyboardInsets={Platform.OS === "ios"}
-              keyboardShouldPersistTaps="handled"
-              keyboardDismissMode="interactive"
-              nestedScrollEnabled
-              showsVerticalScrollIndicator={false}
-            >
-              <View style={styles.row}>
-                <Text style={styles.questCategory}>Report profile</Text>
-                <Pressable onPress={() => { setShowReportProfileModal(false); setReportProfileTarget(null); }}>
-                  <Text style={styles.link}>Close</Text>
-                </Pressable>
-              </View>
-              <Text style={styles.questTitle}>{target.display_name || target.username || "User"}</Text>
-              <Text style={styles.detailMuted}>Report this profile for a policy or safety issue.</Text>
-              <Text style={styles.fieldLabel}>Reason</Text>
-              <View style={[styles.segment, styles.reportStack]}>
-                {currentReasons.map((option) => (
-                  <Pressable
-                    key={option.value}
-                    style={[styles.segmentButton, styles.reportStackButton, reportProfileReason === option.value && styles.segmentActive]}
-                    onPress={() => setReportProfileReason(option.value)}
-                  >
-                    <Text style={[styles.segmentText, reportProfileReason === option.value && styles.segmentTextActive]}>{option.label}</Text>
+          <Pressable style={styles.modalBackdropPressable} onPress={closeProfileReportModal} disabled={submittingProfileReport} />
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            style={{ width: "100%" }}
+            keyboardVerticalOffset={72}
+          >
+            <View style={[styles.modalCard, styles.modalCardKeyboard, styles.modalCardKeyboardRaised, styles.modalCardElevated]} onStartShouldSetResponder={() => true}>
+              <ScrollView
+                contentContainerStyle={[styles.modalContent, styles.modalContentKeyboard]}
+                automaticallyAdjustKeyboardInsets={Platform.OS === "ios"}
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="interactive"
+                nestedScrollEnabled
+                showsVerticalScrollIndicator={false}
+              >
+                <View style={styles.row}>
+                  <Text style={styles.questCategory}>Report profile</Text>
+                  <Pressable onPress={closeProfileReportModal} disabled={submittingProfileReport}>
+                    <Text style={styles.link}>Close</Text>
                   </Pressable>
-                ))}
-              </View>
-              <TextInput
-                multiline
-                placeholder="Add details"
-                placeholderTextColor="#94a3b8"
-                style={[styles.input, styles.textArea]}
-                value={reportProfileDetails}
-                onChangeText={setReportProfileDetails}
-              />
-              <View style={styles.detailActions}>
-                <Pressable style={styles.primaryButton} onPress={() => void submitProfileReport()} disabled={submittingProfileReport}>
-                  <Text style={styles.primaryButtonText}>{submittingProfileReport ? "Submitting..." : "Submit report"}</Text>
-                </Pressable>
-                <Pressable style={styles.secondaryButton} onPress={() => { setShowReportProfileModal(false); setReportProfileTarget(null); }}>
-                  <Text style={styles.secondaryButtonText}>Cancel</Text>
-                </Pressable>
-              </View>
-            </ScrollView>
-          </View>
-        </KeyboardAvoidingView>
-      </View>
+                </View>
+                <Text style={styles.questTitle}>{target.display_name || target.username || "User"}</Text>
+                <Text style={styles.detailMuted}>Report this profile for a policy or safety issue.</Text>
+                <Text style={styles.fieldLabel}>Reason</Text>
+                <View style={[styles.segment, styles.reportStack]}>
+                  {currentReasons.map((option) => (
+                    <Pressable
+                      key={option.value}
+                      style={[styles.segmentButton, styles.reportStackButton, reportProfileReason === option.value && styles.segmentActive]}
+                      onPress={() => setReportProfileReason(option.value)}
+                    >
+                      <Text style={[styles.segmentText, reportProfileReason === option.value && styles.segmentTextActive]}>{option.label}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <TextInput
+                  multiline
+                  placeholder="Add details"
+                  placeholderTextColor="#94a3b8"
+                  style={[styles.input, styles.textArea]}
+                  value={reportProfileDetails}
+                  onChangeText={setReportProfileDetails}
+                />
+                <View style={styles.detailActions}>
+                  <Pressable style={styles.primaryButton} onPress={() => void submitProfileReport()} disabled={submittingProfileReport}>
+                    <Text style={styles.primaryButtonText}>{submittingProfileReport ? "Submitting..." : "Submit report"}</Text>
+                  </Pressable>
+                  <Pressable style={styles.secondaryButton} onPress={closeProfileReportModal} disabled={submittingProfileReport}>
+                    <Text style={styles.secondaryButtonText}>Cancel</Text>
+                  </Pressable>
+                </View>
+              </ScrollView>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
     );
   }
 
   function renderReportQuestModal() {
     if (!showReportQuestModal || !reportQuestTarget) return null;
     const currentReasons = REPORT_REASON_OPTIONS[reportQuestContext];
+    const hasValidReportReason = isAllowedReportReason(reportQuestReason, currentReasons);
     return (
       <View style={[styles.modalOverlay, styles.modalOverlayRaised]} pointerEvents="box-none">
-        <Pressable style={styles.modalBackdropPressable} onPress={() => setShowReportQuestModal(false)} />
+        <Pressable style={styles.modalBackdropPressable} onPress={closeQuestReportModal} disabled={submittingQuestReport} />
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           style={{ width: "100%" }}
@@ -10256,7 +11911,7 @@ function privateThreadIncludesUsers(
             >
               <View style={styles.row}>
                 <Text style={styles.questCategory}>Report listing</Text>
-                <Pressable onPress={() => setShowReportQuestModal(false)}>
+                <Pressable onPress={closeQuestReportModal} disabled={submittingQuestReport}>
                   <Text style={styles.link}>Close</Text>
                 </Pressable>
               </View>
@@ -10269,7 +11924,7 @@ function privateThreadIncludesUsers(
                     style={[styles.segmentButton, styles.reportStackButton, reportQuestContext === option.value && styles.segmentActive]}
                     onPress={() => {
                       setReportQuestContext(option.value);
-                      setReportQuestReason(REPORT_REASON_OPTIONS[option.value][0]?.value || "other");
+                      setReportQuestReason("");
                     }}
                   >
                     <Text style={[styles.segmentText, reportQuestContext === option.value && styles.segmentTextActive]}>{option.label}</Text>
@@ -10277,10 +11932,17 @@ function privateThreadIncludesUsers(
                 ))}
               </View>
               <Text style={styles.fieldLabel}>Reason</Text>
+              {!hasValidReportReason ? (
+                <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={styles.detailMuted}>
+                  Choose a reason before submitting this report.
+                </Text>
+              ) : null}
               <View style={[styles.segment, styles.reportStack]}>
                 {currentReasons.map((option) => (
                   <Pressable
                     key={option.value}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: reportQuestReason === option.value }}
                     style={[styles.segmentButton, styles.reportStackButton, reportQuestReason === option.value && styles.segmentActive]}
                     onPress={() => setReportQuestReason(option.value)}
                   >
@@ -10297,10 +11959,16 @@ function privateThreadIncludesUsers(
                 onChangeText={setReportQuestDetails}
               />
               <View style={styles.detailActions}>
-                <Pressable style={styles.primaryButton} onPress={() => void submitQuestReport()} disabled={submittingQuestReport}>
+                <Pressable
+                  accessibilityHint={!hasValidReportReason ? "Choose a report reason first." : "Submits this listing report."}
+                  accessibilityState={{ disabled: submittingQuestReport || !hasValidReportReason }}
+                  style={[styles.primaryButton, !hasValidReportReason && styles.primaryButtonDisabled]}
+                  onPress={() => void submitQuestReport()}
+                  disabled={submittingQuestReport || !hasValidReportReason}
+                >
                   <Text style={styles.primaryButtonText}>{submittingQuestReport ? "Submitting..." : "Submit report"}</Text>
                 </Pressable>
-                <Pressable style={styles.secondaryButton} onPress={() => setShowReportQuestModal(false)}>
+                <Pressable style={styles.secondaryButton} onPress={closeQuestReportModal} disabled={submittingQuestReport}>
                   <Text style={styles.secondaryButtonText}>Cancel</Text>
                 </Pressable>
               </View>
@@ -10380,6 +12048,120 @@ function privateThreadIncludesUsers(
     );
   }
 
+  function renderQuestGuestActionsMenu() {
+    if (!guestActionsTarget) return null;
+    const member = guestActionsTarget.member;
+    const memberName = member.display_name || member.username || "Guest";
+    return (
+      <View style={[styles.modalOverlay, styles.modalOverlayRaised, styles.guestActionsOverlay]} pointerEvents="box-none">
+        <Pressable
+          accessibilityHint="Closes this menu without taking an action"
+          accessibilityLabel="Dismiss guest actions"
+          accessibilityRole="button"
+          style={styles.modalBackdropPressable}
+          onPress={closeQuestGuestActionsMenu}
+        />
+        <View
+          accessibilityLabel={`Actions for ${memberName}`}
+          accessibilityViewIsModal
+          onStartShouldSetResponder={() => true}
+          style={styles.guestActionsSheet}
+        >
+          <View style={styles.guestActionsHandle} />
+          <View style={styles.guestActionsHeader}>
+            {member.avatar_url ? (
+              <NativeImage source={{ uri: member.avatar_url }} style={styles.guestActionsAvatar} />
+            ) : (
+              <View style={styles.guestActionsAvatarFallback}>
+                <Ionicons name="person" size={21} color="#9bd8e4" />
+              </View>
+            )}
+            <View style={styles.guestActionsHeaderCopy}>
+              <Text style={styles.guestActionsEyebrow}>GUEST ACTIONS</Text>
+              <Text numberOfLines={1} style={styles.guestActionsTitle}>{memberName}</Text>
+              <Text style={styles.guestActionsSubtitle}>Choose an action for this guest.</Text>
+            </View>
+            <Pressable
+              accessibilityLabel="Close guest actions"
+              accessibilityRole="button"
+              hitSlop={8}
+              onPress={closeQuestGuestActionsMenu}
+              style={styles.guestActionsClose}
+            >
+              <Ionicons name="close" size={21} color="#cbd5e1" />
+            </Pressable>
+          </View>
+          <View style={styles.guestActionsList}>
+            <Pressable
+              accessibilityLabel={`View ${memberName}'s profile`}
+              accessibilityRole="button"
+              onPress={() => handleQuestGuestAction(GUEST_ACTION_IDS.VIEW_PROFILE)}
+              style={({ pressed }) => [styles.guestActionsRow, pressed && styles.guestActionsRowPressed]}
+            >
+              <View style={styles.guestActionsIcon}><Ionicons name="person-circle-outline" size={22} color="#9bd8e4" /></View>
+              <View style={styles.guestActionsRowCopy}>
+                <Text style={styles.guestActionsRowTitle}>View profile</Text>
+                <Text style={styles.guestActionsRowSubtitle}>See their profile and shared details</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={19} color="#64748b" />
+            </Pressable>
+            {guestActionsTarget.isManager ? (
+              <Pressable
+                accessibilityHint="Opens a confirmation before removing this guest"
+                accessibilityLabel={`Remove ${memberName} from quest`}
+                accessibilityRole="button"
+                onPress={() => handleQuestGuestAction(GUEST_ACTION_IDS.REMOVE)}
+                style={({ pressed }) => [styles.guestActionsRow, styles.guestActionsRowDanger, pressed && styles.guestActionsRowPressed]}
+              >
+                <View style={[styles.guestActionsIcon, styles.guestActionsIconDanger]}><Ionicons name="person-remove-outline" size={21} color="#fda4af" /></View>
+                <View style={styles.guestActionsRowCopy}>
+                  <Text style={[styles.guestActionsRowTitle, styles.guestActionsDangerText]}>Remove from quest</Text>
+                  <Text style={styles.guestActionsRowSubtitle}>Revoke membership after confirmation</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={19} color="#9f5360" />
+              </Pressable>
+            ) : null}
+            <Pressable
+              accessibilityHint="Opens a confirmation before blocking this user"
+              accessibilityLabel={`Block ${memberName}`}
+              accessibilityRole="button"
+              onPress={() => handleQuestGuestAction(GUEST_ACTION_IDS.BLOCK)}
+              style={({ pressed }) => [styles.guestActionsRow, styles.guestActionsRowDanger, pressed && styles.guestActionsRowPressed]}
+            >
+              <View style={[styles.guestActionsIcon, styles.guestActionsIconDanger]}><Ionicons name="ban-outline" size={21} color="#fda4af" /></View>
+              <View style={styles.guestActionsRowCopy}>
+                <Text style={[styles.guestActionsRowTitle, styles.guestActionsDangerText]}>Block user</Text>
+                <Text style={styles.guestActionsRowSubtitle}>Remove contact after confirmation</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={19} color="#9f5360" />
+            </Pressable>
+            <Pressable
+              accessibilityLabel={`Report ${memberName}`}
+              accessibilityRole="button"
+              onPress={() => handleQuestGuestAction(GUEST_ACTION_IDS.REPORT)}
+              style={({ pressed }) => [styles.guestActionsRow, pressed && styles.guestActionsRowPressed]}
+            >
+              <View style={[styles.guestActionsIcon, styles.guestActionsIconReport]}><Ionicons name="flag-outline" size={20} color="#fbbf24" /></View>
+              <View style={styles.guestActionsRowCopy}>
+                <Text style={styles.guestActionsRowTitle}>Report user</Text>
+                <Text style={styles.guestActionsRowSubtitle}>Send a report to QuestHat moderation</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={19} color="#64748b" />
+            </Pressable>
+          </View>
+          <Pressable
+            accessibilityLabel="Cancel guest actions"
+            accessibilityRole="button"
+            onPress={closeQuestGuestActionsMenu}
+            style={({ pressed }) => [styles.guestActionsCancel, pressed && styles.guestActionsRowPressed]}
+          >
+            <Text style={styles.guestActionsCancelText}>Cancel</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
+
   function renderNotificationPreferencesModal() {
     if (!showNotificationPreferences) return null;
     const options: Array<{
@@ -10404,10 +12186,11 @@ function privateThreadIncludesUsers(
     };
 
     return (
-      <Modal visible transparent animationType="fade" onRequestClose={closeManager}>
-        <View style={styles.modalBackdrop}>
+      <Modal visible transparent animationType="fade" onShow={() => Keyboard.dismiss()} onRequestClose={closeManager}>
+        <SafeAreaView style={styles.modalBackdrop} edges={["top", "bottom", "left", "right"]}>
           <Pressable style={styles.modalBackdropPressable} onPress={closeManager} />
-          <View style={styles.notificationPreferencesCard} onStartShouldSetResponder={() => true}>
+          <View style={styles.notificationPreferencesCard}>
+            <ScrollView style={styles.notificationPreferencesScroll} contentContainerStyle={styles.notificationPreferencesContent} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive" showsVerticalScrollIndicator>
             <View style={styles.notificationPreferencesHeader}>
               <View style={styles.notificationPreferencesIcon}>
                 <Ionicons name="notifications-outline" size={23} color="#9bd8e4" />
@@ -10444,7 +12227,7 @@ function privateThreadIncludesUsers(
               </Pressable>
             </View>
 
-            <ScrollView style={styles.notificationPreferencesScroll} contentContainerStyle={styles.notificationPreferencesList} showsVerticalScrollIndicator={false}>
+            <View style={styles.notificationPreferencesList}>
               {notificationPreferencesLoading ? (
                 <View style={styles.notificationPreferencesLoading}>
                   <ActivityIndicator color="#9bd8e4" />
@@ -10461,6 +12244,7 @@ function privateThreadIncludesUsers(
                       <Text style={styles.notificationPreferenceDescription}>{option.description}</Text>
                     </View>
                     <Switch
+                      accessibilityLabel={option.title}
                       value={notificationPreferences[option.key]}
                       onValueChange={(value) => setNotificationPreferences((current) => ({ ...current, [option.key]: value }))}
                       trackColor={{ false: "#343846", true: "#6daec2" }}
@@ -10470,7 +12254,7 @@ function privateThreadIncludesUsers(
                   {index < options.length - 1 ? <View style={styles.notificationPreferenceDivider} /> : null}
                 </View>
               ))}
-            </ScrollView>
+            </View>
 
             <Pressable
               style={[styles.notificationPreferencesSave, (notificationPreferencesLoading || notificationPreferencesSaving) && styles.settingsSaveButtonDisabled]}
@@ -10480,8 +12264,9 @@ function privateThreadIncludesUsers(
               {notificationPreferencesSaving ? <ActivityIndicator size="small" color="#082f3a" /> : <Ionicons name="checkmark" size={19} color="#082f3a" />}
               <Text style={styles.notificationPreferencesSaveText}>{notificationPreferencesSaving ? "Saving..." : "Save notification choices"}</Text>
             </Pressable>
+            </ScrollView>
           </View>
-        </View>
+        </SafeAreaView>
       </Modal>
     );
   }
@@ -10757,24 +12542,25 @@ function privateThreadIncludesUsers(
     <AppErrorBoundary>
       <SafeAreaView
         edges={["top", "right", "bottom", "left"]}
-        style={[styles.safeArea, { backgroundColor: authState === "loading" ? "#ffffff" : shellBackground }]}
+        style={[styles.safeArea, { backgroundColor: authState === "loading" ? "#ffffff" : activeTab === "create" ? "#061221" : shellBackground }]}
       >
-        <StatusBar style={authState === "loading" || isLightTheme ? "dark" : "light"} />
-        <KeyboardAvoidingView style={[styles.app, { backgroundColor: shellBackground }]}>
+        <StatusBar style={activeTab === "create" ? "light" : authState === "loading" || isLightTheme ? "dark" : "light"} />
+        <KeyboardAvoidingView style={[styles.app, { backgroundColor: activeTab === "create" ? "#061221" : shellBackground }]}>
           <Animated.View
             style={[
               styles.topBar,
+              activeTab === "home" && styles.homeTopBar,
               {
                 backgroundColor: topBarBackground,
                 borderBottomColor: shellBorder,
-                maxHeight: topBarVisibility.interpolate({ inputRange: [0, 1], outputRange: [0, 96] }),
-                opacity: topBarVisibility,
+                maxHeight: activeTab === "create" ? 0 : topBarVisibility.interpolate({ inputRange: [0, 1], outputRange: [0, activeTab === "home" ? 220 : 96] }),
+                opacity: activeTab === "create" ? 0 : topBarVisibility,
                 transform: [{ translateY: topBarVisibility.interpolate({ inputRange: [0, 1], outputRange: [-10, 0] }) }],
               },
             ]}
-            pointerEvents={topBarHidden ? "none" : "auto"}
+            pointerEvents={topBarHidden || activeTab === "create" ? "none" : "auto"}
           >
-            <View style={styles.topBarBrand}>
+            <View style={[styles.topBarBrand, activeTab === "home" && styles.homeTopBarBrand]}>
               <Text style={[styles.logo, { color: shellText }]}>{APP_NAME}</Text>
               {activeTab !== "home" ? <Text style={[styles.tagline, { color: shellMuted }]}>Find local people to do real plans with.</Text> : null}
             </View>
@@ -10782,13 +12568,13 @@ function privateThreadIncludesUsers(
               {activeTab === "home" ? (
                 <View style={[styles.feedToggle, styles.headerFeedToggle]}>
                   <Pressable style={[styles.feedToggleButton, styles.headerFeedToggleButton, feedViewMode === "list" && styles.feedToggleButtonActive]} onPress={() => setFeedViewMode("list")}>
-                    <Text style={[styles.feedToggleText, styles.headerFeedToggleText, feedViewMode === "list" && styles.feedToggleTextActive]}>List</Text>
+                    <Text maxFontSizeMultiplier={1.5} style={[styles.feedToggleText, styles.headerFeedToggleText, feedViewMode === "list" && styles.feedToggleTextActive]}>List</Text>
                   </Pressable>
                   <Pressable
                     style={[styles.feedToggleButton, styles.headerFeedToggleButton, feedViewMode === "map" && styles.feedToggleButtonActive]}
                     onPress={() => setFeedViewMode("map")}
                   >
-                    <Text style={[styles.feedToggleText, styles.headerFeedToggleText, feedViewMode === "map" && styles.feedToggleTextActive]}>Map</Text>
+                    <Text maxFontSizeMultiplier={1.5} style={[styles.feedToggleText, styles.headerFeedToggleText, feedViewMode === "map" && styles.feedToggleTextActive]}>Map</Text>
                   </Pressable>
                 </View>
               ) : null}
@@ -10811,7 +12597,7 @@ function privateThreadIncludesUsers(
               ) : (
                 <Pressable style={styles.headerAuthButton} onPress={() => promptAuth("login")} accessibilityLabel="Log in or sign up">
                   <Ionicons name="person-outline" size={16} color="#ffffff" />
-                  <Text style={styles.headerAuthButtonText}>Sign in</Text>
+                  <Text maxFontSizeMultiplier={1.5} style={styles.headerAuthButtonText}>Sign in</Text>
                 </Pressable>
               )}
             </View>
@@ -10824,7 +12610,8 @@ function privateThreadIncludesUsers(
           ) : null}
 
           <ScrollView
-            contentContainerStyle={[styles.screen, { backgroundColor: shellBackground }]}
+            key={activeTab}
+            contentContainerStyle={[styles.screen, { backgroundColor: activeTab === "create" ? "#061221" : shellBackground }]}
             nestedScrollEnabled
             automaticallyAdjustKeyboardInsets={Platform.OS === "ios"}
             keyboardShouldPersistTaps="handled"
@@ -10908,6 +12695,7 @@ function privateThreadIncludesUsers(
           {renderReportQuestModal()}
           {renderQuestActionsMenu()}
           {renderQuestDetailModal()}
+          {renderQuestGuestActionsMenu()}
           <QuestMediaPreviewModal
             media={previewMedia}
             onClose={() => setPreviewMedia(null)}
@@ -10933,6 +12721,7 @@ function privateThreadIncludesUsers(
           {activeTab !== "create" ? <Animated.View
             style={[
               styles.tabBar,
+              activeTab === "home" && feedViewMode === "map" ? styles.mapTabBarLayout : null,
               {
                 backgroundColor: isLightTheme ? "rgba(255,255,255,0.72)" : "rgba(20,21,31,0.64)",
                 borderColor: isLightTheme ? "rgba(255,255,255,0.66)" : "rgba(255,255,255,0.1)",
@@ -11018,8 +12807,18 @@ const styles = StyleSheet.create({
   topBarActions: {
     alignItems: "center",
     flexDirection: "row",
-    flexShrink: 0,
+    flexWrap: "wrap",
     gap: 8,
+    justifyContent: "flex-end",
+  },
+  homeTopBar: {
+    alignItems: "stretch",
+    flexDirection: "column",
+    gap: 8,
+  },
+  homeTopBarBrand: {
+    flex: 0,
+    paddingRight: 0,
   },
   refreshButton: {
     alignItems: "center",
@@ -11118,10 +12917,145 @@ const styles = StyleSheet.create({
     lineHeight: 19,
   },
   createShell: {
+    backgroundColor: "#061221",
     gap: 10,
     paddingBottom: 104,
-    paddingHorizontal: 10,
-    paddingTop: 6,
+    paddingHorizontal: 16,
+    paddingTop: 4,
+  },
+  createFlowHeader: {
+    gap: 3,
+    paddingBottom: 2,
+  },
+  createFlowNavRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 5,
+  },
+  createFlowBack: {
+    alignItems: "flex-start",
+    height: 36,
+    justifyContent: "center",
+    width: 64,
+  },
+  createFlowProgress: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 0,
+    position: "relative",
+  },
+  createFlowProgressLine: {
+    backgroundColor: "#273b53",
+    height: 2,
+    left: 17,
+    position: "absolute",
+    right: 17,
+  },
+  createFlowProgressDot: {
+    backgroundColor: "#24364c",
+    borderRadius: 999,
+    height: 13,
+    marginHorizontal: 10,
+    width: 13,
+  },
+  createFlowProgressDotActive: {
+    backgroundColor: "#20cdf6",
+    shadowColor: "#20cdf6",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.9,
+    shadowRadius: 9,
+  },
+  createDraftPill: {
+    alignItems: "center",
+    backgroundColor: "rgba(22,36,56,0.9)",
+    borderColor: "rgba(139,169,199,0.28)",
+    borderRadius: 999,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  createDraftPillText: {
+    color: "#edf6fb",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  createFlowTitle: {
+    color: "#ffffff",
+    fontSize: 29,
+    fontWeight: "900",
+    letterSpacing: -0.7,
+  },
+  createFlowSubtitle: {
+    color: "#a9b8c9",
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  createMemorableFrame: {
+    borderColor: "#16c9f4",
+    borderRadius: 18,
+    borderWidth: 1.5,
+    marginVertical: 2,
+    shadowColor: "#1bd9ff",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.52,
+    shadowRadius: 9,
+  },
+  createMemorableCard: {
+    backgroundColor: "#071827",
+    borderRadius: 16.5,
+    minHeight: 92,
+    overflow: "hidden",
+    padding: 14,
+  },
+  createMemorableCopyWrap: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 12,
+    maxWidth: "57%",
+    zIndex: 3,
+  },
+  createMemorableIcon: {
+    alignItems: "center",
+    backgroundColor: "#45dcf7",
+    borderRadius: 999,
+    height: 44,
+    justifyContent: "center",
+    width: 44,
+  },
+  createMemorableCopy: { flex: 1, gap: 2 },
+  createMemorableTitle: { color: "#ffffff", fontSize: 16, fontWeight: "900" },
+  createMemorableSubtitle: { color: "#67d9ee", fontSize: 11, lineHeight: 15 },
+  createMemorablePhotoStack: {
+    bottom: 10,
+    position: "absolute",
+    right: 16,
+    top: 10,
+    width: "40%",
+    zIndex: 2,
+  },
+  createMemorableLargePhoto: {
+    borderColor: "rgba(139, 223, 241, 0.72)",
+    borderRadius: 11,
+    borderWidth: 1,
+    height: "82%",
+    left: 0,
+    position: "absolute",
+    top: 0,
+    width: "88%",
+  },
+  createMemorableSmallPhoto: {
+    borderColor: "rgba(190, 239, 248, 0.85)",
+    borderRadius: 9,
+    borderWidth: 1,
+    bottom: 0,
+    height: "54%",
+    position: "absolute",
+    right: 0,
+    width: "42%",
+    zIndex: 2,
   },
   createQuickHeader: {
     alignItems: "center",
@@ -11182,19 +13116,19 @@ const styles = StyleSheet.create({
     width: 32,
   },
   createQuickCard: {
-    backgroundColor: "#151722",
-    borderColor: "rgba(255,255,255,0.07)",
-    borderRadius: 20,
+    backgroundColor: "#0a1727",
+    borderColor: "rgba(124,158,193,0.22)",
+    borderRadius: 18,
     borderWidth: 1,
     overflow: "hidden",
   },
   createQuickSection: {
     gap: 10,
-    paddingHorizontal: 13,
-    paddingVertical: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
   },
   createQuickDivider: {
-    backgroundColor: "rgba(255,255,255,0.07)",
+    backgroundColor: "rgba(126,160,194,0.15)",
     height: 1,
     marginHorizontal: 13,
   },
@@ -11266,9 +13200,9 @@ const styles = StyleSheet.create({
     height: "100%",
   },
   createSectionCard: {
-    backgroundColor: "#151722",
-    borderColor: "rgba(255,255,255,0.07)",
-    borderRadius: 20,
+    backgroundColor: "#0a1727",
+    borderColor: "rgba(124,158,193,0.22)",
+    borderRadius: 18,
     borderWidth: 1,
     gap: 12,
     padding: 13,
@@ -11286,20 +13220,33 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "rgba(109,174,194,0.12)",
     borderColor: "rgba(155,216,228,0.18)",
-    borderRadius: 12,
+    borderRadius: 999,
     borderWidth: 1,
     height: 36,
     justifyContent: "center",
     width: 36,
   },
   createSectionIconComplete: {
-    backgroundColor: "#9bd8e4",
-    borderColor: "#9bd8e4",
+    backgroundColor: "#45dcf7",
+    borderColor: "#45dcf7",
+  },
+  createSectionIconNumbered: {
+    backgroundColor: "#45dcf7",
+    borderColor: "#45dcf7",
+    shadowColor: "#2ddcff",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.35,
+    shadowRadius: 7,
   },
   createSectionIconCompact: {
-    borderRadius: 10,
-    height: 32,
-    width: 32,
+    borderRadius: 999,
+    height: 36,
+    width: 36,
+  },
+  createSectionNumber: {
+    color: "#03151e",
+    fontSize: 17,
+    fontWeight: "900",
   },
   createSectionHeadingCopy: {
     flex: 1,
@@ -11311,7 +13258,7 @@ const styles = StyleSheet.create({
     gap: 7,
   },
   createSectionStep: {
-    color: "#6daec2",
+    color: "#62dff5",
     fontSize: 10,
     fontWeight: "900",
     letterSpacing: 1.4,
@@ -11323,8 +13270,8 @@ const styles = StyleSheet.create({
     letterSpacing: -0.2,
   },
   createSectionTitleCompact: {
-    fontSize: 15,
-    lineHeight: 18,
+    fontSize: 17,
+    lineHeight: 20,
   },
   createSectionSubtitle: {
     color: "#929bad",
@@ -11333,8 +13280,8 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   createSectionSubtitleCompact: {
-    fontSize: 11,
-    lineHeight: 13,
+    fontSize: 12,
+    lineHeight: 15,
     marginTop: 0,
   },
   createFieldGroup: {
@@ -11367,6 +13314,36 @@ const styles = StyleSheet.create({
     minHeight: 48,
     paddingHorizontal: 11,
   },
+  createCategoryRail: {
+    gap: 3,
+    paddingRight: 3,
+  },
+  createCategoryTile: {
+    alignItems: "center",
+    backgroundColor: "#121f32",
+    borderColor: "rgba(131,162,195,0.22)",
+    borderRadius: 11,
+    borderWidth: 1,
+    gap: 4,
+    justifyContent: "center",
+    paddingHorizontal: 1,
+  },
+  createCategoryTileActive: {
+    backgroundColor: "#48d9f3",
+    borderColor: "#70e6fa",
+    shadowColor: "#2ddcff",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.65,
+    shadowRadius: 9,
+  },
+  createCategoryTileText: {
+    color: "#d9e5ee",
+    fontSize: 8,
+    fontWeight: "800",
+    lineHeight: 10,
+    textAlign: "center",
+  },
+  createCategoryTileTextActive: { color: "#03151e" },
   createFieldLeading: {
     alignItems: "center",
     backgroundColor: "#e4f3f6",
@@ -11382,11 +13359,11 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   createInput: {
-    backgroundColor: "#f8fafc",
-    borderColor: "#e2e8f0",
+    backgroundColor: "#14243a",
+    borderColor: "rgba(125,164,204,0.42)",
     borderRadius: 14,
     borderWidth: 1,
-    color: "#101827",
+    color: "#f7fbff",
     fontSize: 15,
     minHeight: 48,
     paddingHorizontal: 13,
@@ -11405,6 +13382,9 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.08)",
     borderRadius: 999,
     borderWidth: 1,
+    flexDirection: "row",
+    gap: 7,
+    alignItems: "center",
     maxWidth: 240,
     paddingHorizontal: 12,
     paddingVertical: 8,
@@ -11421,6 +13401,74 @@ const styles = StyleSheet.create({
   createSuggestionTextActive: {
     color: "#dff7fb",
   },
+  createCoverRail: { gap: 8, paddingRight: 8 },
+  createAddCoverTile: {
+    alignItems: "center",
+    backgroundColor: "rgba(15,31,51,0.85)",
+    borderColor: "#66839d",
+    borderRadius: 13,
+    borderStyle: "dashed",
+    borderWidth: 1.3,
+    height: 92,
+    justifyContent: "center",
+    width: 126,
+  },
+  createAddCoverIcon: {
+    alignItems: "center",
+    borderColor: "#39d9f7",
+    borderRadius: 999,
+    borderWidth: 1.5,
+    height: 27,
+    justifyContent: "center",
+    marginBottom: 5,
+    width: 27,
+  },
+  createAddCoverText: { color: "#c8e8f1", fontSize: 12, fontWeight: "700" },
+  createCoverTile: {
+    borderColor: "rgba(108,161,199,0.35)",
+    borderRadius: 13,
+    borderWidth: 1,
+    height: 92,
+    overflow: "hidden",
+    width: 92,
+  },
+  createCoverImage: { height: "100%", width: "100%" },
+  createCoverSelected: {
+    alignItems: "center",
+    backgroundColor: "#47dff7",
+    borderRadius: 999,
+    height: 23,
+    justifyContent: "center",
+    position: "absolute",
+    right: 6,
+    top: 6,
+    width: 23,
+  },
+  createDateTimeRow: { flexDirection: "row", gap: 8 },
+  createDateTimeCard: {
+    alignItems: "center",
+    backgroundColor: "#14243a",
+    borderColor: "rgba(125,164,204,0.35)",
+    borderRadius: 13,
+    borderWidth: 1,
+    flex: 1,
+    flexDirection: "row",
+    gap: 8,
+    minHeight: 58,
+    paddingHorizontal: 9,
+  },
+  createDateTimeIcon: {
+    alignItems: "center",
+    backgroundColor: "rgba(52,196,230,0.1)",
+    borderRadius: 10,
+    height: 35,
+    justifyContent: "center",
+    width: 35,
+  },
+  createDateTimeCopy: { flex: 1, minWidth: 0 },
+  createDateTimeLabel: { color: "#8194a9", fontSize: 9, fontWeight: "700" },
+  createDateTimeValue: { color: "#f3f8fb", fontSize: 11, fontWeight: "800" },
+  createDateTimePlaceholder: { color: "#8da0b5" },
   createChoiceRow: {
     flexDirection: "row",
     gap: 9,
@@ -11459,8 +13507,8 @@ const styles = StyleSheet.create({
   },
   createSwitchRow: {
     alignItems: "center",
-    backgroundColor: "#1b1e2a",
-    borderColor: "rgba(255,255,255,0.06)",
+    backgroundColor: "#121f32",
+    borderColor: "rgba(125,164,204,0.24)",
     borderRadius: 17,
     borderWidth: 1,
     flexDirection: "row",
@@ -11524,8 +13572,8 @@ const styles = StyleSheet.create({
   },
   createInputShell: {
     alignItems: "center",
-    backgroundColor: "#f8fafc",
-    borderColor: "#e2e8f0",
+    backgroundColor: "#14243a",
+    borderColor: "rgba(125,164,204,0.38)",
     borderRadius: 14,
     borderWidth: 1,
     flexDirection: "row",
@@ -11536,8 +13584,74 @@ const styles = StyleSheet.create({
   createInputShellDisabled: {
     opacity: 0.58,
   },
+  createLocationModeCard: {
+    backgroundColor: "#0a1727",
+    borderColor: "rgba(125,164,204,0.32)",
+    borderRadius: 13,
+    borderWidth: 1,
+    flex: 1,
+    aspectRatio: 2.4,
+    overflow: "hidden",
+    padding: 0,
+  },
+  createLocationModeCardActive: {
+    borderColor: "#27d9ff",
+    borderWidth: 1.5,
+    shadowColor: "#27d9ff",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 7,
+  },
+  createLocationModeBackground: {
+    flex: 1,
+    height: "100%",
+    justifyContent: "flex-end",
+    width: "100%",
+  },
+  createLocationModeBackgroundImage: {
+    borderRadius: 12,
+  },
+  createLocationModeGradient: {
+    bottom: 0,
+    height: "100%",
+    left: 0,
+    position: "absolute",
+    width: "84%",
+  },
+  createLocationModeContent: {
+    alignItems: "flex-start",
+    justifyContent: "flex-end",
+    paddingHorizontal: 10,
+    paddingBottom: 6,
+    paddingTop: 8,
+  },
+  createLocationModeTitle: { color: "#ffffff", fontSize: 15, fontWeight: "900", textShadowColor: "rgba(0,0,0,0.9)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 },
+  createLocationModeCopy: { color: "#e2edf3", fontSize: 10, fontWeight: "700", textShadowColor: "rgba(0,0,0,0.9)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 },
+  createAdvancedVisualGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  createAdvancedVisualCard: {
+    aspectRatio: 1.7,
+    borderColor: "rgba(125,164,204,0.25)",
+    borderRadius: 13,
+    borderWidth: 1,
+    overflow: "hidden",
+    width: "48.8%",
+  },
+  createAdvancedVisualImage: { ...StyleSheet.absoluteFill, height: "100%", width: "100%" },
+  createAdvancedVisualGradient: { ...StyleSheet.absoluteFill },
+  createAdvancedVisualLabel: {
+    bottom: 9,
+    color: "#ffffff",
+    fontSize: 12,
+    fontWeight: "900",
+    left: 10,
+    position: "absolute",
+  },
   createInputInline: {
-    color: "#101827",
+    color: "#f7fbff",
     flex: 1,
     fontSize: 15,
     minHeight: 46,
@@ -11700,8 +13814,8 @@ const styles = StyleSheet.create({
   },
   createAdvancedToggle: {
     alignItems: "center",
-    backgroundColor: "#1b1e2a",
-    borderColor: "rgba(255,255,255,0.06)",
+    backgroundColor: "#0f1d2e",
+    borderColor: "rgba(125,164,204,0.25)",
     borderRadius: 16,
     borderWidth: 1,
     flexDirection: "row",
@@ -13276,10 +15390,11 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.09)",
     borderRadius: 26,
     borderWidth: 1,
+    height: "88%",
     maxHeight: "88%",
     maxWidth: 500,
     overflow: "hidden",
-    padding: 16,
+    padding: 0,
     flexShrink: 1,
     width: "100%",
   },
@@ -13362,6 +15477,9 @@ const styles = StyleSheet.create({
   notificationPreferencesScroll: {
     flex: 1,
     minHeight: 0,
+  },
+  notificationPreferencesContent: {
+    padding: 16,
   },
   notificationPreferencesList: {
     backgroundColor: "#171923",
@@ -13669,6 +15787,22 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "700",
   },
+  settingsEmailChangeNotice: {
+    alignItems: "flex-start",
+    backgroundColor: "rgba(251,191,36,0.1)",
+    borderColor: "rgba(251,191,36,0.28)",
+    borderRadius: 14,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 9,
+    padding: 12,
+  },
+  settingsEmailChangeNoticeText: {
+    color: "#f8d98b",
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 18,
+  },
   settingsVerifiedText: {
     color: "#34d399",
     fontSize: 10,
@@ -13966,7 +16100,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   videoStatusOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: "center",
     backgroundColor: "rgba(0,0,0,0.72)",
     gap: 10,
@@ -13978,6 +16112,18 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "700",
     textAlign: "center",
+  },
+  videoRetryButton: {
+    backgroundColor: "#9bd8e4",
+    borderRadius: 12,
+    minHeight: 40,
+    justifyContent: "center",
+    paddingHorizontal: 16,
+  },
+  videoRetryButtonText: {
+    color: "#082f3a",
+    fontSize: 12,
+    fontWeight: "900",
   },
   videoSelectionMeta: {
     alignItems: "center",
@@ -14540,10 +16686,26 @@ const styles = StyleSheet.create({
     minHeight: 34,
     paddingHorizontal: 12,
   },
+  questCalendarButtonUpdated: {
+    borderColor: "#c94d3f",
+    borderWidth: 2,
+  },
   questCalendarButtonText: {
     color: "#082f3a",
     fontSize: 11,
     fontWeight: "900",
+  },
+  calendarUpdatedBadge: {
+    backgroundColor: "#c94d3f",
+    borderRadius: 999,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+  },
+  calendarUpdatedBadgeText: {
+    color: "#ffffff",
+    fontSize: 9,
+    fontWeight: "900",
+    textTransform: "uppercase",
   },
   questDetailDirectionsHint: {
     color: "#9bd8e4",
@@ -15219,6 +17381,21 @@ const styles = StyleSheet.create({
   },
   joinedQuestCalendarButtonAdded: {
     backgroundColor: "#9bd8e4",
+  },
+  joinedQuestCalendarButtonUpdated: {
+    borderColor: "#c94d3f",
+    borderWidth: 2,
+  },
+  calendarUpdatedDot: {
+    backgroundColor: "#c94d3f",
+    borderColor: "#ffffff",
+    borderRadius: 6,
+    borderWidth: 1,
+    height: 10,
+    position: "absolute",
+    right: 3,
+    top: 3,
+    width: 10,
   },
   joinedQuestSchedulePill: {
     backgroundColor: "rgba(5,18,26,0.78)",
@@ -16265,13 +18442,21 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     borderWidth: 1,
     gap: 12,
+    overflow: "visible",
     padding: 14,
+    position: "relative",
+  },
+  commentThreadCardMenuOpen: {
+    elevation: 16,
+    zIndex: 20,
   },
   commentThreadHeader: {
     alignItems: "center",
     flexDirection: "row",
     justifyContent: "space-between",
     gap: 10,
+    position: "relative",
+    zIndex: 2,
   },
   commentSortPill: {
     alignItems: "center",
@@ -16284,6 +18469,54 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingHorizontal: 12,
     paddingVertical: 8,
+  },
+  commentSortAnchor: {
+    alignSelf: "flex-start",
+    position: "relative",
+    zIndex: 2,
+  },
+  commentSortDismissLayer: {
+    bottom: -4000,
+    left: -1000,
+    position: "absolute",
+    right: -1000,
+    top: -4000,
+    zIndex: 1,
+  },
+  commentSortMenu: {
+    alignSelf: "flex-start",
+    backgroundColor: "#202432",
+    borderColor: "rgba(155,216,228,0.28)",
+    borderRadius: 14,
+    borderWidth: 1,
+    elevation: 18,
+    minWidth: 184,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.32,
+    shadowRadius: 14,
+    zIndex: 2,
+  },
+  commentSortMenuOption: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 12,
+    justifyContent: "space-between",
+    minHeight: 44,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  commentSortMenuOptionSelected: {
+    backgroundColor: "rgba(155,216,228,0.12)",
+  },
+  commentSortMenuOptionText: {
+    color: "#dbe7ec",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  commentSortMenuOptionTextSelected: {
+    color: "#f8fafc",
   },
   commentSortText: {
     color: "#f8fafc",
@@ -16972,6 +19205,161 @@ const styles = StyleSheet.create({
   onboardingNextText: {
     color: "#082f3a",
     fontSize: 13,
+    fontWeight: "900",
+  },
+  guestActionsOverlay: {
+    justifyContent: "flex-end",
+    paddingBottom: 12,
+  },
+  guestActionsSheet: {
+    alignSelf: "center",
+    backgroundColor: "#11131c",
+    borderColor: "rgba(155,216,228,0.2)",
+    borderRadius: 28,
+    borderWidth: 1,
+    maxWidth: 520,
+    overflow: "hidden",
+    paddingBottom: 14,
+    paddingHorizontal: 14,
+    shadowColor: "#020617",
+    shadowOffset: { width: 0, height: 18 },
+    shadowOpacity: 0.42,
+    shadowRadius: 30,
+    width: "100%",
+  },
+  guestActionsHandle: {
+    alignSelf: "center",
+    backgroundColor: "rgba(155,216,228,0.35)",
+    borderRadius: 999,
+    height: 4,
+    marginBottom: 12,
+    marginTop: 9,
+    width: 42,
+  },
+  guestActionsHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 12,
+    paddingBottom: 15,
+    paddingHorizontal: 4,
+  },
+  guestActionsAvatar: {
+    borderColor: "rgba(155,216,228,0.32)",
+    borderRadius: 22,
+    borderWidth: 1,
+    height: 44,
+    width: 44,
+  },
+  guestActionsAvatarFallback: {
+    alignItems: "center",
+    backgroundColor: "#17283a",
+    borderColor: "rgba(155,216,228,0.25)",
+    borderRadius: 22,
+    borderWidth: 1,
+    height: 44,
+    justifyContent: "center",
+    width: 44,
+  },
+  guestActionsHeaderCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  guestActionsEyebrow: {
+    color: "#82cedd",
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 1.8,
+  },
+  guestActionsTitle: {
+    color: "#f8fafc",
+    fontSize: 20,
+    fontWeight: "900",
+    letterSpacing: -0.3,
+    marginTop: 2,
+  },
+  guestActionsSubtitle: {
+    color: "#8e99aa",
+    fontSize: 12,
+    marginTop: 2,
+  },
+  guestActionsClose: {
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderColor: "rgba(255,255,255,0.09)",
+    borderRadius: 18,
+    borderWidth: 1,
+    height: 40,
+    justifyContent: "center",
+    width: 40,
+  },
+  guestActionsList: {
+    gap: 8,
+  },
+  guestActionsRow: {
+    alignItems: "center",
+    backgroundColor: "#181b27",
+    borderColor: "rgba(255,255,255,0.07)",
+    borderRadius: 17,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 12,
+    minHeight: 62,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+  },
+  guestActionsRowDanger: {
+    backgroundColor: "rgba(127,29,29,0.12)",
+    borderColor: "rgba(251,113,133,0.18)",
+  },
+  guestActionsRowPressed: {
+    opacity: 0.68,
+    transform: [{ scale: 0.99 }],
+  },
+  guestActionsIcon: {
+    alignItems: "center",
+    backgroundColor: "rgba(155,216,228,0.09)",
+    borderRadius: 14,
+    height: 40,
+    justifyContent: "center",
+    width: 40,
+  },
+  guestActionsIconDanger: {
+    backgroundColor: "rgba(251,113,133,0.1)",
+  },
+  guestActionsIconReport: {
+    backgroundColor: "rgba(251,191,36,0.1)",
+  },
+  guestActionsRowCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  guestActionsRowTitle: {
+    color: "#edf4f7",
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  guestActionsDangerText: {
+    color: "#fda4af",
+  },
+  guestActionsRowSubtitle: {
+    color: "#7f8a9b",
+    fontSize: 11,
+    lineHeight: 15,
+    marginTop: 2,
+  },
+  guestActionsCancel: {
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.045)",
+    borderColor: "rgba(255,255,255,0.08)",
+    borderRadius: 16,
+    borderWidth: 1,
+    justifyContent: "center",
+    marginTop: 10,
+    minHeight: 50,
+  },
+  guestActionsCancelText: {
+    color: "#cbd5e1",
+    fontSize: 15,
     fontWeight: "900",
   },
   modalOverlay: {
@@ -17897,7 +20285,7 @@ const styles = StyleSheet.create({
     position: "relative",
   },
   videoRangeFrames: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     borderRadius: 9,
     flexDirection: "row",
     gap: 2,
@@ -18182,6 +20570,15 @@ const styles = StyleSheet.create({
     shadowRadius: 22,
     shadowOffset: { width: 0, height: 10 },
     elevation: 8,
+  },
+  mapTabBarLayout: {
+    position: "relative",
+    bottom: undefined,
+    left: undefined,
+    right: undefined,
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 20,
   },
   tabButton: {
     alignItems: "center",
@@ -18478,12 +20875,45 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "800",
   },
-  homeSectionHeading: {
-    alignItems: "flex-end",
+  homeFindPeopleCard: {
+    alignItems: "center",
+    borderRadius: 18,
+    borderWidth: 1,
     flexDirection: "row",
-    justifyContent: "space-between",
+    gap: 11,
+    padding: 12,
+  },
+  homeFindPeopleIcon: {
+    alignItems: "center",
+    backgroundColor: "#9bd8e4",
+    borderRadius: 13,
+    height: 42,
+    justifyContent: "center",
+    width: 42,
+  },
+  homeFindPeopleCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  homeFindPeopleTitle: {
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  homeFindPeopleSubtitle: {
+    fontSize: 11,
+    lineHeight: 15,
+  },
+  homeSectionHeading: {
+    alignItems: "stretch",
     paddingHorizontal: 2,
     paddingTop: 3,
+  },
+  homeSectionActions: {
+    alignItems: "center",
+    alignSelf: "flex-end",
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 8,
   },
   homeSectionEyebrow: {
     fontSize: 10,
@@ -18511,6 +20941,43 @@ const styles = StyleSheet.create({
   homeFeedStack: {
     gap: 16,
     paddingBottom: 12,
+  },
+  homePaginationCard: {
+    alignItems: "center",
+    borderTopWidth: 1,
+    gap: 8,
+    marginHorizontal: 14,
+    paddingBottom: 10,
+    paddingTop: 14,
+  },
+  homePaginationCopy: {
+    fontSize: 12,
+    textAlign: "center",
+  },
+  homePaginationButton: {
+    alignItems: "center",
+    backgroundColor: "#9bd8e4",
+    borderRadius: 14,
+    flexDirection: "row",
+    gap: 7,
+    justifyContent: "center",
+    minHeight: 44,
+    minWidth: 132,
+    paddingHorizontal: 18,
+  },
+  homePaginationButtonText: {
+    color: "#082f3a",
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  homePaginationButtonDisabled: {
+    opacity: 0.62,
+  },
+  homePaginationEnd: {
+    fontSize: 12,
+    paddingBottom: 12,
+    paddingTop: 4,
+    textAlign: "center",
   },
   homeEmptyCard: {
     alignItems: "center",
@@ -18977,7 +21444,7 @@ const styles = StyleSheet.create({
   },
   feedExpiredWash: {
     backgroundColor: "rgba(52,58,67,0.38)",
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   feedCompletedStamp: {
     alignItems: "center",
@@ -19160,13 +21627,13 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(5,10,15,0.58)",
     gap: 7,
     justifyContent: "center",
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   feedVideoLoading: {
     alignItems: "center",
     backgroundColor: "rgba(5,10,15,0.18)",
     justifyContent: "center",
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   feedVideoErrorText: {
     color: "#ffffff",

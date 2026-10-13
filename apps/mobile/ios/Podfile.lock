@@ -91,6 +91,8 @@ PODS:
     - ExpoModulesCore
   - ExpoSecureStore (57.0.1):
     - ExpoModulesCore
+  - ExpoStoreReview (57.0.3):
+    - ExpoModulesCore
   - ExpoTaskManager (57.0.7):
     - ExpoModulesCore
     - UMAppLoader
@@ -2180,6 +2182,7 @@ DEPENDENCIES:
   - ExpoModulesWorklets (from `../../../node_modules/expo-modules-core/ExpoModulesWorklets.podspec`)
   - ExpoNotifications (from `../../../node_modules/expo-notifications/ios`)
   - ExpoSecureStore (from `../../../node_modules/expo-secure-store/ios`)
+  - ExpoStoreReview (from `../../../node_modules/expo-store-review/ios`)
   - ExpoTaskManager (from `../../../node_modules/expo-task-manager/ios`)
   - ExpoVideo (from `../../../node_modules/expo-video/ios/ExpoVideo.podspec`)
   - ExpoWebBrowser (from `../../../node_modules/expo-web-browser/ios`)
@@ -2321,6 +2324,8 @@ EXTERNAL SOURCES:
     :path: "../../../node_modules/expo-notifications/ios"
   ExpoSecureStore:
     :path: "../../../node_modules/expo-secure-store/ios"
+  ExpoStoreReview:
+    :path: "../../../node_modules/expo-store-review/ios"
   ExpoTaskManager:
     :path: "../../../node_modules/expo-task-manager/ios"
   ExpoVideo:
@@ -2501,7 +2506,7 @@ EXTERNAL SOURCES:
 
 SPEC CHECKSUMS:
   EXApplication: bbd517d50878ca1d121fb3843392beb210181e28
-  EXConstants: 7afce64f3083a0b506763e41e3e38718497ed230
+  EXConstants: d3000753f39d9562f33f83a4b4c6b43470ab33bb
   Expo: 423915c60a05e620e67a1f1bfcb612a217fd6f1b
   ExpoAsset: 64e4684e2cb6c45a52009f91e18c45ff56ed4a09
   ExpoBlur: 69e67b4fbfed6f7325377af2aefa8aa4f00cd2af
@@ -2517,16 +2522,17 @@ SPEC CHECKSUMS:
   ExpoLinking: 5a796f9284535c0349537a844dd40680229b7fcb
   ExpoLocation: ad64144374a840dd365274b309dbbbb253a1e44e
   ExpoLogBox: 6bb73c341aca22e699bd4da6cc61afc844e1a648
-  ExpoModulesCore: 673552340b12d509ae22e4f6f7ef1962839765d6
+  ExpoModulesCore: ec74d9d66a763c79e075dc1d952f4059befa88d9
   ExpoModulesJSI: b20fefa4cdd9097e7e6b715466d1900b8c5d4711
   ExpoModulesWorklets: 53d4ca8d32225cb3ec4660b9f03496192b4f3cac
   ExpoNotifications: 0f253ad90f108c1c4045b541294164865c6aadc8
   ExpoSecureStore: 94793113049a2d7478dfe1a13aa15081e9f61755
+  ExpoStoreReview: a70a18f8ec77262d6c63a6578ce4de3b3ee8ddf0
   ExpoTaskManager: d52427f67bf8f00fa56d52f9603919049c67cfc5
   ExpoVideo: b1d9a325ddcd4f3ed8ccb374c01b688e98bc6a04
   ExpoWebBrowser: 9b98d939d5f1c5dd8f523f0a0683056fb1204434
   FBLazyVector: 3c3be9a019176b5699455f7f66c5444b78a411c6
-  hermes-engine: efb2961275697e4aaff51902df9d84d677504f72
+  hermes-engine: 734a4a22dd126191360d321039d22872f2bb2469
   MapLibre: b7ef5623a1a61468c4266a048e494181c10173ad
   MapLibreReactNative: 9f1f16d5f5f522309ad1f2afc483a34cfc56fe6e
   QuestHatApplePlaces: d35ffaabceb9ab60ed908036c39325139fc2d741

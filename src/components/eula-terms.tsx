@@ -15,8 +15,8 @@ export default function EulaTerms() {
         </div>
 
         <p className={bodyClass}>
-          These Terms are an agreement between you and Anlvio LLC, the operator of QuestHat ("QuestHat," "we," or
-          "us"). They govern questhat.com and the QuestHat iOS and Android apps. By creating an account, accepting
+          These Terms are an agreement between you and Anlvio LLC, the operator of QuestHat (&quot;QuestHat,&quot; &quot;we,&quot; or
+          &quot;us&quot;). They govern questhat.com and the QuestHat iOS and Android apps. By creating an account, accepting
           these Terms, or using QuestHat, you agree to them and to our <Link href="/privacy" className="font-medium underline">Privacy Policy</Link>.
           If you do not agree, do not use QuestHat.
         </p>
@@ -152,7 +152,7 @@ export default function EulaTerms() {
         <div className={sectionClass}>
           <h2 className="font-semibold">Disclaimers</h2>
           <p className={bodyClass}>
-            TO THE MAXIMUM EXTENT PERMITTED BY LAW, QUESTHAT IS PROVIDED "AS IS" AND "AS AVAILABLE." ANLVIO LLC
+            TO THE MAXIMUM EXTENT PERMITTED BY LAW, QUESTHAT IS PROVIDED &quot;AS IS&quot; AND &quot;AS AVAILABLE.&quot; ANLVIO LLC
             DISCLAIMS IMPLIED WARRANTIES, INCLUDING MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE,
             NON-INFRINGEMENT, AND WARRANTIES ARISING FROM COURSE OF DEALING. WE DO NOT GUARANTEE THAT USERS, CONTENT,
             MEETUPS, EXTERNAL POSTS, OR THE SERVICE WILL BE SAFE, ACCURATE, AVAILABLE, OR ERROR-FREE. Some jurisdictions

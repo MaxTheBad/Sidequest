@@ -1,3 +1,5 @@
+// Expo loads JavaScript app config files through CommonJS.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 const staticConfig = require("./app.json");
 
 module.exports = () => {

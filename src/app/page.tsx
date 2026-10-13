@@ -1,29 +1,43 @@
 "use client";
 
+import { shareQuestPayload } from "@/lib/share-quest.js";
+import { publishFeedView } from "@/lib/feed-view.js";
+
+import { manageModalFocus } from "@/lib/modal-focus";
+import { useCategoryCatalog } from "@/lib/use-category-catalog";
+import { catalogChoices, catalogCovers, catalogLabel, canChooseCategory, catalogDefaultCategory } from "@questhat/shared";
+
 import Link from "next/link";
+import { useMeetupSafety } from "@/components/use-meetup-safety";
 import ListingClient from "./listing/[id]/listing-client";
 import { FormEvent, PointerEvent, UIEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import CityAutocompleteInput from "@/components/city-autocomplete-input";
 import { FeedCardDetails } from "@/components/feed-card-details";
+import { MapMembershipButton } from "@/components/map-membership-button";
 import QuestMap from "@/components/quest-map";
 import { formatActivityTime, formatPostedTime } from "@/lib/activity-time";
 import { getSupabaseClient } from "@/lib/supabase";
-import { CANONICAL_CATEGORIES, resolveCanonicalCategory } from "@/lib/category-suggestions.js";
+import { resolveCanonicalCategory } from "@/lib/category-suggestions.js";
 import { getCategoryFallbackMedia } from "@/lib/category-default-media";
+import { getCreateQuestTitles, CREATE_QUEST_BANNER_IMAGES } from "@/lib/create-quest-media";
 import { TITLE_SUGGESTIONS, getCategoryTitleSuggestions } from "@questhat/shared";
 import { readStoredUserLocation, writeStoredUserLocation } from "@/lib/location-distance";
 import { isImageLikeFile, prepareImageForUpload } from "@/lib/media-optimize";
 import { compressVideoForUpload, VIDEO_MAX_DURATION_SECONDS } from "@/lib/video-optimize";
 import { collectQuestStorageUrls, removeStoragePublicUrls } from "@/lib/storage.js";
 import { APP_EVENT_NAMES, APP_NAME } from "@/lib/app-brand";
-import { AppIcon, QuestCategoryIcon, getQuestCategoryIconName, type QuestCategoryIconName } from "@/components/app-icons";
+import { AppIcon, QuestCategoryIcon } from "@/components/app-icons";
 import { AppleMapPreview } from "@/components/apple-map-preview";
 import { TurnstileInvisible } from "@/components/turnstile-invisible";
 import { formatReportReference } from "@/lib/reporting";
 import { recordSecurityAudit, type MediaAuditInput } from "@/lib/security-audit";
 import { ageFromBirthDate, GENDER_IDENTITY_OPTIONS } from "@/lib/people-discovery";
 import { captureProductEvent, identifyProductUser, resetProductUser } from "@/components/posthog-provider";
+import { consumeAuthReturn, getSafeAuthReturnPath, storeAuthReturn } from "@/lib/auth-return";
+import { authChallengeMessage } from "@/lib/auth-challenge";
+import { resultBucket } from "@/lib/product-analytics";
+import { classifyAnalyticsFailure } from "@/lib/product-analytics";
 
 type Hobby = { id: string; name: string; category: string | null };
 type QuestMediaItem = {
@@ -50,26 +64,10 @@ function normalizeLocationQuery(value?: string | null) {
 
 const MAX_QUEST_MEDIA_ITEMS = 3;
 const MAX_QUEST_VIDEOS = 2;
-const CREATE_TOP_CATEGORIES = [
-  ["Outdoors", "trail-sign-outline"],
-  ["Sports", "basketball-outline"],
-  ["Games", "game-controller-outline"],
-  ["Arts & Creative", "color-palette-outline"],
-  ["Money", "cash-outline"],
-  ["Fitness", "barbell-outline"],
-] as const satisfies readonly (readonly [string, QuestCategoryIconName])[];
-
-const CREATE_COVER_CATEGORY_SEQUENCE = [
-  "Outdoors",
-  "Social",
-  "Community",
-  "Healthy Lifestyle",
-  "Money",
-  "Creative",
-] as const;
 
 type DraftMediaItem = {
   id: string;
+  suggestedCoverUrl?: string;
   type: "image" | "video";
   label: string;
   source: "existing" | "new";
@@ -278,12 +276,35 @@ export default function Home() {
 
   const [status, setStatus] = useState("");
   const [userId, setUserId] = useState<string | null>(null);
+  const { requestMeetupSafety, meetupSafetyDialog } = useMeetupSafety(userId, setStatus);
   const [userEmail, setUserEmail] = useState("");
   const [viewerName, setViewerName] = useState("");
 
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const clearPendingAuthReturn = () => {
+    if (typeof window !== "undefined") window.sessionStorage.removeItem("questhat_auth_return_to");
+  };
+  const closeAuthModal = () => {
+    clearPendingAuthReturn();
+    setStatus("");
+    setShowAuthModal(false);
+  };
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const hasCreateDraftRef = useRef(false);
+  const createMediaGenerationRef = useRef(0);
+  const suggestedCoverRequestRef = useRef(0);
+  const [showStartPickerFallback, setShowStartPickerFallback] = useState(false);
   const [showTroubleModal, setShowTroubleModal] = useState(false);
+  const authHelpOpenRef = useRef(false);
+  authHelpOpenRef.current = showTroubleModal;
+  useEffect(() => {
+    if (!showAuthModal) return;
+    return manageModalFocus(".auth-sign-in-dialog", closeAuthModal, () => !authHelpOpenRef.current);
+  }, [showAuthModal]);
+  useEffect(() => {
+    if (!showTroubleModal) return;
+    return manageModalFocus(".auth-help-dialog", () => setShowTroubleModal(false));
+  }, [showTroubleModal]);
   const [handledCreateParam, setHandledCreateParam] = useState(false);
   const [showQuestionModal, setShowQuestionModal] = useState(false);
   const [showCityMapModal, setShowCityMapModal] = useState(false);
@@ -359,7 +380,9 @@ export default function Home() {
   const [authReady, setAuthReady] = useState(false);
   const signupCodeRef = useRef<HTMLFormElement | null>(null);
 
-  const [hobbies, setHobbies] = useState<Hobby[]>([]);
+  const { catalog, catalogStatus, refreshCatalog } = useCategoryCatalog();
+  const hobbies: Hobby[] = catalog.categories.map(c => ({ id: c.id, name: c.label, category: c.category }));
+  const [originalHobbyId, setOriginalHobbyId] = useState("");
   const [quests, setQuests] = useState<Quest[]>([]);
   const [bookmarkedQuestIds, setBookmarkedQuestIds] = useState<string[]>([]);
   const [joinedQuestIds, setJoinedQuestIds] = useState<string[]>([]);
@@ -386,7 +409,8 @@ export default function Home() {
   const [pendingDistanceJoinLabel, setPendingDistanceJoinLabel] = useState("");
   const feedToggleDragStartRef = useRef<number | null>(null);
   const [hobbyFilter, setHobbyFilter] = useState("all");
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [feedLoadError, setFeedLoadError] = useState("");
   const cityCoordinateCacheRef = useRef<Record<string, { lat: number; lon: number }>>({});
   const [distanceByQuestId, setDistanceByQuestId] = useState<Record<string, string>>({});
   const [coordsByQuestId, setCoordsByQuestId] = useState<Record<string, { lat: number; lon: number }>>({});
@@ -396,8 +420,6 @@ export default function Home() {
   const [description, setDescription] = useState("");
   const [hobbyId, setHobbyId] = useState("");
   const [categoryInput, setCategoryInput] = useState("");
-  const [useCustomCategory, setUseCustomCategory] = useState(false);
-  const [customCategory, setCustomCategory] = useState("");
   const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
   const [locationMode, setLocationMode] = useState<"in_person" | "remote">("in_person");
   const [countryCode, setCountryCode] = useState("US");
@@ -506,20 +528,18 @@ export default function Home() {
     return FALLBACK_COUNTRIES.map((name) => ({ code: name.slice(0,2).toUpperCase(), name }));
   }, []);
 
-  const categoryOptions = useMemo(() => {
-    const fromDb = hobbies.map((h) => ({ id: h.id, name: h.name, isSuggestion: false as const }));
-    const existing = new Set(fromDb.map((x) => x.name.toLowerCase()));
-    const canonical = CANONICAL_CATEGORIES
-      .filter((name) => !existing.has(name.toLowerCase()))
-      .map((name) => ({ id: `canonical:${name.toLowerCase()}`, name, isSuggestion: true as const }));
-
-    return [...fromDb, ...canonical].sort((a, b) => a.name.localeCompare(b.name));
-  }, [hobbies]);
-  const canonicalCategoryNamesById = useMemo(() => {
-    return new Map<string, string>(
-      CANONICAL_CATEGORIES.map((name) => [`canonical:${name.toLowerCase()}`, name] as const)
-    );
-  }, []);
+  const categoryOptions = useMemo(() => catalogChoices(catalog, "create").map(c => ({ id: c.id, name: c.label, icon: c.icon, isSuggestion: false })), [catalog]);
+  const discoveryCategories = catalogChoices(catalog, "discovery");
+  const featuredCategories = catalogChoices(catalog, "create").filter(c => c.featured);
+  useEffect(() => {
+    const selected = catalog.categories.find(c => c.id === hobbyId);
+    if (selected) setCategoryInput(selected.label);
+    else if (!hobbyId && !editingQuestId && showCreateModal) {
+      const initial = catalogDefaultCategory(catalog);
+      if (initial) { setHobbyId(initial.id); setCategoryInput(initial.label); }
+    }
+  }, [catalog, hobbyId, editingQuestId, showCreateModal]);
+  useEffect(() => { if (showCreateModal) void refreshCatalog(); }, [showCreateModal, refreshCatalog]);
 
   const categoryTitleHint = useMemo(
     () => pickTitleSuggestionByCategory(categoryInput || ""),
@@ -529,27 +549,15 @@ export default function Home() {
     () => getTitleSuggestionsByCategory(categoryInput || ""),
     [categoryInput]
   );
-  const createCoverSuggestions = useMemo(() => {
-    const names = [categoryInput || "Outdoors", ...CREATE_COVER_CATEGORY_SEQUENCE];
-    const seen = new Set<string>();
-    return names
-      .map((name) => ({ name, media: getCategoryFallbackMedia(name) }))
-      .filter(({ media }) => {
-        const key = media.imageUrl;
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      })
-      .slice(0, 6);
-  }, [categoryInput]);
+  const createCoverSuggestions = useMemo(() => catalogCovers(catalog, hobbyId, title).map(c => ({ name: c.label, media: { imageUrl: c.imageUrl } })), [catalog, hobbyId, title]);
   const createCompletionStates = useMemo(() => {
-    const hasCategoryAndTitle = Boolean(categoryInput.trim() && title.trim());
-    const hasStartTime = Boolean(startAt);
+    const hasCategoryAndTitle = Boolean(canChooseCategory(catalog, hobbyId, editingQuestId ? originalHobbyId : null) && title.trim());
+    const hasStartTime = Boolean(startAt && new Date(startAt).getTime() > Date.now());
     const hasPlace = locationMode === "remote"
       ? Boolean(exactAddress.trim())
       : Boolean(countryQuery.trim() && exactAddress.trim() && (locationConfirmationMode || selectedLocationSuggestion || confirmedDeviceCoordinates));
     return [hasCategoryAndTitle, hasStartTime, hasPlace];
-  }, [categoryInput, title, startAt, locationMode, exactAddress, countryQuery, locationConfirmationMode, selectedLocationSuggestion, confirmedDeviceCoordinates]);
+  }, [catalog, hobbyId, editingQuestId, originalHobbyId, title, startAt, locationMode, exactAddress, countryQuery, locationConfirmationMode, selectedLocationSuggestion, confirmedDeviceCoordinates]);
   const createCompletionCount = createCompletionStates.filter(Boolean).length;
   const createRequiredReady = createCompletionCount === createCompletionStates.length;
   const formatCreateDate = (value: string) => {
@@ -565,21 +573,17 @@ export default function Home() {
     return date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
   };
   const openNativeStartPicker = () => {
-    const input = startAtInputRef.current;
-    if (!input) return;
-    if (typeof input.showPicker === "function") {
-      input.showPicker();
-    } else {
-      input.focus();
-    }
+    // showPicker() can return without presenting a usable popup (for example
+    // when a browser suppresses native UI). Always expose an editable control.
+    setShowStartPickerFallback(true);
+    requestAnimationFrame(() => startAtInputRef.current?.focus());
   };
 
-  function selectCreateCategory(category: string) {
-    const match = categoryOptions.find((option) => option.name.toLowerCase() === category.toLowerCase());
-    setCategoryInput(category);
-    setUseCustomCategory(false);
-    setCustomCategory("");
-    setHobbyId(match && !match.id.startsWith("canonical:") ? match.id : "");
+  function selectCreateCategory(categoryId: string) {
+    const match = categoryOptions.find(option => option.id === categoryId);
+    if (!match) return;
+    setCategoryInput(match.name);
+    setHobbyId(match.id);
     clearFieldError("category");
   }
 
@@ -591,10 +595,7 @@ export default function Home() {
   }, [categoryInput, categoryTitleHint]);
 
   useEffect(() => {
-    if (locationMode === "remote") {
-      setExactLocationVisibility("private");
-      return;
-    }
+    if (locationMode === "remote") return;
     if (joinMode === "open" && exactLocationVisibility === "approved_members") {
       setExactLocationVisibility("private");
     }
@@ -637,7 +638,7 @@ export default function Home() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    window.localStorage.setItem("sidequest_feed_view_mode", feedViewMode);
+    publishFeedView(window, feedViewMode);
   }, [feedViewMode]);
 
   function resolveCountryCodeByName(name: string) {
@@ -647,7 +648,7 @@ export default function Home() {
 
   function getFilterCategoryName(value: string) {
     if (value === "all") return null;
-    return canonicalCategoryNamesById.get(value) || hobbies.find((h) => h.id === value)?.name || null;
+    return catalogLabel(catalog, value) || null;
   }
 
   function pickTitleSuggestionByCategory(categoryName: string) {
@@ -656,7 +657,7 @@ export default function Home() {
   }
 
   function getTitleSuggestionsByCategory(categoryName: string) {
-    return getCategoryTitleSuggestions(categoryName);
+    return getCreateQuestTitles(categoryName);
   }
 
   function flagFieldError(field: string, message: string) {
@@ -733,8 +734,7 @@ export default function Home() {
           if (m) setCountryQuery(m.name);
         }
       }
-      const { data: hobbyData } = await supabase.from("hobbies").select("id,name,category").order("name");
-      setHobbies(hobbyData || []);
+
       setAuthReady(true);
     };
     void init();
@@ -782,7 +782,13 @@ export default function Home() {
   }, [supabase, countryOptions]);
 
   useEffect(() => {
-    if (!supabase) return;
+    if (!userId || typeof window === "undefined") return;
+    const returnTo = consumeAuthReturn(window.sessionStorage);
+    if (!returnTo) return;
+    window.location.assign(returnTo);
+  }, [userId]);
+
+  useEffect(() => {
     void loadQuests();
   }, [supabase, hobbyFilter]);
 
@@ -876,7 +882,7 @@ export default function Home() {
     }
   }
 
-  async function useCurrentLocationForQuest() {
+  async function selectCurrentLocationForQuest() {
     try {
       const location = await getCurrentPositionOnce();
       setUserLocation(location);
@@ -898,8 +904,10 @@ export default function Home() {
   }
 
   async function loadQuests() {
-    if (!supabase) return;
     setLoading(true);
+    setFeedLoadError("");
+    try {
+    if (!supabase) throw new Error("Discovery is unavailable. Please try again.");
     const { data: auth } = await supabase.auth.getSession();
     const uid = auth.session?.user?.id ?? userId ?? null;
     if (uid) {
@@ -945,9 +953,18 @@ export default function Home() {
     }
 
     setLoading(false);
-    if (error) return setStatus(error.message);
+    if (error) {
+      setFeedLoadError(error.message);
+      return;
+    }
     const visibleQuests = (data || []).filter((quest) => !blockedUserIds.includes(quest.creator_id));
     setQuests(visibleQuests);
+    captureProductEvent("discovery_loaded", {
+      platform: "web",
+      result_bucket: resultBucket(visibleQuests.length),
+      query_active: Boolean(searchQuery.trim()),
+      category_filter_active: hobbyFilter !== "all",
+    });
 
     const questIds = visibleQuests.map((quest) => quest.id);
     if (!questIds.length) {
@@ -996,6 +1013,11 @@ export default function Home() {
         return acc;
       }, {}));
     }
+    } catch (error) {
+      setFeedLoadError(error instanceof Error ? error.message : "Could not refresh quests. Check your connection and try again.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function signInWithPassword(e: FormEvent) {
@@ -1007,7 +1029,7 @@ export default function Home() {
         setPendingVerifyEmail(email);
         setResendCooldown(0);
       }
-      setStatus(`Login failed: ${error.message}`);
+      setStatus(authChallengeMessage(error) || `Login failed: ${error.message}`);
       return;
     }
     const { data } = await supabase.auth.getSession();
@@ -1030,7 +1052,7 @@ export default function Home() {
       email,
       options: { emailRedirectTo: redirectTo },
     });
-    if (error) return setStatus(error.message);
+    if (error) return setStatus(authChallengeMessage(error) || error.message);
     setPendingVerifyEmail(email);
     setResendCooldown(60);
     setStatus("✅ Verification email sent.");
@@ -1076,7 +1098,7 @@ export default function Home() {
           },
         },
       });
-    if (error) return setStatus(error.message);
+    if (error) return setStatus(authChallengeMessage(error) || error.message);
     if (data.user?.id) {
       await supabase.from("profiles").upsert({
         id: data.user.id,
@@ -1120,14 +1142,14 @@ export default function Home() {
     if (!supabase) return;
     const resetRedirect = typeof window !== "undefined" ? `${window.location.origin}/reset-password` : redirectTo;
     const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: resetRedirect });
-    if (error) return window.alert(error.message);
+    if (error) return window.alert(authChallengeMessage(error) || error.message);
     setStatus("✅ Password reset email sent.");
   }
 
   async function resendVerification() {
     if (!supabase || !pendingVerifyEmail || resendCooldown > 0) return;
     const { error } = await supabase.auth.resend({ type: "signup", email: pendingVerifyEmail, options: { emailRedirectTo: redirectTo } });
-    if (error) return setStatus(error.message);
+    if (error) return setStatus(authChallengeMessage(error) || error.message);
     setResendCooldown(60);
     setStatus("Verification email resent ✅");
   }
@@ -1146,7 +1168,7 @@ export default function Home() {
       type: "email",
     });
     if (error) {
-      setStatus(error.message);
+      setStatus(authChallengeMessage(error) || error.message);
       return;
     }
     setPendingVerifyEmail("");
@@ -1895,6 +1917,10 @@ export default function Home() {
   }
 
   function resetQuestForm() {
+    hasCreateDraftRef.current = false;
+    createMediaGenerationRef.current += 1;
+    suggestedCoverRequestRef.current += 1;
+    setShowStartPickerFallback(false);
     setTitle("");
     setDescription("");
     setAvailability("");
@@ -1903,8 +1929,6 @@ export default function Home() {
     setShowAdvancedSettings(false);
     setHobbyId("");
     setCategoryInput("Outdoors");
-    setUseCustomCategory(false);
-    setCustomCategory("");
     setCategoryDropdownOpen(false);
     setLocationMode("in_person");
     setExactAddress("");
@@ -1944,15 +1968,22 @@ export default function Home() {
   }
 
   function openCreateModal() {
-    resetQuestForm();
+    if (!hasCreateDraftRef.current) resetQuestForm();
+    hasCreateDraftRef.current = true;
+    if (!editingQuestId) captureProductEvent("quest_creation_started", { platform: "web" });
     setShowCreateModal(true);
   }
+
+  useEffect(() => {
+    if (showCreateModal && userId && !editingQuestId) requestMeetupSafety("host");
+  }, [showCreateModal, userId, editingQuestId, requestMeetupSafety]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
 
     const openAuthFromUrl = async () => {
       const params = new URLSearchParams(window.location.search);
+      const returnTo = getSafeAuthReturnPath(params.get("returnTo"));
       const pendingAuth = sessionStorage.getItem("gathergo_open_auth") === "1";
       const pendingCreate = sessionStorage.getItem("gathergo_open_create") === "1";
 
@@ -1963,10 +1994,22 @@ export default function Home() {
         if (activeUserId) setUserId(activeUserId);
       }
 
-      if ((params.get("auth") === "1" || pendingAuth) && !activeUserId) {
+      const recoveryIntent = params.get("auth") === "recovery";
+      if (returnTo) storeAuthReturn(sessionStorage, returnTo);
+      if ((params.get("auth") === "1" || recoveryIntent || params.has("edit") || pendingAuth) && !activeUserId) {
         setShowAuthModal(true);
-        setStatus("Please sign in to continue.");
+        setStatus(recoveryIntent ? "Enter your email, then choose Reset password." : "Please sign in to continue.");
+        if (recoveryIntent) {
+          setAuthMode("login");
+          setShowTroubleModal(true);
+        }
         if (pendingAuth) sessionStorage.removeItem("gathergo_open_auth");
+        if (params.get("auth") === "1" || recoveryIntent) {
+          const next = new URL(window.location.href);
+          next.searchParams.delete("auth");
+          next.searchParams.delete("returnTo");
+          window.history.replaceState(null, "", next.pathname + next.search + next.hash);
+        }
       }
 
       if (handledCreateParam) return;
@@ -2028,7 +2071,7 @@ export default function Home() {
       }
       window.removeEventListener("popstate", openAuthFromUrl);
     };
-  }, [handledCreateParam, userId]);
+  }, [handledCreateParam, router, userId]);
 
   async function handleQuestVideoPicked(file: File | null) {
     setQuestVideoFile(null);
@@ -2051,6 +2094,7 @@ export default function Home() {
 
   async function handleQuestMediaPicked(files: FileList | null) {
     if (!files?.length) return;
+    const generation = createMediaGenerationRef.current;
 
     const existingVideos = mediaDraftItems.filter((m) => m.type === "video").length;
     let slotsLeft = Math.max(0, MAX_QUEST_MEDIA_ITEMS - mediaDraftItems.length);
@@ -2095,6 +2139,7 @@ export default function Home() {
       }
     }
 
+    if (generation !== createMediaGenerationRef.current) return;
     if (!added.length) {
       setStatus(`Max reached: ${MAX_QUEST_MEDIA_ITEMS} media items per quest, with up to ${MAX_QUEST_VIDEOS} videos.`);
       return;
@@ -2108,7 +2153,8 @@ export default function Home() {
     if (added.length < files.length) setStatus(`Only ${MAX_QUEST_MEDIA_ITEMS} media items are allowed per quest.`);
   }
 
-  async function useSuggestedCoverImage(imageUrl: string, label: string) {
+  async function loadSuggestedCoverImage(imageUrl: string, label: string) {
+    const request = ++suggestedCoverRequestRef.current;
     try {
       const response = await fetch(imageUrl);
       if (!response.ok) throw new Error("Could not load suggested cover.");
@@ -2117,8 +2163,9 @@ export default function Home() {
         type: blob.type || "image/jpeg",
       });
       const file = await prepareImageForUpload(sourceFile, { maxWidth: 1600, maxHeight: 1600, quality: 0.82 });
+      if (request !== suggestedCoverRequestRef.current) return;
       const id = `suggested-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      const suggestedItem: DraftMediaItem = { id, file, label: "", type: "image", source: "new" };
+      const suggestedItem: DraftMediaItem = { id, file, suggestedCoverUrl: imageUrl, label: "", type: "image", source: "new" };
       setMediaDraftItems((prev) => {
         const withoutSuggestedCover = prev.filter((item) => !item.id.startsWith("suggested-"));
         return [suggestedItem, ...withoutSuggestedCover].slice(0, MAX_QUEST_MEDIA_ITEMS);
@@ -2126,7 +2173,7 @@ export default function Home() {
       setSelectedMediaId(id);
       setStatus("");
     } catch (err) {
-      setStatus(err instanceof Error ? err.message : "Could not use that suggested cover.");
+      if (request === suggestedCoverRequestRef.current) setStatus(err instanceof Error ? err.message : "Could not use that suggested cover.");
     }
   }
 
@@ -2151,6 +2198,7 @@ export default function Home() {
   }, [mediaDraftItems, mediaPreviewUrls]);
 
   const selectedMediaItem = mediaDraftItems.find((m) => m.id === selectedMediaId) || null;
+  const selectedSuggestedCover = selectedMediaItem?.suggestedCoverUrl || "";
   const selectedCreateCoverUrl = selectedMediaId ? mediaPreviewUrls.get(selectedMediaId) : null;
   const selectedTrimStart = selectedMediaItem?.trimStartSeconds ?? 0;
   const selectedTrimEnd = selectedMediaItem?.trimEndSeconds ?? (selectedMediaVideoDuration || VIDEO_MAX_DURATION_SECONDS);
@@ -2437,19 +2485,28 @@ export default function Home() {
     let protectedLocationDetails = q.location_details || "";
     let protectedApplePlaceId = q.apple_place_id || null;
     if (supabase && q.exact_location_visibility !== "public") {
-      const { data: privateLocation } = await supabase
+      const { data: privateLocation, error: privateLocationError } = await supabase
         .from("quest_private_locations")
         .select("exact_address,location_details,apple_place_id")
         .eq("quest_id", q.id)
         .maybeSingle();
+      if (privateLocationError) {
+        setStatus("Could not load this quest’s protected location. Please try again.");
+        return false;
+      }
       protectedAddress = privateLocation?.exact_address || protectedAddress;
       protectedLocationDetails = privateLocation?.location_details || protectedLocationDetails;
       protectedApplePlaceId = privateLocation?.apple_place_id || protectedApplePlaceId;
     }
+    hasCreateDraftRef.current = false;
+    setFieldErrors({});
+    setStatus("");
+    setLocationMode(/^virtual$/i.test(q.city || "") ? "remote" : "in_person");
     setEditingQuestId(q.id);
     setTitle(q.title || "");
     setDescription(q.description || "");
     setHobbyId(q.hobby_id);
+    setOriginalHobbyId(q.hobby_id);
     const hobby = hobbies.find((h) => h.id === q.hobby_id);
     setCategoryInput(hobby?.name || "");
     setCity(q.city || "");
@@ -2501,7 +2558,69 @@ export default function Home() {
     setQuestTurnstileToken("");
     setQuestVerificationState("loading");
     setShowCreateModal(true);
+    return true;
   }
+
+  const createKeyboardStateRef = useRef({ savingQuest, categoryDropdownOpen, showPublicLocationConfirm, showManualShareConfirm });
+  createKeyboardStateRef.current = { savingQuest, categoryDropdownOpen, showPublicLocationConfirm, showManualShareConfirm };
+  useEffect(() => {
+    if (!showCreateModal) return;
+    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const shell = document.querySelector<HTMLElement>(".create119-shell");
+    shell?.querySelector<HTMLElement>("button:not([disabled])")?.focus();
+    const onKey = (event: KeyboardEvent) => {
+      if (document.querySelector(".meetup-safety-overlay")) return;
+      const state = createKeyboardStateRef.current;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        if (state.savingQuest) return;
+        if (state.showPublicLocationConfirm) setShowPublicLocationConfirm(false);
+        else if (state.showManualShareConfirm) setShowManualShareConfirm(false);
+        else if (state.categoryDropdownOpen) setCategoryDropdownOpen(false);
+        else setShowCreateModal(false);
+      } else if (event.key === "Tab" && !state.showPublicLocationConfirm && !state.showManualShareConfirm) {
+        const activeDialog = state.categoryDropdownOpen ? shell?.querySelector<HTMLElement>(".create119-category-modal") : shell;
+        const focusable = Array.from(activeDialog?.querySelectorAll<HTMLElement>('button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex="0"]') || []).filter(node => node.getClientRects().length > 0);
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (event.shiftKey && (document.activeElement === first || !activeDialog?.contains(document.activeElement))) { event.preventDefault(); last?.focus(); }
+        else if (!event.shiftKey && (document.activeElement === last || !activeDialog?.contains(document.activeElement))) { event.preventDefault(); first?.focus(); }
+      }
+    };
+    document.addEventListener("keydown", onKey, true);
+    return () => { document.removeEventListener("keydown", onKey, true); if (previouslyFocused?.isConnected) previouslyFocused.focus(); };
+  }, [showCreateModal]);
+
+  const openingEditIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    const editId = new URLSearchParams(window.location.search).get("edit");
+    if (!editId || !supabase || !userId || openingEditIdRef.current === editId) return;
+    openingEditIdRef.current = editId;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const { data, error } = await supabase.from("quests")
+          .select("id,creator_id,created_at,title,description,city,skill_level,group_size,availability,starts_at,time_flexible,hobby_id,join_mode,exact_location_visibility,exact_address,apple_place_id,location_details,media_video_url,media_source,media_items")
+          .eq("id", editId).eq("creator_id", userId).maybeSingle();
+        if (cancelled) return;
+        if (error || !data) {
+          setStatus(error?.message || "Only the host can edit this quest.");
+          return;
+        }
+        const opened = await openEditModal(data as Quest);
+        if (cancelled || !opened) return;
+        const next = new URL(window.location.href);
+        next.searchParams.delete("edit");
+        window.history.replaceState({}, "", next.pathname + next.search);
+      } catch (error) {
+        if (!cancelled) setStatus(error instanceof Error ? error.message : "Could not open the quest editor.");
+      }
+    })();
+    return () => { cancelled = true; openingEditIdRef.current = null; };
+    // The editor reads the category catalogue after its asynchronous load.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supabase, userId]);
 
   function deriveCityFromLocation(input: string) {
     const parts = input.split(",").map((p) => p.trim()).filter(Boolean);
@@ -2949,43 +3068,11 @@ export default function Home() {
     const { error: profileErr } = await supabase.from("profiles").upsert(profileUpdate);
     if (profileErr) return setStatus(`Profile setup failed: ${profileErr.message}`);
 
-    let finalHobbyId = hobbyId;
-    const canonicalOrTyped = resolveCanonicalCategory(categoryInput) || categoryInput.trim();
-
-    if (!finalHobbyId && canonicalOrTyped) {
-      const picked = categoryOptions.find((o) => o.name.toLowerCase() === canonicalOrTyped.toLowerCase());
-      if (picked?.id && !picked.id.startsWith("canonical:")) finalHobbyId = picked.id;
-    }
-
-    if (!finalHobbyId && canonicalOrTyped) {
-      const { data: existing } = await supabase
-        .from("hobbies")
-        .select("id,name")
-        .ilike("name", canonicalOrTyped)
-        .limit(1)
-        .maybeSingle();
-
-      if (existing?.id) {
-        finalHobbyId = existing.id;
-      } else {
-        const { data: created, error: hobbyErr } = await supabase
-          .from("hobbies")
-          .insert({ slug: slugify(canonicalOrTyped), name: canonicalOrTyped, category: canonicalOrTyped })
-          .select("id")
-          .single();
-
-        if (hobbyErr) {
-          setSavingQuest(false);
-          return setStatus(`Could not create category "${canonicalOrTyped}": ${hobbyErr.message}`);
-        } else if (created?.id) {
-          finalHobbyId = created.id;
-        }
-      }
-    }
-
-    if (!finalHobbyId) {
+    const finalHobbyId = hobbyId;
+    if (!canChooseCategory(catalog, finalHobbyId, editingQuestId ? originalHobbyId : null)) {
       setSavingQuest(false);
-      return setStatus("Category is required. Please try selecting or entering a category again.");
+      void refreshCatalog(true);
+      return setStatus("Choose an active category from the catalog. If it is unavailable, try again when connected.");
     }
 
     const finalDescription = description;
@@ -3065,7 +3152,7 @@ export default function Home() {
           exact_lng: locationMode === "in_person" ? (selectedAppleCoordinates || confirmedDeviceCoordinates)?.lon ?? null : null,
           location_details: locationMode === "in_person" ? locationDetails.trim().slice(0, 240) || null : null,
           join_mode: joinMode,
-          exact_location_visibility: locationMode === "remote" ? "private" : exactLocationVisibility,
+          exact_location_visibility: exactLocationVisibility,
           availability: avail,
           starts_at: selectedStartTime.toISOString(),
           time_flexible: timeFlexible,
@@ -3135,7 +3222,7 @@ export default function Home() {
           exact_lng: locationMode === "in_person" ? (selectedAppleCoordinates || confirmedDeviceCoordinates)?.lon ?? null : null,
           location_details: locationMode === "in_person" ? locationDetails.trim().slice(0, 240) || null : null,
           join_mode: joinMode,
-          exact_location_visibility: locationMode === "remote" ? "private" : exactLocationVisibility,
+          exact_location_visibility: exactLocationVisibility,
           availability: avail,
           starts_at: selectedStartTime.toISOString(),
           time_flexible: timeFlexible,
@@ -3182,7 +3269,8 @@ export default function Home() {
       setQuestSaveProgress({ percent: 98, label: "Refreshing feed" });
       captureProductEvent(editingQuestId ? "quest_updated" : "quest_created", {
         platform: "web",
-        category: canonicalOrTyped,
+        creation_stage: editingQuestId ? null : "published",
+        category: catalogLabel(catalog, finalHobbyId, categoryInput),
         location_mode: locationMode === "remote" ? "virtual" : "in_person",
         join_mode: joinMode,
         media_count: nextMediaItems.length,
@@ -3204,14 +3292,7 @@ export default function Home() {
     }
   }
 
-  function slugify(input: string) {
-    return input
-      .toLowerCase()
-      .trim()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .slice(0, 64);
-  }
+
 
   async function loadBookmarks(uid: string) {
     if (!supabase) return;
@@ -3281,18 +3362,8 @@ export default function Home() {
         }
       }
     }
-    if (typeof navigator !== "undefined" && navigator.share) {
-      try {
-        await navigator.share({ title: q.title, text, url });
-        return;
-      } catch {
-        // Fall through to clipboard copy.
-      }
-    }
-    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(url);
-      setStatus("Link copied to clipboard.");
-    }
+    const result = await shareQuestPayload(typeof navigator === "undefined" ? null : navigator, { title: q.title, text, url });
+    if (result === "copied") setStatus("Link copied to clipboard.");
   }
 
   function askQuestion(quest: Quest, mode: "public" | "private" = "public") {
@@ -3479,6 +3550,8 @@ export default function Home() {
   }
 
   function getQuestCategoryDisplay(q: Quest) {
+    const currentLabel = catalogLabel(catalog, q.hobby_id);
+    if (currentLabel) return currentLabel;
     const hobby = getQuestHobby(q);
     const title = q.title.trim().toLowerCase();
     const candidates = [
@@ -3562,7 +3635,7 @@ export default function Home() {
     await loadQuests();
   }
 
-  async function toggleJoinQuest(id: string) {
+  async function toggleJoinQuest(id: string, safetyConfirmed = false) {
     if (!supabase || !userId) {
       setShowAuthModal(true);
       return setStatus("Log in to join.");
@@ -3572,6 +3645,8 @@ export default function Home() {
     if (quest && quest.creator_id === userId) {
       return setStatus("You can't join your own listing.");
     }
+
+    if (quest && !isVirtualQuest(quest) && !["approved", "pending"].includes(membershipStatusByQuest[id]) && !safetyConfirmed && requestMeetupSafety("guest", () => toggleJoinQuest(id, true))) return;
 
     let liveLocation: { lat: number; lon: number; accuracy?: number } | null = userLocation;
     if (!liveLocation && locationPermission === "granted") {
@@ -3630,14 +3705,19 @@ export default function Home() {
       return;
     }
     {
+      captureProductEvent("quest_join_attempted", { platform: "web", join_mode: quest?.join_mode || "open" });
       const { error } = await supabase.from("quest_members").insert({ quest_id: id, user_id: userId, role: "member", status: nextStatus });
-      if (error && !error.message.includes("duplicate") && !error.message.toLowerCase().includes("unique")) return setStatus(error.message);
+      if (error && !error.message.includes("duplicate") && !error.message.toLowerCase().includes("unique")) {
+        captureProductEvent("quest_join_result", { platform: "web", outcome: "failed", failure_category: classifyAnalyticsFailure(error) });
+        return setStatus(error.message);
+      }
     }
     await loadMemberships(userId);
     captureProductEvent("quest_join_requested", {
       platform: "web",
       join_status: nextStatus,
       join_mode: quest?.join_mode || "open",
+      outcome: "success",
     });
     setStatus(`${nextStatus === "pending" ? "Join request sent ⏳" : "Joined quest ✅"}`);
   }
@@ -3872,23 +3952,26 @@ export default function Home() {
           </section>
         ) : null}
 
+        <header className="desktop-discovery-heading"><div><small>{hobbyFilter === "all" ? "DISCOVER" : "YOUR INTERESTS"}</small><h1>{searchQuery.trim() ? "Search results" : "Plans happening now"}</h1><p>Find your people. Make a real plan.</p></div><span>{filteredQuests.length} {filteredQuests.length === 1 ? "quest" : "quests"}</span></header>
         <section className="home119-discovery" aria-label="Discover quests">
-          <div className="home119-search">
-            <AppIcon name="search" className="h-5 w-5" />
-            <input
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Search plans, places, or interests"
-              aria-label="Search plans, places, or interests"
-            />
+          <div className="home119-search-row">
+            <div className="home119-search">
+              <AppIcon name="search" className="h-5 w-5" />
+              <input
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Search plans, places, or interests"
+                aria-label="Search plans, places, or interests"
+              />
+            </div>
+            <div className="home119-search-toggle" role="group" aria-label="Quest display">
+              <button type="button" aria-pressed={feedViewMode === "list"} className={feedViewMode === "list" ? "is-active" : ""} onClick={() => setFeedViewMode("list")}>List</button>
+              <button type="button" aria-pressed={feedViewMode === "map"} className={feedViewMode === "map" ? "is-active" : ""} onClick={() => setFeedViewMode("map")}>Map</button>
+            </div>
           </div>
           <div className="home119-chips" role="list" aria-label="Quest categories">
             <button type="button" className={hobbyFilter === "all" ? "is-active" : ""} onClick={() => setHobbyFilter("all")}><span aria-hidden="true">✧</span>For you</button>
-            {["Lifestyle", "Arts & Crafts", "Community"].map((name) => {
-              const option = categoryOptions.find((item) => item.name.toLowerCase() === name.toLowerCase());
-              if (!option) return null;
-              return <button key={option.id} type="button" className={hobbyFilter === option.id ? "is-active" : ""} onClick={() => setHobbyFilter(option.id)}>{option.name}</button>;
-            })}
+            {discoveryCategories.map(option => <button key={option.id} type="button" className={hobbyFilter === option.id ? "is-active" : ""} onClick={() => setHobbyFilter(option.id)}><QuestCategoryIcon name={option.icon} className="home119-chip-icon" />{option.label}</button>)}
           </div>
           <button type="button" className="home119-find-people" onClick={() => userId ? window.location.assign("/inbox") : setShowAuthModal(true)}>
             <span aria-hidden="true"><AppIcon name="people" className="h-5 w-5" /></span>
@@ -3903,6 +3986,7 @@ export default function Home() {
 
         <div className="home119-content grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)] xl:items-start">
           <aside className="home119-legacy-filters space-y-4 xl:sticky xl:top-[76px]">
+            <button type="button" className="desktop-people-discovery" onClick={() => userId ? window.location.assign("/inbox") : setShowAuthModal(true)}><AppIcon name="people" /><span><strong>Find people for your quest</strong><small>Browse nearby people who chose to be discoverable.</small></span><span aria-hidden="true">→</span></button>
             <section className="space-y-4">
               <button
                 type="button"
@@ -3929,9 +4013,9 @@ export default function Home() {
                       <label className="block text-xs font-medium text-gray-600">Category</label>
                       <select className="w-full border rounded-xl px-3 py-2.5 bg-white" value={hobbyFilter} onChange={(e) => setHobbyFilter(e.target.value)}>
                         <option value="all">All categories</option>
-                        {categoryOptions.map((option) => (
+                        {discoveryCategories.map((option) => (
                           <option key={option.id} value={option.id}>
-                            {option.name}
+                            {option.label}
                           </option>
                         ))}
                       </select>
@@ -4030,6 +4114,7 @@ export default function Home() {
               </div>
             </div>
 
+            {feedLoadError ? <section role="alert" className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900"><p>{feedLoadError}</p><button type="button" className="app-primary-button mt-3" disabled={loading} onClick={() => void loadQuests()}>Try again</button></section> : null}
             {feedViewMode === "list" ? (
               <div className="feed119-list grid grid-cols-1">
               {loading ? <p>Loading...</p> : filteredQuests.map((q) => {
@@ -4039,7 +4124,9 @@ export default function Home() {
               ...((q.media_items || []).map((m) => ({ url: m.url, type: m.type, label: m.label || undefined, thumbnailUrl: m.thumbnailUrl || undefined }))),
             ];
             const feedIndex = feedMediaIndexByQuest[q.id] || 0;
-            const fallbackVisual = getCategoryFallbackVisual(getQuestCategoryRaw(q));
+            const legacyFallbackVisual = getCategoryFallbackVisual(getQuestCategoryRaw(q));
+            const catalogFallbackCover = catalogCovers(catalog, q.hobby_id, q.title)[0];
+            const fallbackVisual = catalogFallbackCover ? { ...legacyFallbackVisual, imageUrl: catalogFallbackCover.imageUrl, title: catalogFallbackCover.label } : legacyFallbackVisual;
             const questCoords = coordsByQuestId[q.id];
             const distanceLabel = distanceByQuestId[q.id] || (userLocation && questCoords ? distanceLabelMiles(haversineMiles(userLocation.lat, userLocation.lon, questCoords.lat, questCoords.lon)) : "");
             const isExpired = Boolean(q.starts_at && new Date(q.starts_at).getTime() <= Date.now() && userId === q.creator_id);
@@ -4048,10 +4135,10 @@ export default function Home() {
             <article key={q.id} className={`feed119-card quest-card relative w-full bg-white border border-slate-200 shadow-[0_14px_40px_rgba(15,23,42,0.08)] overflow-hidden ${isExpired ? "grayscale-[0.65] opacity-80 ring-1 ring-slate-400/30" : ""} ${feedViewMode === "list" ? "rounded-none sm:rounded-[1.75rem] h-[calc(100svh-10.75rem)] min-h-[680px] flex flex-col sm:h-auto sm:min-h-[680px] md:h-[calc(100svh-9.25rem)] md:min-h-[720px] md:flex md:flex-col lg:h-[calc(100dvh-8.5rem)] lg:min-h-[760px] xl:h-[calc(100dvh-8.25rem)] xl:min-h-[820px] xl:flex xl:flex-col" : "rounded-[2rem]"}`}>
               {isExpired ? (
                 <>
-                  <div className="pointer-events-none absolute left-1/2 top-[42%] z-50 -translate-x-1/2 -rotate-6 rounded-xl border-4 border-white/85 bg-slate-950/15 px-6 py-3 text-xl font-black tracking-[0.2em] text-white/90 shadow-xl">
+                  <div className="feed119-completed-stamp pointer-events-none absolute left-1/2 top-[42%] z-50 -translate-x-1/2 -rotate-6 rounded-xl border-4 border-white/85 bg-slate-950/15 px-6 py-3 text-xl font-black tracking-[0.2em] text-white/90 shadow-xl">
                     ✓ COMPLETED
                   </div>
-                  <div className="absolute bottom-24 right-4 z-50 flex items-center gap-2 rounded-full border border-white/20 bg-slate-950/80 p-1 pl-3 text-white shadow-lg backdrop-blur">
+                  <div className="feed119-expired-note absolute bottom-24 right-4 z-50 flex items-center gap-2 rounded-full border border-white/20 bg-slate-950/80 p-1 pl-3 text-white shadow-lg backdrop-blur">
                     <span className="text-[10px] font-bold text-slate-200">Visible to you for 7 days</span>
                     <button type="button" className="rounded-full bg-[#9bd8e4] px-3 py-2 text-xs font-black text-[#082f3a]" onClick={() => openEditModal(q)}>
                       Run again
@@ -4410,51 +4497,23 @@ export default function Home() {
                           </div>
                         </div>
                         <div className="mt-4 flex items-center justify-center gap-3">
-                          {!(joinedQuestIds.includes(item.quest.id) || membershipStatusByQuest[item.quest.id] === "approved" || membershipStatusByQuest[item.quest.id] === "pending") ? (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                void joinQuestWithCount(item.quest.id);
-                              }}
-                              className={`inline-flex items-center justify-center rounded-full px-5 py-2.5 text-sm font-semibold transition ${
-                                isActive
-                                  ? "bg-white text-black"
-                                  : "bg-[#0c5063] text-white"
-                              }`}
-                            >
-                              Join
-                              <span className={`ml-2 rounded-full px-2 py-0.5 text-[11px] font-medium ${isActive ? "bg-slate-900/10 text-black" : "bg-white/15 text-white"}`}>
-                                {joinedCountByQuestId[item.quest.id] || 0}
-                              </span>
-                            </button>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                void joinQuestWithCount(item.quest.id);
-                              }}
-                              className={`inline-flex items-center justify-center rounded-full px-5 py-2.5 text-sm font-semibold transition ${
-                                isActive
-                                  ? "bg-white text-black"
-                                  : "bg-slate-100 text-slate-900"
-                              }`}
-                            >
-                              Leave
-                              <span className={`ml-2 rounded-full px-2 py-0.5 text-[11px] font-medium ${isActive ? "bg-slate-900/10 text-black" : "bg-slate-900/10 text-slate-900"}`}>
-                                {joinedCountByQuestId[item.quest.id] || 0}
-                              </span>
-                            </button>
-                          )}
+                          <MapMembershipButton
+                            isOwner={Boolean(userId && userId === item.quest.creator_id)}
+                            membershipStatus={membershipStatusByQuest[item.quest.id]}
+                            isJoined={joinedQuestIds.includes(item.quest.id)}
+                            joinMode={item.quest.join_mode || "open"}
+                            going={joinedCountByQuestId[item.quest.id] || 0}
+                            isActive={isActive}
+                            onMembership={() => void joinQuestWithCount(item.quest.id)}
+                          />
                         </div>
                       </div>
                     );
-                  }) : <p className="text-sm text-gray-500">No nearby quests yet.</p>}
+                  }) : !loading && !feedLoadError ? <p className="text-sm text-gray-500">No nearby quests yet.</p> : null}
                 </div>
               </div>
             )}
-            {!loading && filteredQuests.length === 0 && <p className="text-sm text-gray-500">No quests yet - create the first one.</p>}
+            {!loading && !feedLoadError && filteredQuests.length === 0 && <p className="text-sm text-gray-500">{searchQuery.trim() || hobbyFilter !== "all" ? "No matching quests. Clear your search or try another category." : "No quests yet - create the first one."}</p>}
           </section>
         </div>
       </div>
@@ -4526,7 +4585,7 @@ export default function Home() {
                   <p className="text-xs text-gray-500">We’ll use these to personalize your feed and suggestions.</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {categoryOptions.slice(0, 12).map((option) => {
+                  {catalog.categories.filter(c => c.active || onboardingInterestIds.includes(c.id)).map(c => ({ id: c.id, name: c.label })).map((option) => {
                     const active = onboardingInterestIds.includes(option.id);
                     return (
                       <button
@@ -4685,20 +4744,24 @@ export default function Home() {
       )}
 
       {showAuthModal && (
-        <div className="fixed inset-0 z-50 bg-black/45 flex items-stretch sm:items-center justify-center p-0 sm:p-4 overflow-hidden">
-          <div className="w-full sm:w-full sm:max-w-lg rounded-none sm:rounded-2xl bg-[color:var(--surface-elevated)] border-0 sm:border border-[var(--border)] p-4 sm:p-5 space-y-3 sm:space-y-4 shadow-2xl h-[100dvh] sm:h-auto sm:max-h-[92vh] overflow-y-auto overflow-x-hidden my-0 sm:my-auto pb-[max(1rem,env(safe-area-inset-bottom))] sm:pb-5 box-border overscroll-contain touch-pan-y [scrollbar-width:thin] [-webkit-overflow-scrolling:touch]">
-            <div className="flex justify-between items-start gap-3">
-              <div className="space-y-1">
-                <h3 className="font-semibold text-lg">{authMode === "signup" ? "Create your account" : "Welcome back"}</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  {authMode === "signup"
-                    ? "Make a profile and start joining real plans."
-                    : "Pick up where you left off and get back in."}
-                </p>
+        <div className="auth-sign-in-overlay fixed inset-0 z-50 flex items-center justify-center overflow-hidden p-3 sm:p-5" onMouseDown={(event) => { if (event.target === event.currentTarget) closeAuthModal(); }}>
+          <div role="dialog" aria-modal="true" aria-labelledby="auth-dialog-title" tabIndex={-1} className="auth-sign-in-dialog w-full max-w-[440px] rounded-[28px] bg-[color:var(--surface-elevated)] border border-[var(--border-strong)] p-4 sm:p-6 space-y-3 sm:space-y-4 shadow-2xl max-h-[calc(100dvh-1.5rem)] overflow-y-auto overflow-x-hidden my-auto pb-[max(1rem,env(safe-area-inset-bottom))] box-border overscroll-contain touch-pan-y [scrollbar-width:thin] [-webkit-overflow-scrolling:touch]">
+            <div className="auth-sign-in-topline">
+              <div className="auth-sign-in-brand">
+                <img src="/questhat-logo-tight.png" alt="" className="auth-sign-in-logo" />
+                <strong>{APP_NAME}</strong>
               </div>
-              <button onClick={() => { setStatus(""); setShowAuthModal(false); }} className="rounded-full border border-[var(--border)] px-3 py-1.5 text-sm">
-                Close
+              <button type="button" aria-label="Close sign in" onClick={closeAuthModal} className="auth-sign-in-close">
+                <span aria-hidden="true">×</span>
               </button>
+            </div>
+            <div className="auth-sign-in-heading">
+              <h3 id="auth-dialog-title">{authMode === "signup" ? "Create your account" : "Welcome back."}</h3>
+              <p>
+                {authMode === "signup"
+                  ? "Make a profile and start joining real plans."
+                  : "Pick up where you left off."}
+              </p>
             </div>
 
             <div className="grid grid-cols-2 gap-2 rounded-full bg-[color:var(--muted)] p-1">
@@ -4716,26 +4779,6 @@ export default function Home() {
               >
                 Sign in
               </button>
-            </div>
-
-            <div className="flex items-center justify-between gap-3 text-sm">
-              {authMode === "signup" ? (
-                <button
-                  type="button"
-                  className="text-gray-600 dark:text-gray-400 underline underline-offset-2"
-                  onClick={() => { setStatus(""); setAuthMode("login"); }}
-                >
-                  Already have an account?
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="text-gray-600 dark:text-gray-400 underline underline-offset-2"
-                  onClick={() => { setStatus(""); setAuthMode("signup"); }}
-                >
-                  New here?
-                </button>
-              )}
             </div>
 
             {!!pendingVerifyEmail && authMode === "signup" && (
@@ -4769,9 +4812,12 @@ export default function Home() {
             )}
 
             {authMode !== "signup" || !pendingVerifyEmail ? (
-              <form onSubmit={authMode === "signup" ? signUpWithPassword : signInWithPassword} className="grid gap-2 sm:gap-3" autoComplete="on">
+              <form onSubmit={authMode === "signup" ? signUpWithPassword : signInWithPassword} className={`grid gap-2 sm:gap-3 ${authMode === "login" ? "auth-login-form" : ""}`} autoComplete="on">
                 <label className="text-xs font-medium text-gray-600">Email</label>
-                <input className="border rounded-xl px-3 py-3 text-slate-900 caret-slate-900 bg-white" placeholder="you@email.com" type="email" name="username" autoComplete="username email" inputMode="email" value={email} onChange={(e) => { setEmail(e.target.value); if (status) setStatus(""); }} required />
+                <div className={authMode === "login" ? "auth-field-shell" : undefined}>
+                  {authMode === "login" && <svg viewBox="0 0 24 24" aria-hidden="true" className="auth-field-icon"><path d="M3 6.75A2.75 2.75 0 0 1 5.75 4h12.5A2.75 2.75 0 0 1 21 6.75v10.5A2.75 2.75 0 0 1 18.25 20H5.75A2.75 2.75 0 0 1 3 17.25V6.75Zm2.18-.62 6.82 5.4 6.82-5.4a1.25 1.25 0 0 0-.57-.13H5.75c-.2 0-.39.05-.57.13Zm13.82 2-6.38 5.05a1 1 0 0 1-1.24 0L5 8.13v9.12c0 .41.34.75.75.75h12.5c.41 0 .75-.34.75-.75V8.13Z" /></svg>}
+                  <input className={authMode === "login" ? "auth-field-input" : "border rounded-xl px-3 py-3 text-slate-900 caret-slate-900 bg-white"} placeholder="you@email.com" type="email" name="username" autoComplete="username email" inputMode="email" value={email} onChange={(e) => { setEmail(e.target.value); if (status) setStatus(""); }} required />
+                </div>
                 {status ? (
                   <div role="status" className="flex items-start gap-2 rounded-xl border border-amber-300/70 bg-amber-100/90 px-3 py-2.5 text-sm font-medium text-amber-950 shadow-sm">
                     <span aria-hidden="true" className="mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-amber-700 text-[10px] font-black">!</span>
@@ -4781,9 +4827,12 @@ export default function Home() {
                 {authMode === "login" ? (
                   <>
                     <label className="text-xs font-medium text-gray-600">Password</label>
-                    <div className="flex gap-2">
-                      <input className="border rounded-xl px-3 py-3 flex-1 text-slate-900 caret-slate-900 bg-white" placeholder="Password" type={showPassword ? "text" : "password"} name="password" autoComplete="current-password" autoCapitalize="none" autoCorrect="off" spellCheck={false} value={password} onChange={(e) => setPassword(e.target.value)} required />
-                      <button type="button" className="rounded-xl border border-[var(--border)] px-3" onClick={() => setShowPassword((s) => !s)}>{showPassword ? "Hide" : "Show"}</button>
+                    <div className="auth-field-shell">
+                      <svg viewBox="0 0 24 24" aria-hidden="true" className="auth-field-icon"><path d="M7 10V8a5 5 0 0 1 10 0v2h.5A2.5 2.5 0 0 1 20 12.5v7A2.5 2.5 0 0 1 17.5 22h-11A2.5 2.5 0 0 1 4 19.5v-7A2.5 2.5 0 0 1 6.5 10H7Zm2 0h6V8a3 3 0 0 0-6 0v2Zm-2.5 2a.5.5 0 0 0-.5.5v7c0 .28.22.5.5.5h11a.5.5 0 0 0 .5-.5v-7a.5.5 0 0 0-.5-.5h-11Z" /></svg>
+                      <input className="auth-field-input" placeholder="Password" type={showPassword ? "text" : "password"} name="password" autoComplete="current-password" autoCapitalize="none" autoCorrect="off" spellCheck={false} value={password} onChange={(e) => setPassword(e.target.value)} required />
+                      <button type="button" aria-label={showPassword ? "Hide password" : "Show password"} className="auth-password-toggle" onClick={() => setShowPassword((s) => !s)}>
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5c5.12 0 8.66 4.18 9.72 5.62a2.3 2.3 0 0 1 0 2.76C20.66 14.82 17.12 19 12 19s-8.66-4.18-9.72-5.62a2.3 2.3 0 0 1 0-2.76C3.34 9.18 6.88 5 12 5Zm0 2c-4.13 0-7.16 3.54-8.11 4.81a.32.32 0 0 0 0 .38C4.84 13.46 7.87 17 12 17s7.16-3.54 8.11-4.81a.32.32 0 0 0 0-.38C19.16 10.54 16.13 7 12 7Zm0 2a3 3 0 1 1 0 6 3 3 0 0 1 0-6Zm0 2a1 1 0 1 0 0 2 1 1 0 0 0 0-2Z" /></svg>
+                      </button>
                     </div>
                   </>
                 ) : (
@@ -4837,8 +4886,9 @@ export default function Home() {
                   </>
                 )}
 
-                <TurnstileInvisible onToken={setAuthTurnstileToken} />
-                <button className="rounded-xl bg-[color:var(--accent-secondary)] py-3 font-semibold text-white shadow-md shadow-black/10">{authMode === "signup" ? "Create account" : "Log in"}</button>
+                {authMode === "login" && <button type="button" className="auth-trouble-link" onClick={() => setShowTroubleModal(true)}>Trouble signing in?</button>}
+                <TurnstileInvisible onToken={setAuthTurnstileToken} className={authMode === "login" ? "auth-turnstile" : undefined} />
+                <button className="auth-primary-submit rounded-xl bg-[color:var(--accent-secondary)] py-3 font-semibold text-white shadow-md shadow-black/10">{authMode === "signup" ? "Create account" : <><span>Sign in</span><span aria-hidden="true">→</span></>}</button>
               </form>
             ) : null}
 
@@ -4848,33 +4898,32 @@ export default function Home() {
                 <span className="text-[10px] font-black tracking-[0.18em] text-gray-500 dark:text-gray-400">OR CONTINUE WITH</span>
                 <span className="h-px flex-1 bg-[color:var(--border)]" />
               </div>
-              <div className="grid gap-2.5">
-                <button type="button" className="group flex min-h-14 w-full items-center gap-3 rounded-2xl border border-white bg-white px-4 py-3 text-sm font-extrabold text-slate-950 shadow-md shadow-black/10 transition hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0 active:scale-[0.995]" onClick={() => void socialLogin("apple")}>
-                  <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white">
-                  <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true" fill="currentColor">
+              <div className={`auth-provider-grid grid gap-2.5 ${authMode === "login" ? "grid-cols-2" : ""}`}>
+                <button type="button" className="auth-provider-button" onClick={() => void socialLogin("apple")}>
+                  <span className="auth-provider-icon">
+                  <svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor">
                     <path d="M16.7 13.1c0-1.9 1-3.5 2.6-4.6-1-1.4-2.6-2.3-4.1-2.4-1.7-.2-3.2 1-4 .9-.9-.1-2.3-.9-3.8-.9-2 .1-3.8 1.1-4.8 2.7-2 3.3-.5 8.2 1.4 10.9 1 1.3 2.1 2.8 3.7 2.7 1.5-.1 2.1-1 4-1s2.5 1 4.1 1c1.6 0 2.6-1.3 3.6-2.7.8-1.2 1.2-2.4 1.2-2.5-.1 0-2.9-1.1-2.9-4.1ZM14.9 5.7c.8-1 1.3-2.3 1.1-3.6-1.2.1-2.6.8-3.4 1.8-.8.9-1.4 2.2-1.2 3.5 1.3.1 2.7-.7 3.5-1.7Z" />
                   </svg>
                   </span>
-                  <span className="flex-1 text-left">Continue with Apple</span>
-                  <span aria-hidden="true" className="text-xl font-light text-slate-400">›</span>
+                  <span className="auth-provider-label">{authMode === "login" ? "Apple" : "Continue with Apple"}</span>
+                  <span aria-hidden="true" className="auth-provider-chevron">›</span>
                 </button>
-                <button type="button" className="group flex min-h-14 w-full items-center gap-3 rounded-2xl border border-[var(--border)] bg-[color:var(--surface)] px-4 py-3 text-sm font-extrabold text-[color:var(--foreground)] shadow-sm transition hover:-translate-y-0.5 hover:border-[var(--border-strong)] hover:shadow-md active:translate-y-0 active:scale-[0.995]" onClick={() => void socialLogin("google")}>
-                  <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white shadow-sm"><img src="/google-g.svg" alt="" className="h-5 w-5" /></span>
-                  <span className="flex-1 text-left">Continue with Google</span>
-                  <span aria-hidden="true" className="text-xl font-light text-gray-400">›</span>
+                <button type="button" className="auth-provider-button" onClick={() => void socialLogin("google")}>
+                  <span className="auth-provider-icon"><img src="/google-g.svg" alt="" /></span>
+                  <span className="auth-provider-label">{authMode === "login" ? "Google" : "Continue with Google"}</span>
+                  <span aria-hidden="true" className="auth-provider-chevron">›</span>
                 </button>
-                <button type="button" className="group flex min-h-14 w-full items-center gap-3 rounded-2xl border border-[var(--border)] bg-[color:var(--surface)] px-4 py-3 text-sm font-extrabold text-[color:var(--foreground)] shadow-sm transition hover:-translate-y-0.5 hover:border-[var(--border-strong)] hover:shadow-md active:translate-y-0 active:scale-[0.995]" onClick={() => void socialLogin("facebook")}>
-                  <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#1877f2] shadow-sm"><img src="/facebook-f.svg" alt="" className="h-5 w-5 brightness-0 invert" /></span>
-                  <span className="flex-1 text-left">Continue with Facebook</span>
-                  <span aria-hidden="true" className="text-xl font-light text-gray-400">›</span>
+                <button type="button" className="auth-provider-button" onClick={() => void socialLogin("facebook")}>
+                  <span className="auth-provider-icon"><img src="/facebook-f.svg" alt="" /></span>
+                  <span className="auth-provider-label">{authMode === "login" ? "Facebook" : "Continue with Facebook"}</span>
+                  <span aria-hidden="true" className="auth-provider-chevron">›</span>
                 </button>
-                <button type="button" className="group flex min-h-14 w-full items-center gap-3 rounded-2xl border border-white/15 bg-slate-950 px-4 py-3 text-sm font-extrabold text-white shadow-md shadow-black/15 transition hover:-translate-y-0.5 hover:bg-black hover:shadow-lg active:translate-y-0 active:scale-[0.995]" onClick={() => void socialLogin("x")}>
-                  <span aria-hidden="true" className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-black text-base font-black leading-none">X</span>
-                  <span className="flex-1 text-left">Continue with X</span>
-                  <span aria-hidden="true" className="text-xl font-light text-slate-500">›</span>
+                <button type="button" className="auth-provider-button" onClick={() => void socialLogin("x")}>
+                  <span aria-hidden="true" className="auth-provider-icon auth-provider-x">X</span>
+                  <span className="auth-provider-label">{authMode === "login" ? "X" : "Continue with X"}</span>
+                  <span aria-hidden="true" className="auth-provider-chevron">›</span>
                 </button>
               </div>
-              {authMode === "login" && <button type="button" className="text-sm font-medium underline underline-offset-2" onClick={() => setShowTroubleModal(true)}>Trouble signing in?</button>}
             </div>
 
             {!!pendingVerifyEmail && <div className="text-sm rounded-xl border border-emerald-300 bg-emerald-50 p-3">Email sent to <b>{pendingVerifyEmail}</b>. <button className="underline" disabled={resendCooldown > 0} onClick={() => void resendVerification()}>{resendCooldown > 0 ? `Resend in ${resendCooldown}s` : "Resend"}</button></div>}
@@ -4883,8 +4932,11 @@ export default function Home() {
       )}
       {showTroubleModal && (
         <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white border p-4 space-y-3">
-            <div className="flex items-center justify-between"><h3 className="font-semibold">Trouble signing in?</h3><button className="border rounded px-2 py-1" onClick={() => setShowTroubleModal(false)}>Close</button></div>
+          <div role="dialog" aria-modal="true" aria-labelledby="auth-help-title" tabIndex={-1} className="auth-help-dialog w-full max-w-md rounded-2xl bg-white border p-4 space-y-3">
+            <div className="flex items-center justify-between"><h3 id="auth-help-title" className="font-semibold">Trouble signing in?</h3><button className="border rounded px-2 py-1" onClick={() => setShowTroubleModal(false)}>Close</button></div>
+            <label className="grid gap-1 text-sm">Email address
+              <input type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} className="border rounded px-3 py-2" />
+            </label>
             <button className="border rounded px-3 py-2 w-full text-left" onClick={() => void sendEmailCode()}>Send one-time code</button>
             <button className="border rounded px-3 py-2 w-full text-left" onClick={() => void sendReset()}>Reset password</button>
           </div>
@@ -4972,54 +5024,58 @@ export default function Home() {
 
       {showCreateModal && (
         <div className="create119-overlay fixed inset-0 z-50 flex items-stretch justify-center overflow-hidden">
-          <div className="create119-shell w-full overflow-y-auto overflow-x-hidden box-border">
-            <div className="create119-header sticky top-0 z-30 backdrop-blur">
+          <div className="create119-shell w-full overflow-y-auto overflow-x-hidden box-border" role="dialog" aria-modal="true" aria-label={editingQuestId ? "Update your Quest" : "Create a Quest"}>
+            <div className="create119-header">
               <div className="create119-nav-row">
-                <button aria-label="Back" disabled={savingQuest} onClick={() => { setShowCreateModal(false); resetQuestForm(); }} className="create119-back">‹</button>
-                <div className="create119-progress" aria-label="Three required sections"><span className={title.trim() && categoryInput.trim() ? "is-complete" : ""} /><span className={startAt ? "is-complete" : ""} /><span className={exactAddress.trim() ? "is-complete" : ""} /></div>
-                <span className="create119-draft">▤ Draft</span>
+                <button aria-label="Back" disabled={savingQuest} onClick={() => { setCategoryDropdownOpen(false); setShowCreateModal(false); }} className="create119-back"><QuestCategoryIcon name="chevron-back" /></button>
+                <div className="create119-progress" aria-label="Three required sections"><span className={createCompletionStates[0] ? "is-complete" : ""} /><span className={createCompletionStates[1] ? "is-complete" : ""} /><span className={createCompletionStates[2] ? "is-complete" : ""} /></div>
+                <span className="create119-draft"><QuestCategoryIcon name="document-text-outline" /> Draft</span>
               </div>
               <h1>{editingQuestId ? "Update your Quest" : "Create a Quest"}</h1>
               <p>Share your plan and find people to do it with.</p>
             </div>
             <div className="create119-memorable">
-              <span className="create119-sparkle">✦</span>
+              <span className="create119-sparkle"><QuestCategoryIcon name="sparkles" /></span>
               <div><strong>Make it memorable</strong><p>A clear title, good details, and a photo gets more people to join.</p></div>
-              <div className="create119-photo-stack" aria-hidden="true"><img src="/category-fallbacks/outdoors.jpg" alt="" /><img src="/category-fallbacks/community.jpg" alt="" /></div>
+              <div className="create119-photo-stack" aria-hidden="true"><img src={CREATE_QUEST_BANNER_IMAGES[0]} alt="" /><img src={CREATE_QUEST_BANNER_IMAGES[1]} alt="" /></div>
             </div>
             <form ref={createQuestFormRef} id="create-quest-form" onSubmit={createQuest} className="create119-form grid gap-3 pb-8">
-              <section className="create119-card">
+              <div className="create119-required-card">
+              <section className="create119-required-section">
                 <div className="create119-section-heading"><span>1</span><div><h2>What are you doing?</h2><p>Choose a category and give it a clear title.</p></div></div>
                 <div className="create119-category-rail" aria-label="Quest categories">
-                  {CREATE_TOP_CATEGORIES.map(([category, icon]) => {
-                    const active = categoryInput.trim().toLowerCase() === category.toLowerCase();
+                  {featuredCategories.map(category => {
+                    const active = hobbyId === category.id;
                     return (
-                      <button key={category} type="button" className={active ? "is-active" : ""} onClick={() => selectCreateCategory(category)}>
-                        <QuestCategoryIcon name={icon} className="create119-category-icon" />
-                        <span>{category}</span>
+                      <button key={category.id} type="button" className={active ? "is-active" : ""} onClick={() => selectCreateCategory(category.id)}>
+                        <QuestCategoryIcon name={category.icon} className="create119-category-icon" />
+                        <span>{category.label}</span>
                       </button>
                     );
                   })}
                   <button
                     type="button"
-                    className={categoryInput.trim() && !CREATE_TOP_CATEGORIES.some(([category]) => category.toLowerCase() === categoryInput.trim().toLowerCase()) ? "is-active" : ""}
-                    onClick={() => setCategoryDropdownOpen(true)}
+                    className={hobbyId && !featuredCategories.some(category => category.id === hobbyId) ? "is-active" : ""}
+                    onClick={() => { setCategoryDropdownOpen(true); void refreshCatalog(); }}
                   >
                     <QuestCategoryIcon name="ellipsis-horizontal" className="create119-category-icon" /><span>More</span>
                   </button>
                 </div>
+                {!categoryOptions.length ? <p role="status">{catalogStatus === "loading" ? "Loading categories…" : catalogStatus === "offline" ? "Categories unavailable. Reconnect and try again." : "No categories are available right now."}</p> : null}
+                {catalogStatus === "offline" && categoryOptions.length ? <p role="status">Using saved categories while offline.</p> : null}
                 {fieldErrors.category ? <p className="create119-field-error">Choose a category.</p> : null}
 
                 <div className="create119-field-group">
                   <div className="create119-label-row">
-                    <label className={fieldErrors.title ? "is-error" : ""}>Quest title</label>
+                    <label htmlFor="create119-title" className={fieldErrors.title ? "is-error" : ""}>Quest title</label>
                     <span>{title.length}/80</span>
                   </div>
                   <div className="create119-title-wrap">
                     <input
+                      id="create119-title"
                       maxLength={80}
                       className={fieldErrors.title ? "is-error" : ""}
-                      placeholder={titlePlaceholder}
+                      placeholder={categoryTitleSuggestions[0] || titlePlaceholder}
                       value={title}
                       onChange={(e) => { setTitle(e.target.value.slice(0, 80)); clearFieldError("title"); }}
                     />
@@ -5065,13 +5121,13 @@ export default function Home() {
                       <QuestCategoryIcon name="add" className="create119-add-photo-icon" />
                       <span>Add photo</span>
                     </button>
-                    {selectedCreateCoverUrl ? (
+                    {selectedCreateCoverUrl && !selectedSuggestedCover ? (
                       <button type="button" className="create119-cover-thumb is-selected" onClick={() => setSelectedMediaId(selectedMediaId)}>
                         <img src={selectedCreateCoverUrl} alt="Selected quest cover" />
                       </button>
                     ) : null}
                     {createCoverSuggestions.map(({ name, media }) => (
-                      <button key={`${name}-${media.imageUrl}`} type="button" className="create119-cover-thumb" onClick={() => void useSuggestedCoverImage(media.imageUrl, name)}>
+                      <button key={`${name}-${media.imageUrl}`} type="button" className={`create119-cover-thumb ${selectedSuggestedCover === media.imageUrl ? "is-selected" : ""}`} aria-pressed={selectedSuggestedCover === media.imageUrl} onClick={() => void loadSuggestedCoverImage(media.imageUrl, name)}>
                         <img src={media.imageUrl} alt={`${name} cover idea`} />
                       </button>
                     ))}
@@ -5079,24 +5135,27 @@ export default function Home() {
                 </div>
               </section>
 
-              <section className="create119-card">
+              <section className="create119-required-section">
                 <div className="create119-section-heading"><span>2</span><div><h2>When?</h2><p>Every quest needs a date and start time.</p></div></div>
                 <input
                   ref={startAtInputRef}
+                  id="create-start-at"
+                  tabIndex={showStartPickerFallback ? 0 : -1}
+                  aria-hidden={!showStartPickerFallback}
                   type="datetime-local"
                   min={toDateTimeLocalValue(new Date().toISOString())}
-                  className="create119-hidden-datetime"
+                  className={showStartPickerFallback ? "create119-datetime-fallback" : "create119-hidden-datetime"}
                   value={startAt}
                   onChange={(e) => setStartAt(e.target.value)}
                   aria-label="Date and start time"
                 />
                 <div className="create119-date-row">
-                  <button type="button" className="create119-date-card" onClick={openNativeStartPicker}>
+                  <button type="button" className="create119-date-card" aria-controls="create-start-at" aria-expanded={showStartPickerFallback} onClick={openNativeStartPicker}>
                     <span className="create119-date-icon"><QuestCategoryIcon name="calendar-clear-outline" /></span>
                     <span><small>Date</small><strong>{formatCreateDate(startAt)}</strong></span>
                     <QuestCategoryIcon name="chevron-forward" className="create119-chevron" />
                   </button>
-                  <button type="button" className="create119-date-card" onClick={openNativeStartPicker}>
+                  <button type="button" className="create119-date-card" aria-controls="create-start-at" aria-expanded={showStartPickerFallback} onClick={openNativeStartPicker}>
                     <span className="create119-date-icon"><QuestCategoryIcon name="time-outline" /></span>
                     <span><small>Start time</small><strong>{formatCreateTime(startAt)}</strong></span>
                     <QuestCategoryIcon name="chevron-forward" className="create119-chevron" />
@@ -5110,7 +5169,7 @@ export default function Home() {
                 </label>
               </section>
 
-              <section className="create119-card">
+              <section className="create119-required-section">
                 <div className="create119-section-heading"><span>3</span><div><h2>Where?</h2><p>Choose a place or add a virtual link. Exact details stay private by default.</p></div></div>
                 <div ref={locationVisibilityRef} className={`create119-where-panel ${highlightLocationVisibility || fieldErrors.locationVisibility || fieldErrors.location ? "has-error" : ""}`}>
                   <div className="create119-location-modes" role="group" aria-label="Meeting type">
@@ -5130,7 +5189,7 @@ export default function Home() {
                       className={locationMode === "remote" ? "is-active" : ""}
                       onClick={() => {
                         setLocationMode("remote");
-                        setExactLocationVisibility("private");
+                        if (locationMode !== "remote") setExactLocationVisibility("private");
                         setCitySuggestions([]);
                         setSelectedLocationSuggestion(null);
                         setSelectedPublicLocation(null);
@@ -5266,7 +5325,7 @@ export default function Home() {
                       <p className="create119-helper-text">{locationSearchRemaining} address searches remaining today</p>
                     ) : null}
                     {locationMode === "in_person" ? (
-                      <button type="button" className="create119-current-location" onClick={() => void useCurrentLocationForQuest()}>
+                      <button type="button" className="create119-current-location" onClick={() => void selectCurrentLocationForQuest()}>
                         <QuestCategoryIcon name="navigate-outline" />
                         <span>Use my current location</span>
                       </button>
@@ -5303,11 +5362,11 @@ export default function Home() {
                   ) : null}
                 </div>
               </section>
+              </div>
 
-              <button type="button" className={`create119-advanced-toggle ${!showAdvancedSettings ? "is-recommended" : ""}`} onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}>
+              <button type="button" aria-expanded={showAdvancedSettings} className={`create119-advanced-toggle ${!showAdvancedSettings ? "is-recommended" : ""}`} onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}>
                 <span className="create119-advanced-icon"><QuestCategoryIcon name="sparkles-outline" /></span>
-                <span className="create119-advanced-copy"><strong>Make it yours</strong><small>Privacy, joining, description, media, and group size.</small></span>
-                <span className="create119-advanced-badge">{showAdvancedSettings ? "OPTIONAL" : "RECOMMENDED"}</span>
+                <span className="create119-advanced-copy"><strong>Make it yours <span className="create119-advanced-badge">{showAdvancedSettings ? "OPTIONAL" : "RECOMMENDED"}</span></strong><small>Privacy, joining, description, media, and group size.</small></span>
                 <QuestCategoryIcon name={showAdvancedSettings ? "chevron-up" : "chevron-down"} className="create119-advanced-chevron" />
               </button>
 
@@ -5657,13 +5716,14 @@ export default function Home() {
                     onChange={(next) => setJoinMode(next as "open" | "approval_required")}
                   />
                   <label className="text-sm font-medium">{locationMode === "remote" ? "Who sees the link?" : "Who sees the exact address?"}</label>
+                  {locationMode === "remote" ? <p className="text-xs text-slate-500">Public links are visible to anyone viewing this quest. Approved-member links are shared with approved guests. Private links are shared manually by the host.</p> : null}
                   <CreateSelect
                     value={exactLocationVisibility}
                     placeholder="Choose privacy"
                     invalid={Boolean(fieldErrors.locationVisibility)}
                     options={[
                       { value: "private", label: "Private (manual share)" },
-                      ...(joinMode !== "open" ? [{ value: "approved_members", label: "Auto-share with approved members" }] : []),
+                      ...((locationMode === "remote" || joinMode !== "open") ? [{ value: "approved_members", label: "Auto-share with approved members" }] : []),
                       { value: "public", label: "Public (everyone)" },
                     ]}
                     onChange={(value) => {
@@ -5772,18 +5832,15 @@ export default function Home() {
               )}
               <section className="create119-publish-card">
                 <div className="create119-publish-copy">
-                  <QuestCategoryIcon name={createRequiredReady ? "flash-outline" : "information-circle-outline"} className="create119-publish-icon" />
+                  <QuestCategoryIcon name={createRequiredReady ? "flash-outline" : "ellipsis-horizontal"} className="create119-publish-icon" />
                   <div>
                     <h3>{createRequiredReady ? "Ready to publish" : "Finish the required details"}</h3>
-                    <p>{createRequiredReady ? "Your quest has the basics people need to decide." : "Add a clear plan, time, and place before publishing."}</p>
+                    <p>{createCompletionCount} of {createCompletionStates.length} required sections complete</p>
                   </div>
-                </div>
-                <div className="create119-completion-row" aria-label={`${createCompletionCount} of ${createCompletionStates.length} required sections complete`}>
-                  <span>{createCompletionCount}/{createCompletionStates.length}</span>
-                  {createCompletionStates.map((complete, index) => <i key={index} className={complete ? "is-complete" : ""} />)}
                 </div>
                 <div className="create119-publish-actions">
                   <button type="submit" disabled={savingQuest || !createRequiredReady}>
+                    <QuestCategoryIcon name="rocket-outline" />
                     {savingQuest ? "Saving..." : (editingQuestId ? "Save changes" : "Publish quest")}
                   </button>
                   {editingQuestId ? (
@@ -5792,6 +5849,7 @@ export default function Home() {
                     </button>
                   ) : null}
                 </div>
+                {!editingQuestId ? <button type="button" className="create119-discard" disabled={savingQuest} onClick={() => { resetQuestForm(); setShowCreateModal(false); }}>Discard draft</button> : null}
               </section>
             </form>
             {categoryDropdownOpen ? (
@@ -5803,44 +5861,31 @@ export default function Home() {
                       <h3 id="create119-category-title">CATEGORY</h3>
                       <p>Choose what best fits your quest.</p>
                     </div>
+                    <button type="button" onClick={() => void refreshCatalog(true)}>Refresh categories</button>
                     <button type="button" className="create119-category-close" aria-label="Close category picker" onClick={() => setCategoryDropdownOpen(false)}>
                       <span aria-hidden="true">×</span>
                     </button>
                   </div>
                   <div className="create119-category-picker-scroll">
                     <div className="create119-category-picker-grid">
-                      {CANONICAL_CATEGORIES.map((category) => {
-                        const active = categoryInput.trim().toLowerCase() === category.toLowerCase() && !useCustomCategory;
+                      {categoryOptions.map((category) => {
+                        const active = hobbyId === category.id;
                         return (
                           <button
-                            key={category}
+                            key={category.id}
                             type="button"
                             className={active ? "is-active" : ""}
                             onClick={() => {
-                              selectCreateCategory(category);
+                              selectCreateCategory(category.id);
                               setCategoryDropdownOpen(false);
                             }}
                           >
-                            <QuestCategoryIcon name={getQuestCategoryIconName(category)} className="create119-category-option-icon" />
-                            <span>{category}</span>
+                            <QuestCategoryIcon name={category.icon} className="create119-category-option-icon" />
+                            <span>{category.name}</span>
                           </button>
                         );
                       })}
-                      <button
-                        type="button"
-                        className={useCustomCategory ? "is-active" : ""}
-                        onClick={() => {
-                          setCategoryInput("Custom");
-                          setUseCustomCategory(true);
-                          setCustomCategory("Custom");
-                          setHobbyId("");
-                          clearFieldError("category");
-                          setCategoryDropdownOpen(false);
-                        }}
-                      >
-                        <QuestCategoryIcon name="create-outline" className="create119-category-option-icon" />
-                        <span>Custom</span>
-                      </button>
+
                     </div>
                   </div>
                 </div>
@@ -6194,6 +6239,7 @@ export default function Home() {
         </div>
       )}
       {detailQuestId && <ListingClient key={detailQuestId} questId={detailQuestId} onClose={() => window.history.back()} />}
+      {meetupSafetyDialog}
     </main>
   );
 }

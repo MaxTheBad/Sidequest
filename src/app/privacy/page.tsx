@@ -15,7 +15,7 @@ export default function PrivacyPage() {
         </div>
 
         <p className={bodyClass}>
-          QuestHat is operated by Anlvio LLC ("QuestHat," "we," "us," or "our"). This policy applies to
+          QuestHat is operated by Anlvio LLC (&quot;QuestHat,&quot; &quot;we,&quot; &quot;us,&quot; or &quot;our&quot;). This policy applies to
           questhat.com and the QuestHat apps for iOS and Android. It explains what information we collect, why we use
           it, when we share it, and the choices available to you.
         </p>

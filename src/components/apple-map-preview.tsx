@@ -2,9 +2,20 @@
 
 import { useEffect, useRef, useState } from "react";
 
+type MapKitCoordinate = object;
+type MapKitInstance = { destroy?: () => void; region: unknown };
+type MapKitApi = {
+  init: (options: { authorizationCallback: (done: (token: string) => void) => void; language: string }) => void;
+  Coordinate: new (latitude: number, longitude: number) => MapKitCoordinate;
+  MarkerAnnotation: new (coordinate: MapKitCoordinate, options: { title: string; selected: boolean; color: string }) => object;
+  Map: new (container: HTMLElement, options: { center: MapKitCoordinate; annotations: object[] }) => MapKitInstance;
+  CoordinateRegion: new (center: MapKitCoordinate, span: object) => unknown;
+  CoordinateSpan: new (latitudeDelta: number, longitudeDelta: number) => object;
+};
+
 declare global {
   interface Window {
-    mapkit?: any;
+    mapkit?: MapKitApi;
     questHatMapKitPromise?: Promise<void>;
   }
 }
@@ -29,7 +40,7 @@ export function AppleMapPreview({ latitude, longitude, title }: { latitude: numb
 
   useEffect(() => {
     let disposed = false;
-    let map: any = null;
+    let map: MapKitInstance | null = null;
     void loadMapKit().then(() => {
       if (disposed || !containerRef.current || !window.mapkit) return;
       window.mapkit.init({

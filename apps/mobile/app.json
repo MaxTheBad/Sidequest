@@ -16,17 +16,17 @@
         "NSMicrophoneUsageDescription": "QuestHat uses the microphone to include sound in videos you record for a quest.",
         "NSPhotoLibraryUsageDescription": "QuestHat uses your photo library so you can attach media to quests.",
         "NSCalendarsUsageDescription": "QuestHat uses your calendar only when you choose to add a hosted or joined quest, including its time and location.",
-        "NSCalendarsFullAccessUsageDescription": "QuestHat uses calendar access to add joined quests and keep their date and time up to date.",
+        "NSCalendarsFullAccessUsageDescription": "QuestHat uses calendar access to add or update a joined quest only when you tap its calendar action.",
         "NSCalendarsWriteOnlyAccessUsageDescription": "QuestHat adds joined quests to your calendar when you ask.",
         "NSLocationWhenInUseUsageDescription": "QuestHat uses your location to show nearby quests, estimate distance, and verify check-ins. Your precise location is not shown to hosts or attendees unless you explicitly choose to share it in a feature that clearly asks first.",
         "NSMotionUsageDescription": "QuestHat uses motion data to support device and media interactions in the app.",
         "ITSAppUsesNonExemptEncryption": false
       },
-      "buildNumber": "115"
+      "buildNumber": "128"
     },
     "android": {
       "package": "com.questhat.app",
-      "versionCode": 12,
+      "versionCode": 14,
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#10111A"
@@ -59,6 +59,8 @@
       "supabaseUrl": "https://ipjewvmmzmxakoewqlfo.supabase.co/",
       "supabaseAnonKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlwamV3dm1tem14YWtvZXdxbGZvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI4Mjg1MTYsImV4cCI6MjA4ODQwNDUxNn0.VaP8G8enHWZTfK5RtwhkRFHaeBeukuE7aWR9yyy7Io0",
       "siteUrl": "https://questhat.com",
+      "postQuestFollowUpsEnabled": false,
+      "nativeFeedbackEnabled": false,
       "sentryDsn": "https://84c04292f40c81ff823208372926ea64@o4512159894667264.ingest.us.sentry.io/4512159979077632",
       "eas": {
         "projectId": "269b58c4-775f-48c4-8171-196d92901c8d"
@@ -79,7 +81,7 @@
       [
         "expo-calendar",
         {
-          "calendarPermission": "Allow QuestHat to add joined quests and keep their schedule up to date in your calendar."
+          "calendarPermission": "Allow QuestHat to add or update joined quests when you tap their calendar action."
         }
       ],
       "expo-secure-store",

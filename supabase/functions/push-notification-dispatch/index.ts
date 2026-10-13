@@ -1,5 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
+type ServiceRoleClient = ReturnType<typeof createClient>;
+
 function chunk<T>(array: T[], size: number): T[][] {
   const out: T[][] = [];
   for (let i = 0; i < array.length; i += size) {
@@ -210,7 +212,7 @@ async function sendAndroidPush(
 
 async function startLiveActivity(
   // The Edge Function uses a service-role client without generated database types.
-  supabase: any,
+  supabase: ServiceRoleClient,
   userId: string,
   data: Record<string, unknown>,
 ) {

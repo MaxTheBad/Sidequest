@@ -42,10 +42,12 @@ export function TurnstileInvisible({ onToken, onReady, onError, onExpired, class
   const [scriptLoaded, setScriptLoaded] = useState(false);
   const sitekey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
 
-  onTokenRef.current = onToken;
-  onReadyRef.current = onReady;
-  onErrorRef.current = onError;
-  onExpiredRef.current = onExpired;
+  useEffect(() => {
+    onTokenRef.current = onToken;
+    onReadyRef.current = onReady;
+    onErrorRef.current = onError;
+    onExpiredRef.current = onExpired;
+  }, [onError, onExpired, onReady, onToken]);
 
   useEffect(() => {
     if (!scriptLoaded || !sitekey || !widgetRef.current || !window.turnstile || widgetIdRef.current) return;

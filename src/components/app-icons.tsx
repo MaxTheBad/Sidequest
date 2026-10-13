@@ -7,6 +7,9 @@ import {
   briefcaseOutline,
   calendarClearOutline,
   cashOutline,
+  chevronBack,
+  documentTextOutline,
+  rocketOutline,
   chevronDown,
   chevronForward,
   chevronUp,
@@ -40,6 +43,9 @@ import {
  * implementation traceable to the mobile source instead of using lookalikes.
  */
 export type QuestCategoryIconName =
+  | "chevron-back"
+  | "document-text-outline"
+  | "rocket-outline"
   | "trail-sign-outline"
   | "basketball-outline"
   | "game-controller-outline"
@@ -74,6 +80,9 @@ export type QuestCategoryIconName =
   | "flash-outline";
 
 const questCategoryIcons: Record<QuestCategoryIconName, string> = {
+  "chevron-back": chevronBack,
+  "document-text-outline": documentTextOutline,
+  "rocket-outline": rocketOutline,
   "trail-sign-outline": trailSignOutline,
   "basketball-outline": basketballOutline,
   "game-controller-outline": gameControllerOutline,
@@ -127,7 +136,7 @@ function ioniconMarkup(icon: string) {
 }
 
 /**
- * Renders the official Ionicons SVG data as a CSS mask. This preserves the
+ * Renders the official Ionicons SVG markup with its original outline classes. This preserves the
  * exact native glyph while allowing the selected and unselected web states to
  * inherit their colour from `currentColor`.
  */
@@ -138,7 +147,7 @@ export function QuestCategoryIcon({
 }: HTMLAttributes<HTMLSpanElement> & { name: QuestCategoryIconName }) {
   const icon = questCategoryIcons[name];
 
-  return <span aria-hidden="true" className={className} dangerouslySetInnerHTML={{ __html: ioniconMarkup(icon) }} {...props} />;
+  return <span aria-hidden="true" className={`quest-ionicon ${className || ""}`} dangerouslySetInnerHTML={{ __html: ioniconMarkup(icon) }} {...props} />;
 }
 
 export type AppIconName = "home" | "bookmark" | "bell" | "message" | "people" | "plus" | "settings" | "shield" | "user" | "location" | "more" | "clock" | "calendar" | "refresh" | "minus" | "check" | "star" | "tune" | "play" | "chevronDown" | "search";

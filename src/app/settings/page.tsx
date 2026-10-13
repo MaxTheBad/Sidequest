@@ -1,6 +1,11 @@
 "use client";
 
+import { SETTINGS_SECTIONS, primarySettingsSection, nextSettingsSection } from "@/lib/settings-sections.js";
+
 import Link from "next/link";
+import { OptionalAnalyticsPreference } from "@/components/posthog-provider";
+import { SettingsInterests } from "@/components/settings-interests";
+import { resetMeetupSafety } from "@/lib/meetup-safety.js";
 import { FormEvent, PointerEvent, useEffect, useMemo, useRef, useState } from "react";
 import CityAutocompleteInput from "@/components/city-autocomplete-input";
 import { COUNTRY_OPTIONS } from "@/lib/countries";
@@ -10,7 +15,8 @@ import { useUsernameAvailability } from "@/lib/use-username-availability";
 import { normalizeUsername } from "@/lib/username";
 import { recordSecurityAudit } from "@/lib/security-audit";
 import { AppIcon, type AppIconName } from "@/components/app-icons";
-import { ageFromBirthDate, GENDER_IDENTITY_OPTIONS } from "@/lib/people-discovery";
+import { ageFromBirthDate, discoveryLocationErrorMessage, GENDER_IDENTITY_OPTIONS } from "@/lib/people-discovery";
+import { TurnstileInvisible } from "@/components/turnstile-invisible";
 
 type Tab = "profile" | "account" | "connected" | "preferences" | "notifications" | "friends" | "blocked";
 type NotificationPreferences = {
@@ -37,6 +43,7 @@ const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   quest_reminders: true,
 };
 const PROFILE_CROP_PREVIEW_SIZE = 256;
+const PENDING_APPLE_DELETION_KEY = "questhat.pendingAppleAccountDeletion";
 
 function clampNumber(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
@@ -63,6 +70,14 @@ export default function SettingsPage() {
   const supabase = getSupabaseClient();
   const [tab, setTab] = useState<Tab>("profile");
   const [status, setStatus] = useState("");
+  const [showFeedback, setShowFeedback] = useState(false);
+  const [feedbackCategory, setFeedbackCategory] = useState("suggestion");
+  const [feedbackMessage, setFeedbackMessage] = useState("");
+  const [feedbackReplyContact, setFeedbackReplyContact] = useState("");
+  const [feedbackDiagnostics, setFeedbackDiagnostics] = useState(false);
+  const [feedbackCaptchaToken, setFeedbackCaptchaToken] = useState("");
+  const [feedbackSending, setFeedbackSending] = useState(false);
+  const [feedbackStatus, setFeedbackStatus] = useState("");
 
   const [userId, setUserId] = useState<string | null>(null);
   const [email, setEmail] = useState("");
@@ -365,13 +380,17 @@ export default function SettingsPage() {
     try {
       const token = await getAccessToken();
       if (!token) throw new Error("Log in first.");
+      const isTikTokSandboxReview = new URLSearchParams(window.location.search).get("tiktokSandbox") === "1";
+      const returnTo = isTikTokSandboxReview
+        ? "/settings?section=connected&tiktokSandbox=1"
+        : "/settings?section=connected";
       const res = await fetch("/api/tiktok/connect", {
         method: "POST",
         headers: {
           authorization: `Bearer ${token}`,
           "content-type": "application/json",
         },
-        body: JSON.stringify({ returnTo: "/settings?section=connected" }),
+        body: JSON.stringify({ returnTo, sandbox: isTikTokSandboxReview }),
       });
       const data = (await res.json().catch(() => null)) as { ok?: boolean; authorizationUrl?: string; error?: string } | null;
       if (!res.ok || !data?.ok || !data.authorizationUrl) throw new Error(data?.error || "TikTok connection is unavailable.");
@@ -584,8 +603,8 @@ export default function SettingsPage() {
         });
         latitude = position.coords.latitude;
         longitude = position.coords.longitude;
-      } catch {
-        return setStatus("Allow location once to join People discovery. QuestHat shows rounded distance, never your exact pin.");
+      } catch (failure) {
+        return setStatus(discoveryLocationErrorMessage(failure as { code?: number } | null));
       }
     }
     const { error: discoveryError } = await supabase.rpc("update_people_discovery_settings", {
@@ -959,17 +978,44 @@ export default function SettingsPage() {
     setAccountActionLoading("delete");
     setStatus("");
     try {
-      const { data, error } = await supabase.functions.invoke("account-deletion", {
-        body: { confirmation: deleteAccountConfirmation },
+      const sessionResponse = await supabase.auth.getSession();
+      const session = sessionResponse.data.session;
+      if (!session) throw new Error("Your session has expired. Sign in again and retry.");
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, "") || "";
+      const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+      const response = await fetch(`${supabaseUrl}/functions/v1/account-deletion`, {
+        method: "POST",
+        headers: {
+          apikey: anonKey,
+          Authorization: `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          confirmation: deleteAccountConfirmation,
+          supportsAppleReauthentication: true,
+        }),
       });
-      if (error) throw error;
-      if (!data?.ok) throw new Error(data?.error || "Could not delete the account.");
-      await supabase.auth.signOut();
-      if (data.appleRevocationRequired) {
-        window.alert("QuestHat deleted your account. To also stop Sign in with Apple access, open account.apple.com, choose Sign-In & Security → Sign in with Apple, then remove QuestHat.");
-        window.location.assign(data.appleAccountUrl || "https://account.apple.com/");
+      const data = await response.json().catch(() => ({})) as {
+        ok?: boolean;
+        error?: string;
+        code?: string;
+        appleReauthenticationRequired?: boolean;
+      };
+      if (response.status === 409 && data.code === "APPLE_REAUTH_REQUIRED" && data.appleReauthenticationRequired) {
+        window.sessionStorage.setItem(PENDING_APPLE_DELETION_KEY, JSON.stringify({
+          userId: session.user.id,
+          createdAt: Date.now(),
+        }));
+        const redirectTo = `${process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") || window.location.origin}/auth/callback`;
+        const oauth = await supabase.auth.signInWithOAuth({ provider: "apple", options: { redirectTo } });
+        if (oauth.error) {
+          window.sessionStorage.removeItem(PENDING_APPLE_DELETION_KEY);
+          throw oauth.error;
+        }
         return;
       }
+      if (!response.ok || !data.ok) throw new Error(data.error || "Could not delete the account.");
+      await supabase.auth.signOut();
       window.location.assign("/");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Could not delete the account.");
@@ -1041,36 +1087,120 @@ export default function SettingsPage() {
     window.location.href = "/";
   }
 
+  async function submitAppFeedback(event: FormEvent) {
+    event.preventDefault();
+    if (!supabase) return setFeedbackStatus("Feedback was not sent: sign in is unavailable.");
+    setFeedbackSending(true); setFeedbackStatus("");
+    try {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session?.access_token) throw new Error("Sign in to send feedback.");
+      const response = await fetch("/api/app-feedback", { method: "POST", headers: { "Content-Type": "application/json", authorization: `Bearer ${data.session.access_token}` }, body: JSON.stringify({ category: feedbackCategory, message: feedbackMessage, replyContact: feedbackReplyContact, diagnostics: feedbackDiagnostics, diagnosticsInfo: feedbackDiagnostics ? { platform: "web", appVersion: process.env.NEXT_PUBLIC_APP_VERSION || null } : null, captchaToken: feedbackCaptchaToken || undefined }) });
+      const result = await response.json().catch(() => null) as { ok?: boolean; error?: string; captchaRequired?: boolean } | null;
+      if (!response.ok || !result?.ok) { if (result?.captchaRequired) setFeedbackStatus("Verification is required before sending more feedback. Complete the check and retry."); else setFeedbackStatus(`Feedback was not sent: ${result?.error || "Please try again."}`); return; }
+      setFeedbackStatus("Thanks — your feedback was sent."); setFeedbackMessage(""); setFeedbackCaptchaToken("");
+    } catch (error) { setFeedbackStatus(`Feedback was not sent: ${error instanceof Error ? error.message : "Please try again."}`); }
+    finally { setFeedbackSending(false); }
+  }
+
+  const primaryTab = primarySettingsSection(tab);
+  const activeSection = SETTINGS_SECTIONS.find((section) => section.key === primaryTab) || SETTINGS_SECTIONS[0];
+
   return (
     <main className="page-shell page-settings app-page min-h-screen bg-transparent p-4">
       <datalist id="country-list">{COUNTRY_OPTIONS.map((c) => <option key={c.code} value={c.name} />)}</datalist>
       <section className="max-w-4xl mx-auto rounded-2xl border bg-white p-5 space-y-4 app-page-card">
         <div className="flex items-center justify-between app-page-header">
-          <div><p className="app-kicker">Your QuestHat</p><h1 className="text-2xl font-bold">Settings</h1><p className="app-page-subtitle">Profile, privacy, notifications, and account controls.</p></div>
-          <Link href="/" className="border rounded px-3 py-2 text-sm">Back</Link>
+          <div><h1 className="text-2xl font-bold">Settings</h1><p className="app-page-subtitle">Make QuestHat feel like yours.</p></div>
+          <button type="button" className="text-sm text-slate-500 underline underline-offset-4" onClick={() => { setShowFeedback(true); setFeedbackStatus(""); }}>Suggest or report a problem</button>
         </div>
 
         {status && <p className="text-sm rounded border bg-amber-50 px-3 py-2">{status}</p>}
+        {showFeedback ? <div role="dialog" aria-modal="true" aria-labelledby="feedback-title" className="rounded-xl border bg-slate-50 p-4"><div className="flex items-start justify-between gap-3"><div><h2 id="feedback-title" className="font-semibold">Suggest or report a problem</h2><p className="text-sm text-slate-600">This is for QuestHat app feedback, not reports about people or content.</p></div><button type="button" aria-label="Close feedback form" onClick={() => setShowFeedback(false)}>×</button></div><form className="mt-3 grid gap-3" onSubmit={submitAppFeedback}><label className="grid gap-1 text-sm">Category<select value={feedbackCategory} onChange={(event) => setFeedbackCategory(event.target.value)}><option value="suggestion">Suggestion</option><option value="bug">Bug</option><option value="usability">Usability</option><option value="other">Other</option></select></label><label className="grid gap-1 text-sm">What happened or what would help?<textarea required minLength={20} maxLength={3000} value={feedbackMessage} onChange={(event) => setFeedbackMessage(event.target.value)} /></label><label className="grid gap-1 text-sm">Reply email (optional)<input type="email" value={feedbackReplyContact} onChange={(event) => setFeedbackReplyContact(event.target.value)} /></label><label className="flex gap-2 text-sm"><input type="checkbox" checked={feedbackDiagnostics} onChange={(event) => setFeedbackDiagnostics(event.target.checked)} />Share diagnostic app/version/platform information with this feedback.</label><TurnstileInvisible onToken={setFeedbackCaptchaToken} /><div className="flex gap-2"><button type="submit" disabled={feedbackSending}>{feedbackSending ? "Sending…" : "Send feedback"}</button><button type="button" onClick={() => setShowFeedback(false)}>Cancel</button></div>{feedbackStatus ? <p role="status" className="text-sm">{feedbackStatus}</p> : null}</form></div> : null}
 
-        <div className="flex gap-2 flex-wrap app-segmented-tabs">
-          <button className={`px-3 py-2 rounded ${tab === "profile" ? "bg-black text-white" : "border"}`} onClick={() => setTab("profile")}>Profile</button>
-          <button className={`px-3 py-2 rounded ${tab === "account" ? "bg-black text-white" : "border"}`} onClick={() => setTab("account")}>Account</button>
-          <button className={`px-3 py-2 rounded ${tab === "connected" ? "bg-black text-white" : "border"}`} onClick={() => setTab("connected")}>Connected apps</button>
-          <button className={`px-3 py-2 rounded ${tab === "preferences" ? "bg-black text-white" : "border"}`} onClick={() => setTab("preferences")}>Preferences</button>
-          <button className={`px-3 py-2 rounded ${tab === "notifications" ? "bg-black text-white" : "border"}`} onClick={() => setTab("notifications")}>Notifications</button>
-          <button className={`px-3 py-2 rounded ${tab === "friends" ? "bg-black text-white" : "border"}`} onClick={() => setTab("friends")}>Friends</button>
-          <button className={`px-3 py-2 rounded ${tab === "blocked" ? "bg-black text-white" : "border"}`} onClick={() => setTab("blocked")}>Blocked</button>
+        {userId ? <Link href="/profile" className="settings-parity-hero">{avatarUrl ? <img src={avatarUrl} alt="" /> : <span><AppIcon name="user" /></span>}<div><strong>{username ? `@${username}` : actualName || "Choose your name"}</strong><small><AppIcon name="location" />{[city, region].filter(Boolean).join(", ") || "Location not set"}</small></div><span className="settings-profile-link" aria-hidden="true">↗</span></Link> : null}
+        <div className="settings-parity-tabs" role="tablist" aria-label="Settings sections">
+          {SETTINGS_SECTIONS.map(({key, label, icon}) => <button key={key} id={`settings-tab-${key}`} type="button" role="tab" aria-selected={primaryTab === key} aria-controls="settings-section-panel" tabIndex={primaryTab === key ? 0 : -1} className={primaryTab === key ? "is-active" : ""} onClick={() => setTab(key as Tab)} onKeyDown={(event) => { const next = nextSettingsSection(key, event.key); if (!next) return; event.preventDefault(); setTab(next as Tab); document.getElementById(`settings-tab-${next}`)?.focus(); }}><span className="settings-nav-icon"><AppIcon name={icon as AppIconName} />{key === "account" ? <svg className="settings-shield-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m9 12 2 2 4-4" /></svg> : null}</span><span>{label}</span></button>)}
         </div>
+        <div className="settings-section-heading"><p>{activeSection.eyebrow}</p><h2>{activeSection.title}</h2></div>
+        {primaryTab === "account" ? <div className="settings-parity-secondary" aria-label="Account settings"><button type="button" aria-pressed={tab === "account"} onClick={() => setTab("account")}>Account details</button><button type="button" aria-pressed={tab === "connected"} onClick={() => setTab("connected")}>Connected apps</button></div> : null}
+        {tab === "notifications" ? <button type="button" className="app-secondary-button" onClick={() => setTab("preferences")}>Back to preferences</button> : null}
 
         {!userId ? (
-          <p className="text-sm text-gray-600">Please log in first.</p>
+          <p id="settings-section-panel" role="tabpanel" aria-labelledby={`settings-tab-${primaryTab}`} className="text-sm text-gray-600">Please log in first.</p>
         ) : (
-          <>
+          <div id="settings-section-panel" role="tabpanel" aria-labelledby={`settings-tab-${primaryTab}`}>
             {tab === "profile" && (
               <form onSubmit={saveProfile} className="grid gap-2">
-                <Link href="/profile" className="w-fit rounded-full border px-3 py-2 text-sm font-medium text-slate-700">
-                  View my profile
-                </Link>
+                <section className="settings-native-card"><h3>Identity</h3><p>One unique name for your QuestHat profile.</p>
+                <label className="text-sm font-medium">Name</label>
+                <div className="app-username-field"><span>@</span><input className="border rounded px-3 py-2" value={username} onChange={(e) => { setUsername(e.target.value); setActualName(e.target.value); }} autoCapitalize="none" autoCorrect="off" /></div>
+                <p className="text-xs text-gray-500">This is the unique name people see across QuestHat.</p>
+                {usernameAvailability === "checking" ? <p className="text-sm text-gray-500">Checking username...</p> : null}
+                {usernameAvailability === "available" && normalizeUsername(username) !== normalizeUsername(initialUsername) ? (
+                  <p className="text-sm text-emerald-600">Username is available.</p>
+                ) : null}
+                {usernameAvailability === "taken" ? <p className="text-sm text-red-600">That username is already taken.</p> : null}
+                {usernameAvailability === "error" ? <p className="text-sm text-amber-600">Could not check username availability.</p> : null}
+                <label className="text-sm font-medium">Birthday</label>
+                <input type="date" className="border rounded px-3 py-2" value={dob} onChange={(e) => setDob(e.target.value)} />
+
+                <label className="text-sm font-medium">Gender (optional)</label>
+                <select className="border rounded px-3 py-2" value={genderIdentity} onChange={(e) => setGenderIdentity(e.target.value)}>
+                  <option value="">Not provided</option>
+                  {GENDER_IDENTITY_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+                </select>
+                <p className="text-xs text-gray-500">Used only for filters when you opt into People discovery. “Prefer not to say” is always available.</p>
+
+                </section>
+                <section className="settings-native-card"><h3>Location &amp; discovery</h3><p>Control where you are and what you find.</p>
+                <div className="grid gap-2 sm:grid-cols-2 sm:items-end">
+                  <div className="grid gap-1">
+                    <label className="text-sm font-medium">Country</label>
+                    <select
+                      className="border rounded px-3 py-2"
+                      value={countryCode}
+                      onChange={(e) => {
+                        const next = e.target.value;
+                        setCountryCode(next);
+                      }}
+                    >
+                      {COUNTRY_OPTIONS.map((country) => (
+                        <option key={country.code} value={country.code}>
+                          {country.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <CityAutocompleteInput label="City" value={city} onChange={setCity} placeholder="Start typing city..." countryCode={countryCode} />
+                </div>
+
+                <label className="text-sm font-medium">State / Region</label>
+                <input className="border rounded px-3 py-2" value={region} onChange={(e) => setRegion(e.target.value.toUpperCase())} placeholder="e.g. CA, Ontario, Bavaria" />
+
+                <label className="flex items-start gap-2 text-sm">
+                  <input type="checkbox" checked={showLocation} onChange={(e) => setShowLocation(e.target.checked)} />
+                  <span>Show location on profile. Hidden by default. When shown, display city, region/state, and country only.</span>
+                </label>
+
+                <label className="flex items-start gap-3 rounded-2xl border border-cyan-200 bg-cyan-50 p-4 text-sm text-slate-900">
+                  <input className="mt-1" type="checkbox" checked={peopleDiscoveryEnabled} onChange={(e) => setPeopleDiscoveryEnabled(e.target.checked)} />
+                  <span><strong>Show me in Find people</strong><br /><span className="text-slate-600">Adults can find and message you or invite you to a quest. QuestHat displays rounded distance, never your exact location. This is off by default and you can leave anytime.</span></span>
+                </label>
+
+                <label className="text-sm font-medium">Friends list visibility</label>
+                <select className="border rounded px-3 py-2" value={friendsVisibility} onChange={(e) => setFriendsVisibility(e.target.value as "public" | "private")}>
+                  <option value="public">Public</option>
+                  <option value="private">Private (friends only)</option>
+                </select>
+
+                </section>
+                <section className="settings-native-card"><h3>A little about you</h3><p>Give people a reason to join your next plan.</p>
+                <label className="text-sm font-medium">Bio</label>
+                <textarea maxLength={280} className="border rounded px-3 py-2" value={bio} onChange={(e) => setBio(e.target.value)} />
+
+                </section>
+                <details className="settings-photo-options"><summary>Profile photo options</summary>
                 <label className="text-sm font-medium">Profile photo</label>
                 <div className="grid gap-2 rounded-xl border p-3 bg-gray-50">
                   <input
@@ -1177,69 +1307,7 @@ export default function SettingsPage() {
                   )}
                 </div>
 
-                <label className="text-sm font-medium">Username</label>
-                <div className="app-username-field"><span>@</span><input className="border rounded px-3 py-2" value={username} onChange={(e) => { setUsername(e.target.value); setActualName(e.target.value); }} autoCapitalize="none" autoCorrect="off" /></div>
-                <p className="text-xs text-gray-500">This is the unique name people see across QuestHat.</p>
-                {usernameAvailability === "checking" ? <p className="text-sm text-gray-500">Checking username...</p> : null}
-                {usernameAvailability === "available" && normalizeUsername(username) !== normalizeUsername(initialUsername) ? (
-                  <p className="text-sm text-emerald-600">Username is available.</p>
-                ) : null}
-                {usernameAvailability === "taken" ? <p className="text-sm text-red-600">That username is already taken.</p> : null}
-                {usernameAvailability === "error" ? <p className="text-sm text-amber-600">Could not check username availability.</p> : null}
-                <label className="text-sm font-medium">Date of birth</label>
-                <input type="date" className="border rounded px-3 py-2" value={dob} onChange={(e) => setDob(e.target.value)} />
-
-                <label className="text-sm font-medium">Gender (optional)</label>
-                <select className="border rounded px-3 py-2" value={genderIdentity} onChange={(e) => setGenderIdentity(e.target.value)}>
-                  <option value="">Not provided</option>
-                  {GENDER_IDENTITY_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
-                </select>
-                <p className="text-xs text-gray-500">Used only for filters when you opt into People discovery. “Prefer not to say” is always available.</p>
-
-                <div className="grid gap-2 sm:grid-cols-2 sm:items-end">
-                  <div className="grid gap-1">
-                    <label className="text-sm font-medium">Country</label>
-                    <select
-                      className="border rounded px-3 py-2"
-                      value={countryCode}
-                      onChange={(e) => {
-                        const next = e.target.value;
-                        setCountryCode(next);
-                      }}
-                    >
-                      {COUNTRY_OPTIONS.map((country) => (
-                        <option key={country.code} value={country.code}>
-                          {country.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <CityAutocompleteInput label="City" value={city} onChange={setCity} placeholder="Start typing city..." countryCode={countryCode} />
-                </div>
-
-                <label className="text-sm font-medium">State / Region</label>
-                <input className="border rounded px-3 py-2" value={region} onChange={(e) => setRegion(e.target.value.toUpperCase())} placeholder="e.g. CA, Ontario, Bavaria" />
-
-                <label className="text-sm font-medium">Bio</label>
-                <textarea className="border rounded px-3 py-2" value={bio} onChange={(e) => setBio(e.target.value)} />
-
-                <label className="flex items-start gap-2 text-sm">
-                  <input type="checkbox" checked={showLocation} onChange={(e) => setShowLocation(e.target.checked)} />
-                  <span>Show location on profile. Hidden by default. When shown, display city, region/state, and country only.</span>
-                </label>
-
-                <label className="flex items-start gap-3 rounded-2xl border border-cyan-200 bg-cyan-50 p-4 text-sm text-slate-900">
-                  <input className="mt-1" type="checkbox" checked={peopleDiscoveryEnabled} onChange={(e) => setPeopleDiscoveryEnabled(e.target.checked)} />
-                  <span><strong>Show me in Find people</strong><br /><span className="text-slate-600">Adults can find and message you or invite you to a quest. QuestHat displays rounded distance, never your exact location. This is off by default and you can leave anytime.</span></span>
-                </label>
-
-                <label className="text-sm font-medium">Friends list visibility</label>
-                <select className="border rounded px-3 py-2" value={friendsVisibility} onChange={(e) => setFriendsVisibility(e.target.value as "public" | "private")}>
-                  <option value="public">Public</option>
-                  <option value="private">Private (friends only)</option>
-                </select>
-
+                </details>
                 <div className="flex flex-col gap-1 pt-1">
                   {status.includes("24 hours") ? <p className="text-sm text-red-600">You can only change your username once every 24 hours.</p> : null}
                   {status.includes("Other changes saved:") ? (
@@ -1438,14 +1506,12 @@ export default function SettingsPage() {
 
             {tab === "preferences" && (
               <form onSubmit={savePreferences} className="grid gap-3">
-                <label className="text-sm font-medium">Theme</label>
-                <select className="border rounded px-3 py-2 w-fit min-w-[180px]" value={themePref} onChange={(e) => setThemePref(e.target.value as "auto" | "light" | "dark")}>
-                  <option value="auto">Auto (follow system)</option>
-                  <option value="light">Light</option>
-                  <option value="dark">Dark</option>
-                </select>
-                <p className="text-xs text-gray-600">Auto follows your device theme.</p>
-
+                <section className="settings-native-card settings-appearance"><h3>Appearance</h3><p>Choose how QuestHat looks on this device.</p><div className="settings-theme-grid" role="group" aria-label="Theme">
+                  {([["auto", "System", "▯"], ["light", "Light", "☼"], ["dark", "Dark", "☾"]] as const).map(([value,label,icon]) => <button key={value} type="button" aria-pressed={themePref === value} onClick={() => setThemePref(value)}><span className={`settings-theme-preview settings-theme-${value}`} aria-hidden="true">{icon}</span><strong>{label}</strong><span className="settings-theme-check" aria-hidden="true">{themePref === value ? "✓" : ""}</span></button>)}
+                </div></section>
+                <SettingsInterests userId={userId} />
+                <section className="settings-native-card"><h3>Notifications</h3><p>Choose what reaches you.</p><button type="button" className="app-secondary-button" onClick={() => setTab("notifications")}>Manage notifications</button></section>
+                <section className="settings-native-card"><h3>Privacy nudges</h3><p>Helpful reminders before sharing publicly.</p>
                 <label className="flex items-start gap-2 text-sm">
                   <input type="checkbox" checked={marketingOptIn} onChange={(e) => setMarketingOptIn(e.target.checked)} />
                   <span>Send me product updates, promotions, and announcements.</span>
@@ -1456,7 +1522,9 @@ export default function SettingsPage() {
                   <span>Public location warning (recommended). Show confirmation before posting quests with public meetup visibility.</span>
                 </label>
 
-                <button type="button" className="border rounded px-3 py-2 w-fit" onClick={() => void restartOnboarding()}>Restart onboarding</button>
+                </section>
+                <OptionalAnalyticsPreference />
+                <button type="button" className="border rounded px-3 py-2 w-fit" onClick={() => void restartOnboarding()}>Restart setup</button>
                 <button className="border rounded px-3 py-2 w-fit">Save preferences</button>
               </form>
             )}
@@ -1499,8 +1567,8 @@ export default function SettingsPage() {
               </div>
             )}
 
-            {tab === "friends" && (
-              <div className="space-y-5">
+            {primaryTab === "friends" && (
+              <div className="space-y-5 settings-people-cards">
                 <div className="rounded-xl border bg-gray-50 p-3 space-y-2">
                   <div className="flex items-center justify-between gap-2">
                     <div>
@@ -1619,20 +1687,21 @@ export default function SettingsPage() {
                     </div>
                   )}
                 </div>
+                <div className="rounded-xl border p-3 space-y-2"><h2 className="font-semibold">Meetup safety tips</h2><p className="text-sm">Restore the hosting and joining reminders if you previously hid them.</p><button type="button" className="app-secondary-button" onClick={() => { let storage: Storage | null = null; try { storage = window.localStorage; } catch {} setStatus(resetMeetupSafety(storage, userId) ? "Meetup safety reminders reset." : "Could not reset safety reminders in this browser."); }}>Show safety tips again</button></div>
               </div>
             )}
 
-            {tab === "blocked" && (
-              <div className="rounded-xl border bg-gray-50 p-3 space-y-2">
+            {primaryTab === "friends" && (
+              <div className="rounded-xl border bg-gray-50 p-3 space-y-2 settings-blocked-card">
                 <div className="flex items-center justify-between gap-2">
                   <div>
-                    <p className="text-sm font-medium">Blocked users</p>
+                    <p className="text-sm font-medium">Blocked accounts</p>
                     <p className="text-xs text-gray-500">People you’ve blocked won’t appear in feeds or comments.</p>
                   </div>
                   <p className="text-xs text-gray-500">{blockedProfiles.length} total</p>
                 </div>
                 {blockedProfiles.length === 0 ? (
-                  <p className="text-sm text-gray-500">No blocked users.</p>
+                  <p className="text-sm text-gray-500">No blocked accounts.</p>
                 ) : (
                   <div className="space-y-2">
                     {blockedProfiles.map((p) => (
@@ -1662,7 +1731,7 @@ export default function SettingsPage() {
                 </button>
               </div>
             ) : null}
-          </>
+          </div>
         )}
       </section>
 
