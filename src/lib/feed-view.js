@@ -1,11 +1,12 @@
 export const FEED_VIEW_STORAGE_KEY = "sidequest_feed_view_mode";
 const CHANGE_EVENT = "questhat-feed-view-changed";
 export function readFeedView(target) {
-  return target.localStorage.getItem(FEED_VIEW_STORAGE_KEY) === "map" ? "map" : "list";
+  try { return target.localStorage.getItem(FEED_VIEW_STORAGE_KEY) === "map" ? "map" : "list"; }
+  catch { return "list"; }
 }
 export function publishFeedView(target, mode) {
   if (mode !== "list" && mode !== "map") return;
-  target.localStorage.setItem(FEED_VIEW_STORAGE_KEY, mode);
+  try { target.localStorage.setItem(FEED_VIEW_STORAGE_KEY, mode); } catch { return; }
   target.dispatchEvent(new CustomEvent(CHANGE_EVENT, { detail: mode }));
 }
 export function subscribeFeedView(target, onChange) {

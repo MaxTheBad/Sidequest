@@ -13,6 +13,8 @@ import { formatReportReference } from "@/lib/reporting";
 import { recordSecurityAudit } from "@/lib/security-audit";
 import { GENDER_IDENTITY_OPTIONS } from "@/lib/people-discovery";
 import { downloadQuestCalendarFile } from "@/lib/quest-calendar";
+import { listingJoinAuthPath } from "@/lib/auth-return";
+import { PostQuestFollowUp } from "@/components/post-quest-followup";
 
 type Listing = {
   id: string;
@@ -28,6 +30,9 @@ type Listing = {
   group_size: number;
   availability: string | null;
   starts_at?: string | null;
+  ends_at?: string | null;
+  completed_at?: string | null;
+  status?: string | null;
   time_flexible?: boolean | null;
   host_coordination_reminders_disabled?: boolean | null;
   host_coordination_reminders_snoozed_until?: string | null;
@@ -80,6 +85,7 @@ export default function ListingPage({ questId, onClose }: { questId?: string; on
   const pathname = usePathname();
   const listingId = questId || pathname.match(/^\/listing\/([^/]+)/)?.[1];
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const joinButtonRef = useRef<HTMLButtonElement>(null);
   const [commentSort, setCommentSort] = useState("newest");
   const [membershipAction, setMembershipAction] = useState<string | null>(null);
   const closeDetails = () => onClose ? onClose() : router.replace("/");
@@ -480,7 +486,7 @@ export default function ListingPage({ questId, onClose }: { questId?: string; on
 
       const withMedia = await supabase
         .from("quests")
-        .select("id,creator_id,created_at,title,description,city,join_mode,exact_location_visibility,exact_address,skill_level,group_size,availability,starts_at,time_flexible,host_coordination_reminders_disabled,host_coordination_reminders_snoozed_until,media_video_url,media_source,media_items,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,avatar_url,city)")
+        .select(`id,creator_id,created_at,title,description,city,join_mode,exact_location_visibility,exact_address,skill_level,group_size,availability,starts_at,time_flexible,host_coordination_reminders_disabled,host_coordination_reminders_snoozed_until,media_video_url,media_source,media_items,${process.env.NEXT_PUBLIC_POST_QUEST_FOLLOW_UPS === "true" ? "ends_at,completed_at,status," : ""}hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,avatar_url,city)`)
         .eq("id", listingId)
         .maybeSingle();
 
@@ -491,7 +497,7 @@ export default function ListingPage({ questId, onClose }: { questId?: string; on
       if (error?.message?.includes("column quests.media_items does not exist")) {
         const fallback = await supabase
           .from("quests")
-          .select("id,creator_id,created_at,title,description,city,join_mode,exact_location_visibility,exact_address,skill_level,group_size,availability,starts_at,time_flexible,media_video_url,media_source,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,avatar_url,city)")
+          .select(`id,creator_id,created_at,title,description,city,join_mode,exact_location_visibility,exact_address,skill_level,group_size,availability,starts_at,time_flexible,media_video_url,media_source,${process.env.NEXT_PUBLIC_POST_QUEST_FOLLOW_UPS === "true" ? "ends_at,completed_at,status," : ""}hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,avatar_url,city)`)
           .eq("id", listingId)
           .maybeSingle();
         data = fallback.data as Listing | null;
@@ -544,6 +550,14 @@ export default function ListingPage({ questId, onClose }: { questId?: string; on
 
     void init();
   }, [supabase, listingId]);
+
+  useEffect(() => {
+    if (!userId || !listing || listing.id !== listingId || new URLSearchParams(window.location.search).get("join") !== "1") return;
+    // Consume the navigation intent, but never join without another deliberate tap.
+    router.replace(`/listing/${listing.id}`, { scroll: false });
+    joinButtonRef.current?.focus();
+    setStatus("You’re signed in. Choose Join or Request to join to continue.");
+  }, [userId, listing, listingId, router]);
 
   async function checkInToQuest() {
     if (!supabase || !listing || !userId || checkInAction) return;
@@ -640,7 +654,8 @@ export default function ListingPage({ questId, onClose }: { questId?: string; on
   }, [listing?.id]);
 
   async function toggleJoin() {
-    if (!supabase || !userId || !listing) return setStatus("Log in to join.");
+    if (!listing || listing.id !== listingId || !supabase) return setStatus("Joining is unavailable. Please try again.");
+    if (!userId) return router.push(listingJoinAuthPath(listing.id));
     if (listing.creator_id === userId) return setStatus("You can’t join your own listing.");
 
     if (myMembershipStatus === "approved" || myMembershipStatus === "pending") {
@@ -1417,7 +1432,8 @@ export default function ListingPage({ questId, onClose }: { questId?: string; on
               <button type="button" onClick={() => void askQuestion("public")}><span><AppIcon name="message" /></span>Comment</button>
               <button type="button" onClick={() => void askQuestion("private")}><span><QuestCategoryIcon name="navigate-outline" /></span>Message</button>
             </div>
-            {isOwner ? <footer className="detail119-footer"><Link href={`/listing/${listing.id}/edit`}><QuestCategoryIcon name="create-outline" />Edit quest</Link><button type="button" className="detail119-danger" onClick={() => void deleteListing()}>Delete listing</button></footer> : <button type="button" className="detail119-primary detail119-join" onClick={() => void toggleJoin()}>{myMembershipStatus === "pending" ? "Cancel request" : myMembershipStatus === "declined" ? "Request again" : hasJoined ? "Leave quest" : listing.join_mode === "approval_required" ? "Request to join" : "Join now"}</button>}
+            <PostQuestFollowUp key={`${listing.id}:${userId || "guest"}`} quest={listing} userId={userId} approvedParticipant={myMembershipStatus === "approved"} isHost={isOwner} members={members} onLifecycleSaved={(next) => setListing((current) => current?.id === next.id ? { ...current, ...next } : current)} />
+            {isOwner ? <footer className="detail119-footer"><Link href={`/listing/${listing.id}/edit`}><QuestCategoryIcon name="create-outline" />Edit quest</Link><button type="button" className="detail119-danger" onClick={() => void deleteListing()}>Delete listing</button></footer> : <button ref={joinButtonRef} type="button" className="detail119-primary detail119-join" onClick={() => void toggleJoin()}>{myMembershipStatus === "pending" ? "Cancel request" : myMembershipStatus === "declined" ? "Request again" : hasJoined ? "Leave quest" : listing.join_mode === "approval_required" ? "Request to join" : "Join now"}</button>}
 
             {status && (
               <p role="status" className="text-xs text-gray-600">

@@ -14,6 +14,12 @@ function privacySafeUrl(rawUrl: string | undefined) {
   }
 }
 
+function privacySafeTransactionName(name: string | undefined) {
+  if (!name) return undefined;
+  const method = /^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\s+(.+)$/i.exec(name);
+  return method ? `${method[1]} ${privacySafeUrl(method[2]) || "[route]"}` : privacySafeUrl(name);
+}
+
 export function scrubSentryBreadcrumb(breadcrumb: Breadcrumb): Breadcrumb | null {
   if (breadcrumb.category === "console" || breadcrumb.category === "fetch" || breadcrumb.category === "xhr") return null;
   return {
@@ -26,6 +32,7 @@ export function scrubSentryBreadcrumb(breadcrumb: Breadcrumb): Breadcrumb | null
 export function scrubSentryEvent<T extends Event>(event: T): T {
   return {
     ...event,
+    transaction: privacySafeTransactionName(event.transaction),
     message: undefined,
     user: undefined,
     request: event.request
@@ -46,12 +53,15 @@ export function scrubSentryEvent<T extends Event>(event: T): T {
         }
       : undefined,
     extra: undefined,
+    contexts: event.contexts?.trace ? { ...event.contexts, trace: { ...event.contexts.trace, data: undefined, description: undefined } } : event.contexts,
     spans: event.spans?.map((span) => ({ ...span, data: undefined, description: undefined })),
   };
 }
 
 export function sentryPrivacyOptions() {
   return {
+    // Sentry 11's streaming default skips the transaction privacy callback.
+    traceLifecycle: "static" as const,
     sendDefaultPii: false,
     dataCollection: {
       userInfo: false,

@@ -30,3 +30,38 @@ export function followUpPayload({ questId, went, rating }) {
   if (rating != null && (!Number.isInteger(rating) || rating < 1 || rating > 5)) throw new Error("Rating must be between 1 and 5.");
   return { p_quest_id: questId, p_went: went, p_rating: rating ?? null };
 }
+
+export function questLifecyclePayload({ quest, userId, endsAt, markCompleted = false, now = Date.now() }) {
+  if (!userId || quest?.creator_id !== userId) throw new Error("Only the host can update the quest lifecycle.");
+  if (CANCELED.has(String(quest.status || "").toLowerCase())) throw new Error("Cancelled quests cannot be completed.");
+  const end = validTime(endsAt);
+  const start = validTime(quest.starts_at);
+  if (end === null || (start !== null && end < start)) throw new Error("End time must be at or after the start time.");
+  if (markCompleted && end > now) throw new Error("A future end time cannot be marked complete.");
+  return { p_quest_id: quest.id, p_ends_at: new Date(end).toISOString(), p_mark_completed: markCompleted };
+}
+
+/** Serialize writes and discard completion callbacks after navigation/account changes. */
+export function createFollowUpActionRunner() {
+  let pending = false;
+  let generation = 0;
+  return {
+    invalidate() { generation += 1; pending = false; },
+    async run(request, { onBusy, onSuccess, onError }) {
+      if (pending) return false;
+      pending = true;
+      const ticket = generation;
+      onBusy(true);
+      try {
+        const result = await request();
+        if (result.error) throw result.error;
+        if (ticket === generation) onSuccess(result.data);
+      } catch (error) {
+        if (ticket === generation) onError(error);
+      } finally {
+        if (ticket === generation) { pending = false; onBusy(false); }
+      }
+      return true;
+    },
+  };
+}

@@ -43,4 +43,6 @@ test("web Sentry excludes user payloads and session replay", () => {
   assert.match(webSentryPrivacy, /query_string:\s*undefined/);
   assert.match(webSentryPrivacy, /extra:\s*undefined/);
   assert.doesNotMatch(webSentryClient, /replayIntegration/);
+  const nextConfig = readFileSync(new URL("../next.config.ts", import.meta.url), "utf8");
+  assert.match(nextConfig, /NEXT_PUBLIC_SENTRY_RELEASE: process\.env\.CF_PAGES_COMMIT_SHA \|\| process\.env\.SENTRY_RELEASE/);
 });

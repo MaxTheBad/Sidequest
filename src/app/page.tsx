@@ -1,7 +1,7 @@
 "use client";
 
 import { shareQuestPayload } from "@/lib/share-quest.js";
-import { publishFeedView } from "@/lib/feed-view.js";
+import { useHydratedFeedView } from "@/lib/use-hydrated-feed-view";
 
 import { manageModalFocus } from "@/lib/modal-focus";
 import { useCategoryCatalog } from "@/lib/use-category-catalog";
@@ -34,7 +34,7 @@ import { formatReportReference } from "@/lib/reporting";
 import { recordSecurityAudit, type MediaAuditInput } from "@/lib/security-audit";
 import { ageFromBirthDate, GENDER_IDENTITY_OPTIONS } from "@/lib/people-discovery";
 import { captureProductEvent, identifyProductUser, resetProductUser } from "@/components/posthog-provider";
-import { consumeAuthReturn, getSafeAuthReturnPath, storeAuthReturn } from "@/lib/auth-return";
+import { cancelAuthReturn, consumeAuthReturn, getSafeAuthReturnPath, storeAuthReturn } from "@/lib/auth-return";
 import { authChallengeMessage } from "@/lib/auth-challenge";
 import { resultBucket } from "@/lib/product-analytics";
 import { classifyAnalyticsFailure } from "@/lib/product-analytics";
@@ -281,13 +281,11 @@ export default function Home() {
   const [viewerName, setViewerName] = useState("");
 
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const clearPendingAuthReturn = () => {
-    if (typeof window !== "undefined") window.sessionStorage.removeItem("questhat_auth_return_to");
-  };
   const closeAuthModal = () => {
-    clearPendingAuthReturn();
+    const returnTo = typeof window !== "undefined" ? cancelAuthReturn(window.sessionStorage) : null;
     setStatus("");
     setShowAuthModal(false);
+    if (returnTo) window.location.assign(returnTo);
   };
   const [showCreateModal, setShowCreateModal] = useState(false);
   const hasCreateDraftRef = useRef(false);
@@ -393,10 +391,7 @@ export default function Home() {
   const [shareCountCooldownUntilByQuestId, setShareCountCooldownUntilByQuestId] = useState<Record<string, number>>({});
   const [feedMediaIndexByQuest, setFeedMediaIndexByQuest] = useState<Record<string, number>>({});
   const [generatedVideoThumbs, setGeneratedVideoThumbs] = useState<Record<string, string>>({});
-  const [feedViewMode, setFeedViewMode] = useState<"list" | "map">(() => {
-    if (typeof window === "undefined") return "list";
-    return window.localStorage.getItem("sidequest_feed_view_mode") === "map" ? "map" : "list";
-  });
+  const [feedViewMode, setFeedViewMode] = useHydratedFeedView();
   const [selectedMapQuestId, setSelectedMapQuestId] = useState<string | null>(null);
   const [focusedMapQuestId, setFocusedMapQuestId] = useState<string | null>(null);
   const [openCardMenuQuestId, setOpenCardMenuQuestId] = useState<string | null>(null);
@@ -635,11 +630,6 @@ export default function Home() {
     const ts = raw ? Number(raw) : 0;
     if (Number.isFinite(ts) && ts > 0) publicWarningMutedUntilRef.current = ts;
   }, []);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    publishFeedView(window, feedViewMode);
-  }, [feedViewMode]);
 
   function resolveCountryCodeByName(name: string) {
     const found = countryOptions.find((c) => c.name.toLowerCase() === name.trim().toLowerCase());
@@ -1996,6 +1986,11 @@ export default function Home() {
 
       const recoveryIntent = params.get("auth") === "recovery";
       if (returnTo) storeAuthReturn(sessionStorage, returnTo);
+      if (returnTo && activeUserId) {
+        const destination = consumeAuthReturn(sessionStorage);
+        if (destination) window.location.assign(destination);
+        return;
+      }
       if ((params.get("auth") === "1" || recoveryIntent || params.has("edit") || pendingAuth) && !activeUserId) {
         setShowAuthModal(true);
         setStatus(recoveryIntent ? "Enter your email, then choose Reset password." : "Please sign in to continue.");
@@ -3637,6 +3632,7 @@ export default function Home() {
 
   async function toggleJoinQuest(id: string, safetyConfirmed = false) {
     if (!supabase || !userId) {
+      storeAuthReturn(window.sessionStorage, `/listing/${id}?join=1`);
       setShowAuthModal(true);
       return setStatus("Log in to join.");
     }

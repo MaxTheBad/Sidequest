@@ -14,17 +14,24 @@ export function listingJoinAuthPath(listingId: string): string {
   return `/?auth=1&returnTo=${encodeURIComponent(returnTo)}`;
 }
 
-/** Store only the allow-listed return route, retaining it through an auth cancellation. */
+/** Retain only the allow-listed return route while sign-in is pending or retried. */
 export function storeAuthReturn(storage: SessionStorageLike, value: string | null | undefined): boolean {
   const path = getSafeAuthReturnPath(value);
   if (!path) return false;
-  storage.setItem(AUTH_RETURN_STORAGE_KEY, path);
-  return true;
+  try { storage.setItem(AUTH_RETURN_STORAGE_KEY, path); return true; }
+  catch { return false; }
 }
 
 /** Consume before navigating so a retry or later sign-in cannot replay the action. */
 export function consumeAuthReturn(storage: SessionStorageLike): string | null {
-  const path = getSafeAuthReturnPath(storage.getItem(AUTH_RETURN_STORAGE_KEY));
-  storage.removeItem(AUTH_RETURN_STORAGE_KEY);
-  return path;
+  try {
+    const path = getSafeAuthReturnPath(storage.getItem(AUTH_RETURN_STORAGE_KEY));
+    storage.removeItem(AUTH_RETURN_STORAGE_KEY);
+    return path;
+  } catch { return null; }
+}
+
+/** Explicit cancellation returns to browsing and prevents a later sign-in replay. */
+export function cancelAuthReturn(storage: SessionStorageLike): string | null {
+  return consumeAuthReturn(storage)?.split("?")[0] || null;
 }

@@ -2,7 +2,10 @@ import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs/config";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // Pages supplies the deployed commit at build time; publish only its identifier.
+  env: process.env.CF_PAGES_COMMIT_SHA || process.env.SENTRY_RELEASE
+    ? { NEXT_PUBLIC_SENTRY_RELEASE: process.env.CF_PAGES_COMMIT_SHA || process.env.SENTRY_RELEASE }
+    : {},
 };
 
 export default withSentryConfig(nextConfig, {

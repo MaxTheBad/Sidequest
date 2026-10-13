@@ -14,6 +14,15 @@ function parseMailbox(value: string) {
   return (match?.[1] || value).trim();
 }
 
+type SmtpSocket = {
+  opened: Promise<unknown>;
+  readable: ReadableStream<Uint8Array>;
+  writable: WritableStream<Uint8Array>;
+  close(): Promise<void>;
+  startTls(): SmtpSocket;
+};
+type SocketConnector = (address: { hostname: string; port: number }, options: { secureTransport: "on" | "starttls" }) => SmtpSocket;
+
 export async function sendSmtpEmail({
   host, port, user, password, from, to, subject, text, html, replyTo,
 }: {
@@ -27,18 +36,25 @@ export async function sendSmtpEmail({
   text: string;
   html: string;
   replyTo?: string;
-}) {
+}, { connectSocket, timeoutMs = 30_000 }: { connectSocket?: SocketConnector; timeoutMs?: number } = {}) {
   const socketModule = "cloudflare:sockets";
-  const { connect } = await import(/* webpackIgnore: true */ socketModule);
+  const connect: SocketConnector = connectSocket || (await import(/* webpackIgnore: true */ socketModule)).connect;
   const socket = connect(
     { hostname: host, port },
     { secureTransport: port === 465 ? "on" : "starttls" },
   );
-  await socket.opened;
-
   let activeSocket = socket;
-  let reader = activeSocket.readable.getReader();
-  let writer = activeSocket.writable.getWriter();
+  let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+  let writer: WritableStreamDefaultWriter<Uint8Array> | undefined;
+  const deadline = Date.now() + timeoutMs;
+  async function waitFor<T>(operation: Promise<T>): Promise<T> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      return await Promise.race([operation, new Promise<never>((_, reject) => {
+        timer = setTimeout(() => { void activeSocket.close().catch(() => undefined); reject(new Error("Email delivery timed out.")); }, Math.max(0, deadline - Date.now()));
+      })]);
+    } finally { if (timer !== undefined) clearTimeout(timer); }
+  }
   const decoder = new TextDecoder();
   const encoder = new TextEncoder();
   let buffered = "";
@@ -58,27 +74,30 @@ export async function sendSmtpEmail({
         }
         continue;
       }
-      const { value, done } = await reader.read();
+      const { value, done } = await reader!.read();
       if (done) throw new Error("SMTP connection closed unexpectedly.");
       buffered += decoder.decode(value, { stream: true });
     }
   }
 
   async function command(value: string, expectedCode: number) {
-    await writer.write(encoder.encode(`${value}\r\n`));
-    const response = await readResponse();
+    await waitFor(writer!.write(encoder.encode(`${value}\r\n`)));
+    const response = await waitFor(readResponse());
     if (response.code !== expectedCode) throw new Error(`Unexpected SMTP response ${response.code}: ${response.message}`);
   }
 
   try {
-    const greeting = await readResponse();
+    await waitFor(activeSocket.opened);
+    reader = activeSocket.readable.getReader();
+    writer = activeSocket.writable.getWriter();
+    const greeting = await waitFor(readResponse());
     if (greeting.code !== 220) throw new Error(`Unexpected SMTP greeting: ${greeting.message}`);
     await command("EHLO questhat.com", 250);
     if (port !== 465) {
       reader.releaseLock();
       writer.releaseLock();
       activeSocket = activeSocket.startTls();
-      await activeSocket.opened;
+      await waitFor(activeSocket.opened);
       reader = activeSocket.readable.getReader();
       writer = activeSocket.writable.getWriter();
       buffered = "";
@@ -115,13 +134,15 @@ export async function sendSmtpEmail({
       "",
     ].filter(Boolean).join("\r\n").replace(/^\./gm, "..");
 
-    await writer.write(encoder.encode(`${message}\r\n.\r\n`));
-    const accepted = await readResponse();
+    await waitFor(writer.write(encoder.encode(`${message}\r\n.\r\n`)));
+    const accepted = await waitFor(readResponse());
     if (accepted.code !== 250) throw new Error(`SMTP rejected the message: ${accepted.message}`);
-    await command("QUIT", 221);
+    // DATA acknowledgement confirms delivery; a missing QUIT reply must not
+    // release the reservation and cause a second email on retry.
+    try { await command("QUIT", 221); } catch { /* Delivery was acknowledged. */ }
   } finally {
-    reader.releaseLock();
-    writer.releaseLock();
-    await activeSocket.close().catch(() => undefined);
+    try { reader?.releaseLock(); } catch { /* A timed-out read may still be pending. */ }
+    try { writer?.releaseLock(); } catch { /* A timed-out write may still be pending. */ }
+    void activeSocket.close().catch(() => undefined);
   }
 }

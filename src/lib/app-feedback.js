@@ -27,7 +27,7 @@ export function createFeedbackService({ deliver, reserve, finalize }) {
       try { reservation = await reserve(await feedbackFingerprint(actorId, feedback), captchaVerified); }
       catch { return { ok: false, status: 503, error: "Feedback is temporarily unavailable. Please try again." }; }
       if (!reservation?.accepted) {
-        if (reservation?.reason === "duplicate") return { ok: false, status: 409, error: "That feedback was already sent. Thanks for the report." };
+        if (reservation?.reason === "duplicate") return { ok: false, status: 409, error: "Matching feedback is already being handled. If you saw a delivery error, contact support before retrying." };
         if (reservation?.reason === "captcha_required") return { ok: false, status: 429, error: "Verification is required before sending more feedback.", captchaRequired: true };
         if (reservation?.reason === "rate_limited") return { ok: false, status: 429, error: "Too much feedback was sent recently. Please try again later." };
         return { ok: false, status: 503, error: "Feedback is temporarily unavailable. Please try again." };
