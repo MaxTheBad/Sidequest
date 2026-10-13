@@ -16,8 +16,21 @@ test("Turnstile token success is server-derived and replay fails", async () => {
     const token = options.body.get("response");
     if (used.has(token)) return { ok: true, json: async () => ({ success: false, "error-codes": ["timeout-or-duplicate"] }) };
     used.add(token);
-    return { ok: true, json: async () => ({ success: true }) };
+    return { ok: true, json: async () => ({ success: true, action: "app-feedback", hostname: "questhat.com" }) };
   };
-  assert.equal(await verifyTurnstileToken({ token: "single-use", secret: "server-secret", fetchImpl }), true);
-  assert.equal(await verifyTurnstileToken({ token: "single-use", secret: "server-secret", fetchImpl }), false);
+  assert.equal(await verifyTurnstileToken({ token: "single-use", secret: "server-secret", expectedAction: "app-feedback", expectedHostname: "questhat.com", fetchImpl }), true);
+  assert.equal(await verifyTurnstileToken({ token: "single-use", secret: "server-secret", expectedAction: "app-feedback", expectedHostname: "questhat.com", fetchImpl }), false);
+});
+
+test("Turnstile verification rejects valid tokens minted for another action or hostname", async () => {
+  const verify = (overrides) => verifyTurnstileToken({
+    token: "valid-but-wrong-context",
+    secret: "server-secret",
+    expectedAction: "app-feedback",
+    expectedHostname: "questhat.com",
+    fetchImpl: async () => ({ ok: true, json: async () => ({ success: true, action: "app-feedback", hostname: "questhat.com", ...overrides }) }),
+  });
+  assert.equal(await verify({ action: "signup" }), false);
+  assert.equal(await verify({ hostname: "attacker.example" }), false);
+  assert.equal(await verify({}), true);
 });

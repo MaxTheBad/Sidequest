@@ -22,11 +22,11 @@
         "NSMotionUsageDescription": "QuestHat uses motion data to support device and media interactions in the app.",
         "ITSAppUsesNonExemptEncryption": false
       },
-      "buildNumber": "129"
+      "buildNumber": "130"
     },
     "android": {
       "package": "com.questhat.app",
-      "versionCode": 15,
+      "versionCode": 16,
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#10111A"
@@ -60,7 +60,7 @@
       "supabaseAnonKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlwamV3dm1tem14YWtvZXdxbGZvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI4Mjg1MTYsImV4cCI6MjA4ODQwNDUxNn0.VaP8G8enHWZTfK5RtwhkRFHaeBeukuE7aWR9yyy7Io0",
       "siteUrl": "https://questhat.com",
       "postQuestFollowUpsEnabled": true,
-      "nativeFeedbackEnabled": false,
+      "nativeFeedbackEnabled": true,
       "sentryDsn": "https://84c04292f40c81ff823208372926ea64@o4512159894667264.ingest.us.sentry.io/4512159979077632",
       "eas": {
         "projectId": "269b58c4-775f-48c4-8171-196d92901c8d"

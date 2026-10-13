@@ -23,7 +23,12 @@ export async function POST(req: Request) {
   if (authError || !data.user) return Response.json({ ok: false, error: "Sign in to send feedback." }, { status: 401 });
   const input = await req.json().catch(() => null) as Record<string, unknown> | null;
   const captchaToken = typeof input?.captchaToken === "string" ? input.captchaToken : "";
-  const captchaVerified = await verifyTurnstileToken({ token: captchaToken, secret: process.env.TURNSTILE_SECRET_KEY });
+  const captchaVerified = await verifyTurnstileToken({
+    token: captchaToken,
+    secret: process.env.TURNSTILE_SECRET_KEY,
+    expectedAction: "app-feedback",
+    expectedHostname: new URL(req.url).hostname,
+  });
   if (!serviceRole) return Response.json({ ok: false, error: "Feedback is temporarily unavailable. Please try again." }, { status: 503 });
   const server = createClient(url, serviceRole, { auth: { persistSession: false, autoRefreshToken: false } });
   const service = createFeedbackService({

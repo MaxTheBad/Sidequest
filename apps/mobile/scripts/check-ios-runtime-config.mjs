@@ -24,8 +24,8 @@ if (extra.postQuestFollowUpsEnabled !== true) {
   throw new Error("iOS runtime config is missing the released post-quest follow-up capability");
 }
 
-if (extra.nativeFeedbackEnabled === true) {
-  throw new Error("iOS runtime config unexpectedly enables native feedback without CAPTCHA support");
+if (extra.nativeFeedbackEnabled !== true) {
+  throw new Error("iOS runtime config does not enable native feedback with the hosted Turnstile challenge");
 }
 
-console.log("ios_runtime_config=supabase-present;post-quest-followups=enabled;native-feedback=disabled");
+console.log("ios_runtime_config=supabase-present;post-quest-followups=enabled;native-feedback=enabled");

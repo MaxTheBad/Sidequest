@@ -30,6 +30,7 @@
   },
   "dependencies": {
     "@react-native-community/slider": "^5.2.0",
+    "@sentry/nextjs": "11.7.0",
     "@supabase/supabase-js": "^2.111.0",
     "heic2any": "^0.0.4",
     "i18n-iso-countries": "^7.14.0",

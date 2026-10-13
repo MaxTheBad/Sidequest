@@ -87,6 +87,7 @@ import { shouldRefreshQuestMembershipFromPayload } from "./lib/quest-membership-
 import { createOptionalAnalytics } from "./lib/optional-analytics";
 import { discoveryLoadedProperties, joinReviewedProperties } from "./lib/metrics-privacy";
 import { authChallengeMessage } from "./lib/auth-challenge";
+import { isAllowedNativeFeedbackNavigation, nativeFeedbackChallengeUrl, parseNativeFeedbackChallengeMessage } from "./lib/native-feedback-challenge";
 import { PostQuestFollowUpCard } from "./components/PostQuestFollowUpCard";
 import { requestNeutralEngagementReview } from "./lib/native-review";
 import createQuestBannerLarge from "../assets/create-quest/categories/outdoors/cover-05.jpg";
@@ -1492,6 +1493,8 @@ function QuestHatApp() {
   const [nativeFeedbackDiagnostics, setNativeFeedbackDiagnostics] = useState(false);
   const [nativeFeedbackSending, setNativeFeedbackSending] = useState(false);
   const [nativeFeedbackStatus, setNativeFeedbackStatus] = useState("");
+  const [nativeFeedbackCaptchaToken, setNativeFeedbackCaptchaToken] = useState("");
+  const [showNativeFeedbackChallenge, setShowNativeFeedbackChallenge] = useState(false);
   const [settingsCountryCode, setSettingsCountryCode] = useState("US");
   const [settingsRegion, setSettingsRegion] = useState("");
   const [settingsRadiusKm, setSettingsRadiusKm] = useState(15);
@@ -1823,12 +1826,16 @@ function QuestHatApp() {
   useEffect(() => {
     if (!showNativeFeedback) return;
     const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
+      if (showNativeFeedbackChallenge) {
+        setShowNativeFeedbackChallenge(false);
+        return true;
+      }
       Keyboard.dismiss();
       setShowNativeFeedback(false);
       return true;
     });
     return () => subscription.remove();
-  }, [showNativeFeedback]);
+  }, [showNativeFeedback, showNativeFeedbackChallenge]);
 
   useEffect(() => {
     blockActionGate.invalidate();
@@ -9142,9 +9149,20 @@ function privateThreadIncludesUsers(
       try {
         const { data } = await supabase.auth.getSession();
         if (!data.session?.access_token) throw new Error("Sign in is required.");
-        const response = await fetch(`${env.siteUrl.replace(/\/$/, "")}/api/app-feedback`, { method: "POST", headers: { "Content-Type": "application/json", authorization: `Bearer ${data.session.access_token}` }, body: JSON.stringify({ category: nativeFeedbackCategory, message: nativeFeedbackMessage, replyContact: nativeFeedbackReply, diagnostics: nativeFeedbackDiagnostics, diagnosticsInfo: nativeFeedbackDiagnostics ? { platform: Platform.OS, appVersion: Constants.nativeAppVersion || null } : null }) });
+        const captchaToken = nativeFeedbackCaptchaToken;
+        if (captchaToken) setNativeFeedbackCaptchaToken("");
+        const response = await fetch(`${env.siteUrl.replace(/\/$/, "")}/api/app-feedback`, { method: "POST", headers: { "Content-Type": "application/json", authorization: `Bearer ${data.session.access_token}` }, body: JSON.stringify({ category: nativeFeedbackCategory, message: nativeFeedbackMessage, replyContact: nativeFeedbackReply, diagnostics: nativeFeedbackDiagnostics, diagnosticsInfo: nativeFeedbackDiagnostics ? { platform: Platform.OS, appVersion: Constants.nativeAppVersion || null } : null, captchaToken: captchaToken || undefined }) });
         const result = await response.json().catch(() => null) as { ok?: boolean; error?: string; captchaRequired?: boolean } | null;
-        if (!response.ok || !result?.ok) { setNativeFeedbackStatus(result?.captchaRequired ? "Feedback was not sent: verification is required. This native build cannot complete it yet." : `Feedback was not sent: ${result?.error || "Please try again."}`); return; }
+        if (!response.ok || !result?.ok) {
+          if (result?.captchaRequired) {
+            setShowNativeFeedbackChallenge(true);
+            setNativeFeedbackStatus("Complete the verification check, then send your feedback again.");
+          } else {
+            setNativeFeedbackStatus(`Feedback was not sent: ${result?.error || "Please try again."}`);
+          }
+          return;
+        }
+        setShowNativeFeedbackChallenge(false); setNativeFeedbackCaptchaToken("");
         setNativeFeedbackStatus("Thanks — your feedback was sent."); setNativeFeedbackMessage("");
       } catch (error) { setNativeFeedbackStatus(`Feedback was not sent: ${error instanceof Error ? error.message : "Please try again."}`); }
       finally { setNativeFeedbackSending(false); }
@@ -10324,7 +10342,7 @@ function privateThreadIncludesUsers(
     return (
         <>
           <ScreenHeader title="Settings" subtitle="Make QuestHat feel like yours." titleColor={shellText} subtitleColor={shellMuted} action={<Pressable onPress={() => { setShowNativeFeedback(true); setNativeFeedbackStatus(""); }} accessibilityRole="button" accessibilityLabel="Suggest or report a problem"><Text style={{ color: shellMuted, textDecorationLine: "underline" }}>Feedback</Text></Pressable>} />
-          {showNativeFeedback ? <View style={[styles.panel, { gap: 10 }]} accessibilityViewIsModal accessibilityLabel="Suggest or report a problem" onAccessibilityEscape={() => { Keyboard.dismiss(); setShowNativeFeedback(false); }}><View style={styles.row}><Text style={styles.detailLabel}>Suggest or report a problem</Text><Pressable onPress={() => { Keyboard.dismiss(); setShowNativeFeedback(false); }} accessibilityRole="button" accessibilityLabel="Close feedback form"><Text style={styles.link}>Close</Text></Pressable></View><Text style={styles.muted}>For app feedback only, not reports about people or content.</Text><TextInput value={nativeFeedbackCategory} onChangeText={setNativeFeedbackCategory} placeholder="Category: suggestion, bug, usability, other" placeholderTextColor="#718096" style={styles.settingsInput} /><TextInput multiline value={nativeFeedbackMessage} onChangeText={setNativeFeedbackMessage} placeholder="What happened or what would help?" placeholderTextColor="#718096" style={[styles.settingsInput, styles.settingsBioInput]} maxLength={3000} /><TextInput value={nativeFeedbackReply} onChangeText={setNativeFeedbackReply} keyboardType="email-address" autoCapitalize="none" placeholder="Reply email (optional)" placeholderTextColor="#718096" style={styles.settingsInput} /><View style={styles.settingsControlRow}><Text style={styles.settingsControlTitle}>Share app/version/platform diagnostics</Text><Switch value={nativeFeedbackDiagnostics} onValueChange={setNativeFeedbackDiagnostics} /></View><Pressable style={[styles.primaryButton, nativeFeedbackSending && styles.primaryButtonDisabled]} onPress={() => void submitNativeFeedback()} disabled={nativeFeedbackSending}><Text style={styles.primaryButtonText}>{nativeFeedbackSending ? "Sending…" : "Send feedback"}</Text></Pressable>{nativeFeedbackStatus ? <Text accessibilityRole="alert" style={styles.muted}>{nativeFeedbackStatus}</Text> : null}</View> : null}
+          {showNativeFeedback ? <View style={[styles.panel, { gap: 10 }]} accessibilityViewIsModal accessibilityLabel="Suggest or report a problem" onAccessibilityEscape={() => { Keyboard.dismiss(); setShowNativeFeedback(false); setShowNativeFeedbackChallenge(false); setNativeFeedbackCaptchaToken(""); }}><View style={styles.row}><Text style={styles.detailLabel}>Suggest or report a problem</Text><Pressable onPress={() => { Keyboard.dismiss(); setShowNativeFeedback(false); setShowNativeFeedbackChallenge(false); setNativeFeedbackCaptchaToken(""); }} accessibilityRole="button" accessibilityLabel="Close feedback form"><Text style={styles.link}>Close</Text></Pressable></View><Text style={styles.muted}>For app feedback only, not reports about people or content.</Text><TextInput value={nativeFeedbackCategory} onChangeText={setNativeFeedbackCategory} placeholder="Category: suggestion, bug, usability, other" placeholderTextColor="#718096" style={styles.settingsInput} /><TextInput multiline value={nativeFeedbackMessage} onChangeText={setNativeFeedbackMessage} placeholder="What happened or what would help?" placeholderTextColor="#718096" style={[styles.settingsInput, styles.settingsBioInput]} maxLength={3000} /><TextInput value={nativeFeedbackReply} onChangeText={setNativeFeedbackReply} keyboardType="email-address" autoCapitalize="none" placeholder="Reply email (optional)" placeholderTextColor="#718096" style={styles.settingsInput} /><View style={styles.settingsControlRow}><Text style={styles.settingsControlTitle}>Share app/version/platform diagnostics</Text><Switch value={nativeFeedbackDiagnostics} onValueChange={setNativeFeedbackDiagnostics} /></View>{nativeFeedbackCaptchaToken ? <Text style={styles.muted}>Verification complete. The token is single-use and will be checked by QuestHat when you send.</Text> : null}<Pressable style={[styles.primaryButton, nativeFeedbackSending && styles.primaryButtonDisabled]} onPress={() => void submitNativeFeedback()} disabled={nativeFeedbackSending}><Text style={styles.primaryButtonText}>{nativeFeedbackSending ? "Sending…" : nativeFeedbackCaptchaToken ? "Send verified feedback" : "Send feedback"}</Text></Pressable>{nativeFeedbackStatus ? <Text accessibilityRole="alert" style={styles.muted}>{nativeFeedbackStatus}</Text> : null}<Modal visible={showNativeFeedbackChallenge} transparent animationType="fade" onRequestClose={() => setShowNativeFeedbackChallenge(false)}><SafeAreaView style={styles.modalOverlay}><View style={styles.nativeFeedbackChallengeCard} accessibilityViewIsModal accessibilityLabel="Feedback verification"><View style={styles.row}><View style={{ flex: 1 }}><Text style={styles.detailLabel}>Complete verification</Text><Text style={styles.muted}>QuestHat never loads your feedback text into this check.</Text></View><Pressable onPress={() => setShowNativeFeedbackChallenge(false)} accessibilityRole="button" accessibilityLabel="Close verification"><Text style={styles.link}>Close</Text></Pressable></View>{nativeFeedbackChallengeUrl(env.siteUrl) ? <WebView source={{ uri: nativeFeedbackChallengeUrl(env.siteUrl) as string }} style={styles.nativeFeedbackChallengeWebView} originWhitelist={["https://*", "about:*"]} javaScriptEnabled domStorageEnabled sharedCookiesEnabled thirdPartyCookiesEnabled onShouldStartLoadWithRequest={(request) => isAllowedNativeFeedbackNavigation(request.url, env.siteUrl)} onMessage={(event) => { const token = parseNativeFeedbackChallengeMessage(event.nativeEvent, env.siteUrl); if (!token) { setNativeFeedbackStatus("Verification response was invalid. Please try again."); return; } setNativeFeedbackCaptchaToken(token); setShowNativeFeedbackChallenge(false); setNativeFeedbackStatus("Verification complete. Tap Send verified feedback."); }} onError={() => setNativeFeedbackStatus("Verification could not load. Check your connection and try again.")} onHttpError={() => setNativeFeedbackStatus("Verification could not load. Please try again.")} /> : <Text style={styles.muted}>Verification is unavailable because the secure QuestHat site URL is missing.</Text>}</View></SafeAreaView></Modal></View> : null}
         <View style={styles.settingsShell}>
           <LinearGradient colors={["#173743", "#10202b", "#12141d"]} style={styles.settingsIdentityCard}>
             <View style={styles.settingsIdentityTop}>
@@ -15961,6 +15979,25 @@ const styles = StyleSheet.create({
   },
   primaryButtonTextDisabled: {
     color: "#6b7280",
+  },
+  nativeFeedbackChallengeCard: {
+    alignSelf: "center",
+    backgroundColor: "#11131c",
+    borderColor: "rgba(255,255,255,0.1)",
+    borderRadius: 22,
+    borderWidth: 1,
+    gap: 12,
+    maxWidth: 520,
+    overflow: "hidden",
+    padding: 16,
+    width: "100%",
+  },
+  nativeFeedbackChallengeWebView: {
+    backgroundColor: "#ffffff",
+    borderRadius: 16,
+    height: 420,
+    overflow: "hidden",
+    width: "100%",
   },
   secondaryButton: {
     alignItems: "center",

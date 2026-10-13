@@ -17,9 +17,15 @@ test("authentication challenge responses fail clearly without a local bypass", (
 });
 
 test("web and native auth surfaces use the compatible challenge message", () => {
+  const passwordAuthSource = nativeSource.slice(
+    nativeSource.indexOf("async function passwordAuth()"),
+    nativeSource.indexOf("async function sendEmailCode()"),
+  );
+
   assert.match(webSource, /authChallengeMessage\(error\) \|\| `Login failed:/);
   assert.match(webSource, /authChallengeMessage\(error\) \|\| error\.message/);
   assert.match(nativeSource, /authChallengeMessage\(result\.error\) \|\| result\.error\.message/);
   assert.match(nativeSource, /authChallengeMessage\(error\) \|\| error\.message/);
-  assert.doesNotMatch(nativeSource, /captchaToken:/);
+  assert.match(passwordAuthSource, /supabase\.auth\.signUp/);
+  assert.doesNotMatch(passwordAuthSource, /captchaToken:/);
 });

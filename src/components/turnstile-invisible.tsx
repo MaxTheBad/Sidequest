@@ -15,6 +15,7 @@ declare global {
         execution?: "render" | "execute";
         appearance?: "always" | "execute" | "interaction-only";
         size?: "normal" | "compact";
+        action?: string;
       }) => string;
       execute?: (widgetId: string | HTMLElement) => void;
       reset?: (widgetId?: string | HTMLElement) => void;
@@ -29,9 +30,10 @@ type Props = {
   onError?: () => void;
   onExpired?: () => void;
   className?: string;
+  action?: string;
 };
 
-export function TurnstileInvisible({ onToken, onReady, onError, onExpired, className }: Props) {
+export function TurnstileInvisible({ onToken, onReady, onError, onExpired, className, action }: Props) {
   const id = useId();
   const widgetRef = useRef<HTMLDivElement | null>(null);
   const widgetIdRef = useRef<string | null>(null);
@@ -56,6 +58,7 @@ export function TurnstileInvisible({ onToken, onReady, onError, onExpired, class
       execution: "render",
       appearance: "interaction-only",
       size: "normal",
+      action,
       callback: (token) => onTokenRef.current(token),
       "error-callback": () => onErrorRef.current?.(),
       "expired-callback": () => onExpiredRef.current?.(),
@@ -67,7 +70,7 @@ export function TurnstileInvisible({ onToken, onReady, onError, onExpired, class
       window.turnstile?.remove?.(widgetId);
       widgetIdRef.current = null;
     };
-  }, [scriptLoaded, sitekey]);
+  }, [action, scriptLoaded, sitekey]);
 
   useEffect(() => {
     if (!sitekey) {
