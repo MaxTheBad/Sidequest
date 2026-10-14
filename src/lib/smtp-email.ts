@@ -132,7 +132,7 @@ export async function sendSmtpEmail({
       wrapBase64(html),
       `--${boundary}--`,
       "",
-    ].filter(Boolean).join("\r\n").replace(/^\./gm, "..");
+    ].filter((line) => line !== null).join("\r\n").replace(/^\./gm, "..");
 
     await waitFor(writer.write(encoder.encode(`${message}\r\n.\r\n`)));
     const accepted = await waitFor(readResponse());

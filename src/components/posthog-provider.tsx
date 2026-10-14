@@ -4,16 +4,19 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
 import posthog from "posthog-js";
 import { PostHogProvider } from "posthog-js/react";
+import { privacySafeAnalyticsPath, scrubProductAnalyticsProperties } from "@/lib/product-analytics";
 
 const posthogKey = process.env.NEXT_PUBLIC_POSTHOG_KEY;
 const analyticsConsentKey = "questhat_optional_analytics";
 const analyticsConsentEvent = "questhat:analytics-consent";
 let optionalAnalyticsEnabled = false;
+let optionalAnalyticsInitialized = false;
+let deniedInMemory = false;
 let pendingProductUserId: string | null = null;
 type AnalyticsConsent = "loading" | "unset" | "granted" | "denied";
 
 function getAnalyticsConsent(): AnalyticsConsent {
-  if (!posthogKey || typeof window === "undefined") return "denied";
+  if (!posthogKey || typeof window === "undefined" || deniedInMemory) return "denied";
   try {
     const saved = window.localStorage.getItem(analyticsConsentKey);
     return saved === "granted" || saved === "denied" ? saved : "unset";
@@ -29,13 +32,25 @@ function subscribeToAnalyticsConsent(notify: () => void) {
 }
 
 function startOptionalAnalytics() {
-  optionalAnalyticsEnabled = true;
-  posthog.opt_in_capturing();
-  if (pendingProductUserId) posthog.identify(pendingProductUserId, { platform: "web" });
+  if (!posthogKey || typeof window === "undefined" || getAnalyticsConsent() !== "granted") return false;
+  if (optionalAnalyticsEnabled) return true;
+  try {
+    if (!optionalAnalyticsInitialized) {
+      initializeOptionalAnalytics();
+      optionalAnalyticsInitialized = true;
+    }
+    optionalAnalyticsEnabled = true;
+    posthog.opt_in_capturing();
+    if (pendingProductUserId) posthog.identify(pendingProductUserId, { platform: "web" });
+    return true;
+  } catch {
+    optionalAnalyticsEnabled = false;
+    return false;
+  }
 }
 
-if (typeof window !== "undefined" && posthogKey) {
-  posthog.init(posthogKey, {
+function initializeOptionalAnalytics() {
+  posthog.init(posthogKey!, {
     api_host: process.env.NEXT_PUBLIC_POSTHOG_HOST || "https://us.i.posthog.com",
     autocapture: false,
     capture_pageview: false,
@@ -44,19 +59,27 @@ if (typeof window !== "undefined" && posthogKey) {
     persistence: "localStorage",
     respect_dnt: true,
     opt_out_capturing_by_default: true,
+    save_campaign_params: false,
+    save_referrer: false,
+    disable_capture_url_hashes: true,
+    advanced_disable_flags: true,
+    disable_external_dependency_loading: true,
+    disable_surveys: true,
+    disable_product_tours: true,
+    disable_conversations: true,
+    before_send: (event) => event && optionalAnalyticsEnabled ? { ...event, properties: scrubProductAnalyticsProperties(event.properties) } : null,
   });
 }
 
 function privacySafePath(pathname: string) {
-  if (pathname.startsWith("/listing/")) return "/listing/[id]";
-  return pathname;
+  return privacySafeAnalyticsPath(pathname);
 }
 
 function PageViewCapture({ enabled }: { enabled: boolean }) {
   const pathname = usePathname();
 
   useEffect(() => {
-    if (!enabled || !posthogKey || typeof window === "undefined") return;
+    if (!enabled || !posthogKey || typeof window === "undefined" || !startOptionalAnalytics()) return;
     const path = privacySafePath(pathname || "/");
     posthog.capture("$pageview", {
       $current_url: `${window.location.origin}${path}`,
@@ -77,8 +100,8 @@ export function identifyProductUser(userId: string) {
 }
 
 export function resetProductUser() {
-  if (!posthogKey) return;
   pendingProductUserId = null;
+  if (!posthogKey || !optionalAnalyticsInitialized) return;
   const wasOptedIn = !posthog.has_opted_out_capturing();
   posthog.reset();
   if (wasOptedIn) posthog.opt_in_capturing();
@@ -96,7 +119,7 @@ export default function QuestHatPostHogProvider({ children }: { children: React.
       startOptionalAnalytics();
     } else if (consent === "denied") {
       optionalAnalyticsEnabled = false;
-      posthog.opt_out_capturing();
+      if (optionalAnalyticsInitialized) posthog.opt_out_capturing();
     }
   }, [consent]);
 
@@ -128,15 +151,22 @@ function updateOptionalAnalytics(choice: "granted" | "denied") {
   if (!posthogKey || typeof window === "undefined") return;
   // A denied choice stops capture immediately, even when persistence is unavailable.
   if (choice === "denied") {
+    deniedInMemory = true;
     optionalAnalyticsEnabled = false;
-    posthog.opt_out_capturing();
-    posthog.reset();
+    if (optionalAnalyticsInitialized) {
+      posthog.opt_out_capturing();
+      posthog.reset();
+    }
   }
-  window.localStorage.setItem(analyticsConsentKey, choice);
-  if (choice === "granted") {
-    startOptionalAnalytics();
+  try {
+    window.localStorage.setItem(analyticsConsentKey, choice);
+    if (choice === "granted") {
+      deniedInMemory = false;
+      startOptionalAnalytics();
+    }
+  } finally {
+    window.dispatchEvent(new Event(analyticsConsentEvent));
   }
-  window.dispatchEvent(new Event(analyticsConsentEvent));
 }
 
 export function OptionalAnalyticsPreference() {
@@ -144,7 +174,7 @@ export function OptionalAnalyticsPreference() {
   const [status, setStatus] = useState("");
   useEffect(() => {
     void Promise.resolve().then(() => {
-      try { setEnabled(window.localStorage.getItem(analyticsConsentKey) === "granted"); } catch { setStatus("This browser cannot save the analytics preference."); }
+      try { setEnabled(getAnalyticsConsent() === "granted"); } catch { setStatus("This browser cannot save the analytics preference."); }
     });
   }, []);
   return <section className="settings-parity-interests"><h2>Optional analytics</h2><p>Allow privacy-limited analytics to help improve QuestHat. No ads, session recordings, or cross-app tracking.</p><label className="flex items-center gap-3"><input type="checkbox" checked={enabled} disabled={!posthogKey} onChange={event => { const next = event.target.checked; try { updateOptionalAnalytics(next ? "granted" : "denied"); setEnabled(next); setStatus(next ? "Optional analytics enabled." : "Optional analytics off."); } catch { if (!next) setEnabled(false); setStatus("Could not save this preference in your browser."); } }} />Allow optional analytics</label>{!posthogKey ? <p>Optional analytics is unavailable in this environment.</p> : null}{status ? <p role="status">{status}</p> : null}</section>;

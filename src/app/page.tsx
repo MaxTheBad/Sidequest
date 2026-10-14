@@ -1,6 +1,6 @@
 "use client";
 
-import { shareQuestPayload } from "@/lib/share-quest.js";
+import { shareQuestAndRecord } from "@/lib/share-quest.js";
 import { useHydratedFeedView } from "@/lib/use-hydrated-feed-view";
 
 import { manageModalFocus } from "@/lib/modal-focus";
@@ -37,7 +37,7 @@ import { captureProductEvent, identifyProductUser, resetProductUser } from "@/co
 import { cancelAuthReturn, consumeAuthReturn, getSafeAuthReturnPath, storeAuthReturn } from "@/lib/auth-return";
 import { authChallengeMessage } from "@/lib/auth-challenge";
 import { resultBucket } from "@/lib/product-analytics";
-import { classifyAnalyticsFailure } from "@/lib/product-analytics";
+import { runQuestJoinRequest } from "@/lib/product-analytics";
 
 type Hobby = { id: string; name: string; category: string | null };
 type QuestMediaItem = {
@@ -389,6 +389,7 @@ export default function Home() {
   const [commentCountByQuestId, setCommentCountByQuestId] = useState<Record<string, number>>({});
   const [shareCountByQuestId, setShareCountByQuestId] = useState<Record<string, number>>({});
   const [shareCountCooldownUntilByQuestId, setShareCountCooldownUntilByQuestId] = useState<Record<string, number>>({});
+  const shareCountReservationRef = useRef<Record<string, number>>({});
   const [feedMediaIndexByQuest, setFeedMediaIndexByQuest] = useState<Record<string, number>>({});
   const [generatedVideoThumbs, setGeneratedVideoThumbs] = useState<Record<string, string>>({});
   const [feedViewMode, setFeedViewMode] = useHydratedFeedView();
@@ -3342,23 +3343,31 @@ export default function Home() {
     const url = typeof window !== "undefined" ? `${window.location.origin}/listing/${q.id}` : `/listing/${q.id}`;
     const text = `${q.title}${q.description ? ` - ${q.description}` : ""}`;
     const cooldownMs = 5 * 60 * 1000;
-    const now = Date.now();
-    const cooldownUntil = shareCountCooldownUntilByQuestId[q.id] || 0;
-    const canIncrementShareCount = now >= cooldownUntil;
-    if (supabase && canIncrementShareCount) {
-      const { error } = await supabase.from("quest_shares").insert({ quest_id: q.id, user_id: userId || null, shared_via: "native_share" });
-      if (error) {
-        setStatus(error.message);
-      } else {
-        setShareCountByQuestId((prev) => ({ ...prev, [q.id]: (prev[q.id] || 0) + 1 }));
-        setShareCountCooldownUntilByQuestId((prev) => ({ ...prev, [q.id]: now + cooldownMs }));
-        if (typeof window !== "undefined") {
-          window.localStorage.setItem(`sidequest_share_count_cooldown:${q.id}`, String(now + cooldownMs));
+    const result = await shareQuestAndRecord(typeof navigator === "undefined" ? null : navigator, { title: q.title, text, url }, {
+      onOutcome: ({ outcome, method, confirmation }) => captureProductEvent("quest_share_result", { platform: "web", outcome, method, confirmation }),
+      recordShare: async (method) => {
+        const now = Date.now();
+        const previousReservation = shareCountReservationRef.current[q.id] || 0;
+        if (!supabase || now < Math.max(previousReservation, shareCountCooldownUntilByQuestId[q.id] || 0)) return false;
+        // Reserve synchronously so concurrent completed copies cannot count twice.
+        shareCountReservationRef.current[q.id] = now + cooldownMs;
+        try {
+          const { error } = await supabase.from("quest_shares").insert({ quest_id: q.id, user_id: userId || null, shared_via: method === "clipboard" ? "copy_link" : "native_share" });
+          if (error) throw error;
+          setShareCountByQuestId((prev) => ({ ...prev, [q.id]: (prev[q.id] || 0) + 1 }));
+          setShareCountCooldownUntilByQuestId((prev) => ({ ...prev, [q.id]: now + cooldownMs }));
+          try { window.localStorage.setItem(`sidequest_share_count_cooldown:${q.id}`, String(now + cooldownMs)); } catch { /* The acknowledged count and in-memory cooldown remain valid. */ }
+          return true;
+        } catch (error) {
+          shareCountReservationRef.current[q.id] = previousReservation;
+          throw error;
         }
-      }
-    }
-    const result = await shareQuestPayload(typeof navigator === "undefined" ? null : navigator, { title: q.title, text, url });
-    if (result === "copied") setStatus("Link copied to clipboard.");
+      },
+    });
+    if (result.outcome === "completed") setStatus(`${result.method === "clipboard" ? "Link copied to clipboard." : "Shared to a device share target."}${result.countFailed ? " Share count could not be updated." : ""}`);
+    else if (result.outcome === "initiated") setStatus("Share options opened.");
+    else if (result.outcome === "cancelled") setStatus("Sharing canceled.");
+    else setStatus(result.outcome === "unsupported" ? "Sharing is unavailable in this browser." : "Could not share this quest. Please try again.");
   }
 
   function askQuestion(quest: Quest, mode: "public" | "private" = "public") {
@@ -3701,20 +3710,13 @@ export default function Home() {
       return;
     }
     {
-      captureProductEvent("quest_join_attempted", { platform: "web", join_mode: quest?.join_mode || "open" });
-      const { error } = await supabase.from("quest_members").insert({ quest_id: id, user_id: userId, role: "member", status: nextStatus });
-      if (error && !error.message.includes("duplicate") && !error.message.toLowerCase().includes("unique")) {
-        captureProductEvent("quest_join_result", { platform: "web", outcome: "failed", failure_category: classifyAnalyticsFailure(error) });
-        return setStatus(error.message);
-      }
+      const { error } = await runQuestJoinRequest(
+        () => supabase.from("quest_members").insert({ quest_id: id, user_id: userId, role: "member", status: nextStatus }),
+        captureProductEvent, { joinMode: quest?.join_mode, surface: "home" },
+      );
+      if (error && !error.message.includes("duplicate") && !error.message.toLowerCase().includes("unique")) return setStatus(error.message);
     }
     await loadMemberships(userId);
-    captureProductEvent("quest_join_requested", {
-      platform: "web",
-      join_status: nextStatus,
-      join_mode: quest?.join_mode || "open",
-      outcome: "success",
-    });
     setStatus(`${nextStatus === "pending" ? "Join request sent ⏳" : "Joined quest ✅"}`);
   }
 
@@ -3737,7 +3739,10 @@ export default function Home() {
       if (delErr) return setStatus(delErr.message);
     }
     {
-      const { error } = await supabase.from("quest_members").insert({ quest_id: id, user_id: userId, role: "member", status: nextStatus });
+      const { error } = await runQuestJoinRequest(
+        () => supabase.from("quest_members").insert({ quest_id: id, user_id: userId, role: "member", status: nextStatus }),
+        captureProductEvent, { joinMode: quest.join_mode, surface: "home" },
+      );
       if (error && !error.message.includes("duplicate") && !error.message.toLowerCase().includes("unique")) return setStatus(error.message);
     }
     await loadMemberships(userId);

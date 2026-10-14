@@ -15,6 +15,8 @@ import { GENDER_IDENTITY_OPTIONS } from "@/lib/people-discovery";
 import { downloadQuestCalendarFile } from "@/lib/quest-calendar";
 import { listingJoinAuthPath } from "@/lib/auth-return";
 import { PostQuestFollowUp } from "@/components/post-quest-followup";
+import { captureProductEvent } from "@/components/posthog-provider";
+import { runQuestJoinRequest } from "@/lib/product-analytics";
 
 type Listing = {
   id: string;
@@ -701,7 +703,10 @@ export default function ListingPage({ questId, onClose }: { questId?: string; on
     }
 
     {
-      const { error } = await supabase.from("quest_members").insert({ quest_id: listing.id, user_id: userId, role: "member", status: nextStatus });
+      const { error } = await runQuestJoinRequest(
+        () => supabase.from("quest_members").insert({ quest_id: listing.id, user_id: userId, role: "member", status: nextStatus }),
+        captureProductEvent, { joinMode: listing.join_mode, surface: "listing" },
+      );
       if (error && !error.message.includes("duplicate") && !error.message.toLowerCase().includes("unique")) return setStatus(error.message);
     }
 
@@ -712,12 +717,15 @@ export default function ListingPage({ questId, onClose }: { questId?: string; on
   }
 
   async function confirmDistanceJoin() {
-    if (!supabase || !userId || !listing) return;
+    if (!supabase || !userId || !listing || listing.id !== listingId) return;
     setShowDistanceJoinModal(false);
 
     const nextStatus = (listing.join_mode || "open") === "approval_required" ? "pending" : "approved";
     {
-      const { error } = await supabase.from("quest_members").insert({ quest_id: listing.id, user_id: userId, role: "member", status: nextStatus });
+      const { error } = await runQuestJoinRequest(
+        () => supabase.from("quest_members").insert({ quest_id: listing.id, user_id: userId, role: "member", status: nextStatus }),
+        captureProductEvent, { joinMode: listing.join_mode, surface: "listing" },
+      );
       if (error && !error.message.includes("duplicate") && !error.message.toLowerCase().includes("unique")) return setStatus(error.message);
     }
 
