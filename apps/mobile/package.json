@@ -9,7 +9,7 @@
     "android": "expo run:android",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
-    "eas-build-post-install": "node scripts/install-google-services.mjs"
+    "eas-build-post-install": "node scripts/install-google-services.mjs && node scripts/eas-build-preflight.mjs"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",

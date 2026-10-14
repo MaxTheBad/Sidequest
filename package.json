@@ -16,6 +16,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:release": "node scripts/check-release-inputs.mjs --web && next build",
     "start": "next start",
     "postinstall": "patch-package",
     "lint": "eslint",

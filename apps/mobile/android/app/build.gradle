@@ -91,6 +91,19 @@ def releaseKeyAlias = System.getenv('QUESTHAT_UPLOAD_KEY_ALIAS')
 def releaseKeyPassword = System.getenv('QUESTHAT_UPLOAD_KEY_PASSWORD')
 def hasReleaseSigning = [releaseStoreFilePath, releaseStorePassword, releaseKeyAlias, releaseKeyPassword].every { value -> value != null && !value.trim().isEmpty() }
 
+// Installed Sentry React Native integration: JS/Hermes maps for this build.
+apply from: new File(["node", "--print", "require('path').dirname(require.resolve('@sentry/react-native/package.json'))"].execute().text.trim(), "sentry.gradle")
+
+// A shipping build must not silently fall back to a developer's saved token.
+def questhatReleaseInputCheck = tasks.register("verifyQuestHatReleaseInputs", Exec) {
+    onlyIf { System.getenv("SENTRY_DISABLE_AUTO_UPLOAD") != "true" }
+    workingDir rootDir.parentFile.parentFile.parentFile
+    commandLine(System.getenv("NODE_BINARY") ?: "node", "scripts/check-release-inputs.mjs", "--native")
+}
+tasks.configureEach { task ->
+    if (task.name == "preReleaseBuild") task.dependsOn(questhatReleaseInputCheck)
+}
+
 android {
     ndkVersion rootProject.ext.ndkVersion
 

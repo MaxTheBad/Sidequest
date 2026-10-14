@@ -9,6 +9,7 @@
     "icon": "./assets/icon.png",
     "ios": {
       "bundleIdentifier": "com.questhat.app",
+      "associatedDomains": ["applinks:questhat.com"],
       "supportsTablet": false,
       "icon": "./assets/icon.png",
       "infoPlist": {

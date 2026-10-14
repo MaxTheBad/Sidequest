@@ -146,17 +146,18 @@ Sentry.init({
   beforeBreadcrumb: scrubSentryBreadcrumb,
 });
 
-const posthogClient = env.posthogKey
+const createPosthogClient = () => env.posthogKey
   ? new PostHog(env.posthogKey, {
       host: "https://us.i.posthog.com",
       defaultOptIn: false,
-      captureAppLifecycleEvents: true,
+      captureAppLifecycleEvents: false,
+      preloadFeatureFlags: false,
       capturePushNotificationOpened: false,
       capturePushNotificationSubscriptions: false,
       enableSessionReplay: false,
     })
   : null;
-const optionalAnalytics = createOptionalAnalytics(posthogClient);
+const optionalAnalytics = createOptionalAnalytics(createPosthogClient);
 
 WebBrowser.maybeCompleteAuthSession();
 Notifications.setNotificationHandler({

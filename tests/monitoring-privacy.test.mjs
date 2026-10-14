@@ -18,7 +18,10 @@ test("native diagnostics strip sensitive event data and explicitly disable repla
 });
 
 test("product analytics calls use the consent gate on web and native", () => {
-  assert.match(appSource, /const optionalAnalytics = createOptionalAnalytics\(posthogClient\)/);
+  assert.match(appSource, /const createPosthogClient = \(\) => env\.posthogKey/);
+  assert.match(appSource, /const optionalAnalytics = createOptionalAnalytics\(createPosthogClient\)/);
+  assert.match(appSource, /captureAppLifecycleEvents:\s*false/);
+  assert.match(appSource, /preloadFeatureFlags:\s*false/);
   assert.match(appSource, /await optionalAnalytics\.disable\(\);/);
   assert.match(appSource, /optionalAnalytics\.capture\("screen_viewed"/);
   assert.doesNotMatch(appSource, /posthogClient\?\.capture\(/);
