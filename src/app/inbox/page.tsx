@@ -1,4 +1,5 @@
 "use client";
+import { isQuestClosedForJoining, QUEST_CLOSED_MESSAGE } from "@/lib/quest-join-eligibility";
 
 import Link from "next/link";
 import { AppIcon } from "@/components/app-icons";
@@ -52,7 +53,7 @@ type QuestInvitation = {
   id: string;
   message: string | null;
   created_at: string;
-  quests?: { id: string; title: string | null }[] | { id: string; title: string | null } | null;
+  quests?: { id: string; title: string | null; starts_at?: string | null; ends_at?: string | null; completed_at?: string | null; status?: string | null }[] | { id: string; title: string | null; starts_at?: string | null; ends_at?: string | null; completed_at?: string | null; status?: string | null } | null;
   sender?: { display_name: string | null; avatar_url: string | null }[] | { display_name: string | null; avatar_url: string | null } | null;
 };
 
@@ -162,7 +163,7 @@ export default function InboxPage() {
         .order("created_at", { ascending: false })
         .limit(300),
       supabase.from("friends").select("requester_id,addressee_id,status").eq("status", "blocked").or(`requester_id.eq.${uid},addressee_id.eq.${uid}`),
-      supabase.from("quest_invitations").select("id,message,created_at,quests(id,title),sender:profiles!quest_invitations_sender_id_fkey(display_name,avatar_url)").eq("recipient_id", uid).eq("status", "pending").order("created_at", { ascending: false }),
+      supabase.from("quest_invitations").select("id,message,created_at,quests(id,title,starts_at,ends_at,completed_at,status),sender:profiles!quest_invitations_sender_id_fkey(display_name,avatar_url)").eq("recipient_id", uid).eq("status", "pending").order("created_at", { ascending: false }),
     ]);
     if (!invitationRes.error) setQuestInvitations((invitationRes.data || []) as QuestInvitation[]);
 
@@ -248,11 +249,15 @@ export default function InboxPage() {
 
   async function respondToInvitation(invitationId: string, accept: boolean) {
     if (!supabase || !userId || invitationActionId) return;
+    const invitation = questInvitations.find((item) => item.id === invitationId);
+    const quest = Array.isArray(invitation?.quests) ? invitation.quests[0] : invitation?.quests;
+    if (accept && isQuestClosedForJoining(quest)) return setStatus(QUEST_CLOSED_MESSAGE);
     setInvitationActionId(invitationId);
-    const { error } = await supabase.rpc("respond_to_quest_invitation", { p_invitation_id: invitationId, p_accept: accept });
+    const { data: changed, error } = await supabase.rpc("respond_to_quest_invitation", { p_invitation_id: invitationId, p_accept: accept });
     setInvitationActionId(null);
     if (error) return setStatus(error.message);
     setQuestInvitations((current) => current.filter((invitation) => invitation.id !== invitationId));
+    if (changed !== true) return setStatus("This invitation is no longer available.");
     setStatus(accept ? "Invitation accepted. You are approved for the quest." : "Invitation declined.");
   }
 
@@ -570,7 +575,7 @@ export default function InboxPage() {
                 const sender = Array.isArray(invitation.sender) ? invitation.sender[0] : invitation.sender;
                 const quest = Array.isArray(invitation.quests) ? invitation.quests[0] : invitation.quests;
                 const busy = invitationActionId === invitation.id;
-                return <article key={invitation.id} className="rounded-xl border bg-white p-3"><div className="flex items-center gap-2">{sender?.avatar_url ? <img src={sender.avatar_url} alt="" className="h-9 w-9 rounded-full border object-cover" /> : <div className="h-9 w-9 rounded-full border bg-slate-100" />}<div className="min-w-0"><p className="font-semibold">{sender?.display_name || "A host"}</p><Link href={`/listing/${quest?.id || ""}`} className="block truncate text-xs text-cyan-800 underline">{quest?.title || "Quest invitation"}</Link></div></div>{invitation.message ? <p className="mt-2 text-sm text-slate-700">{invitation.message}</p> : null}<div className="mt-3 flex gap-2"><button type="button" disabled={busy} className="rounded-lg border px-3 py-1.5 text-xs font-semibold" onClick={() => void respondToInvitation(invitation.id, false)}>Decline</button><button type="button" disabled={busy} className="rounded-lg bg-[#0f7486] px-3 py-1.5 text-xs font-semibold text-white" onClick={() => void respondToInvitation(invitation.id, true)}>{busy ? "Joining…" : "Accept & join"}</button></div></article>;
+                return <article key={invitation.id} className="rounded-xl border bg-white p-3"><div className="flex items-center gap-2">{sender?.avatar_url ? <img src={sender.avatar_url} alt="" className="h-9 w-9 rounded-full border object-cover" /> : <div className="h-9 w-9 rounded-full border bg-slate-100" />}<div className="min-w-0"><p className="font-semibold">{sender?.display_name || "A host"}</p><Link href={`/listing/${quest?.id || ""}`} className="block truncate text-xs text-cyan-800 underline">{quest?.title || "Quest invitation"}</Link></div></div>{invitation.message ? <p className="mt-2 text-sm text-slate-700">{invitation.message}</p> : null}<div className="mt-3 flex gap-2"><button type="button" disabled={busy} className="rounded-lg border px-3 py-1.5 text-xs font-semibold" onClick={() => void respondToInvitation(invitation.id, false)}>Decline</button><button type="button" disabled={busy || isQuestClosedForJoining(quest)} className="rounded-lg bg-[#0f7486] px-3 py-1.5 text-xs font-semibold text-white" onClick={() => void respondToInvitation(invitation.id, true)}>{busy ? "Joining…" : isQuestClosedForJoining(quest) ? "Quest ended" : "Accept & join"}</button></div></article>;
               })}
             </div>
           </section>

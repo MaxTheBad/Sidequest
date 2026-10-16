@@ -7,7 +7,7 @@ import { feedCountdown, feedMembershipAction } from "../lib/feed-card.js";
 
 type Props = {
   id: string; title: string; category: string; timing: string; startsAt?: string | null;
-  isOwner: boolean; isExpired: boolean; membershipStatus?: string; isJoined: boolean; joinMode?: string;
+  isOwner: boolean; isExpired: boolean; isClosed?: boolean; membershipStatus?: string; isJoined: boolean; joinMode?: string;
   going: number; comments: number; shares: number; saved: boolean;
   onMembership: () => void; onComments: () => void; onMessage: () => void; onShare: () => void; onSave: () => void;
 };
@@ -20,7 +20,7 @@ export function FeedCardDetails(props: Props) {
     const timer = window.setInterval(tick, 60000);
     return () => window.clearInterval(timer);
   }, []);
-  const action = feedMembershipAction({ isOwner: props.isOwner, isExpired: props.isExpired, status: props.membershipStatus, isJoined: props.isJoined, joinMode: props.joinMode });
+  const action = feedMembershipAction({ isOwner: props.isOwner, isExpired: props.isExpired, isClosed: props.isClosed, status: props.membershipStatus, isJoined: props.isJoined, joinMode: props.joinMode });
   const countdown = props.startsAt && now !== null ? feedCountdown(props.startsAt, now) : null;
   return <>
     <div className="feed119-summary-anchor">

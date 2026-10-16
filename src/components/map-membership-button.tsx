@@ -3,13 +3,13 @@
 import { feedMembershipAction } from "../lib/feed-card.js";
 
 type Props = {
-  isOwner: boolean; membershipStatus?: string; isJoined: boolean; joinMode?: string;
+  isOwner: boolean; isExpired?: boolean; isClosed?: boolean; membershipStatus?: string; isJoined: boolean; joinMode?: string;
   going: number; isActive: boolean; onMembership: () => void;
 };
 
 export function MapMembershipButton(props: Props) {
   // Map cards always represent the current quest; recreation belongs to List/Edit.
-  const action = feedMembershipAction({ isOwner: props.isOwner, status: props.membershipStatus, isJoined: props.isJoined || props.membershipStatus === "approved", joinMode: props.joinMode });
+  const action = feedMembershipAction({ isOwner: props.isOwner, isExpired: !props.isOwner && props.isExpired, isClosed: props.isClosed, status: props.membershipStatus, isJoined: props.isJoined || props.membershipStatus === "approved", joinMode: props.joinMode });
   return <button type="button" disabled={action.disabled}
     onClick={(event) => { event.stopPropagation(); if (!props.isOwner) props.onMembership(); }}
     className={`inline-flex items-center justify-center rounded-full px-5 py-2.5 text-sm font-semibold transition disabled:cursor-default ${props.isActive ? "bg-white text-black" : action.tone === "ready" ? "bg-[#0c5063] text-white" : "bg-slate-100 text-slate-900"}`}>

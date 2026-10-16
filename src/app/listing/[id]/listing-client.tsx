@@ -15,6 +15,7 @@ import { GENDER_IDENTITY_OPTIONS } from "@/lib/people-discovery";
 import { downloadQuestCalendarFile } from "@/lib/quest-calendar";
 import { listingJoinAuthPath } from "@/lib/auth-return";
 import { PostQuestFollowUp } from "@/components/post-quest-followup";
+import { isQuestClosedForJoining, QUEST_CLOSED_MESSAGE } from "@/lib/quest-join-eligibility";
 import { captureProductEvent } from "@/components/posthog-provider";
 import { runQuestJoinRequest } from "@/lib/product-analytics";
 
@@ -207,6 +208,7 @@ export default function ListingPage({ questId, onClose }: { questId?: string; on
 
   async function sendPeopleInvitations() {
     if (!supabase || !listing || !peopleSelectedIds.length || peopleSending) return;
+    if (isQuestClosedForJoining(listing)) return setStatus(QUEST_CLOSED_MESSAGE);
     setPeopleSending(true);
     const results = await Promise.all(peopleSelectedIds.map((recipientId) => supabase.rpc("send_quest_invitation", {
       p_quest_id: listing.id,
@@ -488,7 +490,7 @@ export default function ListingPage({ questId, onClose }: { questId?: string; on
 
       const withMedia = await supabase
         .from("quests")
-        .select(`id,creator_id,created_at,title,description,city,join_mode,exact_location_visibility,exact_address,skill_level,group_size,availability,starts_at,time_flexible,host_coordination_reminders_disabled,host_coordination_reminders_snoozed_until,media_video_url,media_source,media_items,${process.env.NEXT_PUBLIC_POST_QUEST_FOLLOW_UPS === "true" ? "ends_at,completed_at,status," : ""}hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,avatar_url,city)`)
+        .select(`id,creator_id,created_at,title,description,city,join_mode,exact_location_visibility,exact_address,skill_level,group_size,availability,starts_at,time_flexible,host_coordination_reminders_disabled,host_coordination_reminders_snoozed_until,media_video_url,media_source,media_items,ends_at,completed_at,status,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,avatar_url,city)`)
         .eq("id", listingId)
         .maybeSingle();
 
@@ -499,7 +501,7 @@ export default function ListingPage({ questId, onClose }: { questId?: string; on
       if (error?.message?.includes("column quests.media_items does not exist")) {
         const fallback = await supabase
           .from("quests")
-          .select(`id,creator_id,created_at,title,description,city,join_mode,exact_location_visibility,exact_address,skill_level,group_size,availability,starts_at,time_flexible,media_video_url,media_source,${process.env.NEXT_PUBLIC_POST_QUEST_FOLLOW_UPS === "true" ? "ends_at,completed_at,status," : ""}hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,avatar_url,city)`)
+          .select(`id,creator_id,created_at,title,description,city,join_mode,exact_location_visibility,exact_address,skill_level,group_size,availability,starts_at,time_flexible,media_video_url,media_source,ends_at,completed_at,status,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,avatar_url,city)`)
           .eq("id", listingId)
           .maybeSingle();
         data = fallback.data as Listing | null;
@@ -682,6 +684,7 @@ export default function ListingPage({ questId, onClose }: { questId?: string; on
       return;
     }
 
+    if (isQuestClosedForJoining(listing)) return setStatus(QUEST_CLOSED_MESSAGE);
     const nextStatus = (listing.join_mode || "open") === "approval_required" ? "pending" : "approved";
     if (myMembershipStatus === "declined") {
       const { error: delErr } = await supabase
@@ -719,6 +722,7 @@ export default function ListingPage({ questId, onClose }: { questId?: string; on
   async function confirmDistanceJoin() {
     if (!supabase || !userId || !listing || listing.id !== listingId) return;
     setShowDistanceJoinModal(false);
+    if (isQuestClosedForJoining(listing)) return setStatus(QUEST_CLOSED_MESSAGE);
 
     const nextStatus = (listing.join_mode || "open") === "approval_required" ? "pending" : "approved";
     {
@@ -737,6 +741,7 @@ export default function ListingPage({ questId, onClose }: { questId?: string; on
 
   async function setMemberApproval(targetUserId: string, next: "pending" | "approved" | "declined", shareAddress = false) {
     if (!supabase || !listing || !isManager || membershipAction) return;
+    if (next === "approved" && isQuestClosedForJoining(listing)) return setStatus(QUEST_CLOSED_MESSAGE);
     setMembershipAction(targetUserId);
     try {
       const result = await updateDetailMembership(supabase, { questId: listing.id, targetUserId, userId, status: next, shareAddress });
@@ -1380,7 +1385,7 @@ export default function ListingPage({ questId, onClose }: { questId?: string; on
                         })}
                       </div>
                     ) : <p className="rounded-xl border border-dashed bg-white/70 p-4 text-sm text-slate-600">No opted-in people match these filters yet. Try a wider distance or age range.</p>}
-                    <button type="button" disabled={!peopleSelectedIds.length || peopleSending} className="w-full rounded-xl bg-[#0f7486] px-4 py-3 font-bold text-white disabled:opacity-40" onClick={() => void sendPeopleInvitations()}>{peopleSending ? "Sending…" : `Invite ${peopleSelectedIds.length || "selected"}`}</button>
+                    <button type="button" disabled={!peopleSelectedIds.length || peopleSending || isQuestClosedForJoining(listing)} className="w-full rounded-xl bg-[#0f7486] px-4 py-3 font-bold text-white disabled:opacity-40" onClick={() => void sendPeopleInvitations()}>{peopleSending ? "Sending…" : `Invite ${peopleSelectedIds.length || "selected"}`}</button>
                   </div>
                 )}
               </div>
@@ -1404,7 +1409,7 @@ export default function ListingPage({ questId, onClose }: { questId?: string; on
               </details>
             )}
 
-            {isManager && pendingMembers.length > 0 && <section id="detail119-requests" className="detail119-section"><h2>Join requests <span className="detail119-pending-count">{pendingMembers.length} pending</span></h2>{pendingMembers.map(member => { const person = memberProfileOf(member); return <div className="detail119-request" key={member.user_id}><Link className="detail119-person" href={`/profile/${member.user_id}`}>{person?.avatar_url ? <img src={person.avatar_url} alt="" /> : <span className="detail119-avatar"><AppIcon name="user" /></span>}<span><strong>{person?.display_name || "Member"}</strong><span>Wants to join this quest</span></span><span aria-hidden="true">›</span></Link><div className="detail119-request-actions"><button className="detail119-primary" type="button" disabled={Boolean(membershipAction)} onClick={() => void setMemberApproval(member.user_id, "approved")}><AppIcon name="check" />{membershipAction === member.user_id ? "Updating…" : "Approve"}</button><button className="detail119-danger" type="button" disabled={Boolean(membershipAction)} onClick={() => void declineMember(member.user_id)}>× &nbsp; Decline</button></div>{listing.exact_address && <button className="detail119-share-address" type="button" disabled={Boolean(membershipAction)} onClick={() => void setMemberApproval(member.user_id, "approved", true)}><AppIcon name="location" />Approve and share exact address</button>}</div>; })}</section>}
+            {isManager && pendingMembers.length > 0 && <section id="detail119-requests" className="detail119-section"><h2>Join requests <span className="detail119-pending-count">{pendingMembers.length} pending</span></h2>{pendingMembers.map(member => { const person = memberProfileOf(member); return <div className="detail119-request" key={member.user_id}><Link className="detail119-person" href={`/profile/${member.user_id}`}>{person?.avatar_url ? <img src={person.avatar_url} alt="" /> : <span className="detail119-avatar"><AppIcon name="user" /></span>}<span><strong>{person?.display_name || "Member"}</strong><span>Wants to join this quest</span></span><span aria-hidden="true">›</span></Link><div className="detail119-request-actions"><button className="detail119-primary" type="button" disabled={Boolean(membershipAction) || isQuestClosedForJoining(listing)} onClick={() => void setMemberApproval(member.user_id, "approved")}><AppIcon name="check" />{membershipAction === member.user_id ? "Updating…" : "Approve"}</button><button className="detail119-danger" type="button" disabled={Boolean(membershipAction)} onClick={() => void declineMember(member.user_id)}>× &nbsp; Decline</button></div>{listing.exact_address && <button className="detail119-share-address" type="button" disabled={Boolean(membershipAction) || isQuestClosedForJoining(listing)} onClick={() => void setMemberApproval(member.user_id, "approved", true)}><AppIcon name="location" />Approve and share exact address</button>}</div>; })}</section>}
             <div className="rounded-xl border bg-gray-50 p-3 quest-detail-section quest-comments-section">
               <div className="detail119-comment-heading"><select aria-label="Sort comments" value={commentSort} onChange={event => setCommentSort(event.target.value)}><option value="newest">Newest first</option><option value="oldest">Oldest first</option></select><span>{comments.length} comments</span></div>
               {comments.length ? (
@@ -1441,7 +1446,7 @@ export default function ListingPage({ questId, onClose }: { questId?: string; on
               <button type="button" onClick={() => void askQuestion("private")}><span><QuestCategoryIcon name="navigate-outline" /></span>Message</button>
             </div>
             <PostQuestFollowUp key={`${listing.id}:${userId || "guest"}`} quest={listing} userId={userId} approvedParticipant={myMembershipStatus === "approved"} isHost={isOwner} members={members} onLifecycleSaved={(next) => setListing((current) => current?.id === next.id ? { ...current, ...next } : current)} />
-            {isOwner ? <footer className="detail119-footer"><Link href={`/listing/${listing.id}/edit`}><QuestCategoryIcon name="create-outline" />Edit quest</Link><button type="button" className="detail119-danger" onClick={() => void deleteListing()}>Delete listing</button></footer> : <button ref={joinButtonRef} type="button" className="detail119-primary detail119-join" onClick={() => void toggleJoin()}>{myMembershipStatus === "pending" ? "Cancel request" : myMembershipStatus === "declined" ? "Request again" : hasJoined ? "Leave quest" : listing.join_mode === "approval_required" ? "Request to join" : "Join now"}</button>}
+            {isOwner ? <footer className="detail119-footer"><Link href={`/listing/${listing.id}/edit`}><QuestCategoryIcon name="create-outline" />Edit quest</Link><button type="button" className="detail119-danger" onClick={() => void deleteListing()}>Delete listing</button></footer> : <button ref={joinButtonRef} type="button" className="detail119-primary detail119-join" disabled={isQuestClosedForJoining(listing) && !hasJoined && myMembershipStatus !== "pending"} onClick={() => void toggleJoin()}>{myMembershipStatus === "pending" ? "Cancel request" : myMembershipStatus === "declined" ? "Request again" : hasJoined ? "Leave quest" : isQuestClosedForJoining(listing) ? "Quest ended" : listing.join_mode === "approval_required" ? "Request to join" : "Join now"}</button>}
 
             {status && (
               <p role="status" className="text-xs text-gray-600">

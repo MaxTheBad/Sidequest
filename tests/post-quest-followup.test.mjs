@@ -54,9 +54,10 @@ test("follow-up writes serialize, recover after rejection, and discard interrupt
   assert.deepEqual(updates, [true, "saved", false]);
 });
 
-test("listing loads gated lifecycle fields and mounts account-keyed follow-up controls", () => {
+test("listing always loads join-safety lifecycle fields and mounts account-keyed follow-up controls", () => {
   const listing = readFileSync(new URL("../src/app/listing/[id]/listing-client.tsx", import.meta.url), "utf8");
-  assert.match(listing, /NEXT_PUBLIC_POST_QUEST_FOLLOW_UPS === "true" \? "ends_at,completed_at,status,"/);
+  assert.match(listing, /ends_at,completed_at,status,hobbies/);
+  assert.doesNotMatch(listing, /NEXT_PUBLIC_POST_QUEST_FOLLOW_UPS === "true" \? "ends_at,completed_at,status,"/);
   assert.match(listing, /<PostQuestFollowUp key=/);
   assert.match(listing, /approvedParticipant=\{myMembershipStatus === "approved"\}/);
   assert.match(listing, /isHost=\{isOwner\}/);

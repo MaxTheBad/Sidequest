@@ -1,6 +1,8 @@
 "use client";
 
 import { shareQuestAndRecord } from "@/lib/share-quest.js";
+import { hasQuestEnded, isQuestClosedForJoining, QUEST_CLOSED_MESSAGE } from "@/lib/quest-join-eligibility";
+import { isUnsafeProtectedPublicLabel, PUBLIC_LOCATION_LABEL_ERROR } from "@/lib/public-location-label";
 import { useHydratedFeedView } from "@/lib/use-hydrated-feed-view";
 
 import { manageModalFocus } from "@/lib/modal-focus";
@@ -81,6 +83,9 @@ type DraftMediaItem = {
 };
 
 type Quest = {
+  ends_at?: string | null;
+  completed_at?: string | null;
+  status?: string | null;
   id: string;
   creator_id: string;
   created_at?: string | null;
@@ -913,7 +918,7 @@ export default function Home() {
     const now = Date.now();
     const nowIso = new Date(now).toISOString();
     const completedCutoffIso = new Date(now - (7 * 24 * 60 * 60 * 1000)).toISOString();
-    let q = supabase.from("quests").select("id,creator_id,created_at,title,description,city,skill_level,group_size,availability,starts_at,time_flexible,hobby_id,join_mode,exact_location_visibility,exact_address,apple_place_id,location_details,media_video_url,media_source,media_items,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,username,avatar_url)").order("created_at", { ascending: false }).limit(24);
+    let q = supabase.from("quests").select("id,creator_id,created_at,title,description,city,skill_level,group_size,availability,ends_at,completed_at,status,starts_at,time_flexible,hobby_id,join_mode,exact_location_visibility,exact_address,apple_place_id,location_details,media_video_url,media_source,media_items,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,username,avatar_url)").order("created_at", { ascending: false }).limit(24);
     q = uid ? q.or(`starts_at.gt.${nowIso},and(creator_id.eq.${uid},starts_at.gte.${completedCutoffIso})`) : q.gt("starts_at", nowIso);
       const filterCategoryName = getFilterCategoryName(hobbyFilter);
       if (hobbyFilter !== "all") {
@@ -929,7 +934,7 @@ export default function Home() {
 
     // Backward compatibility if migration for media_items has not been applied yet
     if (error?.message?.includes("column quests.media_items does not exist")) {
-      let fallback = supabase.from("quests").select("id,creator_id,created_at,title,description,city,skill_level,group_size,availability,starts_at,time_flexible,hobby_id,join_mode,exact_location_visibility,exact_address,apple_place_id,location_details,media_video_url,media_source,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,username,avatar_url)").order("created_at", { ascending: false }).limit(24);
+      let fallback = supabase.from("quests").select("id,creator_id,created_at,title,description,city,skill_level,group_size,availability,ends_at,completed_at,status,starts_at,time_flexible,hobby_id,join_mode,exact_location_visibility,exact_address,apple_place_id,location_details,media_video_url,media_source,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,username,avatar_url)").order("created_at", { ascending: false }).limit(24);
       fallback = uid ? fallback.or(`starts_at.gt.${nowIso},and(creator_id.eq.${uid},starts_at.gte.${completedCutoffIso})`) : fallback.gt("starts_at", nowIso);
       if (hobbyFilter !== "all") {
         if (filterCategoryName && hobbyFilter.startsWith("canonical:")) {
@@ -2597,7 +2602,7 @@ export default function Home() {
     void (async () => {
       try {
         const { data, error } = await supabase.from("quests")
-          .select("id,creator_id,created_at,title,description,city,skill_level,group_size,availability,starts_at,time_flexible,hobby_id,join_mode,exact_location_visibility,exact_address,apple_place_id,location_details,media_video_url,media_source,media_items")
+          .select("id,creator_id,created_at,title,description,city,skill_level,group_size,availability,ends_at,completed_at,status,starts_at,time_flexible,hobby_id,join_mode,exact_location_visibility,exact_address,apple_place_id,location_details,media_video_url,media_source,media_items")
           .eq("id", editId).eq("creator_id", userId).maybeSingle();
         if (cancelled) return;
         if (error || !data) {
@@ -3014,6 +3019,7 @@ export default function Home() {
 
     const savedExactAddress = exactAddress.trim();
     const derivedCity = locationMode === "remote" ? city : selectedPublicLocation || city || deriveCityFromLocation(exactAddress);
+    if (isUnsafeProtectedPublicLabel(exactLocationVisibility, derivedCity)) return setStatus(PUBLIC_LOCATION_LABEL_ERROR);
     const availabilityParts = [
       `Start at: ${selectedStartTime.toLocaleString(undefined, { month: "numeric", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })}`,
       timeFlexible ? "Time flexible" : null,
@@ -3650,6 +3656,7 @@ export default function Home() {
     if (quest && quest.creator_id === userId) {
       return setStatus("You can't join your own listing.");
     }
+    if (isQuestClosedForJoining(quest) && !["approved", "pending"].includes(membershipStatusByQuest[id])) return setStatus(QUEST_CLOSED_MESSAGE);
 
     if (quest && !isVirtualQuest(quest) && !["approved", "pending"].includes(membershipStatusByQuest[id]) && !safetyConfirmed && requestMeetupSafety("guest", () => toggleJoinQuest(id, true))) return;
 
@@ -3725,6 +3732,7 @@ export default function Home() {
     const id = pendingDistanceJoinQuestId;
     const quest = quests.find((q) => q.id === id);
     if (!quest) return;
+    if (isQuestClosedForJoining(quest)) { setShowDistanceJoinModal(false); return setStatus(QUEST_CLOSED_MESSAGE); }
     const nextStatus = (quest.join_mode || "open") === "approval_required" ? "pending" : "approved";
     const existingStatus = membershipStatusByQuest[id];
     setShowDistanceJoinModal(false);
@@ -4130,11 +4138,11 @@ export default function Home() {
             const fallbackVisual = catalogFallbackCover ? { ...legacyFallbackVisual, imageUrl: catalogFallbackCover.imageUrl, title: catalogFallbackCover.label } : legacyFallbackVisual;
             const questCoords = coordsByQuestId[q.id];
             const distanceLabel = distanceByQuestId[q.id] || (userLocation && questCoords ? distanceLabelMiles(haversineMiles(userLocation.lat, userLocation.lon, questCoords.lat, questCoords.lon)) : "");
-            const isExpired = Boolean(q.starts_at && new Date(q.starts_at).getTime() <= Date.now() && userId === q.creator_id);
+            const isExpired = hasQuestEnded(q);
 
             return (
             <article key={q.id} className={`feed119-card quest-card relative w-full bg-white border border-slate-200 shadow-[0_14px_40px_rgba(15,23,42,0.08)] overflow-hidden ${isExpired ? "grayscale-[0.65] opacity-80 ring-1 ring-slate-400/30" : ""} ${feedViewMode === "list" ? "rounded-none sm:rounded-[1.75rem] h-[calc(100svh-10.75rem)] min-h-[680px] flex flex-col sm:h-auto sm:min-h-[680px] md:h-[calc(100svh-9.25rem)] md:min-h-[720px] md:flex md:flex-col lg:h-[calc(100dvh-8.5rem)] lg:min-h-[760px] xl:h-[calc(100dvh-8.25rem)] xl:min-h-[820px] xl:flex xl:flex-col" : "rounded-[2rem]"}`}>
-              {isExpired ? (
+              {isExpired && userId === q.creator_id ? (
                 <>
                   <div className="feed119-completed-stamp pointer-events-none absolute left-1/2 top-[42%] z-50 -translate-x-1/2 -rotate-6 rounded-xl border-4 border-white/85 bg-slate-950/15 px-6 py-3 text-xl font-black tracking-[0.2em] text-white/90 shadow-xl">
                     ✓ COMPLETED
@@ -4286,7 +4294,7 @@ export default function Home() {
                 <FeedCardDetails
                   id={q.id} title={q.title} category={getQuestCategoryDisplay(q)}
                   timing={getEventTimingLabel(q.availability, q.starts_at).replace(/^Event:/, "Start at:")}
-                  startsAt={q.starts_at} isOwner={Boolean(userId && userId === q.creator_id)} isExpired={isExpired}
+                  startsAt={q.starts_at} isOwner={Boolean(userId && userId === q.creator_id)} isExpired={isExpired} isClosed={isQuestClosedForJoining(q)}
                   membershipStatus={membershipStatusByQuest[q.id]} isJoined={joinedQuestIds.includes(q.id)} joinMode={q.join_mode || "open"}
                   going={joinedCountByQuestId[q.id] || 0} comments={commentCountByQuestId[q.id] || 0}
                   shares={shareCountByQuestId[q.id] || 0} saved={bookmarkedQuestIds.includes(q.id)}
@@ -4354,7 +4362,7 @@ export default function Home() {
                         className="justify-self-start inline-flex h-10 w-10 items-center justify-center rounded-full bg-transparent text-sm font-semibold text-black dark:text-white transition hover:text-[#0c5063] focus-visible:text-[#0c5063]"
                         aria-label={membershipStatusByQuest[q.id] === "pending" ? "Cancel request" : (membershipStatusByQuest[q.id] === "declined" ? "Request again" : (joinedQuestIds.includes(q.id) ? "Leave" : ((q.join_mode || "open") === "approval_required" ? "Request to join" : "Join")))}
                         title={membershipStatusByQuest[q.id] === "pending" ? "Cancel request" : (membershipStatusByQuest[q.id] === "declined" ? "Request again" : (joinedQuestIds.includes(q.id) ? "Leave" : ((q.join_mode || "open") === "approval_required" ? "Request to join" : "Join")))}
-                        onClick={() => void toggleJoinQuest(q.id)}
+                        disabled={isQuestClosedForJoining(q) && !joinedQuestIds.includes(q.id) && membershipStatusByQuest[q.id] !== "pending"} onClick={() => void toggleJoinQuest(q.id)}
                       >
                         <AppIcon name={membershipStatusByQuest[q.id] === "pending" ? "clock" : (membershipStatusByQuest[q.id] === "declined" ? "refresh" : (joinedQuestIds.includes(q.id) ? "minus" : "plus"))} className="h-7 w-7" />
                       </button>
@@ -4499,6 +4507,7 @@ export default function Home() {
                         </div>
                         <div className="mt-4 flex items-center justify-center gap-3">
                           <MapMembershipButton
+                            isExpired={hasQuestEnded(item.quest)} isClosed={isQuestClosedForJoining(item.quest)}
                             isOwner={Boolean(userId && userId === item.quest.creator_id)}
                             membershipStatus={membershipStatusByQuest[item.quest.id]}
                             isJoined={joinedQuestIds.includes(item.quest.id)}
