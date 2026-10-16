@@ -142,7 +142,9 @@ export default function GlobalTopBar() {
         </Link>
         {pathname === "/" ? <div className="home119-header-toggle" role="group" aria-label="Quest display"><button type="button" className={homeFeedView === "list" ? "is-active" : ""} onClick={() => changeHomeFeedView("list")}>List</button><button type="button" className={homeFeedView === "map" ? "is-active" : ""} onClick={() => changeHomeFeedView("map")}>Map</button></div> : null}
         <div className="flex items-center gap-2">
-          <Link href="/app" className="nav-download-link" aria-label="Download the QuestHat app">Download app</Link>
+          {/* /app is a UA-dependent HTTP redirect handler, not an RSC page. */}
+          {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+          <a href="/app" className="nav-download-link" aria-label="Download the QuestHat app">Download app</a>
           <button className="icon-control relative" aria-label="Notifications" onClick={() => navigate("/notifications")}><AppIcon name="bell" className="h-5 w-5" />{notificationCount > 0 && <span className="nav-badge">{notificationCount > 9 ? "9+" : notificationCount}</span>}</button>
           {!userId ? <button className="nav-control" onClick={openLogin}>Join / Log in</button> : null}
         </div>
