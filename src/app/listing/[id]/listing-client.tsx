@@ -17,7 +17,7 @@ import { listingJoinAuthPath } from "@/lib/auth-return";
 import { PostQuestFollowUp } from "@/components/post-quest-followup";
 import { isQuestClosedForJoining, QUEST_CLOSED_MESSAGE } from "@/lib/quest-join-eligibility";
 import { captureProductEvent } from "@/components/posthog-provider";
-import { runQuestJoinRequest } from "@/lib/product-analytics";
+import { membershipReviewProperties, runQuestJoinRequest } from "@/lib/product-analytics";
 
 type Listing = {
   id: string;
@@ -53,6 +53,7 @@ type MemberRow = {
   user_id: string;
   role: "creator" | "cohost" | "member";
   status?: "pending" | "approved" | "declined";
+  joined_at?: string | null;
   profiles?: MemberLocationProfile[] | MemberLocationProfile | null;
 };
 
@@ -392,7 +393,7 @@ export default function ListingPage({ questId, onClose }: { questId?: string; on
     if (!supabase) return;
     const { data, error } = await supabase
       .from("quest_members")
-      .select("user_id,role,status,profiles:profiles!quest_members_user_id_fkey(id,display_name,avatar_url,city)")
+      .select("user_id,role,status,joined_at,profiles:profiles!quest_members_user_id_fkey(id,display_name,avatar_url,city)")
       .eq("quest_id", questId)
       .order("joined_at", { ascending: true });
 
@@ -408,6 +409,7 @@ export default function ListingPage({ questId, onClose }: { questId?: string; on
     const mine = uid ? rows.find((m) => m.user_id === uid) : null;
     setMyMembershipStatus((mine?.status || (mine ? "approved" : null)) as "pending" | "approved" | "declined" | null);
     setHasJoined(!!mine && (mine.status || "approved") === "approved");
+    return rows;
   }
 
   async function loadComments(questId: string, blockedIds: string[] = []) {
@@ -743,11 +745,16 @@ export default function ListingPage({ questId, onClose }: { questId?: string; on
     if (!supabase || !listing || !isManager || membershipAction) return;
     if (next === "approved" && isQuestClosedForJoining(listing)) return setStatus(QUEST_CLOSED_MESSAGE);
     setMembershipAction(targetUserId);
+    const previous = members.find(member => member.user_id === targetUserId);
+    const wasFirstGuest = !members.some(member => member.user_id !== listing.creator_id && member.status === "approved");
     try {
       const result = await updateDetailMembership(supabase, { questId: listing.id, targetUserId, userId, status: next, shareAddress });
       if (result.error) { if (result.approved) await loadMembers(listing.id, userId); setStatus(result.error); return; }
       if (result.shared) setExactAccessUserIds(current => [...new Set([...current, targetUserId])]);
-      await loadMembers(listing.id, userId);
+      const confirmedMembers = await loadMembers(listing.id, userId);
+      if ((next === "approved" || next === "declined") && previous?.status !== next && confirmedMembers?.some(member => member.user_id === targetUserId && member.status === next)) {
+        captureProductEvent("quest_join_reviewed", membershipReviewProperties({ decision: next, requestedAt: previous?.joined_at, reviewedAt: new Date().toISOString(), firstApprovedGuest: wasFirstGuest }));
+      }
       setStatus(next === "approved" ? (shareAddress ? "Member approved and exact address shared." : "Member approved.") : next === "declined" ? "Request declined." : "Moved back to pending.");
     } finally { setMembershipAction(null); }
   }

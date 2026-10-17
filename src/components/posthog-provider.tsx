@@ -5,6 +5,9 @@ import { usePathname } from "next/navigation";
 import posthog from "posthog-js";
 import { PostHogProvider } from "posthog-js/react";
 import { privacySafeAnalyticsPath, scrubProductAnalyticsProperties } from "@/lib/product-analytics";
+import { createCityUsageRecorder } from "@questhat/shared";
+import { getSupabaseClient } from "@/lib/supabase";
+import CityUsagePreference from "@/components/city-usage-preference";
 
 const posthogKey = process.env.NEXT_PUBLIC_POSTHOG_KEY;
 const analyticsConsentKey = "questhat_optional_analytics";
@@ -13,6 +16,7 @@ let optionalAnalyticsEnabled = false;
 let optionalAnalyticsInitialized = false;
 let deniedInMemory = false;
 let pendingProductUserId: string | null = null;
+const cityUsage = createCityUsageRecorder(getSupabaseClient);
 type AnalyticsConsent = "loading" | "unset" | "granted" | "denied";
 
 function getAnalyticsConsent(): AnalyticsConsent {
@@ -42,6 +46,7 @@ function startOptionalAnalytics() {
     optionalAnalyticsEnabled = true;
     posthog.opt_in_capturing();
     if (pendingProductUserId) posthog.identify(pendingProductUserId, { platform: "web" });
+    void cityUsage.configure(pendingProductUserId, true);
     return true;
   } catch {
     optionalAnalyticsEnabled = false;
@@ -91,16 +96,21 @@ function PageViewCapture({ enabled }: { enabled: boolean }) {
 }
 
 export function captureProductEvent(name: string, properties?: Record<string, string | number | boolean | null>) {
-  if (posthogKey && optionalAnalyticsEnabled) posthog.capture(name, properties);
+  if (posthogKey && optionalAnalyticsEnabled) {
+    try { posthog.capture(name, properties); } catch { /* Optional telemetry must not interrupt the action. */ }
+    cityUsage.capture(name, properties);
+  }
 }
 
 export function identifyProductUser(userId: string) {
   pendingProductUserId = userId;
   if (posthogKey && optionalAnalyticsEnabled) posthog.identify(userId, { platform: "web" });
+  void cityUsage.configure(userId, optionalAnalyticsEnabled);
 }
 
 export function resetProductUser() {
   pendingProductUserId = null;
+  cityUsage.clear();
   if (!posthogKey || !optionalAnalyticsInitialized) return;
   const wasOptedIn = !posthog.has_opted_out_capturing();
   posthog.reset();
@@ -119,6 +129,7 @@ export default function QuestHatPostHogProvider({ children }: { children: React.
       startOptionalAnalytics();
     } else if (consent === "denied") {
       optionalAnalyticsEnabled = false;
+      cityUsage.clear();
       if (optionalAnalyticsInitialized) posthog.opt_out_capturing();
     }
   }, [consent]);
@@ -136,7 +147,7 @@ export default function QuestHatPostHogProvider({ children }: { children: React.
       {consent === "unset" ? (
         <section className="fixed inset-x-3 bottom-3 z-[100] mx-auto max-w-xl rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl" aria-label="Optional analytics preference">
           <p className="text-sm font-semibold text-slate-900">Help improve QuestHat?</p>
-          <p className="mt-1 text-xs leading-5 text-slate-600">Allow privacy-limited analytics to help us understand which features work. No ads, session recordings, or cross-app tracking.</p>
+          <p className="mt-1 text-xs leading-5 text-slate-600">Share usage events with PostHog to improve QuestHat, including feature actions, app/browser information and a pseudonymous account/device ID. This is optional and can be turned off in Settings. No ads, message text, addresses or session recordings. City reports require a separate city choice in Settings.</p>
           <div className="mt-3 flex gap-2">
             <button type="button" onClick={() => chooseAnalytics("denied")} className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700">No thanks</button>
             <button type="button" onClick={() => chooseAnalytics("granted")} className="rounded-xl bg-cyan-800 px-3 py-2 text-xs font-semibold text-white">Allow analytics</button>
@@ -153,6 +164,7 @@ function updateOptionalAnalytics(choice: "granted" | "denied") {
   if (choice === "denied") {
     deniedInMemory = true;
     optionalAnalyticsEnabled = false;
+    cityUsage.clear();
     if (optionalAnalyticsInitialized) {
       posthog.opt_out_capturing();
       posthog.reset();
@@ -177,5 +189,5 @@ export function OptionalAnalyticsPreference() {
       try { setEnabled(getAnalyticsConsent() === "granted"); } catch { setStatus("This browser cannot save the analytics preference."); }
     });
   }, []);
-  return <section className="settings-parity-interests"><h2>Optional analytics</h2><p>Allow privacy-limited analytics to help improve QuestHat. No ads, session recordings, or cross-app tracking.</p><label className="flex items-center gap-3"><input type="checkbox" checked={enabled} disabled={!posthogKey} onChange={event => { const next = event.target.checked; try { updateOptionalAnalytics(next ? "granted" : "denied"); setEnabled(next); setStatus(next ? "Optional analytics enabled." : "Optional analytics off."); } catch { if (!next) setEnabled(false); setStatus("Could not save this preference in your browser."); } }} />Allow optional analytics</label>{!posthogKey ? <p>Optional analytics is unavailable in this environment.</p> : null}{status ? <p role="status">{status}</p> : null}</section>;
+  return <section className="settings-parity-interests"><h2>Optional analytics</h2><p>Help improve QuestHat by sharing feature-use events with PostHog. Events can be linked to your pseudonymous account/device ID and include app/browser information. No ads, message text, addresses, precise location or session recordings. Turning this off stops optional analytics on this browser; essential crash/security diagnostics are separate.</p><label className="flex items-center gap-3"><input type="checkbox" checked={enabled} disabled={!posthogKey} onChange={event => { const next = event.target.checked; try { updateOptionalAnalytics(next ? "granted" : "denied"); setEnabled(next); setStatus(next ? "Optional analytics enabled." : "Optional analytics off."); } catch { if (!next) setEnabled(false); setStatus("Could not save this preference in your browser."); } }} />Allow optional analytics</label>{!posthogKey ? <p>Optional analytics is unavailable in this environment.</p> : null}{status ? <p role="status">{status}</p> : null}<CityUsagePreference locallyOptedIn={enabled} onSaved={() => { void cityUsage.configure(pendingProductUserId, enabled); }} /></section>;
 }

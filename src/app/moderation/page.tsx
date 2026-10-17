@@ -604,6 +604,7 @@ export default function ModerationPage() {
               Role: {prettyLabel(viewerRole)}
             </span>
             <Link href="/" className="border rounded px-3 py-2 text-sm">Back</Link>
+            {(viewerRole === "admin" || viewerRole === "super_admin") && mfaVerified ? <Link href="/moderation/usage" className="border rounded px-3 py-2 text-sm">City usage counts</Link> : null}
           </div>
         </div>
 

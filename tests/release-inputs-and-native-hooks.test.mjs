@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {createRequire} from 'node:module';
+import {fileURLToPath} from 'node:url';
 import {execFileSync} from 'node:child_process';
 import {missingReleaseInputs} from '../scripts/check-release-inputs.mjs';
 const require=createRequire(import.meta.url);
@@ -32,7 +33,7 @@ test('native uploader properties contain only public routing metadata',()=>{
  }
 });
 test('iOS main target has JS and native upload hooks while Live Activity phases are unchanged',()=>{
- const xcode=require('xcode');const p=xcode.project(new URL('../apps/mobile/ios/QuestHat.xcodeproj/project.pbxproj',import.meta.url).pathname);p.parseSync();
+ const xcode=require('xcode');const p=xcode.project(fileURLToPath(new URL('../apps/mobile/ios/QuestHat.xcodeproj/project.pbxproj',import.meta.url)));p.parseSync();
  const targets=Object.values(p.pbxNativeTargetSection()).filter(x=>x&&typeof x==='object');
  const main=targets.find(x=>x.name==='QuestHat'),extension=targets.find(x=>x.name==='QuestHatLiveActivity');
  assert.ok(main.buildPhases.some(x=>x.comment==='Upload Debug Symbols to Sentry'));

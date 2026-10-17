@@ -6,6 +6,7 @@ import { readFileSync } from "node:fs";
 import vm from "node:vm";
 import ts from "typescript";
 import { privacySafeAnalyticsPath, scrubProductAnalyticsProperties } from "../src/lib/product-analytics.ts";
+import { createCityUsageRecorder } from "../packages/shared/src/city-usage.ts";
 
 function webProviderFixture(savedConsent) {
   const key = "questhat_optional_analytics";
@@ -31,6 +32,9 @@ function webProviderFixture(savedConsent) {
     "posthog-js": { __esModule: true, default: sdk },
     "posthog-js/react": { PostHogProvider: props => props.children },
     "@/lib/product-analytics": { privacySafeAnalyticsPath, scrubProductAnalyticsProperties },
+    "@questhat/shared": { createCityUsageRecorder },
+    "@/lib/supabase": { getSupabaseClient: () => null },
+    "@/components/city-usage-preference": { __esModule: true, default: () => null },
   };
   const source = readFileSync(new URL("../src/components/posthog-provider.tsx", import.meta.url), "utf8");
   const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
@@ -129,6 +133,7 @@ test("installed PostHog before_send hook scrubs SDK URLs, queries, campaign data
   const event = sdk._runBeforeSend({ event: "quest_join_requested", properties });
   assert.equal(event.properties.token, "public-fixture-key", "the SDK's required ingestion key must survive");
   assert.equal(event.properties.distinct_id, "consented-fixture");
+  assert.equal(event.properties.$geoip_disable, true, "selected-city reports never depend on provider IP geolocation");
   assert.equal(event.properties.$current_url, "https://questhat.com/listing/[id]");
   assert.equal(event.properties.$pathname, "/listing/[id]");
   assert.equal(event.properties.$session_entry_url, "https://questhat.com/listing/[id]");

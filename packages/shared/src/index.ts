@@ -7,3 +7,4 @@ export * from "./storage";
 export * from "./username";
 
 export * from "./category-catalog";
+export * from "./city-usage";

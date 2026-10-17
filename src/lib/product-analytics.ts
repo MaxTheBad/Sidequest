@@ -47,7 +47,10 @@ export function privacySafeAnalyticsPath(value: string) {
 /** Scrub SDK-generated URLs as well as nested initial person properties before transport. */
 export function scrubProductAnalyticsProperties(properties: Record<string, unknown>): Record<string, unknown> {
   const clean = { ...properties };
-  for (const key of ["quest_id", "user_id", "title", "description", "city", "address", "exact_address", "message", "email", "reply_contact", "error", "error_message", "search_query", "query", "latitude", "longitude", "$referrer", "$initial_referrer", "$session_entry_referrer", "$referring_domain", "$initial_referring_domain", "$session_entry_referring_domain"]) delete clean[key];
+  for (const key of ["quest_id", "user_id", "title", "description", "category", "city", "address", "exact_address", "message", "email", "reply_contact", "error", "error_message", "search_query", "query", "latitude", "longitude", "$referrer", "$initial_referrer", "$session_entry_referrer", "$referring_domain", "$initial_referring_domain", "$session_entry_referring_domain"]) delete clean[key];
+  // Request no provider-side IP geolocation. This does not claim network IP
+  // transport disappears; the provider's discard-IP setting is separate.
+  clean.$geoip_disable = true;
   for (const key of Object.keys(clean)) {
     if (key.startsWith("utm_") || key.startsWith("$initial_utm_") || key.startsWith("$session_entry_utm_")) delete clean[key];
   }
@@ -75,4 +78,8 @@ export function minutesBucket(startedAt: string | null | undefined, finishedAt: 
   if (minutes < 30) return "5_30m";
   if (minutes < 120) return "30m_2h";
   return "2h_plus";
+}
+
+export function membershipReviewProperties(input: { decision: "approved" | "declined"; requestedAt?: string | null; reviewedAt: string; firstApprovedGuest: boolean }) {
+  return { platform: "web", decision: input.decision, approval_wait_bucket: minutesBucket(input.requestedAt, input.reviewedAt), first_approved_guest: input.decision === "approved" && input.firstApprovedGuest };
 }

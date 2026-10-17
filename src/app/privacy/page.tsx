@@ -11,7 +11,7 @@ export default function PrivacyPage() {
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-800">Privacy notice</p>
           <h1 className="mt-1 text-2xl font-bold">QuestHat Privacy Policy</h1>
-          <p className="mt-2 text-sm text-gray-700">Effective and last updated September 27, 2026.</p>
+          <p className="mt-2 text-sm text-gray-700">Effective and last updated October 17, 2026.</p>
         </div>
 
         <p className={bodyClass}>
@@ -24,9 +24,10 @@ export default function PrivacyPage() {
           <h2 className="font-semibold">Information we collect</h2>
           <ul className={listClass}>
             <li><strong>Account and identity:</strong> email address, user ID, authentication method, login metadata, and account status.</li>
-            <li><strong>Profile and social information:</strong> name, username, profile photo, bio, city or region, friend relationships, blocks, and the visibility choices you make.</li>
+            <li><strong>Profile and social information:</strong> name, username, profile photo, bio, city or region, birthday or age information, optional gender description, friend relationships, blocks, and the visibility choices you make. In-app friend relationships do not give us access to your phone&apos;s address book.</li>
             <li><strong>Content and communications:</strong> quests, comments, direct messages, join requests, reports, photos, videos, audio, and other content you submit.</li>
             <li><strong>Meetup and location information:</strong> city or region, meeting links, exact meetup locations and optional meeting instructions you submit, and event check-in status and time. Meeting instructions use the same visibility control as the exact address. When you grant location permission, precise device location is ordinarily processed and cached on your device to calculate distance and apply location-based safety controls rather than stored in your QuestHat profile. When you check in, your current coordinates are transmitted securely and used transiently to verify that you are within the permitted radius; we store the check-in status and time, not the coordinates submitted for that verification. Exact meetup locations and protected meeting instructions are stored and limited according to the host&apos;s selected access controls.</li>
+            <li><strong>Optional People discovery:</strong> if you enable this feature, we store your selected birthday, optional gender description, and latest submitted coordinates in private discovery settings to calculate rounded distance and apply your filters. Other users receive rounded distance, not those coordinates. Turning discovery off clears its stored coordinates. This is separate from city usage reports and does not authorize location-based analytics.</li>
             <li><strong>Device and usage information:</strong> IP address, browser or user-agent, device and operating-system type, app version, timestamps, security events, local preferences, crash or diagnostic information, and privacy-limited product interactions.</li>
             <li><strong>Notifications:</strong> push token, notification preferences, delivery information, and Live Activity token or state when you enable those features.</li>
             <li><strong>Support and safety:</strong> correspondence, reports, evidence you submit, moderation decisions, and records used to investigate abuse, fraud, or safety incidents.</li>
@@ -36,10 +37,26 @@ export default function PrivacyPage() {
         <div className={sectionClass}>
           <h2 className="font-semibold">Optional analytics and diagnostics</h2>
           <p className={bodyClass}>
-            QuestHat uses PostHog to understand high-level product use, such as screens viewed and whether a quest was created or a join request was sent. We use Sentry to diagnose crashes and reliability problems. We do not send message text, quest titles, addresses, search terms, precise location, email address, or session recordings to these tools. We do not use this information for targeted advertising, cross-app tracking, or sale of personal information.
+            If you allow optional analytics, PostHog receives feature-use events, such as screens viewed, discovery loading, quest creation, join requests, sharing outcomes, and host decisions. Events include app/browser and operating-system information, timestamps, sanitized page or screen names, and pseudonymous account, installation or session identifiers. These records can be linked to your account or device; they are not anonymous just because a report shows totals. Our analytics is for improving QuestHat, not targeted advertising, cross-app tracking or selling personal information.
           </p>
           <p className={bodyClass}>
-            Optional product analytics is off until you choose to enable it. You can change that choice in QuestHat Settings or in the analytics notice on this website. Essential security and crash diagnostics may still be processed to keep the service reliable and safe.
+            Optional product analytics is off until you choose to enable it. You can turn it off in Settings on each browser or device without losing app features. We exclude message text, quest titles, addresses, search text, precise location and session recordings from the intended analytics payload. Analytics services necessarily receive a network connection; older web analytics records may contain an IP address and provider-derived approximate location. Updated clients request that the provider not derive location from IP. City usage reports described below never use those fields or device GPS.
+          </p>
+          <p className={bodyClass}>
+            Sentry separately processes crash, error and performance diagnostics to help us fix reliability problems, even when optional product analytics is off. This can include app version, device/operating-system information, code stack frames, timestamps and limited navigation context. We configure diagnostics to limit identity and content, and session replay is off. Diagnostic processing is not permission to use messages or precise location for product analytics.
+          </p>
+        </div>
+
+        <div className={sectionClass}>
+          <h2 className="font-semibold">Optional selected-city usage reports</h2>
+          <p className={bodyClass}>
+            Where this setting is available, you may separately choose a city to help us understand where QuestHat is useful. We use the city you enter for reports, not a city inferred from your IP address, GPS, meetup address or messages. City contributions require this separate account-level choice and optional analytics enabled on the device sending the contribution. You do not need to participate to use QuestHat.
+          </p>
+          <p className={bodyClass}>
+            QuestHat stores your selected city, account ID, choice time, and daily counters for a fixed set of discovery, creation, join and host-review actions. We do not store event content, quest IDs, precise event times, IP addresses or device coordinates in these counters. These internal records are account-linked, not anonymous, and stay in our database rather than being sent to PostHog. Existing MFA-verified administrators can see only fixed weekly reports: each city and metric needs at least five consenting accounts, and counts are rounded down to groups of five. Reports omit smaller groups and offer no individual drill-down.
+          </p>
+          <p className={bodyClass}>
+            City counters are removed after 30 days at the next hourly cleanup, within 31 days. The city choice remains until you change or remove it. Changing the city clears your previous city counters; turning city reports off removes your choice and stored counters. Account deletion also removes them. Turning optional analytics off stops new contributions from that device; the account-level city setting lets you remove contributions across devices.
           </p>
         </div>
 
@@ -114,6 +131,7 @@ export default function PrivacyPage() {
             from its Map Data storage restriction. QuestHat does not persist Apple&apos;s formatted address or returned
             coordinates. You may instead expressly choose your device&apos;s one-time current-location pin.
           </p>
+          <p className={bodyClass}>City autocomplete in existing profile and listing forms may send the text you type and a selected country to Open-Meteo&apos;s geocoding service to suggest city names. The separate city-usage-report field does not call a geocoder. Maps, tiles, social sign-in and links you open also involve the selected service&apos;s normal network processing.</p>
         </div>
 
         <div className={sectionClass}>
@@ -142,6 +160,7 @@ export default function PrivacyPage() {
             <li>When a social connection or QuestHat account is deleted, we delete or disable the associated authorization credentials and connected-account data unless retention is legally required.</li>
             <li>When X content is deleted, restricted, or changed, we will update or remove any copy we are required to maintain as soon as reasonably possible and within 24 hours after a valid request or notice when X&apos;s rules require it.</li>
             <li>You can permanently delete your QuestHat account in Settings → Account. You can also use our <Link href="/delete-account" className="font-medium underline">public account-deletion page</Link>.</li>
+            <li>Turning analytics off stops future optional capture; it does not automatically erase older PostHog or Sentry records. Provider records follow their configured retention and deletion processes. Contact support@questhat.com for an access or deletion request so we can address account-linked provider records as well as QuestHat data.</li>
           </ul>
         </div>
 
