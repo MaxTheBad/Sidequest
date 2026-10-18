@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase";
-import { createFollowUpActionRunner, followUpPayload, getFollowUpEligibility, questLifecyclePayload } from "@/lib/post-quest-followup";
+import { createFollowUpActionRunner, createFollowUpStateLoader, followUpPayload, getFollowUpEligibility, questLifecyclePayload } from "@/lib/post-quest-followup";
 
 // Enable only where the companion migration and RPCs are deployed.
 const FOLLOW_UPS_ENABLED = process.env.NEXT_PUBLIC_POST_QUEST_FOLLOW_UPS === "true";
@@ -18,12 +18,37 @@ export function PostQuestFollowUp({ quest, userId, approvedParticipant, isHost, 
   const [endTime, setEndTime] = useState("");
   const [now, setNow] = useState(() => Date.now());
   const [runner] = useState(createFollowUpActionRunner);
+  const [loader] = useState(createFollowUpStateLoader);
+  const [loading, setLoading] = useState(true);
+  const [loaded, setLoaded] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const [attendance, setAttendance] = useState<Record<string, boolean>>({});
   const currentQuest = useRef(quest);
   useEffect(() => { currentQuest.current = quest; }, [quest]);
   useEffect(() => () => runner.invalidate(), [runner]);
   useEffect(() => { const timer = window.setInterval(() => setNow(Date.now()), 30_000); return () => window.clearInterval(timer); }, []);
-  if (!FOLLOW_UPS_ENABLED) return null;
   const eligibility = getFollowUpEligibility({ quest, userId, approvedParticipant, isHost, now });
+  const canLoad = FOLLOW_UPS_ENABLED && eligibility.eligible === true;
+  useEffect(() => {
+    let active = true;
+    runner.invalidate();
+    void Promise.resolve().then(() => {
+      if (!active) return;
+      setBusy(false); setLoaded(false); setWent(null); setRating(null); setAttendance({}); setMessage("");
+      if (!canLoad || !userId) { setLoading(false); return; }
+      const supabase = getSupabaseClient();
+      if (!supabase) { setLoading(false); setMessage("Could not load your saved follow-up. Please retry before editing."); return; }
+      void loader.load(() => supabase.rpc("read_quest_follow_up_state", { p_quest_id: quest.id }), {
+        onBusy: setLoading,
+        onSuccess: (saved: { went: boolean | null; rating: number | null; attendance: Record<string, boolean> }) => {
+          setWent(saved.went); setRating(saved.rating); setAttendance(saved.attendance); setLoaded(true);
+        },
+        onError: () => setMessage("Could not load your saved follow-up. Please retry before editing; saved answers have not been changed."),
+      });
+    });
+    return () => { active = false; loader.invalidate(); runner.invalidate(); };
+  }, [quest.id, userId, canLoad, loadAttempt, loader, runner]);
+  if (!FOLLOW_UPS_ENABLED) return null;
   if (!userId || (!approvedParticipant && !isHost) || eligibility.reason === "cancelled") return null;
   if (!eligibility.eligible && !isHost) return null;
 
@@ -36,6 +61,7 @@ export function PostQuestFollowUp({ quest, userId, approvedParticipant, isHost, 
   }
 
   async function submit() {
+    if (!loaded || loading) return;
     if (!userId || went === null) return setMessage("Choose whether you went.");
     const supabase = getSupabaseClient();
     if (!supabase) return setMessage("Follow-ups are unavailable right now.");
@@ -51,7 +77,10 @@ export function PostQuestFollowUp({ quest, userId, approvedParticipant, isHost, 
     run(async () => {
       if (!isHost || !getFollowUpEligibility({ quest: currentQuest.current, userId, approvedParticipant, isHost }).eligible) throw new Error("Attendance confirmation is not available.");
       return supabase.rpc("confirm_quest_attendance", { p_quest_id: quest.id, p_user_id: memberId, p_attended: attended });
-    }, "Attendance confirmation saved. Conflicts remain disputed.");
+    }, "Attendance confirmation saved. Conflicts remain disputed.", (data) => {
+      const saved = data as { quest_id?: string; user_id?: string; host_attendance?: boolean };
+      if (saved?.quest_id === quest.id && saved.user_id === memberId && saved.host_attendance === attended) setAttendance(previous => ({ ...previous, [memberId]: attended }));
+    });
   }
 
   function saveLifecycle(markCompleted: boolean) {
@@ -73,14 +102,22 @@ export function PostQuestFollowUp({ quest, userId, approvedParticipant, isHost, 
     <h2 id="post-quest-follow-up-title">After the quest</h2>
     {isHost ? <div className="mt-3 space-y-2"><p className="text-sm">Record when the quest ended before collecting private follow-ups.</p>{quest.ends_at ? <p className="text-sm">Recorded end: {new Date(quest.ends_at).toLocaleString()}</p> : null}<label className="block text-sm">Quest end time<input type="datetime-local" className="ml-2 rounded border p-2" value={endTime} disabled={busy} onChange={(event) => setEndTime(event.target.value)} /></label><button type="button" disabled={busy || !endTime} onClick={() => saveLifecycle(false)}>Save end time</button><button type="button" className="ml-3" disabled={busy || !!quest.completed_at || (!!quest.starts_at && Date.parse(quest.starts_at) > now)} onClick={() => saveLifecycle(true)}>Mark complete now</button></div> : null}
     {eligibility.eligible ? <>
+    {loading ? <p role="status">Loading saved follow-up…</p> : !loaded ? <button type="button" onClick={() => setLoadAttempt(value => value + 1)}>Retry loading saved follow-up</button> : null}
     <p className="text-sm text-slate-600">Your response is private. Different attendee and host responses are shown as disputed, not treated as a no-show.</p>
     <div className="mt-3 flex flex-wrap gap-2"><span className="text-sm font-semibold">Did you go?</span>
-      <button type="button" disabled={busy} className="detail119-review" aria-pressed={went === true} onClick={() => setWent(true)}>Yes</button>
-      <button type="button" disabled={busy} className="detail119-review" aria-pressed={went === false} onClick={() => setWent(false)}>No</button>
+      <button type="button" disabled={busy || loading || !loaded} className="detail119-review" aria-pressed={went === true} onClick={() => setWent(true)}>Yes</button>
+      <button type="button" disabled={busy || loading || !loaded} className="detail119-review" aria-pressed={went === false} onClick={() => setWent(false)}>No</button>
     </div>
-    <div className="mt-3 flex flex-wrap gap-2"><span className="text-sm font-semibold">Private rating (optional)</span>{[1, 2, 3, 4, 5].map((value) => <button key={value} type="button" className="detail119-review" aria-pressed={rating === value} onClick={() => setRating(value)}>{value}</button>)}</div>
-    <button type="button" disabled={busy || went === null} className="detail119-primary mt-3" onClick={() => void submit()}>{busy ? "Saving…" : "Save follow-up"}</button>
-    {isHost && attendees.length ? <div className="mt-4 border-t pt-3"><strong className="text-sm">Host attendance confirmation</strong><p className="text-xs text-slate-500">Confirming attendance does not overwrite an attendee’s own response.</p>{attendees.map((member) => { const profile = Array.isArray(member.profiles) ? member.profiles[0] : member.profiles; return <div key={member.user_id} className="mt-2 flex items-center gap-2 text-sm"><span className="flex-1">{profile?.display_name || "Attendee"}</span><button type="button" disabled={busy} className="detail119-review" onClick={() => void confirmAttendance(member.user_id, true)}>Attended</button><button type="button" disabled={busy} className="detail119-review" onClick={() => void confirmAttendance(member.user_id, false)}>Didn’t attend</button></div>; })}</div> : null}
+    <div className="mt-3 flex flex-wrap gap-2"><span className="text-sm font-semibold">Private rating (optional)</span>{[1, 2, 3, 4, 5].map((value) => <button key={value} type="button" disabled={busy || loading || !loaded} className="detail119-review" aria-pressed={rating === value} onClick={() => setRating(value)}>{value}</button>)}</div>
+    <button type="button" disabled={busy || loading || !loaded || went === null} className="detail119-primary mt-3" onClick={() => void submit()}>{busy ? "Saving…" : "Save follow-up"}</button>
+    {isHost && attendees.length ? <div className="mt-4 border-t pt-3"><strong className="text-sm">Host attendance confirmation</strong><p className="text-xs text-slate-500">Confirming attendance does not overwrite an attendee’s own response.</p>{attendees.map((member) => {
+      const profile = Array.isArray(member.profiles) ? member.profiles[0] : member.profiles;
+      return <div key={member.user_id} className="mt-2 flex items-center gap-2 text-sm">
+        <span className="flex-1">{profile?.display_name || "Attendee"}</span>
+        <button type="button" disabled={busy || loading || !loaded} aria-pressed={attendance[member.user_id] === true} className="detail119-review" onClick={() => void confirmAttendance(member.user_id, true)}>Attended</button>
+        <button type="button" disabled={busy || loading || !loaded} aria-pressed={attendance[member.user_id] === false} className="detail119-review" onClick={() => void confirmAttendance(member.user_id, false)}>Didn’t attend</button>
+      </div>;
+    })}</div> : null}
     </> : null}
     {message ? <p className="mt-3 text-sm" role="status">{message}</p> : null}
   </section>;

@@ -31,6 +31,38 @@ export function followUpPayload({ questId, went, rating }) {
   return { p_quest_id: questId, p_went: went, p_rating: rating ?? null };
 }
 
+export function parseFollowUpState(value) {
+  if (!value || typeof value !== "object" || !("response" in value) || !Array.isArray(value.attendance)) throw new Error("Could not load saved follow-up.");
+  const response = value.response;
+  if (response !== null && (typeof response !== "object" || ![true, false, null].includes(response.went)
+    || (response.private_rating !== null && (!Number.isInteger(response.private_rating) || response.private_rating < 1 || response.private_rating > 5)))) throw new Error("Could not load saved follow-up.");
+  const attendance = {};
+  for (const row of value.attendance) {
+    if (!row || typeof row.user_id !== "string" || typeof row.attended !== "boolean") throw new Error("Could not load saved attendance.");
+    attendance[row.user_id] = row.attended;
+  }
+  return { went: response?.went ?? null, rating: response?.private_rating ?? null, attendance };
+}
+
+/** New loads invalidate old ones; late responses never replace another actor/quest. */
+export function createFollowUpStateLoader() {
+  let generation = 0;
+  return {
+    invalidate() { generation++; },
+    async load(request, { onSuccess, onError, onBusy }) {
+      const ticket = ++generation;
+      onBusy(true);
+      try {
+        const result = await request();
+        if (result.error) throw result.error;
+        const saved = parseFollowUpState(result.data);
+        if (ticket === generation) onSuccess(saved);
+      } catch (error) { if (ticket === generation) onError(error); }
+      finally { if (ticket === generation) onBusy(false); }
+    },
+  };
+}
+
 export function questLifecyclePayload({ quest, userId, endsAt, markCompleted = false, now = Date.now() }) {
   if (!userId || quest?.creator_id !== userId) throw new Error("Only the host can update the quest lifecycle.");
   if (CANCELED.has(String(quest.status || "").toLowerCase())) throw new Error("Cancelled quests cannot be completed.");
