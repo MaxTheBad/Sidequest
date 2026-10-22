@@ -89,7 +89,8 @@ async function sendSmtpEmail({
   html: string;
   replyTo?: string;
 }) {
-  const { connect } = await import("cloudflare:sockets");
+  const socketModule = "cloudflare:sockets";
+  const { connect } = await import(/* webpackIgnore: true */ socketModule);
   const socket = connect({ hostname: host, port }, { secureTransport: port === 465 ? "on" : "starttls" });
   await socket.opened;
 

@@ -110,6 +110,14 @@ type Quest = {
   profiles?: { id: string; display_name: string | null; username: string | null; avatar_url: string | null }[] | { id: string; display_name: string | null; username: string | null; avatar_url: string | null } | null;
 };
 
+function buildWebQuestLifecycleFilter(uid: string | null, nowIso: string, completedCutoffIso: string) {
+  const active = `and(status.in.(open,full),completed_at.is.null,or(ends_at.is.null,ends_at.gt.${nowIso}))`;
+  if (!uid) return active;
+  const ownerCompleted = `and(creator_id.eq.${uid},completed_at.gte.${completedCutoffIso},completed_at.lte.${nowIso})`;
+  const ownerEnded = `and(creator_id.eq.${uid},completed_at.is.null,ends_at.gte.${completedCutoffIso},ends_at.lte.${nowIso})`;
+  return `${active},${ownerCompleted},${ownerEnded}`;
+}
+
 function getQuestHobby(q?: { hobbies?: { name?: string | null; category?: string | null }[] | { name?: string | null; category?: string | null } | null }) {
   if (!q?.hobbies) return null;
   return Array.isArray(q.hobbies) ? (q.hobbies[0] ?? null) : q.hobbies;
@@ -918,8 +926,8 @@ export default function Home() {
     const now = Date.now();
     const nowIso = new Date(now).toISOString();
     const completedCutoffIso = new Date(now - (7 * 24 * 60 * 60 * 1000)).toISOString();
-    let q = supabase.from("quests").select("id,creator_id,created_at,title,description,city,skill_level,group_size,availability,ends_at,completed_at,status,starts_at,time_flexible,hobby_id,join_mode,exact_location_visibility,exact_address,apple_place_id,location_details,media_video_url,media_source,media_items,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,username,avatar_url)").order("created_at", { ascending: false }).limit(24);
-    q = uid ? q.or(`starts_at.gt.${nowIso},and(creator_id.eq.${uid},starts_at.gte.${completedCutoffIso})`) : q.gt("starts_at", nowIso);
+    let q = supabase.from("quests").select("id,creator_id,created_at,title,description,city,skill_level,group_size,availability,starts_at,ends_at,completed_at,status,time_flexible,hobby_id,join_mode,exact_location_visibility,exact_address,apple_place_id,location_details,media_video_url,media_source,media_items,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,username,avatar_url)").order("created_at", { ascending: false }).limit(24);
+    q = q.or(buildWebQuestLifecycleFilter(uid, nowIso, completedCutoffIso));
       const filterCategoryName = getFilterCategoryName(hobbyFilter);
       if (hobbyFilter !== "all") {
         if (filterCategoryName && hobbyFilter.startsWith("canonical:")) {
@@ -934,8 +942,8 @@ export default function Home() {
 
     // Backward compatibility if migration for media_items has not been applied yet
     if (error?.message?.includes("column quests.media_items does not exist")) {
-      let fallback = supabase.from("quests").select("id,creator_id,created_at,title,description,city,skill_level,group_size,availability,ends_at,completed_at,status,starts_at,time_flexible,hobby_id,join_mode,exact_location_visibility,exact_address,apple_place_id,location_details,media_video_url,media_source,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,username,avatar_url)").order("created_at", { ascending: false }).limit(24);
-      fallback = uid ? fallback.or(`starts_at.gt.${nowIso},and(creator_id.eq.${uid},starts_at.gte.${completedCutoffIso})`) : fallback.gt("starts_at", nowIso);
+      let fallback = supabase.from("quests").select("id,creator_id,created_at,title,description,city,skill_level,group_size,availability,starts_at,ends_at,completed_at,status,time_flexible,hobby_id,join_mode,exact_location_visibility,exact_address,apple_place_id,location_details,media_video_url,media_source,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,username,avatar_url)").order("created_at", { ascending: false }).limit(24);
+      fallback = fallback.or(buildWebQuestLifecycleFilter(uid, nowIso, completedCutoffIso));
       if (hobbyFilter !== "all") {
         if (filterCategoryName && hobbyFilter.startsWith("canonical:")) {
           fallback = fallback.ilike("hobbies.name", filterCategoryName);
@@ -3946,6 +3954,21 @@ export default function Home() {
   window.history.pushState({ ...window.history.state, questDetailOverlay: true }, "", url.pathname);
   setDetailQuestId(match[1]);
 }}>
+      <header className="home119-desktop-header" aria-label="QuestHat desktop navigation">
+        <Link href="/" className="home119-desktop-brand">QuestHat</Link>
+        <label className="home119-desktop-search">
+          <AppIcon name="search" className="h-5 w-5" />
+          <span className="sr-only">Search plans, places, or interests</span>
+          <input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search plans, places, or interests" />
+        </label>
+        <Link href="/settings" className="home119-desktop-location"><AppIcon name="location" className="h-4 w-4" /><span>{onboardingCity || "Choose area"}</span></Link>
+        <nav aria-label="Primary">
+          <Link href="/">Explore</Link>
+          <Link href="/joined">Joined</Link>
+          <Link href="/inbox">Messages</Link>
+          <Link href="/notifications" aria-label="Notifications"><AppIcon name="bell" className="h-5 w-5" /></Link>
+        </nav>
+      </header>
       <div className="home119-shell w-full mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-4 lg:py-8 space-y-6">
         {!!pendingVerifyEmail && (
           <div className="text-sm rounded bg-emerald-50 border p-2">Email sent to <b>{pendingVerifyEmail}</b>. <button className="underline" disabled={resendCooldown > 0} onClick={() => void resendVerification()}>{resendCooldown > 0 ? `Resend in ${resendCooldown}s` : "Resend"}</button></div>
@@ -3961,7 +3984,6 @@ export default function Home() {
           </section>
         ) : null}
 
-        <header className="desktop-discovery-heading"><div><small>{hobbyFilter === "all" ? "DISCOVER" : "YOUR INTERESTS"}</small><h1>{searchQuery.trim() ? "Search results" : "Plans happening now"}</h1><p>Find your people. Make a real plan.</p></div><span>{filteredQuests.length} {filteredQuests.length === 1 ? "quest" : "quests"}</span></header>
         <section className="home119-discovery" aria-label="Discover quests">
           <div className="home119-search-row">
             <div className="home119-search">
@@ -3989,13 +4011,23 @@ export default function Home() {
           </button>
           <div className="home119-section-heading">
             <div><small>{hobbyFilter === "all" ? "FRESH PICKS" : (categoryOptions.find((item) => item.id === hobbyFilter)?.name || "QUESTS").toUpperCase()}</small><h1>{searchQuery.trim() ? "Search results" : "Plans happening now"}</h1></div>
-            <span>{filteredQuests.length}</span>
+            <div className="home119-section-actions">
+              <label className="home119-sort-control">
+                <span className="sr-only">Sort quests</span>
+                <select value={sortMode} onChange={(event) => setSortMode(event.target.value as "newest" | "soonest" | "title")} aria-label="Sort quests">
+                  <option value="soonest">Sort: Soonest</option>
+                  <option value="newest">Sort: Newest</option>
+                  <option value="title">Sort: Title</option>
+                </select>
+                <span aria-hidden="true">⌄</span>
+              </label>
+              <span className="home119-result-pill" aria-label={`${filteredQuests.length} quests`}>{filteredQuests.length}</span>
+            </div>
           </div>
         </section>
 
         <div className="home119-content grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)] xl:items-start">
           <aside className="home119-legacy-filters space-y-4 xl:sticky xl:top-[76px]">
-            <button type="button" className="desktop-people-discovery" onClick={() => userId ? window.location.assign("/inbox") : setShowAuthModal(true)}><AppIcon name="people" /><span><strong>Find people for your quest</strong><small>Browse nearby people who chose to be discoverable.</small></span><span aria-hidden="true">→</span></button>
             <section className="space-y-4">
               <button
                 type="button"
@@ -4123,9 +4155,10 @@ export default function Home() {
               </div>
             </div>
 
-            {feedLoadError ? <section role="alert" className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900"><p>{feedLoadError}</p><button type="button" className="app-primary-button mt-3" disabled={loading} onClick={() => void loadQuests()}>Try again</button></section> : null}
             {feedViewMode === "list" ? (
+              <div className="home119-desktop-feed-layout">
               <div className="feed119-list grid grid-cols-1">
+              {feedLoadError ? <section role="alert" className="home119-feed-error rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900"><p>{feedLoadError}</p><button type="button" className="app-primary-button mt-3" disabled={loading} onClick={() => void loadQuests()}>Try again</button></section> : null}
               {loading ? <p>Loading...</p> : filteredQuests.map((q) => {
             const creatorProfile = getCreatorProfile(q);
             const feedMediaItems: QuestMediaItem[] = [
@@ -4138,7 +4171,7 @@ export default function Home() {
             const fallbackVisual = catalogFallbackCover ? { ...legacyFallbackVisual, imageUrl: catalogFallbackCover.imageUrl, title: catalogFallbackCover.label } : legacyFallbackVisual;
             const questCoords = coordsByQuestId[q.id];
             const distanceLabel = distanceByQuestId[q.id] || (userLocation && questCoords ? distanceLabelMiles(haversineMiles(userLocation.lat, userLocation.lon, questCoords.lat, questCoords.lon)) : "");
-            const isExpired = hasQuestEnded(q);
+            const isExpired = userId === q.creator_id && hasQuestEnded(q);
 
             return (
             <article key={q.id} className={`feed119-card quest-card relative w-full bg-white border border-slate-200 shadow-[0_14px_40px_rgba(15,23,42,0.08)] overflow-hidden ${isExpired ? "grayscale-[0.65] opacity-80 ring-1 ring-slate-400/30" : ""} ${feedViewMode === "list" ? "rounded-none sm:rounded-[1.75rem] h-[calc(100svh-10.75rem)] min-h-[680px] flex flex-col sm:h-auto sm:min-h-[680px] md:h-[calc(100svh-9.25rem)] md:min-h-[720px] md:flex md:flex-col lg:h-[calc(100dvh-8.5rem)] lg:min-h-[760px] xl:h-[calc(100dvh-8.25rem)] xl:min-h-[820px] xl:flex xl:flex-col" : "rounded-[2rem]"}`}>
@@ -4404,9 +4437,30 @@ export default function Home() {
           );
           })}
               </div>
+              <aside className="home119-desktop-map" aria-label="Quest map">
+                <div className="home119-desktop-map-heading"><div><small>NEARBY</small><h2>{mapViewTitle || "Explore the map"}</h2></div><span>{mapQuestItems.length} shown</span></div>
+                <div className="home119-desktop-map-canvas">
+                  {loading ? <div className="home119-desktop-map-state">Loading quests…</div> : mapBounds ? (
+                    <QuestMap
+                      items={mapQuestMarkers}
+                      userLocation={userLocation}
+                      locationLabel={userLocationStatus === "ready" ? (userLocation?.accuracy && userLocation.accuracy > 50000 ? "Approximate location" : "My location") : "Locate me"}
+                      onLocateMe={() => { setSelectedMapQuestId(null); setFocusedMapQuestId(null); void requestUserLocation(); }}
+                      onSelectQuest={(questId) => setSelectedMapQuestId((current) => (current === questId ? null : questId))}
+                      selectedQuestId={selectedMapQuest?.id || null}
+                      focusQuestId={focusedMapQuestId}
+                      locationLooksOff={locationLooksOff}
+                      approximateLocation={!!(userLocation?.accuracy && userLocation.accuracy > 50000)}
+                    />
+                  ) : <div className="home119-desktop-map-state">Allow location to load nearby pins.</div>}
+                </div>
+                {selectedMapQuest ? <Link className="home119-desktop-map-preview" href={`/listing/${selectedMapQuest.id}`}><small>SELECTED QUEST</small><strong>{selectedMapQuest.title}</strong><span>{formatQuestCityState(selectedMapQuest)}</span></Link> : <p className="home119-desktop-map-note">Pins use public quest locations. Exact addresses remain protected by the existing visibility controls.</p>}
+              </aside>
+              </div>
             ) : (
               <div className="grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_340px]">
                 <div className="space-y-4">
+                  {feedLoadError ? <section role="alert" className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900"><p>{feedLoadError}</p><button type="button" className="app-primary-button mt-3" disabled={loading} onClick={() => void loadQuests()}>Try again</button></section> : null}
                   <div className="rounded-3xl bg-white border shadow-sm overflow-hidden">
                     <div className="flex items-center justify-between gap-3 p-4 border-b">
                       <div>
