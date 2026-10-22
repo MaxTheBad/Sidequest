@@ -38,12 +38,11 @@ test("desktop cards reserve media space and separate host from location actions"
   assert.match(styles, /\.feed119-list \{ box-sizing: border-box; width: 100%;/);
 });
 
-test("web discovery expires by lifecycle end rather than start time", () => {
+test("web discovery expires dated quests at start while preserving undated quests", () => {
   assert.match(source, /status\.in\.\(open,full\)/);
   assert.match(source, /completed_at\.is\.null/);
-  assert.match(source, /ends_at\.gt\.\$\{nowIso\}/);
-  assert.match(source, /completed_at\.gte\.\$\{completedCutoffIso\}/);
-  assert.match(source, /ends_at\.gte\.\$\{completedCutoffIso\}/);
+  assert.match(source, /starts_at\.is\.null,starts_at\.gt\.\$\{nowIso\}/);
+  assert.match(source, /ends_at\.is\.null,ends_at\.gt\.\$\{nowIso\}/);
   assert.match(source, /const isExpired = userId === q\.creator_id && hasQuestEnded\(q\)/);
   assert.doesNotMatch(source, /const isExpired = Boolean\(q\.starts_at/);
 });

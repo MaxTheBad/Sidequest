@@ -215,7 +215,6 @@ type SafetyPromptContext = "host" | "guest";
 type PendingSafetyJoin = { quest: QuestPreview; source: "selected" | "feed" };
 const FAR_AWAY_WARNING_MILES = 15;
 const HOME_QUEST_PAGE_SIZE = 50;
-const COMPLETED_FEED_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 const STORED_LOCATION_KEY = "questhat_device_location";
 const STORED_PUSH_PROMPT_DISMISSED_AT = "questhat_push_prompt_dismissed_at";
 const STORED_CONTEXTUAL_PUSH_PROMPT_AT = "questhat_contextual_push_prompt_at";
@@ -2976,11 +2975,7 @@ function QuestHatApp() {
           let fallbackQuery = applyHomeFallbackPageQuery(client
             .from("quests")
             .select("id,creator_id,title,description,city,availability,starts_at,time_flexible,group_size,hobby_id,skill_level,join_mode,created_at,media_items,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,username,avatar_url)"), HOME_QUEST_PAGE_SIZE, cursor?.source === "fallback" ? cursor : null);
-          const snapshotMs = Date.parse(snapshotTime);
-          const completedCutoffIso = new Date(snapshotMs - COMPLETED_FEED_WINDOW_MS).toISOString();
-          fallbackQuery = userId
-            ? fallbackQuery.or(`starts_at.gt.${snapshotTime},and(creator_id.eq.${userId},starts_at.gte.${completedCutoffIso})`)
-            : fallbackQuery.gt("starts_at", snapshotTime);
+          fallbackQuery = fallbackQuery.or(`starts_at.is.null,starts_at.gt.${snapshotTime}`);
           const fallbackResult = await withHomeFeedTimeout(fallbackQuery);
           return { data: (fallbackResult.data || []) as QuestPreview[], error: fallbackResult.error };
         },

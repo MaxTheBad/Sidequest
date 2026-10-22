@@ -5,11 +5,13 @@ import { hasQuestEnded, isQuestClosedForJoining } from "../src/lib/quest-join-el
 import { isUnsafeProtectedPublicLabel } from "../src/lib/public-location-label.js";
 import { feedMembershipAction } from "../src/lib/feed-card.js";
 
-test("web lifecycle uses explicit end/completion, not start time", () => {
+test("web lifecycle closes dated quests at their start boundary", () => {
   const now=Date.parse("2026-10-16T06:00:00Z");
   const past=new Date(now-1000).toISOString(), future=new Date(now+60000).toISOString();
-  assert.equal(isQuestClosedForJoining({starts_at:past,ends_at:future,status:"open"},now),false);
-  assert.equal(isQuestClosedForJoining({starts_at:past,status:"open"},now),false);
+  assert.equal(isQuestClosedForJoining({starts_at:past,ends_at:future,status:"open"},now),true);
+  assert.equal(isQuestClosedForJoining({starts_at:past,status:"open"},now),true);
+  assert.equal(isQuestClosedForJoining({starts_at:future,status:"open"},now),false);
+  assert.equal(isQuestClosedForJoining({status:"open"},now),false);
   assert.equal(isQuestClosedForJoining({ends_at:past,status:"open"},now),true);
   assert.equal(isQuestClosedForJoining({completed_at:past,ends_at:future,status:"open"},now),true);
   assert.equal(isQuestClosedForJoining({ends_at:future,status:"cancelled"},now),true);

@@ -18,6 +18,7 @@ import {
 
 const appSource = readFileSync(new URL("../apps/mobile/src/App.tsx", import.meta.url), "utf8");
 const migrationSource = readFileSync(new URL("../supabase/migrations/20261010195314_server_sorted_home_feed.sql", import.meta.url), "utf8");
+const startExpiryMigrationSource = readFileSync(new URL("../supabase/migrations/20261022052000_start_based_quest_discovery.sql", import.meta.url), "utf8");
 const accountLifecycleSource = readFileSync(new URL("../supabase/migrations/20260730151500_account_lifecycle.sql", import.meta.url), "utf8");
 const safetySource = readFileSync(new URL("../supabase/migrations/20260730160000_eula_and_safety_enforcement.sql", import.meta.url), "utf8");
 const SNAPSHOT_TIME = "2026-10-10T20:00:00.000Z";
@@ -319,7 +320,7 @@ test("native feed prefers server ranking and contains a narrowly scoped compatib
   assert.match(appSource, /snapshotTime,/);
   assert.match(appSource, /requestHomeFeedWithFallback<QuestPreview>/);
   assert.match(appSource, /applyHomeFallbackPageQuery\(client/);
-  assert.match(appSource, /starts_at\.gt\.\$\{snapshotTime\},and\(creator_id\.eq\.\$\{userId\},starts_at\.gte\.\$\{completedCutoffIso\}\)/);
+  assert.match(appSource, /starts_at\.is\.null,starts_at\.gt\.\$\{snapshotTime\}/);
   assert.match(appSource, /filterBlockedHomePage\(fallbackPage\.items, excludedCreatorIds\)/);
   assert.match(appSource, /if \(!homeFeedRequestGate\.isCurrent\(requestId\)\) return/);
   assert.match(appSource, /loadQuestCardCounts\(nextQuests\.map/);
@@ -336,14 +337,14 @@ test("approved compact sort menu is accessible and reloads when discovery inputs
   assert.match(appSource, /\[activeTab, homeCategoryFilter, homeSearchQuery, homeSortMode, nearestLocationRefreshKey\]/);
 });
 
-test("unapplied migration preserves active ongoing and undated quests without inventing an end time", () => {
-  assert.match(migrationSource, /q\.status in \('open', 'full'\)/);
-  assert.match(migrationSource, /when eligible\.starts_at is null then null/);
-  assert.match(migrationSource, /when eligible\.starts_at <= p_now then p_now/);
-  assert.doesNotMatch(migrationSource, /q\.starts_at > p_now/);
-  assert.doesNotMatch(migrationSource, /ends_at|end_at|duration/);
-  assert.match(migrationSource, /paged\.sort_time_missing/);
-  assert.match(migrationSource, /paged\.sort_time end desc nulls last/);
+test("start-based discovery expires dated quests while preserving undated quests", () => {
+  assert.match(startExpiryMigrationSource, /q\.status in \('open', 'full'\)/);
+  assert.match(startExpiryMigrationSource, /q\.completed_at is null/);
+  assert.match(startExpiryMigrationSource, /q\.starts_at is null or q\.starts_at > p_now/);
+  assert.match(startExpiryMigrationSource, /when eligible\.starts_at is null then null/);
+  assert.doesNotMatch(startExpiryMigrationSource, /when eligible\.starts_at <= p_now then p_now/);
+  assert.match(startExpiryMigrationSource, /paged\.sort_time_missing/);
+  assert.match(startExpiryMigrationSource, /paged\.sort_time end desc nulls last/);
 });
 
 test("unapplied migration filters before bounded keyset pagination and preserves auth and location privacy", () => {

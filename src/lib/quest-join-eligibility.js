@@ -4,11 +4,10 @@ export function hasQuestEnded(quest, now = Date.now()) {
   if (!quest) return true;
   const status = String(quest.status || "open").toLowerCase();
   if (!["open", "full"].includes(status) || quest.completed_at) return true;
-  // Start time is not an end time: in-progress quests remain eligible.
-  const end = quest.ends_at;
-  if (!end) return false;
-  const time = Date.parse(end);
-  return !Number.isFinite(time) || time <= now;
+  const startTime = quest.starts_at ? Date.parse(quest.starts_at) : Number.NaN;
+  if (Number.isFinite(startTime) && startTime <= now) return true;
+  const endTime = quest.ends_at ? Date.parse(quest.ends_at) : Number.NaN;
+  return Number.isFinite(endTime) && endTime <= now;
 }
 
 /** @param {{ starts_at?: string|null, ends_at?: string|null, completed_at?: string|null, status?: string|null }|null|undefined} quest */

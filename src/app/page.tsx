@@ -110,12 +110,8 @@ type Quest = {
   profiles?: { id: string; display_name: string | null; username: string | null; avatar_url: string | null }[] | { id: string; display_name: string | null; username: string | null; avatar_url: string | null } | null;
 };
 
-function buildWebQuestLifecycleFilter(uid: string | null, nowIso: string, completedCutoffIso: string) {
-  const active = `and(status.in.(open,full),completed_at.is.null,or(ends_at.is.null,ends_at.gt.${nowIso}))`;
-  if (!uid) return active;
-  const ownerCompleted = `and(creator_id.eq.${uid},completed_at.gte.${completedCutoffIso},completed_at.lte.${nowIso})`;
-  const ownerEnded = `and(creator_id.eq.${uid},completed_at.is.null,ends_at.gte.${completedCutoffIso},ends_at.lte.${nowIso})`;
-  return `${active},${ownerCompleted},${ownerEnded}`;
+function buildWebQuestDiscoveryFilter(nowIso: string) {
+  return `and(status.in.(open,full),completed_at.is.null,or(starts_at.is.null,starts_at.gt.${nowIso}),or(ends_at.is.null,ends_at.gt.${nowIso}))`;
 }
 
 function getQuestHobby(q?: { hobbies?: { name?: string | null; category?: string | null }[] | { name?: string | null; category?: string | null } | null }) {
@@ -925,9 +921,8 @@ export default function Home() {
     }
     const now = Date.now();
     const nowIso = new Date(now).toISOString();
-    const completedCutoffIso = new Date(now - (7 * 24 * 60 * 60 * 1000)).toISOString();
     let q = supabase.from("quests").select("id,creator_id,created_at,title,description,city,skill_level,group_size,availability,starts_at,ends_at,completed_at,status,time_flexible,hobby_id,join_mode,exact_location_visibility,exact_address,apple_place_id,location_details,media_video_url,media_source,media_items,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,username,avatar_url)").order("created_at", { ascending: false }).limit(24);
-    q = q.or(buildWebQuestLifecycleFilter(uid, nowIso, completedCutoffIso));
+    q = q.or(buildWebQuestDiscoveryFilter(nowIso));
       const filterCategoryName = getFilterCategoryName(hobbyFilter);
       if (hobbyFilter !== "all") {
         if (filterCategoryName && hobbyFilter.startsWith("canonical:")) {
@@ -943,7 +938,7 @@ export default function Home() {
     // Backward compatibility if migration for media_items has not been applied yet
     if (error?.message?.includes("column quests.media_items does not exist")) {
       let fallback = supabase.from("quests").select("id,creator_id,created_at,title,description,city,skill_level,group_size,availability,starts_at,ends_at,completed_at,status,time_flexible,hobby_id,join_mode,exact_location_visibility,exact_address,apple_place_id,location_details,media_video_url,media_source,hobbies(name,category),profiles:profiles!quests_creator_id_fkey(id,display_name,username,avatar_url)").order("created_at", { ascending: false }).limit(24);
-      fallback = fallback.or(buildWebQuestLifecycleFilter(uid, nowIso, completedCutoffIso));
+      fallback = fallback.or(buildWebQuestDiscoveryFilter(nowIso));
       if (hobbyFilter !== "all") {
         if (filterCategoryName && hobbyFilter.startsWith("canonical:")) {
           fallback = fallback.ilike("hobbies.name", filterCategoryName);
