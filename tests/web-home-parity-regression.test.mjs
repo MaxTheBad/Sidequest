@@ -29,6 +29,15 @@ test("desktop home uses an isolated top-navigation, card-grid, and persistent ma
   assert.match(styles, /\.home119-desktop-map \{ position: sticky/);
 });
 
+test("desktop cards reserve media space and separate host from location actions", () => {
+  assert.match(source, /className="feed119-top-actions flex items-center gap-2"/);
+  assert.match(styles, /\.home119-page \.feed119-card \.feed119-media \{ flex: 1 1 auto !important;/);
+  assert.match(styles, /\.feed119-card \.feed119-top \{ display: grid; grid-template-columns: minmax\(0,1fr\) auto;/);
+  assert.match(styles, /\.feed119-host \{[^}]*min-height: 44px;[^}]*background: rgba\(9,16,24,\.82\)/);
+  assert.match(styles, /\.feed119-top-actions > \.relative > button \{[^}]*min-width: 44px;[^}]*min-height: 44px;/);
+  assert.match(styles, /\.feed119-list \{ box-sizing: border-box; width: 100%;/);
+});
+
 test("web discovery expires by lifecycle end rather than start time", () => {
   assert.match(source, /status\.in\.\(open,full\)/);
   assert.match(source, /completed_at\.is\.null/);

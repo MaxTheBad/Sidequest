@@ -933,7 +933,10 @@ html[data-theme="dark"] .mobile-dock-inner { background: rgba(27,25,33,.82); bor
   .home119-feed-error { grid-column: 1 / -1; }
   .home119-page .feed119-card { height: 430px !important; min-height: 430px !important; border-radius: 23px !important; }
   .home119-page .feed119-card:nth-child(-n+2) { height: 500px !important; min-height: 500px !important; }
-  .home119-page .feed119-card .feed119-media { height: auto !important; min-height: 0 !important; }
+  .home119-page .feed119-card .feed119-media { flex: 1 1 auto !important; height: auto !important; min-height: 0 !important; }
+  .home119-page .feed119-card .feed119-top { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: start; }
+  .home119-page .feed119-card .feed119-host { width: fit-content; max-width: 100%; }
+  .home119-page .feed119-card .feed119-top-actions { min-width: 0; }
   .feed119-title-copy h3 { font-size: 19px; line-height: 23px; }
   .feed119-membership { width: 112px; flex-basis: 112px; }
   .home119-desktop-map { position: sticky; top: 100px; display: block; overflow: hidden; border: 1px solid #dce4eb; border-radius: 24px; background: #fff; box-shadow: 0 14px 40px rgba(15,23,42,.07); }
@@ -2282,15 +2285,17 @@ html[data-theme="dark"] .quest-detail-section { background: rgba(29,32,44,.82) !
 }
 
 /* Build 119 Home feed: scoped to the feed, leaving other card routes unchanged. */
-.feed119-list { width: 100%; max-width: 760px; margin: 0 auto; gap: 16px; padding: 0 14px 120px; }
+.feed119-list { box-sizing: border-box; width: 100%; max-width: 760px; margin: 0 auto; gap: 16px; padding: 0 14px 120px; }
 .home119-page .feed119-card { border: 1px solid rgba(15,23,42,.09) !important; border-radius: 27px; height: auto; min-height: 0; overflow: hidden; scroll-margin: 80px 0 130px; box-shadow: none !important; }
 .feed119-card .feed119-media { flex: none; height: max(500px, calc(100svh - 240px)); min-height: 0; border: 0; }
 .feed119-media::after { content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 11; background: linear-gradient(180deg, rgba(5,10,15,.52), rgba(5,10,15,.02) 25%, rgba(5,10,15,.06) 52%, rgba(5,10,15,.88)); }
-.feed119-card .feed119-top { padding: 14px; gap: 8px; align-items: flex-start; background: none; backdrop-filter: none; }
-.feed119-host { max-width: 43%; padding: 4px 10px 4px 4px; border: 1px solid rgba(255,255,255,.14); border-radius: 999px; background: rgba(9,16,24,.48); color: #fff; gap: 7px; }
+.feed119-card .feed119-top { display: grid; grid-template-columns: minmax(0,1fr) auto; padding: 14px; gap: 8px; align-items: flex-start; background: none; backdrop-filter: none; }
+.feed119-host { width: fit-content; max-width: 100%; min-height: 44px; padding: 4px 10px 4px 4px; border: 1px solid rgba(255,255,255,.24); border-radius: 999px; background: rgba(9,16,24,.82); color: #fff; gap: 7px; }
 .feed119-host img, .feed119-host > div { width: 30px; height: 30px; flex-shrink: 0; }
 .feed119-host > span { font-size: 12px; font-weight: 800; }
-.feed119-location { display: flex; align-items: center; gap: 8px; max-width: 156px; min-height: 45px; padding: 6px 8px; border: 1px solid rgba(255,255,255,.16); border-radius: 15px; background: rgba(9,16,24,.64); color: white; text-align: left; }
+.feed119-top-actions { min-width: 0; }
+.feed119-top-actions > .relative > button { width: 44px !important; height: 44px !important; min-width: 44px; min-height: 44px; background: rgba(9,16,24,.82) !important; border-color: rgba(255,255,255,.24) !important; color: #fff !important; }
+.feed119-location { display: flex; align-items: center; gap: 8px; max-width: 156px; min-height: 45px; padding: 6px 8px; border: 1px solid rgba(255,255,255,.24); border-radius: 15px; background: rgba(9,16,24,.82); color: white; text-align: left; }
 .feed119-location-icon { width: 29px; height: 29px; flex: 0 0 29px; display: grid; place-items: center; border-radius: 10px; color: #dff7fb; background: rgba(155,216,228,.16); }
 .feed119-location-icon svg { width: 16px; height: 16px; }
 .feed119-location > span:last-child { min-width: 0; }

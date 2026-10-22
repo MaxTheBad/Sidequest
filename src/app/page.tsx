@@ -4197,7 +4197,7 @@ export default function Home() {
                   )}
                   <span className="text-sm font-semibold truncate">{creatorProfile?.display_name || "View profile"}</span>
                 </Link>
-                <div className="flex items-center gap-2">
+                <div className="feed119-top-actions flex items-center gap-2">
                   <button type="button" className="feed119-location" aria-label={(q.city === "Virtual" || isVirtualQuest(q)) ? "Virtual quest" : distanceLabel ? `View ${formatQuestCityState(q)} on map` : "Use my location for quest distances"} onClick={() => { if (!(q.city === "Virtual" || isVirtualQuest(q))) { if (!userLocation) void requestUserLocation(); else void openQuestCityMap(q); } }} disabled={(q.city === "Virtual" || isVirtualQuest(q))}>
                     <span className="feed119-location-icon"><AppIcon name="location" /></span>
                     <span><strong>{(q.city === "Virtual" || isVirtualQuest(q)) ? "Virtual quest" : distanceLabel || (userLocation ? "Distance unavailable" : "Use my location")}</strong><small>{(q.city === "Virtual" || isVirtualQuest(q)) ? "Meet online" : (q.city?.trim() || "City tbd")}</small></span>
