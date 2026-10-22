@@ -502,6 +502,9 @@ button:active, a:active {
   border-radius: 999px;
   padding: 6px 10px;
   font-size: 12px;
+  line-height: 1.2;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .nav-control:hover {
@@ -2331,6 +2334,10 @@ html[data-theme="dark"] .quest-detail-section { background: rgba(29,32,44,.82) !
 html[data-theme="dark"] .feed119-actions { color: #d5dbe5; background: #12141d; border-color: rgba(255,255,255,.06); }
 html[data-theme="dark"] .feed119-countdown { background: rgba(155,216,228,.11); color: #dff7fb; }
 @media (max-width:767px) {
+  .mobile-topbar > div { gap: 6px; padding-inline: 10px; }
+  .mobile-topbar .nav-download-link { display: none; }
+  .mobile-topbar .icon-control { width: 44px; height: 44px; min-width: 44px; flex: 0 0 44px; padding: 10px; }
+  .mobile-topbar .icon-control svg { width: 20px; height: 20px; max-width: 20px; max-height: 20px; }
   .feed119-header .nav-brand img { display: none; }
   .feed119-header .nav-brand { margin-right: auto; font-size: 22px; }
   .feed119-header .nav-brand span { font-weight: 900; }
@@ -2564,5 +2571,52 @@ html:has(.home119-page) { scroll-padding-bottom: 130px; scroll-padding-top: 70px
 html:not([data-theme="dark"]) body:has(.page-inbox) { background: #f4f7fb; }
 html:not([data-theme="dark"]) .page-inbox.app-page { background: #f4f7fb; }
 html:not([data-theme="dark"]) .inbox119-header { background: #fff !important; }
+
+/* Auth modal: bound every icon and control so unscoped SVG defaults cannot
+   expand the provider and input rows on mobile Safari. */
+.auth-sign-in-overlay { background: rgba(2,12,20,.7); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+.auth-sign-in-dialog { color: #eef8fb; background: radial-gradient(circle at 78% 8%,rgba(17,103,124,.18),transparent 34%),linear-gradient(150deg,#0d1724 0%,#09131e 68%,#0b1b25 100%) !important; border-color: #284756 !important; box-shadow: 0 28px 90px rgba(2,12,20,.55),0 0 0 1px rgba(119,207,222,.08),inset 0 1px 0 rgba(255,255,255,.035); }
+.auth-sign-in-topline,.auth-sign-in-brand { display:flex; align-items:center; }
+.auth-sign-in-topline { justify-content:space-between; gap:16px; }
+.auth-sign-in-brand { gap:9px; color:#eef8fb; font-size:17px; letter-spacing:-.03em; }
+.auth-sign-in-logo { width:34px; height:34px; flex:0 0 34px; object-fit:contain; border-radius:11px; background:rgba(155,216,228,.12); padding:4px; }
+.auth-sign-in-close { display:grid; width:44px; height:44px; min-width:44px; min-height:44px; place-items:center; border:1px solid #284756; border-radius:999px; color:#eef8fb; background:#111c29; font-size:22px; line-height:1; }
+.auth-sign-in-heading h3 { margin:0; font-size:clamp(27px,7vw,32px); font-weight:800; letter-spacing:-.035em; line-height:1.08; }
+.auth-sign-in-heading p { margin-top:7px; color:#9ba9b7; font-size:14px; }
+.auth-field-shell { min-height:50px; display:flex; align-items:center; gap:10px; padding:0 13px; border:1px solid #284756; border-radius:14px; background:#0f1a26; transition:border-color .16s ease,box-shadow .16s ease; }
+.auth-field-shell:focus-within { border-color:#8ed0dc; box-shadow:0 0 0 3px rgba(142,208,220,.18); }
+.auth-field-icon { width:19px; height:19px; flex:0 0 19px; fill:currentColor; color:#8d9ca8; }
+.auth-field-input { min-width:0; flex:1; border:0; outline:0; padding:13px 0; color:#eef8fb; background:transparent; caret-color:#8ed0dc; }
+.auth-field-input::placeholder { color:#71818e; }
+.auth-password-toggle { display:grid; width:44px; height:44px; min-width:44px; flex:0 0 44px; place-items:center; border-radius:11px; color:#9ba9b7; }
+.auth-password-toggle svg { width:19px; height:19px; fill:currentColor; }
+.auth-trouble-link { justify-self:end; min-height:44px; color:#a8dce5; font-size:12px; font-weight:600; text-decoration:underline; text-underline-offset:3px; }
+.auth-login-form,.auth-login-form>* { min-width:0; max-width:100%; }
+.auth-sign-in-dialog form>input:not([type="checkbox"]),.auth-sign-in-dialog form>select { width:100%; min-width:0; box-sizing:border-box; }
+.auth-sign-in-dialog form>div>input[name="username"] { width:100%; min-width:0; box-sizing:border-box; }
+.auth-primary-submit { display:flex; min-height:50px; align-items:center; justify-content:center; gap:9px; color:#092f39 !important; background:linear-gradient(100deg,#8ed0dc,#a8dce5) !important; box-shadow:0 9px 24px rgba(70,190,211,.14) !important; }
+.auth-provider-grid.grid-cols-2 { grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+.auth-sign-in-dialog .auth-provider-button { width:100%; height:56px; min-width:0; min-height:56px; display:grid; grid-template-columns:27px minmax(0,1fr) 11px; align-items:center; column-gap:7px; padding:0 10px; overflow:hidden; border:1px solid #283947 !important; border-radius:15px !important; color:#eef8fb !important; background:linear-gradient(145deg,#111c29,#0c1722) !important; box-shadow:none !important; font-size:13px; font-weight:700; text-align:left; transform:none; }
+.auth-sign-in-dialog .auth-provider-button:hover { border-color:#3a6272 !important; background:linear-gradient(145deg,#142432,#0e1d29) !important; transform:none; }
+.auth-provider-icon { width:27px; height:27px; display:grid; place-items:center; border:1px solid rgba(255,255,255,.09); border-radius:9px; color:#fff; background:#090e15; box-shadow:none; }
+.auth-provider-icon svg { display:block; width:17px; height:17px; max-width:17px; max-height:17px; }
+.auth-provider-icon img { display:block; width:19px; height:19px; max-width:19px; max-height:19px; object-fit:contain; }
+.auth-provider-icon img[src*="facebook"] { width:21px; height:21px; max-width:21px; max-height:21px; }
+.auth-provider-label { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.auth-provider-chevron { color:#7f929f; font-size:18px; font-weight:350; line-height:1; text-align:right; }
+.auth-sign-in-dialog :focus-visible { outline:3px solid #9ae8f1; outline-offset:3px; }
+@media(max-width:350px){.auth-sign-in-dialog .auth-provider-button{grid-template-columns:25px minmax(0,1fr) 9px;column-gap:5px;padding-inline:7px;font-size:12px}.auth-provider-icon{width:25px;height:25px}}
+
+/* Settings navigation follows the four-section native hierarchy. Keep icon
+   sizing on the icon wrapper so the account overlay cannot escape the tab. */
+.page-settings .settings-parity-tabs { display:grid !important; grid-template-columns:repeat(4,minmax(0,1fr)); gap:0 !important; padding:5px; background:#11131b !important; border:1px solid #ffffff12; border-radius:22px; }
+.page-settings .settings-parity-tabs button { display:flex !important; flex-direction:column !important; align-items:center; justify-content:center; gap:4px !important; min-width:0 !important; min-height:59px; padding:6px 2px !important; border-radius:17px !important; background:transparent !important; color:#818b99 !important; font-size:10px !important; font-weight:800; line-height:1.2; }
+.page-settings .settings-parity-tabs button.is-active { background:#6daec21c !important; color:#dff7fb !important; }
+.settings-nav-icon { position:relative; display:grid; place-items:center; width:29px; height:29px; flex:0 0 29px; border-radius:50%; color:#94a3b8; }
+.page-settings .settings-parity-tabs button.is-active .settings-nav-icon { background:#9bd8e4; color:#082f3a; }
+.page-settings .settings-nav-icon>svg { display:block; width:18px !important; height:18px !important; max-width:18px; max-height:18px; flex:0 0 18px; }
+.page-settings .settings-nav-icon>.settings-shield-check { position:absolute; inset:5.5px; width:18px !important; height:18px !important; }
+.page-settings .settings-parity-tabs button:focus-visible { outline:3px solid #9bd8e4; outline-offset:2px; }
+@media(min-width:768px){.page-settings .settings-parity-tabs button{flex-direction:row !important;gap:8px !important;font-size:12px !important;min-height:54px}}
 
 .page-inbox.app-page::before { content: none; }
