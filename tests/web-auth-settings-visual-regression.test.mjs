@@ -34,3 +34,11 @@ test("settings tabs constrain icons and preserve accessible tab behavior", () =>
   assert.match(styles, /\.page-settings \.settings-nav-icon>svg \{[^}]*width:18px !important;[^}]*height:18px !important;/);
   assert.match(styles, /\.page-settings \.settings-parity-tabs button:focus-visible \{ outline:3px solid/);
 });
+
+test("signed-in settings summary bounds portrait, location and action icons", () => {
+  assert.match(settings, /userId \? <Link href="\/profile" className="settings-parity-hero"/);
+  assert.match(styles, /\.page-settings \.settings-parity-hero>img,[\s\S]*?width:56px; height:56px;[\s\S]*?flex:0 0 56px;[\s\S]*?object-fit:cover;/);
+  assert.match(styles, /\.page-settings \.settings-parity-hero small svg \{[^}]*width:13px;[^}]*height:13px;[^}]*flex:0 0 13px;/);
+  assert.match(styles, /\.page-settings \.settings-parity-hero>\.settings-profile-link \{[^}]*width:38px;[^}]*height:38px;[^}]*flex:0 0 38px;/);
+  assert.match(styles, /\.page-settings \{ padding:10px 14px calc\(110px \+ env\(safe-area-inset-bottom\)\) !important;/);
+});
