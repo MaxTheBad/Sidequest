@@ -907,7 +907,7 @@ html[data-theme="dark"] .mobile-dock-inner { background: rgba(27,25,33,.82); bor
   .home119-shell { max-width: 1440px !important; padding: 34px clamp(24px,4vw,64px) 70px !important; }
   .home119-guest-hero { display: none; }
   .home119-discovery { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 14px; }
-  .home119-discovery > .home119-search { display: none; }
+  .home119-discovery > .home119-search-row { display: none; }
   .home119-search { min-height: 52px; align-items: center; gap: 10px; padding: 0 15px; border: 1px solid #dce4eb; border-radius: 17px; color: #64748b; background: #fff; }
   .home119-search input { flex: 1; padding: 0; border: 0; background: transparent; box-shadow: none; font-size: 14px; }
   .home119-chips { grid-column: 1; grid-row: 1; display: flex; gap: 9px; overflow-x: auto; }

@@ -27,6 +27,8 @@ test("desktop home uses an isolated top-navigation, card-grid, and persistent ma
   assert.match(styles, /@media \(min-width: 768px\)[\s\S]*body:has\(\.home119-page\) \.desktop-rail \{ display: none !important; \}/);
   assert.match(styles, /\.home119-page \.feed119-list \{[^}]*grid-template-columns: repeat\(2,minmax\(0,1fr\)\)/);
   assert.match(styles, /\.home119-desktop-map \{ position: sticky/);
+  assert.match(styles, /\.home119-discovery > \.home119-search-row \{ display: none; \}/);
+  assert.doesNotMatch(styles, /\.home119-discovery > \.home119-search \{ display: none; \}/);
 });
 
 test("desktop cards reserve media space and separate host from location actions", () => {
