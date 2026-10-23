@@ -1582,7 +1582,7 @@ export default function SettingsPage() {
                   ) : (
                     <div className="space-y-2">
                       {friendsProfiles.map((friend) => (
-                        <div key={friend.id} className="flex items-center justify-between gap-3 rounded-xl border bg-white px-3 py-2">
+                        <div key={friend.id} className="settings-person-row flex items-center justify-between gap-3 rounded-xl border bg-white px-3 py-2">
                           <Link href={`/profile/${friend.id}`} className="flex min-w-0 items-center gap-2">
                             {friend.avatar_url ? (
                               <img src={friend.avatar_url} alt={friend.display_name || "Friend"} className="h-9 w-9 rounded-full object-cover border" />
@@ -1595,7 +1595,7 @@ export default function SettingsPage() {
                           </Link>
                           <button
                             type="button"
-                            className="rounded-full border px-3 py-2 text-sm"
+                            className="settings-person-action rounded-full border px-3 py-2 text-sm"
                             onClick={async () => {
                               const client = supabase;
                               if (!client || !userId) return;
@@ -1629,7 +1629,7 @@ export default function SettingsPage() {
                   ) : (
                     <div className="space-y-2">
                       {friendRequests.map((request) => (
-                        <div key={`${request.edge.requester_id}-${request.edge.addressee_id}`} className="flex items-center justify-between gap-3 rounded-xl border bg-white px-3 py-2">
+                        <div key={`${request.edge.requester_id}-${request.edge.addressee_id}`} className="settings-person-row flex items-center justify-between gap-3 rounded-xl border bg-white px-3 py-2">
                           <Link href={`/profile/${request.id}`} className="flex min-w-0 items-center gap-2">
                             {request.avatar_url ? (
                               <img src={request.avatar_url} alt={request.display_name || "User"} className="h-9 w-9 rounded-full object-cover border" />
@@ -1640,12 +1640,12 @@ export default function SettingsPage() {
                               <p className="truncate text-sm font-medium">{request.display_name || "User"}</p>
                             </div>
                           </Link>
-                          <div className="flex items-center gap-2">
+                          <div className="settings-request-actions flex items-center gap-2">
                             <span className="text-xs text-gray-500">{request.direction === "incoming" ? "Incoming" : "Outgoing"}</span>
                             {request.direction === "incoming" ? (
                               <button
                                 type="button"
-                                className="rounded-full border px-3 py-2 text-sm"
+                                className="settings-person-action rounded-full border px-3 py-2 text-sm"
                                 onClick={async () => {
                                   const client = supabase;
                                   if (!client || !userId) return;
@@ -1664,7 +1664,7 @@ export default function SettingsPage() {
                             ) : null}
                             <button
                               type="button"
-                              className="rounded-full border px-3 py-2 text-sm"
+                              className="settings-person-action rounded-full border px-3 py-2 text-sm"
                               onClick={async () => {
                                 const client = supabase;
                                 if (!client || !userId) return;
@@ -1705,7 +1705,7 @@ export default function SettingsPage() {
                 ) : (
                   <div className="space-y-2">
                     {blockedProfiles.map((p) => (
-                      <div key={p.id} className="flex items-center justify-between gap-3 rounded-xl border bg-white px-3 py-2">
+                      <div key={p.id} className="settings-person-row flex items-center justify-between gap-3 rounded-xl border bg-white px-3 py-2">
                         <Link href={`/profile/${p.id}`} className="flex min-w-0 items-center gap-2">
                           {p.avatar_url ? (
                             <img src={p.avatar_url} alt={p.display_name || "Blocked user"} className="h-9 w-9 rounded-full object-cover border" />
@@ -1716,7 +1716,7 @@ export default function SettingsPage() {
                             <p className="text-sm font-medium truncate">{p.display_name || "Blocked user"}</p>
                           </div>
                         </Link>
-                        <button type="button" className="border rounded px-3 py-2 text-sm" onClick={() => void unblockProfile(p.id)}>Unblock</button>
+                        <button type="button" className="settings-person-action border rounded px-3 py-2 text-sm" onClick={() => void unblockProfile(p.id)}>Unblock</button>
                       </div>
                     ))}
                   </div>

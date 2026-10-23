@@ -2631,7 +2631,7 @@ html:not([data-theme="dark"]) .inbox119-header { background: #fff !important; }
 .page-settings .settings-parity-hero small { display:flex; min-width:0; align-items:center; gap:4px; margin-top:4px; overflow:hidden; color:#9bc8d2; font-size:12px; font-weight:700; line-height:1.3; text-overflow:ellipsis; white-space:nowrap; }
 .page-settings .settings-parity-hero small svg { display:block; width:13px; height:13px; min-width:13px; max-width:13px; max-height:13px; flex:0 0 13px; }
 .page-settings .settings-parity-hero>.settings-profile-link { display:grid; width:38px; height:38px; min-width:38px; max-width:38px; min-height:38px; max-height:38px; flex:0 0 38px; place-items:center; border:1px solid #ffffff1a; border-radius:50%; color:#e8f7fa; background:#ffffff14; }
-.page-settings .settings-parity-secondary { display:flex; justify-content:center; gap:8px; }
+.page-settings .settings-parity-secondary { display:flex; flex-wrap:wrap; justify-content:center; gap:8px; }
 .page-settings .settings-parity-secondary button { min-height:44px; padding:9px 12px; border:1px solid var(--border); border-radius:12px; font-size:12px; }
 .page-settings .settings-parity-secondary button[aria-pressed="true"] { color:#082f3a; background:#9bd8e4; }
 .page-settings .settings-section-heading { padding:3px; }
@@ -2677,6 +2677,10 @@ html:not([data-theme="dark"]) .inbox119-header { background: #fff !important; }
 .page-settings .settings-blocked-card p { color:#9aa5b5; }
 .page-settings .settings-people-cards p.font-medium,
 .page-settings .settings-blocked-card p.font-medium { color:#f8fafc; font-size:16px; font-weight:800; }
+.page-settings .settings-person-row { min-width:0; flex-wrap:wrap; border-color:#ffffff12 !important; color:#f8fafc; background:#10121a !important; }
+.page-settings .settings-person-row>a { min-width:0; flex:1 1 150px; }
+.page-settings .settings-request-actions { min-width:0; flex:1 1 auto; flex-wrap:wrap; justify-content:flex-end; }
+.page-settings .settings-person-action { min-height:44px !important; }
 .page-settings .settings-blocked-card { margin-top:20px; }
 .page-settings form { min-width:0; width:100%; grid-template-columns:minmax(0,1fr); }
 .page-settings form>* { min-width:0; max-width:100%; }

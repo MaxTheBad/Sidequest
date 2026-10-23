@@ -81,3 +81,15 @@ test("settings parity selectors cover every existing control group", () => {
   assert.match(styles, /\.page-settings \.settings-people-cards>div,[\s\S]*?\.page-settings \.settings-blocked-card \{[^}]*padding:16px;[^}]*background:#151722 !important;/);
   assert.match(styles, /\.page-settings \.settings-blocked-card \{ margin-top:20px; \}/);
 });
+
+test("populated people rows retain contrast, wrapping, and 44px actions", () => {
+  assert.match(settings, /friendsProfiles\.map[\s\S]*?className="settings-person-row[^\"]*"[\s\S]*?className="settings-person-action[^\"]*"[\s\S]*?>\s*Remove\s*</);
+  assert.match(settings, /friendRequests\.map[\s\S]*?className="settings-person-row[^\"]*"[\s\S]*?className="settings-request-actions[^\"]*"[\s\S]*?className="settings-person-action[^\"]*"[\s\S]*?>\s*Accept\s*</);
+  assert.match(settings, /\{request\.direction === "incoming" \? "Decline" : "Cancel"\}/);
+  assert.match(settings, /blockedProfiles\.map[\s\S]*?className="settings-person-row[^\"]*"[\s\S]*?className="settings-person-action[^\"]*"[\s\S]*?>Unblock</);
+
+  assert.match(styles, /\.page-settings \.settings-parity-secondary \{[^}]*flex-wrap:wrap;/);
+  assert.match(styles, /\.page-settings \.settings-person-row \{[^}]*flex-wrap:wrap;[^}]*color:#f8fafc;[^}]*background:#10121a !important;/);
+  assert.match(styles, /\.page-settings \.settings-request-actions \{[^}]*flex-wrap:wrap;[^}]*justify-content:flex-end;/);
+  assert.match(styles, /\.page-settings \.settings-person-action \{ min-height:44px !important; \}/);
+});
