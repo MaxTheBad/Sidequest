@@ -2680,6 +2680,7 @@ html:not([data-theme="dark"]) .inbox119-header { background: #fff !important; }
 .page-settings .settings-person-row { min-width:0; flex-wrap:wrap; border-color:#ffffff12 !important; color:#f8fafc; background:#10121a !important; }
 .page-settings .settings-person-row>a { min-width:0; flex:1 1 150px; }
 .page-settings .settings-request-actions { min-width:0; flex:1 1 auto; flex-wrap:wrap; justify-content:flex-end; }
+.page-settings .settings-request-actions>span { color:#9aa5b5 !important; }
 .page-settings .settings-person-action { min-height:44px !important; }
 .page-settings .settings-blocked-card { margin-top:20px; }
 .page-settings form { min-width:0; width:100%; grid-template-columns:minmax(0,1fr); }

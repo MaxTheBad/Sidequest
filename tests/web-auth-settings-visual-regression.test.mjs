@@ -91,5 +91,6 @@ test("populated people rows retain contrast, wrapping, and 44px actions", () => 
   assert.match(styles, /\.page-settings \.settings-parity-secondary \{[^}]*flex-wrap:wrap;/);
   assert.match(styles, /\.page-settings \.settings-person-row \{[^}]*flex-wrap:wrap;[^}]*color:#f8fafc;[^}]*background:#10121a !important;/);
   assert.match(styles, /\.page-settings \.settings-request-actions \{[^}]*flex-wrap:wrap;[^}]*justify-content:flex-end;/);
+  assert.match(styles, /\.page-settings \.settings-request-actions>span \{ color:#9aa5b5 !important; \}/);
   assert.match(styles, /\.page-settings \.settings-person-action \{ min-height:44px !important; \}/);
 });
