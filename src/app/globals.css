@@ -2631,6 +2631,7 @@ html:not([data-theme="dark"]) .inbox119-header { background: #fff !important; }
 .page-settings .settings-parity-hero small { display:flex; min-width:0; align-items:center; gap:4px; margin-top:4px; overflow:hidden; color:#9bc8d2; font-size:12px; font-weight:700; line-height:1.3; text-overflow:ellipsis; white-space:nowrap; }
 .page-settings .settings-parity-hero small svg { display:block; width:13px; height:13px; min-width:13px; max-width:13px; max-height:13px; flex:0 0 13px; }
 .page-settings .settings-parity-hero>.settings-profile-link { display:grid; width:38px; height:38px; min-width:38px; max-width:38px; min-height:38px; max-height:38px; flex:0 0 38px; place-items:center; border:1px solid #ffffff1a; border-radius:50%; color:#e8f7fa; background:#ffffff14; }
+.page-settings .settings-parity-interests h2 svg { display:inline-block; width:20px; height:20px; max-width:20px; max-height:20px; margin-right:7px; vertical-align:-3px; }
 .page-settings form { min-width:0; width:100%; grid-template-columns:minmax(0,1fr); }
 .page-settings form>* { min-width:0; max-width:100%; }
 .page-settings form input:not([type="checkbox"]):not([type="file"]),

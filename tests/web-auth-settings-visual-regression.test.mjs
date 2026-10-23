@@ -5,6 +5,7 @@ import test from "node:test";
 const home = readFileSync(new URL("../src/app/page.tsx", import.meta.url), "utf8");
 const header = readFileSync(new URL("../src/components/global-top-bar.tsx", import.meta.url), "utf8");
 const settings = readFileSync(new URL("../src/app/settings/page.tsx", import.meta.url), "utf8");
+const interests = readFileSync(new URL("../src/components/settings-interests.tsx", import.meta.url), "utf8");
 const styles = readFileSync(new URL("../src/app/globals.css", import.meta.url), "utf8");
 
 test("guest header action stays on one line at phone widths", () => {
@@ -41,4 +42,9 @@ test("signed-in settings summary bounds portrait, location and action icons", ()
   assert.match(styles, /\.page-settings \.settings-parity-hero small svg \{[^}]*width:13px;[^}]*height:13px;[^}]*flex:0 0 13px;/);
   assert.match(styles, /\.page-settings \.settings-parity-hero>\.settings-profile-link \{[^}]*width:38px;[^}]*height:38px;[^}]*flex:0 0 38px;/);
   assert.match(styles, /\.page-settings \{ padding:10px 14px calc\(110px \+ env\(safe-area-inset-bottom\)\) !important;/);
+});
+
+test("preferences interests heading bounds its star icon", () => {
+  assert.match(interests, /className="settings-parity-interests"><h2><AppIcon name="star" \/>Interests/);
+  assert.match(styles, /\.page-settings \.settings-parity-interests h2 svg \{[^}]*display:inline-block;[^}]*width:20px;[^}]*height:20px;[^}]*max-width:20px;[^}]*max-height:20px;/);
 });
