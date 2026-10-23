@@ -2632,6 +2632,25 @@ html:not([data-theme="dark"]) .inbox119-header { background: #fff !important; }
 .page-settings .settings-parity-hero small svg { display:block; width:13px; height:13px; min-width:13px; max-width:13px; max-height:13px; flex:0 0 13px; }
 .page-settings .settings-parity-hero>.settings-profile-link { display:grid; width:38px; height:38px; min-width:38px; max-width:38px; min-height:38px; max-height:38px; flex:0 0 38px; place-items:center; border:1px solid #ffffff1a; border-radius:50%; color:#e8f7fa; background:#ffffff14; }
 .page-settings .settings-parity-interests h2 svg { display:inline-block; width:20px; height:20px; max-width:20px; max-height:20px; margin-right:7px; vertical-align:-3px; }
+.page-settings .settings-appearance,
+.page-settings .settings-parity-interests { display:grid; gap:12px; min-width:0; padding:16px; border:1px solid #ffffff12; border-radius:20px; color:#f8fafc; background:#151722; }
+.page-settings .settings-appearance h3,
+.page-settings .settings-parity-interests h2 { margin:0; color:#f8fafc; font-size:16px; font-weight:800; line-height:1.3; text-transform:none; }
+.page-settings .settings-appearance>p,
+.page-settings .settings-parity-interests>p { margin:0; color:#9aa5b5; font-size:12px; line-height:1.45; }
+.page-settings .settings-theme-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
+.page-settings .settings-theme-grid button { display:flex; min-width:0; min-height:44px; flex-direction:column; align-items:center; gap:5px; padding:6px; border:1px solid #ffffff12; border-radius:14px; color:#cbd5e1; background:#10121a; font-size:12px; }
+.page-settings .settings-theme-grid button[aria-pressed="true"] { border-color:#9bd8e480; color:#dff7fb; background:#6daec21c; }
+.page-settings .settings-theme-preview { display:grid; width:100%; height:42px; place-items:center; border-radius:9px; font-size:25px; }
+.page-settings .settings-theme-auto { color:#dff7fb; background:#254853; }
+.page-settings .settings-theme-light { color:#334155; background:#eef2f6; }
+.page-settings .settings-theme-dark { color:#dff7fb; background:#282d39; }
+.page-settings .settings-theme-check { height:17px; color:#9bd8e4; }
+.page-settings .settings-interest-chips { display:flex; flex-wrap:wrap; gap:8px; }
+.page-settings .settings-interest-chips button { min-height:44px; padding:9px 13px; border:1px solid #ffffff1a; border-radius:999px; color:#cbd5e1; background:#10121a; font-size:13px; font-weight:700; line-height:1.2; }
+.page-settings .settings-interest-chips button[aria-checked="true"] { border-color:#9bd8e480; color:#082f3a; background:#9bd8e4; }
+.page-settings .settings-theme-grid button:focus-visible,
+.page-settings .settings-interest-chips button:focus-visible { outline:3px solid #8bd8e6; outline-offset:2px; }
 .page-settings form { min-width:0; width:100%; grid-template-columns:minmax(0,1fr); }
 .page-settings form>* { min-width:0; max-width:100%; }
 .page-settings form input:not([type="checkbox"]):not([type="file"]),

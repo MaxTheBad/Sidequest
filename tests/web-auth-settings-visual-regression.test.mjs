@@ -48,3 +48,15 @@ test("preferences interests heading bounds its star icon", () => {
   assert.match(interests, /className="settings-parity-interests"><h2><AppIcon name="star" \/>Interests/);
   assert.match(styles, /\.page-settings \.settings-parity-interests h2 svg \{[^}]*display:inline-block;[^}]*width:20px;[^}]*height:20px;[^}]*max-width:20px;[^}]*max-height:20px;/);
 });
+
+test("preferences theme and interest choices remain distinct accessible targets", () => {
+  assert.match(settings, /className="settings-theme-grid" role="group" aria-label="Theme"/);
+  assert.match(settings, /aria-pressed=\{themePref === value\}/);
+  assert.match(interests, /className="settings-interest-chips"/);
+  assert.match(interests, /role="checkbox" aria-checked=\{ids\.includes\(category\.id\)\}/);
+  assert.match(styles, /\.page-settings \.settings-theme-grid \{[^}]*display:grid;[^}]*grid-template-columns:repeat\(3,minmax\(0,1fr\)\);[^}]*gap:8px;/);
+  assert.match(styles, /\.page-settings \.settings-theme-grid button \{[^}]*min-height:44px;[^}]*border-radius:14px;/);
+  assert.match(styles, /\.page-settings \.settings-interest-chips \{[^}]*display:flex;[^}]*flex-wrap:wrap;[^}]*gap:8px;/);
+  assert.match(styles, /\.page-settings \.settings-interest-chips button \{[^}]*min-height:44px;[^}]*border-radius:999px;/);
+  assert.match(styles, /\.page-settings \.settings-interest-chips button\[aria-checked="true"\] \{[^}]*background:#9bd8e4;/);
+});
