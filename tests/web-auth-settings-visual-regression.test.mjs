@@ -85,7 +85,7 @@ test("settings parity selectors cover every existing control group", () => {
 test("populated people rows retain contrast, wrapping, and 44px actions", () => {
   assert.match(settings, /friendsProfiles\.map[\s\S]*?className="settings-person-row[^\"]*"[\s\S]*?className="settings-person-action[^\"]*"[\s\S]*?>\s*Remove\s*</);
   assert.match(settings, /friendRequests\.map[\s\S]*?className="settings-person-row[^\"]*"[\s\S]*?className="settings-request-actions[^\"]*"[\s\S]*?className="settings-person-action[^\"]*"[\s\S]*?>\s*Accept\s*</);
-  assert.match(settings, /\{request\.direction === "incoming" \? "Decline" : "Cancel"\}/);
+  assert.match(settings, /friendRequests\.map[\s\S]*?className="settings-request-actions[^\"]*"[\s\S]*?>\s*Accept\s*<[\s\S]*?className="settings-person-action[^\"]*"[\s\S]*?\{request\.direction === "incoming" \? "Decline" : "Cancel"\}/);
   assert.match(settings, /blockedProfiles\.map[\s\S]*?className="settings-person-row[^\"]*"[\s\S]*?className="settings-person-action[^\"]*"[\s\S]*?>Unblock</);
 
   assert.match(styles, /\.page-settings \.settings-parity-secondary \{[^}]*flex-wrap:wrap;/);
