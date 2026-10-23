@@ -60,3 +60,24 @@ test("preferences theme and interest choices remain distinct accessible targets"
   assert.match(styles, /\.page-settings \.settings-interest-chips button \{[^}]*min-height:44px;[^}]*border-radius:999px;/);
   assert.match(styles, /\.page-settings \.settings-interest-chips button\[aria-checked="true"\] \{[^}]*background:#9bd8e4;/);
 });
+
+test("settings parity selectors cover every existing control group", () => {
+  assert.match(settings, /className="settings-parity-secondary" aria-label="Account settings"/);
+  assert.match(styles, /\.page-settings \.settings-parity-secondary button \{[^}]*min-height:44px;[^}]*border-radius:12px;/);
+  assert.match(styles, /\.page-settings \.settings-parity-secondary button\[aria-pressed="true"\] \{/);
+
+  assert.match(settings, /className="settings-section-heading"/);
+  assert.match(styles, /\.page-settings \.settings-section-heading h2 \{[^}]*font-size:22px;[^}]*font-weight:900;/);
+
+  assert.match(settings, /className="settings-native-card"/);
+  assert.match(styles, /\.page-settings \.settings-native-card \{[^}]*display:grid;[^}]*padding:16px;[^}]*border-radius:20px;/);
+  assert.match(styles, /\.page-settings \.settings-native-card textarea \{[^}]*min-height:44px;/);
+
+  assert.match(settings, /className="settings-photo-options"/);
+  assert.match(styles, /\.page-settings \.settings-photo-options summary \{[^}]*min-height:44px;[^}]*cursor:pointer;/);
+
+  assert.match(settings, /settings-people-cards/);
+  assert.match(settings, /settings-blocked-card/);
+  assert.match(styles, /\.page-settings \.settings-people-cards>div,[\s\S]*?\.page-settings \.settings-blocked-card \{[^}]*padding:16px;[^}]*background:#151722 !important;/);
+  assert.match(styles, /\.page-settings \.settings-blocked-card \{ margin-top:20px; \}/);
+});

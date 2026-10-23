@@ -2631,6 +2631,23 @@ html:not([data-theme="dark"]) .inbox119-header { background: #fff !important; }
 .page-settings .settings-parity-hero small { display:flex; min-width:0; align-items:center; gap:4px; margin-top:4px; overflow:hidden; color:#9bc8d2; font-size:12px; font-weight:700; line-height:1.3; text-overflow:ellipsis; white-space:nowrap; }
 .page-settings .settings-parity-hero small svg { display:block; width:13px; height:13px; min-width:13px; max-width:13px; max-height:13px; flex:0 0 13px; }
 .page-settings .settings-parity-hero>.settings-profile-link { display:grid; width:38px; height:38px; min-width:38px; max-width:38px; min-height:38px; max-height:38px; flex:0 0 38px; place-items:center; border:1px solid #ffffff1a; border-radius:50%; color:#e8f7fa; background:#ffffff14; }
+.page-settings .settings-parity-secondary { display:flex; justify-content:center; gap:8px; }
+.page-settings .settings-parity-secondary button { min-height:44px; padding:9px 12px; border:1px solid var(--border); border-radius:12px; font-size:12px; }
+.page-settings .settings-parity-secondary button[aria-pressed="true"] { color:#082f3a; background:#9bd8e4; }
+.page-settings .settings-section-heading { padding:3px; }
+.page-settings .settings-section-heading p { color:#6daec2; font-size:10px; font-weight:900; letter-spacing:1.2px; text-transform:uppercase; }
+.page-settings .settings-section-heading h2 { margin-top:2px; color:var(--foreground); font-size:22px; font-weight:900; line-height:1.2; letter-spacing:-.5px; text-transform:none; }
+.page-settings .settings-native-card { display:grid; gap:12px; min-width:0; padding:16px; border:1px solid #ffffff12; border-radius:20px; color:#f8fafc; background:#151722; }
+.page-settings .settings-native-card h3 { margin:0; color:#f8fafc; font-size:16px; font-weight:800; text-transform:none; }
+.page-settings .settings-native-card>p { margin-top:-8px; color:#818b99; font-size:12px; }
+.page-settings .settings-native-card label { color:#dbe7ec; font-size:12px; font-weight:700; text-transform:none !important; }
+.page-settings .settings-native-card input:not([type="checkbox"]),
+.page-settings .settings-native-card select,
+.page-settings .settings-native-card textarea { min-height:44px; border-color:#ffffff12 !important; border-radius:12px; color:#f8fafc !important; background:#10121a !important; }
+.page-settings .settings-native-card .app-username-field { border-color:#ffffff12; background:#10121a; }
+.page-settings .settings-native-card .app-username-field>span { color:#9bd8e4; }
+.page-settings .settings-native-card .text-gray-500,
+.page-settings .settings-native-card .text-gray-600 { color:#818b99; }
 .page-settings .settings-parity-interests h2 svg { display:inline-block; width:20px; height:20px; max-width:20px; max-height:20px; margin-right:7px; vertical-align:-3px; }
 .page-settings .settings-appearance,
 .page-settings .settings-parity-interests { display:grid; gap:12px; min-width:0; padding:16px; border:1px solid #ffffff12; border-radius:20px; color:#f8fafc; background:#151722; }
@@ -2651,6 +2668,16 @@ html:not([data-theme="dark"]) .inbox119-header { background: #fff !important; }
 .page-settings .settings-interest-chips button[aria-checked="true"] { border-color:#9bd8e480; color:#082f3a; background:#9bd8e4; }
 .page-settings .settings-theme-grid button:focus-visible,
 .page-settings .settings-interest-chips button:focus-visible { outline:3px solid #8bd8e6; outline-offset:2px; }
+.page-settings .settings-photo-options { padding:14px; border:1px solid var(--border); border-radius:16px; }
+.page-settings .settings-photo-options summary { min-height:44px; font-size:13px; font-weight:700; cursor:pointer; }
+.page-settings .settings-photo-options[open] summary { margin-bottom:12px; }
+.page-settings .settings-people-cards>div,
+.page-settings .settings-blocked-card { padding:16px; border-color:#ffffff12 !important; border-radius:20px; color:#f8fafc; background:#151722 !important; }
+.page-settings .settings-people-cards p,
+.page-settings .settings-blocked-card p { color:#9aa5b5; }
+.page-settings .settings-people-cards p.font-medium,
+.page-settings .settings-blocked-card p.font-medium { color:#f8fafc; font-size:16px; font-weight:800; }
+.page-settings .settings-blocked-card { margin-top:20px; }
 .page-settings form { min-width:0; width:100%; grid-template-columns:minmax(0,1fr); }
 .page-settings form>* { min-width:0; max-width:100%; }
 .page-settings form input:not([type="checkbox"]):not([type="file"]),
@@ -2662,5 +2689,6 @@ html:not([data-theme="dark"]) .inbox119-header { background: #fff !important; }
   .page-settings .settings-parity-hero { padding:13px; }
   body:has(.page-settings) .app-footer { display:none; }
 }
+@media(min-width:768px){.page-settings .settings-native-card{padding:20px}.page-settings .settings-section-heading{padding-block:7px}}
 
 .page-inbox.app-page::before { content: none; }
