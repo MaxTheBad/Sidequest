@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useCategoryCatalog } from "@/lib/use-category-catalog";
 import { getSupabaseClient } from "@/lib/supabase";
 import { saveUserInterests } from "@/lib/user-interests.js";
@@ -13,7 +13,15 @@ export function SettingsInterests({ userId }: { userId: string }) {
   const [status,setStatus] = useState("");
   const [loadFailed,setLoadFailed] = useState(false);
   const savingRef=useRef(false);
+  const mountedRef=useRef(false);
+  const activeUserRef=useRef(userId);
+  const saveGenerationRef=useRef(0);
   const [retry,setRetry]=useState(0);
+  useLayoutEffect(() => {
+    mountedRef.current=true;activeUserRef.current=userId;saveGenerationRef.current+=1;savingRef.current=false;
+    setSaving(false);setStatus("");
+    return()=>{mountedRef.current=false;saveGenerationRef.current+=1;savingRef.current=false;};
+  },[userId]);
   useEffect(() => {
     let cancelled=false;
     setLoading(true);setLoadFailed(false);
@@ -28,10 +36,13 @@ export function SettingsInterests({ userId }: { userId: string }) {
   const choices=catalog.categories.filter(category=>category.active||ids.includes(category.id));
   async function save() {
     if(!client||loading||loadFailed||savingRef.current)return;
+    const saveUserId=userId;
+    const saveGeneration=++saveGenerationRef.current;
+    const isCurrent=()=>mountedRef.current&&activeUserRef.current===saveUserId&&saveGenerationRef.current===saveGeneration;
     savingRef.current=true;setSaving(true);setStatus("");
-    try { await saveUserInterests(client,userId,ids);setStatus("Interests saved. Your recommendations will adjust as new quests appear."); }
-    catch(error) {setStatus(error instanceof Error ? error.message : "Could not save interests. Please try again.");}
-    finally {savingRef.current=false;setSaving(false);}
+    try { await saveUserInterests(client,saveUserId,ids);if(isCurrent())setStatus("Interests saved. Your recommendations will adjust as new quests appear."); }
+    catch(error) {if(isCurrent())setStatus(error instanceof Error ? error.message : "Could not save interests. Please try again.");}
+    finally {if(isCurrent()){savingRef.current=false;setSaving(false);}}
   }
   return <section className="settings-parity-interests"><h2><AppIcon name="star" />Interests <small>{ids.length}</small></h2><p>Tune your feed and future category alerts. Pick as many as you like.</p>{loading?<p role="status">Loading interests…</p>:<div className="settings-interest-chips">{choices.map(category=><button key={category.id} type="button" role="checkbox" aria-checked={ids.includes(category.id)} disabled={saving||loadFailed} onClick={()=>setIds(current=>current.includes(category.id)?current.filter(id=>id!==category.id):[...current,category.id])}>{category.label}{ids.includes(category.id)?" ✓":""}</button>)}</div>}{status?<p role="status">{status}</p>:null}{loadFailed?<button type="button" onClick={()=>setRetry(value=>value+1)}>Try again</button>:<button type="button" className="app-primary-button" disabled={loading||saving||!choices.length} onClick={()=>void save()}>{saving?"Saving…":"Save interests"}</button>}</section>;
 }

@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import { saveUserInterests } from '../src/lib/user-interests.js';
 const id='44444444-4444-4444-8444-444444444444';
 function fixture(failure) {
@@ -52,4 +53,13 @@ test('interest deselection cannot start until the selected rows have persisted',
   await saving;
   assert.deepEqual(calls.map(([kind]) => kind), ["upsert", "delete", "eq", "not"]);
   assert.deepEqual(calls[2], ["eq", "user_id", "account-a"]);
+});
+
+test('pending save UI is bound to its originating account and mount', () => {
+  const source=fs.readFileSync(new URL('../src/components/settings-interests.tsx',import.meta.url),'utf8');
+  assert.match(source,/const saveUserId=userId;/);
+  assert.match(source,/mountedRef\.current&&activeUserRef\.current===saveUserId&&saveGenerationRef\.current===saveGeneration/);
+  assert.match(source,/if\(isCurrent\(\)\)setStatus\("Interests saved/);
+  assert.match(source,/catch\(error\) \{if\(isCurrent\(\)\)setStatus/);
+  assert.match(source,/finally \{if\(isCurrent\(\)\)\{savingRef\.current=false;setSaving\(false\);\}\}/);
 });
