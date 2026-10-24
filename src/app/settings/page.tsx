@@ -194,6 +194,16 @@ export default function SettingsPage() {
     }
   }, []);
 
+  function resetAccountScopedState() {
+    setEmail("");setNewEmail("");setActualName("");setUsername("");setCountryCode("US");setCity("");setRegion("");setRadiusKm(15);setBio("");
+    setFriendsVisibility("public");setShowLocation(false);setDob("");setGenderIdentity("");setPeopleDiscoveryEnabled(false);setAvatarUrl("");
+    setPhotoFile(null);setPhotoPreviewUrl("");setShowPhotoCropper(false);setUploadingPhoto(false);setDeactivatedAt(null);setMarketingOptIn(false);
+    setNotificationPreferences(DEFAULT_NOTIFICATION_PREFERENCES);setNotificationPreferencesLoading(false);setNotificationPreferencesSaving(false);
+    setTiktokStatus(null);setTiktokLoading(false);setTiktokAction(null);setTiktokPublishResult("");setTiktokPublishing(false);
+    setFriendsProfiles([]);setFriendRequests([]);setBlockedProfiles([]);setStatus("");setShowSignOutConfirm(false);setShowDeleteAccountConfirm(false);
+    setDeleteAccountConfirmation("");setAccountActionLoading(null);initialProfileSnapshotRef.current="";
+  }
+
   useEffect(() => {
     if (!supabase) return;
     const { data } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -201,6 +211,7 @@ export default function SettingsPage() {
       if (observedAuthUserRef.current === nextUserId) return;
       observedAuthUserRef.current = nextUserId;
       settingsLoadGenerationRef.current += 1;
+      resetAccountScopedState();
       setUserId(nextUserId);
       setAuthRevision((value) => value + 1);
     });
@@ -257,6 +268,7 @@ export default function SettingsPage() {
 
       if (!profile?.avatar_url && metaAvatar) {
         await supabase.from("profiles").upsert({ id: uid, avatar_url: metaAvatar });
+        if(!isCurrent(uid)) return;
       }
       setMarketingOptIn(Boolean(authMeta.marketing_opt_in));
       const resolvedDob = discoverySettings?.birth_date || (typeof authMeta.dob === "string" ? authMeta.dob : "");
@@ -289,6 +301,7 @@ export default function SettingsPage() {
         .select("requester_id,addressee_id,status")
         .eq("status", "accepted")
         .or(`requester_id.eq.${uid},addressee_id.eq.${uid}`);
+      if(!isCurrent(uid)) return;
       const acceptedEdges = ((acceptedRows || []) as FriendEdge[]).filter((row) => row.requester_id !== row.addressee_id);
       const acceptedFriendIds = Array.from(new Set(acceptedEdges.map((row) => (row.requester_id === uid ? row.addressee_id : row.requester_id)).filter((id) => id !== uid)));
       const acceptedMap = new Map(acceptedEdges.map((row) => [row.requester_id === uid ? row.addressee_id : row.requester_id, row]));
@@ -297,6 +310,7 @@ export default function SettingsPage() {
           .from("profiles")
           .select("id,display_name,avatar_url,username")
           .in("id", acceptedFriendIds);
+        if(!isCurrent(uid)) return;
         setFriendsProfiles(((profiles || []) as SocialProfile[]).map((profile) => ({
           ...profile,
           edge: acceptedMap.get(profile.id)!,
@@ -310,6 +324,7 @@ export default function SettingsPage() {
         .select("requester_id,addressee_id,status")
         .eq("status", "pending")
         .or(`requester_id.eq.${uid},addressee_id.eq.${uid}`);
+      if(!isCurrent(uid)) return;
       const pendingEdges = ((pendingRows || []) as FriendEdge[]).filter((row) => row.requester_id !== row.addressee_id);
       const pendingIds = Array.from(new Set(pendingEdges.flatMap((row) => [row.requester_id, row.addressee_id]).filter((id) => id !== uid)));
       if (pendingIds.length) {
@@ -317,6 +332,7 @@ export default function SettingsPage() {
           .from("profiles")
           .select("id,display_name,avatar_url,username")
           .in("id", pendingIds);
+        if(!isCurrent(uid)) return;
         const profileMap = new Map(((profiles || []) as SocialProfile[]).map((profile) => [profile.id, profile]));
         const rows: RequestRow[] = [];
         pendingEdges.forEach((edge) => {
@@ -338,6 +354,7 @@ export default function SettingsPage() {
         .select("requester_id,addressee_id,status")
         .eq("status", "blocked")
         .or(`requester_id.eq.${uid},addressee_id.eq.${uid}`);
+      if(!isCurrent(uid)) return;
       const blockedEdges = ((blockRows || []) as FriendEdge[]).filter((row) => row.requester_id !== row.addressee_id);
       const blockedIds = Array.from(new Set(blockedEdges.flatMap((r) => [r.requester_id, r.addressee_id]).filter((id) => id !== uid)));
       if (blockedIds.length) {
@@ -345,6 +362,7 @@ export default function SettingsPage() {
           .from("profiles")
           .select("id,display_name,avatar_url,username")
           .in("id", blockedIds);
+        if(!isCurrent(uid)) return;
         const blockedMap = new Map(((profiles || []) as SocialProfile[]).map((profile) => [profile.id, profile]));
         const rows: BlockedProfile[] = [];
         blockedEdges.forEach((edge) => {

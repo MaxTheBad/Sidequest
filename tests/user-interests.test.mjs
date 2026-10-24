@@ -74,4 +74,7 @@ test('Settings page observes auth identity changes and invalidates stale loads',
   assert.match(source,/setUserId\(nextUserId\)/);
   assert.match(source,/const isCurrent=.*settingsLoadGenerationRef\.current===generation/);
   assert.match(source,/if\(!isCurrent\(uid\)\) return;/);
+  assert.match(source,/function resetAccountScopedState\(\)/);
+  assert.match(source,/setFriendsProfiles\(\[\]\);setFriendRequests\(\[\]\);setBlockedProfiles\(\[\]\)/);
+  assert.ok((source.match(/if\(!isCurrent\(uid\)\) return;/g)||[]).length>=9,"every awaited account load stage is guarded");
 });
