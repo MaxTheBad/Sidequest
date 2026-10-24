@@ -25,6 +25,7 @@ import { getCategoryFallbackMedia } from "@/lib/category-default-media";
 import { getCreateQuestTitles, CREATE_QUEST_BANNER_IMAGES } from "@/lib/create-quest-media";
 import { TITLE_SUGGESTIONS, getCategoryTitleSuggestions } from "@questhat/shared";
 import { readStoredUserLocation, writeStoredUserLocation } from "@/lib/location-distance";
+import { getLocationControlCopy } from "@/lib/location-control";
 import { isImageLikeFile, prepareImageForUpload } from "@/lib/media-optimize";
 import { compressVideoForUpload, VIDEO_MAX_DURATION_SECONDS } from "@/lib/video-optimize";
 import { collectQuestStorageUrls, removeStoragePublicUrls } from "@/lib/storage.js";
@@ -3881,6 +3882,11 @@ export default function Home() {
     const nearestMiles = Math.min(...mapQuestItems.map((item) => haversineMiles(userLocation.lat, userLocation.lon, item.coords!.lat, item.coords!.lon)));
     return Number.isFinite(nearestMiles) && nearestMiles > 1500;
   }, [mapQuestItems, userLocation]);
+  const locationControlCopy = getLocationControlCopy(
+    userLocationStatus,
+    locationPermission,
+    !!(userLocation?.accuracy && userLocation.accuracy > 50000),
+  );
 
   useEffect(() => {
     if (feedViewMode !== "map") return;
@@ -4193,9 +4199,9 @@ export default function Home() {
                   <span className="text-sm font-semibold truncate">{creatorProfile?.display_name || "View profile"}</span>
                 </Link>
                 <div className="feed119-top-actions flex items-center gap-2">
-                  <button type="button" className="feed119-location" aria-label={(q.city === "Virtual" || isVirtualQuest(q)) ? "Virtual quest" : distanceLabel ? `View ${formatQuestCityState(q)} on map` : "Use my location for quest distances"} onClick={() => { if (!(q.city === "Virtual" || isVirtualQuest(q))) { if (!userLocation) void requestUserLocation(); else void openQuestCityMap(q); } }} disabled={(q.city === "Virtual" || isVirtualQuest(q))}>
+                  <button type="button" className="feed119-location" aria-label={(q.city === "Virtual" || isVirtualQuest(q)) ? "Virtual quest" : distanceLabel ? `View ${formatQuestCityState(q)} on map` : "Show distance from me"} onClick={() => { if (!(q.city === "Virtual" || isVirtualQuest(q))) { if (!userLocation) void requestUserLocation(); else void openQuestCityMap(q); } }} disabled={(q.city === "Virtual" || isVirtualQuest(q))}>
                     <span className="feed119-location-icon"><AppIcon name="location" /></span>
-                    <span><strong>{(q.city === "Virtual" || isVirtualQuest(q)) ? "Virtual quest" : distanceLabel || (userLocation ? "Distance unavailable" : "Use my location")}</strong><small>{(q.city === "Virtual" || isVirtualQuest(q)) ? "Meet online" : (q.city?.trim() || "City tbd")}</small></span>
+                    <span><strong>{(q.city === "Virtual" || isVirtualQuest(q)) ? "Virtual quest" : distanceLabel || (userLocation ? "Distance unavailable" : "Show distance from me")}</strong><small>{(q.city === "Virtual" || isVirtualQuest(q)) ? "Meet online" : (q.city?.trim() || "City tbd")}</small></span>
                   </button>
                   <div className="relative">
                     <button
@@ -4439,7 +4445,7 @@ export default function Home() {
                     <QuestMap
                       items={mapQuestMarkers}
                       userLocation={userLocation}
-                      locationLabel={userLocationStatus === "ready" ? (userLocation?.accuracy && userLocation.accuracy > 50000 ? "Approximate location" : "My location") : "Locate me"}
+                      locationLabel={locationControlCopy.label}
                       onLocateMe={() => { setSelectedMapQuestId(null); setFocusedMapQuestId(null); void requestUserLocation(); }}
                       onSelectQuest={(questId) => setSelectedMapQuestId((current) => (current === questId ? null : questId))}
                       selectedQuestId={selectedMapQuest?.id || null}
@@ -4449,6 +4455,7 @@ export default function Home() {
                     />
                   ) : <div className="home119-desktop-map-state">Allow location to load nearby pins.</div>}
                 </div>
+                <p className="home119-location-status" role="status" aria-live="polite">{locationControlCopy.message}</p>
                 {selectedMapQuest ? <Link className="home119-desktop-map-preview" href={`/listing/${selectedMapQuest.id}`}><small>SELECTED QUEST</small><strong>{selectedMapQuest.title}</strong><span>{formatQuestCityState(selectedMapQuest)}</span></Link> : <p className="home119-desktop-map-note">Pins use public quest locations. Exact addresses remain protected by the existing visibility controls.</p>}
               </aside>
               </div>
@@ -4477,15 +4484,7 @@ export default function Home() {
                           <QuestMap
                             items={mapQuestMarkers}
                             userLocation={userLocation}
-                            locationLabel={
-                              userLocationStatus === "loading"
-                                ? "Locating..."
-                                : userLocationStatus === "ready"
-                                  ? (userLocation?.accuracy && userLocation.accuracy > 50000 ? "Approximate location" : "My location")
-                                  : locationPermission === "denied"
-                                    ? "Enable in Settings"
-                                    : "Locate me"
-                            }
+                            locationLabel={locationControlCopy.label}
                             onLocateMe={() => {
                               setSelectedMapQuestId(null);
                               setFocusedMapQuestId(null);
@@ -4501,6 +4500,7 @@ export default function Home() {
                           <div className="grid place-items-center h-[60vh] rounded-3xl border bg-slate-100 text-slate-600">Allow location to load nearby pins.</div>
                         )}
                       </div>
+                      <p className="home119-location-status" role="status" aria-live="polite">{locationControlCopy.message}</p>
                     </div>
                   </div>
                 </div>

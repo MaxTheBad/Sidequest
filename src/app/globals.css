@@ -815,6 +815,7 @@ html[data-theme="dark"] .mobile-dock-inner { background: rgba(27,25,33,.82); bor
 /* Build 119 Home / Discover */
 .home119-discovery { display: none; }
 .home119-desktop-header, .home119-desktop-map { display: none; }
+.home119-location-status { margin: 8px 16px 12px; color: #475569; font-size: 11px; line-height: 1.45; }
 .home119-desktop-feed-layout { display: contents; }
 @media (max-width: 767px) {
   body:has(.home119-page) { overflow-x: hidden; color: #101827; background: #f4f7fb; }
