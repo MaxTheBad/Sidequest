@@ -494,6 +494,62 @@ test("photo upload cannot reach auth metadata after an account switch", async ()
   assert.equal(app.calls.filter(call => call.operation === "auth.updateUser").length, 0);
 });
 
+test("silent session mismatch releases photo and deactivation controls for retry", async () => {
+  const sessionB = { access_token: "token-b", user: { id: "b", email: "b@example.test" } };
+  const app = fixture({ confirm: true });
+  app.render();
+  let tree = await app.settle();
+  const fileInput = app.all(tree, node => node.type === "input" && node.props.type === "file")[0];
+  fileInput.props.onChange({ target: { files: [{ name: "synthetic.jpg", type: "image/jpeg", size: 64 }], value: "synthetic" } });
+  await new Promise(resolve => setImmediate(resolve));
+  tree = app.render();
+  app.setSessionSilently(sessionB);
+  app.all(tree, node => node.type === "button" && app.text(node).trim() === "Save photo")[0].props.onClick();
+  await new Promise(resolve => setImmediate(resolve));
+  tree = app.render();
+  const recoveredPhoto = app.all(tree, node => node.type === "button" && app.text(node).trim() === "Save photo")[0];
+  assert.equal(recoveredPhoto.props.disabled, false);
+  assert.equal(app.calls.filter(call => call.operation === "storage.upload").length, 0);
+
+  app.emitAuth({ access_token: "fixture", user: { id: "user", email: "fixture@example.test" } });
+  tree = await app.settle();
+  app.all(tree, node => node.type === "button" && app.text(node).trim() === "Account")[0].props.onClick();
+  tree = app.render();
+  app.setSessionSilently(sessionB);
+  app.all(tree, node => node.type === "button" && app.text(node).trim() === "Deactivate account")[0].props.onClick();
+  await new Promise(resolve => setImmediate(resolve));
+  tree = app.render();
+  const recoveredDeactivate = app.all(tree, node => node.type === "button" && app.text(node).trim() === "Deactivate account")[0];
+  assert.equal(recoveredDeactivate.props.disabled, false);
+  assert.equal(app.calls.filter(call => call.operation === "rpc" && call.name === "deactivate_my_account").length, 0);
+});
+
+test("older photo cleanup cannot clear a newer upload latch", async () => {
+  const staleSession = deferred();
+  const newerUpload = deferred();
+  const app = fixture({ operationSessionDeferred: staleSession, photoUploadDeferred: newerUpload });
+  app.render();
+  let tree = await app.settle();
+  const fileInput = app.all(tree, node => node.type === "input" && node.props.type === "file")[0];
+  fileInput.props.onChange({ target: { files: [{ name: "synthetic.jpg", type: "image/jpeg", size: 64 }], value: "synthetic" } });
+  await new Promise(resolve => setImmediate(resolve));
+  tree = app.render();
+  const save = app.all(tree, node => node.type === "button" && app.text(node).trim() === "Save photo")[0];
+  save.props.onClick();
+  await new Promise(resolve => setImmediate(resolve));
+  save.props.onClick();
+  for (let index = 0; index < 20 && !app.calls.some(call => call.operation === "storage.upload"); index += 1) await new Promise(resolve => setImmediate(resolve));
+  staleSession.resolve({ data: { session: { access_token: "stale-b", user: { id: "b", email: "b@example.test" } } }, error: null });
+  await new Promise(resolve => setImmediate(resolve));
+  tree = app.render();
+  assert.equal(app.all(tree, node => node.type === "button" && app.text(node).trim() === "Saving...")[0].props.disabled, true);
+  newerUpload.resolve({ error: { message: "synthetic upload failure" } });
+  for (let index = 0; index < 20; index += 1) await new Promise(resolve => setImmediate(resolve));
+  tree = app.render();
+  assert.equal(app.all(tree, node => node.type === "button" && app.text(node).trim() === "Save photo")[0].props.disabled, false);
+  assert.match(app.text(tree), /synthetic upload failure/);
+});
+
 test("a readable different-user session is rejected before feedback dispatch even before its auth event", async () => {
   const pendingToken = deferred();
   const app = fixture({ operationSessionDeferred: pendingToken });

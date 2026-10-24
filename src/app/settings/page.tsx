@@ -145,6 +145,8 @@ export default function SettingsPage() {
   const settingsLoadGenerationRef = useRef(0);
   const settingsMountedRef = useRef(false);
   const settingsMountEpochRef = useRef(0);
+  const photoUploadLatchRef = useRef(0);
+  const accountActionLatchRef = useRef(0);
   const initialProfileSnapshot = (() => {
     if (!initialProfileSnapshotRef.current) return null;
     try {
@@ -209,6 +211,8 @@ export default function SettingsPage() {
   }, []);
 
   const clearAccountState = () => {
+    photoUploadLatchRef.current += 1;
+    accountActionLatchRef.current += 1;
     setUserId(null);setEmail("");setNewEmail("");setActualName("");setUsername("");setCountryCode("US");setCity("");setRegion("");setRadiusKm(15);setBio("");
     setFriendsVisibility("public");setShowLocation(false);setDob("");setGenderIdentity("");setPeopleDiscoveryEnabled(false);setAvatarUrl("");
     setPhotoFile(null);setPhotoPreviewUrl("");setShowPhotoCropper(false);setUploadingPhoto(false);setDeactivatedAt(null);setMarketingOptIn(false);
@@ -919,7 +923,9 @@ export default function SettingsPage() {
     if (!operation) return;
     if (!isImageLikeFile(photoFile)) return setStatus("Please choose an image file.");
 
+    const uploadLatch = ++photoUploadLatchRef.current;
     setUploadingPhoto(true);
+    try {
 
     let cropped: Blob;
     try {
@@ -928,7 +934,6 @@ export default function SettingsPage() {
       if (!isCurrentAccountOperation(operation)) return;
     } catch (err) {
       if (!isCurrentAccountOperation(operation)) return;
-      setUploadingPhoto(false);
       return setStatus(err instanceof Error ? err.message : "Could not crop image.");
     }
 
@@ -941,7 +946,6 @@ export default function SettingsPage() {
     if (!isCurrentAccountOperation(operation)) return;
 
     if (uploadError) {
-      setUploadingPhoto(false);
       return setStatus(`Photo upload failed: ${uploadError.message}`);
     }
 
@@ -953,7 +957,6 @@ export default function SettingsPage() {
       .upload(originalFilePath, photoFile, { upsert: false, contentType: photoFile.type || "image/jpeg" });
     if (!isCurrentAccountOperation(operation)) return;
     if (originalUploadError) {
-      setUploadingPhoto(false);
       return setStatus(`Photo upload failed: ${originalUploadError.message}`);
     }
     const { data: originalData } = supabase.storage.from("profile-photos").getPublicUrl(originalFilePath);
@@ -1019,7 +1022,6 @@ export default function SettingsPage() {
       profileErr = fallback.error;
     }
 
-    setUploadingPhoto(false);
     if (profileErr) return setStatus(`Could not save photo: ${profileErr.message}`);
 
     if (!await getValidatedSession(operation)) return;
@@ -1037,6 +1039,9 @@ export default function SettingsPage() {
     setPhotoPreviewUrl("");
     setShowPhotoCropper(false);
     setStatus("Profile photo updated ✅");
+    } finally {
+      if (photoUploadLatchRef.current === uploadLatch && isCurrentAccountOperation(operation)) setUploadingPhoto(false);
+    }
   }
 
   async function deleteProfilePhoto() {
@@ -1135,6 +1140,7 @@ export default function SettingsPage() {
     const operation = beginAccountOperation(userId);
     if (!operation) return;
     if (!window.confirm("Deactivate your account? Your profile and listings will be hidden and notifications will stop. You can restore everything the next time you sign in.")) return;
+    const actionLatch = ++accountActionLatchRef.current;
     setAccountActionLoading("deactivate");
     setStatus("");
     try {
@@ -1148,7 +1154,8 @@ export default function SettingsPage() {
     } catch (error) {
       if (!isCurrentAccountOperation(operation)) return;
       setStatus(error instanceof Error ? error.message : "Could not deactivate the account.");
-      setAccountActionLoading(null);
+    } finally {
+      if (accountActionLatchRef.current === actionLatch && isCurrentAccountOperation(operation)) setAccountActionLoading(null);
     }
   }
 
@@ -1156,6 +1163,7 @@ export default function SettingsPage() {
     if (!supabase || !userId || accountActionLoading) return;
     const operation = beginAccountOperation(userId);
     if (!operation) return;
+    const actionLatch = ++accountActionLatchRef.current;
     setAccountActionLoading("restore");
     setStatus("");
     try {
@@ -1169,7 +1177,7 @@ export default function SettingsPage() {
       if (!isCurrentAccountOperation(operation)) return;
       setStatus(error instanceof Error ? error.message : "Could not restore the account.");
     } finally {
-      if (isCurrentAccountOperation(operation)) setAccountActionLoading(null);
+      if (accountActionLatchRef.current === actionLatch && isCurrentAccountOperation(operation)) setAccountActionLoading(null);
     }
   }
 
@@ -1177,6 +1185,7 @@ export default function SettingsPage() {
     if (!supabase || !userId || deleteAccountConfirmation !== "DELETE" || accountActionLoading) return;
     const operation = beginAccountOperation(userId);
     if (!operation) return;
+    const actionLatch = ++accountActionLatchRef.current;
     setAccountActionLoading("delete");
     setStatus("");
     try {
@@ -1225,7 +1234,8 @@ export default function SettingsPage() {
     } catch (error) {
       if (!isCurrentAccountOperation(operation)) return;
       setStatus(error instanceof Error ? error.message : "Could not delete the account.");
-      setAccountActionLoading(null);
+    } finally {
+      if (accountActionLatchRef.current === actionLatch && isCurrentAccountOperation(operation)) setAccountActionLoading(null);
     }
   }
 
