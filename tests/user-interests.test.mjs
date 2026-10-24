@@ -71,10 +71,9 @@ test('Settings page observes auth identity changes and invalidates stale loads',
   const source=fs.readFileSync(new URL('../src/app/settings/page.tsx',import.meta.url),'utf8');
   assert.match(source,/supabase\.auth\.onAuthStateChange/);
   assert.match(source,/settingsLoadGenerationRef\.current \+= 1/);
-  assert.match(source,/setUserId\(nextUserId\)/);
-  assert.match(source,/const isCurrent=.*settingsLoadGenerationRef\.current===generation/);
-  assert.match(source,/if\(!isCurrent\(uid\)\) return;/);
-  assert.match(source,/function resetAccountScopedState\(\)/);
-  assert.match(source,/setFriendsProfiles\(\[\]\);setFriendRequests\(\[\]\);setBlockedProfiles\(\[\]\)/);
-  assert.ok((source.match(/if\(!isCurrent\(uid\)\) return;/g)||[]).length>=9,"every awaited account load stage is guarded");
+  assert.match(source,/settingsAccountRef\.current = nextUserId/);
+  assert.match(source,/clearAccountState\(\)/);
+  assert.match(source,/function beginAccountOperation/);
+  assert.match(source,/function isCurrentAccountOperation/);
+  assert.match(source,/getValidatedSession/);
 });

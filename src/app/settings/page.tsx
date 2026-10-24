@@ -139,8 +139,12 @@ export default function SettingsPage() {
   const [showDeleteAccountConfirm, setShowDeleteAccountConfirm] = useState(false);
   const [deleteAccountConfirmation, setDeleteAccountConfirmation] = useState("");
   const initialProfileSnapshotRef = useRef<string>("");
-  const observedAuthUserRef = useRef<string | null | undefined>(undefined);
+  const settingsAccountRef = useRef<string | null>(null);
+  const settingsAccountEpochRef = useRef(0);
+  const settingsAuthObservedRef = useRef(false);
   const settingsLoadGenerationRef = useRef(0);
+  const settingsMountedRef = useRef(false);
+  const settingsMountEpochRef = useRef(0);
   const initialProfileSnapshot = (() => {
     if (!initialProfileSnapshotRef.current) return null;
     try {
@@ -187,6 +191,16 @@ export default function SettingsPage() {
   }, []);
 
   useEffect(() => {
+    settingsMountedRef.current = true;
+    settingsMountEpochRef.current += 1;
+    return () => {
+      settingsMountedRef.current = false;
+      settingsMountEpochRef.current += 1;
+      settingsLoadGenerationRef.current += 1;
+    };
+  }, []);
+
+  useEffect(() => {
     if (typeof window !== "undefined") {
       const raw = window.localStorage.getItem("sidequest_public_location_warning_muted_until");
       const mutedUntil = raw ? Number(raw) : 0;
@@ -194,63 +208,83 @@ export default function SettingsPage() {
     }
   }, []);
 
-  function resetAccountScopedState() {
-    setEmail("");setNewEmail("");setActualName("");setUsername("");setCountryCode("US");setCity("");setRegion("");setRadiusKm(15);setBio("");
+  const clearAccountState = () => {
+    setUserId(null);setEmail("");setNewEmail("");setActualName("");setUsername("");setCountryCode("US");setCity("");setRegion("");setRadiusKm(15);setBio("");
     setFriendsVisibility("public");setShowLocation(false);setDob("");setGenderIdentity("");setPeopleDiscoveryEnabled(false);setAvatarUrl("");
     setPhotoFile(null);setPhotoPreviewUrl("");setShowPhotoCropper(false);setUploadingPhoto(false);setDeactivatedAt(null);setMarketingOptIn(false);
+    setOldPassword("");setNewPassword("");setConfirmPassword("");
     setNotificationPreferences(DEFAULT_NOTIFICATION_PREFERENCES);setNotificationPreferencesLoading(false);setNotificationPreferencesSaving(false);
-    setTiktokStatus(null);setTiktokLoading(false);setTiktokAction(null);setTiktokPublishResult("");setTiktokPublishing(false);
+    setTiktokStatus(null);setTiktokLoading(false);setTiktokAction(null);setTiktokVideo(null);setTiktokCaption("");setTiktokShareMode("draft");
+    setTiktokPrivacyOptions(["SELF_ONLY"]);setTiktokPrivacyLevel("SELF_ONLY");setTiktokPublishResult("");setTiktokPublishing(false);
+    setFeedbackCategory("suggestion");setFeedbackMessage("");setFeedbackReplyContact("");setFeedbackDiagnostics(false);setFeedbackCaptchaToken("");setFeedbackStatus("");setFeedbackSending(false);setShowFeedback(false);
     setFriendsProfiles([]);setFriendRequests([]);setBlockedProfiles([]);setStatus("");setShowSignOutConfirm(false);setShowDeleteAccountConfirm(false);
     setDeleteAccountConfirmation("");setAccountActionLoading(null);initialProfileSnapshotRef.current="";
-  }
+  };
 
   useEffect(() => {
     if (!supabase) return;
     const { data } = supabase.auth.onAuthStateChange((_event, session) => {
       const nextUserId = session?.user?.id ?? null;
-      if (observedAuthUserRef.current === nextUserId) return;
-      observedAuthUserRef.current = nextUserId;
+      const identityChanged = settingsAccountRef.current !== nextUserId;
+      settingsAuthObservedRef.current = true;
+      if (!identityChanged) return;
+      settingsAccountRef.current = nextUserId;
+      settingsAccountEpochRef.current += 1;
       settingsLoadGenerationRef.current += 1;
-      resetAccountScopedState();
-      setUserId(nextUserId);
-      setAuthRevision((value) => value + 1);
+      clearAccountState();
+      setAuthRevision((revision) => revision + 1);
     });
     return () => data.subscription.unsubscribe();
   }, [supabase]);
 
   useEffect(() => {
     if (!supabase) return;
-    const generation=++settingsLoadGenerationRef.current;
-    let active=true;
-    const isCurrent=(uid?:string|null)=>active&&settingsLoadGenerationRef.current===generation&&(uid===undefined||observedAuthUserRef.current===undefined||observedAuthUserRef.current===uid);
+
+    const generation = ++settingsLoadGenerationRef.current;
+    let active = true;
+    const isCurrent = (uid?: string | null) =>
+      active &&
+      settingsLoadGenerationRef.current === generation &&
+      (uid === undefined || settingsAccountRef.current === uid);
+    const resetAccountState = clearAccountState;
 
     const run = async () => {
-      const { data } = await supabase.auth.getSession();
-      if(!isCurrent()) return;
+      const { data, error: sessionError } = await supabase.auth.getSession();
+      if (!isCurrent()) return;
+      if (sessionError) {
+        resetAccountState();
+        setStatus(sessionError.message);
+        return;
+      }
       const uid = data.session?.user?.id ?? null;
       const userEmail = data.session?.user?.email ?? "";
+      if (settingsAuthObservedRef.current && settingsAccountRef.current !== uid) return;
+      settingsAccountRef.current = uid;
       setUserId(uid);
       setEmail(userEmail);
       setNewEmail(userEmail);
 
-      if (!uid) return;
+      if (!uid) {
+        resetAccountState();
+        return;
+      }
 
       const { data: profile } = await supabase
         .from("profiles")
         .select("display_name,username,username_changed_at,city,region,country_code,bio,friends_visibility,show_location,radius_km,avatar_url,avatar_source_url,deactivated_at,people_discovery_enabled")
         .eq("id", uid)
         .maybeSingle();
-      if(!isCurrent(uid)) return;
+      if (!isCurrent(uid)) return;
 
       const { data: authUser } = await supabase.auth.getUser();
-      if(!isCurrent(uid)) return;
+      if (!isCurrent(uid)) return;
       const authMeta = (authUser.user?.user_metadata || {}) as Record<string, unknown>;
       const { data: discoverySettings } = await supabase
         .from("people_discovery_settings")
         .select("birth_date,gender_identity")
         .eq("user_id", uid)
         .maybeSingle();
-      if(!isCurrent(uid)) return;
+      if (!isCurrent(uid)) return;
 
       setCity(profile?.city ?? (typeof authMeta.city === "string" ? authMeta.city : ""));
       setRegion(profile?.region ?? (typeof authMeta.region === "string" ? authMeta.region : ""));
@@ -268,7 +302,7 @@ export default function SettingsPage() {
 
       if (!profile?.avatar_url && metaAvatar) {
         await supabase.from("profiles").upsert({ id: uid, avatar_url: metaAvatar });
-        if(!isCurrent(uid)) return;
+        if (!isCurrent(uid)) return;
       }
       setMarketingOptIn(Boolean(authMeta.marketing_opt_in));
       const resolvedDob = discoverySettings?.birth_date || (typeof authMeta.dob === "string" ? authMeta.dob : "");
@@ -301,7 +335,7 @@ export default function SettingsPage() {
         .select("requester_id,addressee_id,status")
         .eq("status", "accepted")
         .or(`requester_id.eq.${uid},addressee_id.eq.${uid}`);
-      if(!isCurrent(uid)) return;
+      if (!isCurrent(uid)) return;
       const acceptedEdges = ((acceptedRows || []) as FriendEdge[]).filter((row) => row.requester_id !== row.addressee_id);
       const acceptedFriendIds = Array.from(new Set(acceptedEdges.map((row) => (row.requester_id === uid ? row.addressee_id : row.requester_id)).filter((id) => id !== uid)));
       const acceptedMap = new Map(acceptedEdges.map((row) => [row.requester_id === uid ? row.addressee_id : row.requester_id, row]));
@@ -310,7 +344,7 @@ export default function SettingsPage() {
           .from("profiles")
           .select("id,display_name,avatar_url,username")
           .in("id", acceptedFriendIds);
-        if(!isCurrent(uid)) return;
+        if (!isCurrent(uid)) return;
         setFriendsProfiles(((profiles || []) as SocialProfile[]).map((profile) => ({
           ...profile,
           edge: acceptedMap.get(profile.id)!,
@@ -324,7 +358,7 @@ export default function SettingsPage() {
         .select("requester_id,addressee_id,status")
         .eq("status", "pending")
         .or(`requester_id.eq.${uid},addressee_id.eq.${uid}`);
-      if(!isCurrent(uid)) return;
+      if (!isCurrent(uid)) return;
       const pendingEdges = ((pendingRows || []) as FriendEdge[]).filter((row) => row.requester_id !== row.addressee_id);
       const pendingIds = Array.from(new Set(pendingEdges.flatMap((row) => [row.requester_id, row.addressee_id]).filter((id) => id !== uid)));
       if (pendingIds.length) {
@@ -332,7 +366,7 @@ export default function SettingsPage() {
           .from("profiles")
           .select("id,display_name,avatar_url,username")
           .in("id", pendingIds);
-        if(!isCurrent(uid)) return;
+        if (!isCurrent(uid)) return;
         const profileMap = new Map(((profiles || []) as SocialProfile[]).map((profile) => [profile.id, profile]));
         const rows: RequestRow[] = [];
         pendingEdges.forEach((edge) => {
@@ -354,7 +388,7 @@ export default function SettingsPage() {
         .select("requester_id,addressee_id,status")
         .eq("status", "blocked")
         .or(`requester_id.eq.${uid},addressee_id.eq.${uid}`);
-      if(!isCurrent(uid)) return;
+      if (!isCurrent(uid)) return;
       const blockedEdges = ((blockRows || []) as FriendEdge[]).filter((row) => row.requester_id !== row.addressee_id);
       const blockedIds = Array.from(new Set(blockedEdges.flatMap((r) => [r.requester_id, r.addressee_id]).filter((id) => id !== uid)));
       if (blockedIds.length) {
@@ -362,7 +396,7 @@ export default function SettingsPage() {
           .from("profiles")
           .select("id,display_name,avatar_url,username")
           .in("id", blockedIds);
-        if(!isCurrent(uid)) return;
+        if (!isCurrent(uid)) return;
         const blockedMap = new Map(((profiles || []) as SocialProfile[]).map((profile) => [profile.id, profile]));
         const rows: BlockedProfile[] = [];
         blockedEdges.forEach((edge) => {
@@ -377,20 +411,52 @@ export default function SettingsPage() {
     };
 
     void run();
-    return()=>{active=false;};
+    return () => {
+      active = false;
+    };
   }, [supabase, blockedRefreshTick, authRevision]);
 
-  async function getAccessToken() {
+  function beginAccountOperation(expectedUserId: string | null) {
+    if (!settingsMountedRef.current || !expectedUserId || settingsAccountRef.current !== expectedUserId) return null;
+    return {
+      userId: expectedUserId,
+      accountEpoch: settingsAccountEpochRef.current,
+      mountEpoch: settingsMountEpochRef.current,
+    };
+  }
+
+  type AccountOperation = { userId: string; accountEpoch: number; mountEpoch: number };
+
+  function isCurrentAccountOperation(operation: AccountOperation | null) {
+    return Boolean(
+      operation &&
+      settingsMountedRef.current &&
+      settingsAccountRef.current === operation.userId &&
+      settingsAccountEpochRef.current === operation.accountEpoch &&
+      settingsMountEpochRef.current === operation.mountEpoch,
+    );
+  }
+
+  async function getValidatedSession(operation: AccountOperation) {
     if (!supabase) return null;
     const { data } = await supabase.auth.getSession();
-    return data.session?.access_token || null;
+    if (!isCurrentAccountOperation(operation) || data.session?.user?.id !== operation.userId) return null;
+    return data.session || null;
+  }
+
+  async function getAccessToken(operation: AccountOperation) {
+    const session = await getValidatedSession(operation);
+    return session?.access_token || null;
   }
 
   async function loadTikTokStatus() {
     if (!supabase || !userId) return;
+    const operation = beginAccountOperation(userId);
+    if (!operation) return;
     setTiktokLoading(true);
     try {
-      const token = await getAccessToken();
+      const token = await getAccessToken(operation);
+      if (!isCurrentAccountOperation(operation)) return;
       if (!token) {
         setTiktokStatus({ connected: false });
         return;
@@ -399,13 +465,15 @@ export default function SettingsPage() {
         headers: { authorization: `Bearer ${token}` },
       });
       const data = (await res.json().catch(() => null)) as { ok?: boolean; status?: TikTokConnectionStatus; error?: string } | null;
+      if (!isCurrentAccountOperation(operation)) return;
       if (!res.ok || !data?.ok) throw new Error(data?.error || "Could not read TikTok status.");
       setTiktokStatus(data.status || { connected: false });
     } catch (err) {
+      if (!isCurrentAccountOperation(operation)) return;
       setStatus(err instanceof Error ? err.message : "Could not read TikTok status.");
       setTiktokStatus({ connected: false });
     } finally {
-      setTiktokLoading(false);
+      if (isCurrentAccountOperation(operation)) setTiktokLoading(false);
     }
   }
 
@@ -417,10 +485,13 @@ export default function SettingsPage() {
 
   async function connectTikTok() {
     if (!supabase || !userId || tiktokAction) return;
+    const operation = beginAccountOperation(userId);
+    if (!operation) return;
     setTiktokAction("connect");
     setStatus("");
     try {
-      const token = await getAccessToken();
+      const token = await getAccessToken(operation);
+      if (!isCurrentAccountOperation(operation)) return;
       if (!token) throw new Error("Log in first.");
       const isTikTokSandboxReview = new URLSearchParams(window.location.search).get("tiktokSandbox") === "1";
       const returnTo = isTikTokSandboxReview
@@ -435,9 +506,11 @@ export default function SettingsPage() {
         body: JSON.stringify({ returnTo, sandbox: isTikTokSandboxReview }),
       });
       const data = (await res.json().catch(() => null)) as { ok?: boolean; authorizationUrl?: string; error?: string } | null;
+      if (!isCurrentAccountOperation(operation)) return;
       if (!res.ok || !data?.ok || !data.authorizationUrl) throw new Error(data?.error || "TikTok connection is unavailable.");
       window.location.assign(data.authorizationUrl);
     } catch (err) {
+      if (!isCurrentAccountOperation(operation)) return;
       setStatus(err instanceof Error ? err.message : "TikTok connection is unavailable.");
       setTiktokAction(null);
     }
@@ -445,31 +518,39 @@ export default function SettingsPage() {
 
   async function disconnectTikTok() {
     if (!supabase || !userId || tiktokAction) return;
+    const operation = beginAccountOperation(userId);
+    if (!operation) return;
     setTiktokAction("disconnect");
     setStatus("");
     try {
-      const token = await getAccessToken();
+      const token = await getAccessToken(operation);
+      if (!isCurrentAccountOperation(operation)) return;
       if (!token) throw new Error("Log in first.");
       const res = await fetch("/api/tiktok/disconnect", {
         method: "POST",
         headers: { authorization: `Bearer ${token}` },
       });
       const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
+      if (!isCurrentAccountOperation(operation)) return;
       if (!res.ok || !data?.ok) throw new Error(data?.error || "Could not disconnect TikTok.");
       setTiktokStatus({ connected: false });
       setStatus("TikTok disconnected.");
     } catch (err) {
+      if (!isCurrentAccountOperation(operation)) return;
       setStatus(err instanceof Error ? err.message : "Could not disconnect TikTok.");
     } finally {
-      setTiktokAction(null);
+      if (isCurrentAccountOperation(operation)) setTiktokAction(null);
     }
   }
 
-  async function loadTikTokCreatorInfo() {
-    const token = await getAccessToken();
+  async function loadTikTokCreatorInfo(operation = beginAccountOperation(userId)) {
+    if (!operation) return;
+    const token = await getAccessToken(operation);
     if (!token) return;
+    if (!isCurrentAccountOperation(operation)) return;
     const response = await fetch("/api/tiktok/creator-info", { method: "POST", headers: { authorization: `Bearer ${token}` } });
     const data = (await response.json().catch(() => null)) as { ok?: boolean; creator?: { privacy_level_options?: string[] }; error?: string } | null;
+    if (!isCurrentAccountOperation(operation)) return;
     if (!response.ok || !data?.ok) throw new Error(data?.error || "Could not load your TikTok posting options.");
     const options = data.creator?.privacy_level_options?.length ? data.creator.privacy_level_options : ["SELF_ONLY"];
     setTiktokPrivacyOptions(options);
@@ -477,14 +558,18 @@ export default function SettingsPage() {
   }
 
   async function shareVideoToTikTok() {
-    if (!tiktokVideo || tiktokPublishing) return;
+    if (!tiktokVideo || tiktokPublishing || !userId) return;
+    const operation = beginAccountOperation(userId);
+    if (!operation) return;
     setTiktokPublishing(true);
     setTiktokPublishResult("");
     setStatus("");
     try {
-      const token = await getAccessToken();
+      const token = await getAccessToken(operation);
       if (!token) throw new Error("Log in first.");
-      if (tiktokShareMode === "direct") await loadTikTokCreatorInfo();
+      if (!isCurrentAccountOperation(operation)) return;
+      if (tiktokShareMode === "direct") await loadTikTokCreatorInfo(operation);
+      if (!isCurrentAccountOperation(operation)) return;
       const form = new FormData();
       form.set("video", tiktokVideo);
       form.set("mode", tiktokShareMode);
@@ -492,12 +577,14 @@ export default function SettingsPage() {
       form.set("privacyLevel", tiktokPrivacyLevel);
       const response = await fetch("/api/tiktok/publish", { method: "POST", headers: { authorization: `Bearer ${token}` }, body: form });
       const data = (await response.json().catch(() => null)) as { ok?: boolean; message?: string; error?: string } | null;
+      if (!isCurrentAccountOperation(operation)) return;
       if (!response.ok || !data?.ok) throw new Error(data?.error || "TikTok could not receive the video.");
       setTiktokPublishResult(data.message || "TikTok received your video.");
     } catch (err) {
+      if (!isCurrentAccountOperation(operation)) return;
       setTiktokPublishResult(err instanceof Error ? err.message : "TikTok sharing is unavailable.");
     } finally {
-      setTiktokPublishing(false);
+      if (isCurrentAccountOperation(operation)) setTiktokPublishing(false);
     }
   }
 
@@ -552,6 +639,8 @@ export default function SettingsPage() {
   async function saveProfile(e: FormEvent) {
     e.preventDefault();
     if (!supabase || !userId) return setStatus("Not signed in.");
+    const operation = beginAccountOperation(userId);
+    if (!operation) return;
     const initial = initialProfileSnapshot || {
       actualName: "",
       username: "",
@@ -627,11 +716,13 @@ export default function SettingsPage() {
       usernameChanged && !usernameCooldownActive
         ? await saveNameAndBase()
         : await saveBaseProfile();
+    if (!isCurrentAccountOperation(operation)) return;
     let { error } = profileSaveResult;
 
     if (usernameChanged && !usernameCooldownActive && error?.message.toLowerCase().includes("once every 24 hours")) {
       usernameBlocked = true;
       ({ error } = await saveBaseProfile());
+      if (!isCurrentAccountOperation(operation)) return;
     }
 
     if (error) return setStatus(error.message);
@@ -643,6 +734,7 @@ export default function SettingsPage() {
         const position = await new Promise<GeolocationPosition>((resolve, reject) => {
           navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: false, timeout: 12000, maximumAge: 300000 });
         });
+        if (!isCurrentAccountOperation(operation)) return;
         latitude = position.coords.latitude;
         longitude = position.coords.longitude;
       } catch (failure) {
@@ -656,6 +748,7 @@ export default function SettingsPage() {
       p_latitude: latitude,
       p_longitude: longitude,
     });
+    if (!isCurrentAccountOperation(operation)) return;
     if (discoveryError) return setStatus(discoveryError.message);
     const savedUsername = usernameBlocked ? initial.username || username : username;
     const savedActualName = usernameBlocked ? initial.actualName || savedUsername : actualName;
@@ -674,6 +767,7 @@ export default function SettingsPage() {
         people_discovery_enabled: peopleDiscoveryEnabled,
       },
     });
+    if (!isCurrentAccountOperation(operation)) return;
 
     if (metaErr) return setStatus(metaErr.message);
     if (usernameBlocked) {
@@ -804,6 +898,8 @@ export default function SettingsPage() {
 
   async function uploadProfilePhoto() {
     if (!supabase || !userId || !photoFile) return setStatus("Choose a photo first.");
+    const operation = beginAccountOperation(userId);
+    if (!operation) return;
     if (!isImageLikeFile(photoFile)) return setStatus("Please choose an image file.");
 
     setUploadingPhoto(true);
@@ -812,6 +908,7 @@ export default function SettingsPage() {
     try {
       const normalized = await prepareImageForUpload(photoFile, { maxWidth: 2200, maxHeight: 2200, quality: 0.9 });
       cropped = await makeCroppedAvatar(normalized);
+      if (!isCurrentAccountOperation(operation)) return;
     } catch (err) {
       setUploadingPhoto(false);
       return setStatus(err instanceof Error ? err.message : "Could not crop image.");
@@ -822,6 +919,7 @@ export default function SettingsPage() {
     const { error: uploadError } = await supabase.storage
       .from("profile-photos")
       .upload(filePath, cropped, { upsert: false, contentType: "image/jpeg" });
+    if (!isCurrentAccountOperation(operation)) return;
 
     if (uploadError) {
       setUploadingPhoto(false);
@@ -833,12 +931,14 @@ export default function SettingsPage() {
     const { error: originalUploadError } = await supabase.storage
       .from("profile-photos")
       .upload(originalFilePath, photoFile, { upsert: false, contentType: photoFile.type || "image/jpeg" });
+    if (!isCurrentAccountOperation(operation)) return;
     if (originalUploadError) {
       setUploadingPhoto(false);
       return setStatus(`Photo upload failed: ${originalUploadError.message}`);
     }
     const { data: originalData } = supabase.storage.from("profile-photos").getPublicUrl(originalFilePath);
-    const { data: auditSession } = await supabase.auth.getSession();
+    const auditToken = await getAccessToken(operation);
+    if (!auditToken || !isCurrentAccountOperation(operation)) return;
     await recordSecurityAudit(
       {
         event_type: "media_uploaded",
@@ -854,8 +954,9 @@ export default function SettingsPage() {
           source_context: "profile_photo",
         },
       },
-      auditSession.session?.access_token,
+      auditToken,
     );
+    if (!isCurrentAccountOperation(operation)) return;
     await recordSecurityAudit(
       {
         event_type: "media_uploaded",
@@ -871,12 +972,14 @@ export default function SettingsPage() {
           source_context: "profile_photo_original",
         },
       },
-      auditSession.session?.access_token,
+      auditToken,
     );
+    if (!isCurrentAccountOperation(operation)) return;
 
     let { error: profileErr } = await supabase
       .from("profiles")
       .upsert({ id: userId, avatar_url: publicData.publicUrl, avatar_source_url: originalData.publicUrl, avatar_capture_method: "upload", photo_onboarding_done: true });
+    if (!isCurrentAccountOperation(operation)) return;
 
     const optionalPhotoMetadataRejected = profileErr && (
       (profileErr.message.includes("column") && (
@@ -888,6 +991,7 @@ export default function SettingsPage() {
 
     if (optionalPhotoMetadataRejected) {
       const fallback = await supabase.from("profiles").upsert({ id: userId, avatar_url: publicData.publicUrl, avatar_source_url: originalData.publicUrl });
+      if (!isCurrentAccountOperation(operation)) return;
       profileErr = fallback.error;
     }
 
@@ -895,9 +999,11 @@ export default function SettingsPage() {
     if (profileErr) return setStatus(`Could not save photo: ${profileErr.message}`);
 
     const { error: metaErr } = await supabase.auth.updateUser({ data: { avatar_url: publicData.publicUrl } });
+    if (!isCurrentAccountOperation(operation)) return;
     if (metaErr) return setStatus(`Could not save photo metadata: ${metaErr.message}`);
 
     const { data: refreshedUser } = await supabase.auth.getUser();
+    if (!isCurrentAccountOperation(operation)) return;
     const refreshedMeta = (refreshedUser.user?.user_metadata || {}) as Record<string, unknown>;
     const avatarFromMeta = typeof refreshedMeta.avatar_url === "string" ? refreshedMeta.avatar_url : publicData.publicUrl;
 
@@ -910,14 +1016,18 @@ export default function SettingsPage() {
 
   async function deleteProfilePhoto() {
     if (!supabase || !userId) return;
+    const operation = beginAccountOperation(userId);
+    if (!operation) return;
     const ok = window.confirm("Remove your profile photo?");
     if (!ok) return;
 
     const { error } = await supabase
       .from("profiles")
       .upsert({ id: userId, avatar_url: null });
+    if (!isCurrentAccountOperation(operation)) return;
     if (error) return setStatus(error.message);
     await supabase.auth.updateUser({ data: { avatar_url: null } });
+    if (!isCurrentAccountOperation(operation)) return;
     setAvatarUrl("");
     setPhotoFile(null);
     setStatus("Profile photo removed.");
@@ -951,13 +1061,16 @@ export default function SettingsPage() {
 
   async function changeEmail(e: FormEvent) {
     e.preventDefault();
-    if (!supabase) return;
+    if (!supabase || !userId) return;
+    const operation = beginAccountOperation(userId);
+    if (!operation) return;
 
     const addingRecoveryEmail = !email;
     const { error } = await supabase.auth.updateUser(
       { email: newEmail.trim().toLowerCase() },
       { emailRedirectTo: `${window.location.origin}/auth/callback` },
     );
+    if (!isCurrentAccountOperation(operation)) return;
     if (error) return setStatus(error.message);
     setStatus(addingRecoveryEmail
       ? "Recovery email requested. Check your inbox to verify it."
@@ -966,16 +1079,20 @@ export default function SettingsPage() {
 
   async function changePassword(e: FormEvent) {
     e.preventDefault();
-    if (!supabase) return;
+    if (!supabase || !userId) return;
+    const operation = beginAccountOperation(userId);
+    if (!operation) return;
     if (!email) return setStatus("Missing account email.");
     if (!oldPassword) return setStatus("Enter your current password.");
     if (newPassword.length < 8) return setStatus("Password must be at least 8 characters.");
     if (newPassword !== confirmPassword) return setStatus("Passwords do not match.");
 
     const { error: verifyError } = await supabase.auth.signInWithPassword({ email, password: oldPassword });
+    if (!isCurrentAccountOperation(operation)) return;
     if (verifyError) return setStatus("Current password is incorrect.");
 
     const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (!isCurrentAccountOperation(operation)) return;
     if (error) return setStatus(error.message);
     setOldPassword("");
     setNewPassword("");
@@ -984,44 +1101,53 @@ export default function SettingsPage() {
   }
 
   async function deactivateAccount() {
-    if (!supabase || accountActionLoading) return;
+    if (!supabase || !userId || accountActionLoading) return;
+    const operation = beginAccountOperation(userId);
+    if (!operation) return;
     if (!window.confirm("Deactivate your account? Your profile and listings will be hidden and notifications will stop. You can restore everything the next time you sign in.")) return;
     setAccountActionLoading("deactivate");
     setStatus("");
     try {
       const { error } = await supabase.rpc("deactivate_my_account");
+      if (!isCurrentAccountOperation(operation)) return;
       if (error) throw error;
       await supabase.auth.signOut();
       window.location.assign("/");
     } catch (error) {
+      if (!isCurrentAccountOperation(operation)) return;
       setStatus(error instanceof Error ? error.message : "Could not deactivate the account.");
       setAccountActionLoading(null);
     }
   }
 
   async function restoreAccount() {
-    if (!supabase || accountActionLoading) return;
+    if (!supabase || !userId || accountActionLoading) return;
+    const operation = beginAccountOperation(userId);
+    if (!operation) return;
     setAccountActionLoading("restore");
     setStatus("");
     try {
       const { error } = await supabase.rpc("reactivate_my_account");
+      if (!isCurrentAccountOperation(operation)) return;
       if (error) throw error;
       setDeactivatedAt(null);
       setStatus("Account restored ✅");
     } catch (error) {
+      if (!isCurrentAccountOperation(operation)) return;
       setStatus(error instanceof Error ? error.message : "Could not restore the account.");
     } finally {
-      setAccountActionLoading(null);
+      if (isCurrentAccountOperation(operation)) setAccountActionLoading(null);
     }
   }
 
   async function permanentlyDeleteAccount() {
-    if (!supabase || deleteAccountConfirmation !== "DELETE" || accountActionLoading) return;
+    if (!supabase || !userId || deleteAccountConfirmation !== "DELETE" || accountActionLoading) return;
+    const operation = beginAccountOperation(userId);
+    if (!operation) return;
     setAccountActionLoading("delete");
     setStatus("");
     try {
-      const sessionResponse = await supabase.auth.getSession();
-      const session = sessionResponse.data.session;
+      const session = await getValidatedSession(operation);
       if (!session) throw new Error("Your session has expired. Sign in again and retry.");
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, "") || "";
       const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
@@ -1043,6 +1169,7 @@ export default function SettingsPage() {
         code?: string;
         appleReauthenticationRequired?: boolean;
       };
+      if (!isCurrentAccountOperation(operation)) return;
       if (response.status === 409 && data.code === "APPLE_REAUTH_REQUIRED" && data.appleReauthenticationRequired) {
         window.sessionStorage.setItem(PENDING_APPLE_DELETION_KEY, JSON.stringify({
           userId: session.user.id,
@@ -1050,6 +1177,7 @@ export default function SettingsPage() {
         }));
         const redirectTo = `${process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") || window.location.origin}/auth/callback`;
         const oauth = await supabase.auth.signInWithOAuth({ provider: "apple", options: { redirectTo } });
+        if (!isCurrentAccountOperation(operation)) return;
         if (oauth.error) {
           window.sessionStorage.removeItem(PENDING_APPLE_DELETION_KEY);
           throw oauth.error;
@@ -1060,6 +1188,7 @@ export default function SettingsPage() {
       await supabase.auth.signOut();
       window.location.assign("/");
     } catch (error) {
+      if (!isCurrentAccountOperation(operation)) return;
       setStatus(error instanceof Error ? error.message : "Could not delete the account.");
       setAccountActionLoading(null);
     }
@@ -1067,13 +1196,16 @@ export default function SettingsPage() {
 
   async function savePreferences(e: FormEvent) {
     e.preventDefault();
-    if (!supabase) return;
+    if (!supabase || !userId) return;
+    const operation = beginAccountOperation(userId);
+    if (!operation) return;
 
     const { error } = await supabase.auth.updateUser({
       data: {
         marketing_opt_in: marketingOptIn,
       },
     });
+    if (!isCurrentAccountOperation(operation)) return;
 
     if (error) return setStatus(error.message);
 
@@ -1091,6 +1223,8 @@ export default function SettingsPage() {
 
   async function saveNotificationPreferences() {
     if (!supabase || !userId || notificationPreferencesSaving) return;
+    const operation = beginAccountOperation(userId);
+    if (!operation) return;
     setNotificationPreferencesSaving(true);
     setStatus("");
     const { error } = await supabase.from("notification_preferences").upsert({
@@ -1098,15 +1232,19 @@ export default function SettingsPage() {
       ...notificationPreferences,
       updated_at: new Date().toISOString(),
     });
+    if (!isCurrentAccountOperation(operation)) return;
     setNotificationPreferencesSaving(false);
     setStatus(error ? error.message : "Notification preferences saved.");
   }
 
   async function restartOnboarding() {
     if (!supabase || !userId) return;
+    const operation = beginAccountOperation(userId);
+    if (!operation) return;
     const ok = window.confirm("Restart onboarding for this account?");
     if (!ok) return;
     const { error } = await supabase.from("profiles").upsert({ id: userId, onboarding_done: false });
+    if (!isCurrentAccountOperation(operation)) return;
     if (error) return setStatus(error.message);
     window.localStorage.removeItem(`sidequest_onboarding_done:${userId}`);
     setStatus("Onboarding reset. Refresh the home page or sign out and back in.");
@@ -1114,10 +1252,13 @@ export default function SettingsPage() {
 
   async function unblockProfile(targetId: string) {
     if (!supabase || !userId) return;
+    const operation = beginAccountOperation(userId);
+    if (!operation) return;
     const { error } = await supabase
       .from("friends")
       .delete()
       .or(`and(requester_id.eq.${userId},addressee_id.eq.${targetId}),and(requester_id.eq.${targetId},addressee_id.eq.${userId})`);
+    if (!isCurrentAccountOperation(operation)) return;
     if (error) return setStatus(error.message);
     setStatus("User unblocked.");
     setBlockedRefreshTick((x) => x + 1);
@@ -1131,17 +1272,21 @@ export default function SettingsPage() {
 
   async function submitAppFeedback(event: FormEvent) {
     event.preventDefault();
-    if (!supabase) return setFeedbackStatus("Feedback was not sent: sign in is unavailable.");
+    if (!supabase || !userId) return setFeedbackStatus("Feedback was not sent: sign in is unavailable.");
+    const operation = beginAccountOperation(userId);
+    if (!operation) return;
     setFeedbackSending(true); setFeedbackStatus("");
     try {
-      const { data } = await supabase.auth.getSession();
-      if (!data.session?.access_token) throw new Error("Sign in to send feedback.");
-      const response = await fetch("/api/app-feedback", { method: "POST", headers: { "Content-Type": "application/json", authorization: `Bearer ${data.session.access_token}` }, body: JSON.stringify({ category: feedbackCategory, message: feedbackMessage, replyContact: feedbackReplyContact, diagnostics: feedbackDiagnostics, diagnosticsInfo: feedbackDiagnostics ? { platform: "web", appVersion: process.env.NEXT_PUBLIC_APP_VERSION || null } : null, captchaToken: feedbackCaptchaToken || undefined }) });
+      const token = await getAccessToken(operation);
+      if (!token) throw new Error("Sign in to send feedback.");
+      if (!isCurrentAccountOperation(operation)) return;
+      const response = await fetch("/api/app-feedback", { method: "POST", headers: { "Content-Type": "application/json", authorization: `Bearer ${token}` }, body: JSON.stringify({ category: feedbackCategory, message: feedbackMessage, replyContact: feedbackReplyContact, diagnostics: feedbackDiagnostics, diagnosticsInfo: feedbackDiagnostics ? { platform: "web", appVersion: process.env.NEXT_PUBLIC_APP_VERSION || null } : null, captchaToken: feedbackCaptchaToken || undefined }) });
       const result = await response.json().catch(() => null) as { ok?: boolean; error?: string; captchaRequired?: boolean } | null;
+      if (!isCurrentAccountOperation(operation)) return;
       if (!response.ok || !result?.ok) { if (result?.captchaRequired) setFeedbackStatus("Verification is required before sending more feedback. Complete the check and retry."); else setFeedbackStatus(`Feedback was not sent: ${result?.error || "Please try again."}`); return; }
       setFeedbackStatus("Thanks — your feedback was sent."); setFeedbackMessage(""); setFeedbackCaptchaToken("");
-    } catch (error) { setFeedbackStatus(`Feedback was not sent: ${error instanceof Error ? error.message : "Please try again."}`); }
-    finally { setFeedbackSending(false); }
+    } catch (error) { if (isCurrentAccountOperation(operation)) setFeedbackStatus(`Feedback was not sent: ${error instanceof Error ? error.message : "Please try again."}`); }
+    finally { if (isCurrentAccountOperation(operation)) setFeedbackSending(false); }
   }
 
   const primaryTab = primarySettingsSection(tab);
@@ -1641,10 +1786,13 @@ export default function SettingsPage() {
                             onClick={async () => {
                               const client = supabase;
                               if (!client || !userId) return;
+                              const operation = beginAccountOperation(userId);
+                              if (!operation) return;
                               const { error } = await client
                                 .from("friends")
                                 .delete()
                                 .or(`and(requester_id.eq.${userId},addressee_id.eq.${friend.id}),and(requester_id.eq.${friend.id},addressee_id.eq.${userId})`);
+                              if (!isCurrentAccountOperation(operation)) return;
                               if (error) return setStatus(error.message);
                               setStatus("Friend removed.");
                               setBlockedRefreshTick((x) => x + 1);
@@ -1691,11 +1839,14 @@ export default function SettingsPage() {
                                 onClick={async () => {
                                   const client = supabase;
                                   if (!client || !userId) return;
+                                  const operation = beginAccountOperation(userId);
+                                  if (!operation) return;
                                   const { error } = await client
                                     .from("friends")
                                     .update({ status: "accepted" })
                                     .eq("requester_id", request.edge.requester_id)
                                     .eq("addressee_id", request.edge.addressee_id);
+                                  if (!isCurrentAccountOperation(operation)) return;
                                   if (error) return setStatus(error.message);
                                   setStatus("Friend request accepted.");
                                   setBlockedRefreshTick((x) => x + 1);
@@ -1710,12 +1861,15 @@ export default function SettingsPage() {
                               onClick={async () => {
                                 const client = supabase;
                                 if (!client || !userId) return;
+                                const operation = beginAccountOperation(userId);
+                                if (!operation) return;
                                 const { error } = await client
                                   .from("friends")
                                   .delete()
                                   .eq("requester_id", request.edge.requester_id)
                                   .eq("addressee_id", request.edge.addressee_id)
                                   .eq("status", "pending");
+                                if (!isCurrentAccountOperation(operation)) return;
                                 if (error) return setStatus(error.message);
                                 setStatus(request.direction === "incoming" ? "Request declined." : "Request canceled.");
                                 setBlockedRefreshTick((x) => x + 1);
