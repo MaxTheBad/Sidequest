@@ -19,7 +19,8 @@ test("list and map surfaces explain location results without relying on a prompt
 });
 
 test("card action names its distance outcome", () => {
-  assert.match(page, /aria-label=[^\n]*"Show distance from me"/);
-  assert.match(page, /<strong>\{[^\n]*"Show distance from me"/);
+  assert.match(page, /aria-label=[^\n]*"Show distance — use your location to calculate distance"/);
+  assert.match(page, /title=[^\n]*"Use your location to calculate distance"/);
+  assert.match(page, /<strong>\{[^\n]*"Show distance"/);
   assert.doesNotMatch(page, />Use my location</);
 });
