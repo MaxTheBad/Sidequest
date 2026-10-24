@@ -19,7 +19,7 @@ export function SettingsInterests({ userId }: { userId: string }) {
   const [retry,setRetry]=useState(0);
   useLayoutEffect(() => {
     mountedRef.current=true;activeUserRef.current=userId;saveGenerationRef.current+=1;savingRef.current=false;
-    setSaving(false);setStatus("");
+    setIds([]);setLoading(true);setLoadFailed(false);setSaving(false);setStatus("");
     return()=>{mountedRef.current=false;saveGenerationRef.current+=1;savingRef.current=false;};
   },[userId]);
   useEffect(() => {
@@ -40,7 +40,11 @@ export function SettingsInterests({ userId }: { userId: string }) {
     const saveGeneration=++saveGenerationRef.current;
     const isCurrent=()=>mountedRef.current&&activeUserRef.current===saveUserId&&saveGenerationRef.current===saveGeneration;
     savingRef.current=true;setSaving(true);setStatus("");
-    try { await saveUserInterests(client,saveUserId,ids);if(isCurrent())setStatus("Interests saved. Your recommendations will adjust as new quests appear."); }
+    try {
+      const {data}=await client.auth.getSession();
+      if(!isCurrent()||data.session?.user?.id!==saveUserId) return;
+      await saveUserInterests(client,saveUserId,ids);if(isCurrent())setStatus("Interests saved. Your recommendations will adjust as new quests appear.");
+    }
     catch(error) {if(isCurrent())setStatus(error instanceof Error ? error.message : "Could not save interests. Please try again.");}
     finally {if(isCurrent()){savingRef.current=false;setSaving(false);}}
   }

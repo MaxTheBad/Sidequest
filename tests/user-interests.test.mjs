@@ -62,4 +62,16 @@ test('pending save UI is bound to its originating account and mount', () => {
   assert.match(source,/if\(isCurrent\(\)\)setStatus\("Interests saved/);
   assert.match(source,/catch\(error\) \{if\(isCurrent\(\)\)setStatus/);
   assert.match(source,/finally \{if\(isCurrent\(\)\)\{savingRef\.current=false;setSaving\(false\);\}\}/);
+  assert.match(source,/setIds\(\[\]\);setLoading\(true\)/);
+  assert.match(source,/client\.auth\.getSession\(\)/);
+  assert.match(source,/data\.session\?\.user\?\.id!==saveUserId/);
+});
+
+test('Settings page observes auth identity changes and invalidates stale loads', () => {
+  const source=fs.readFileSync(new URL('../src/app/settings/page.tsx',import.meta.url),'utf8');
+  assert.match(source,/supabase\.auth\.onAuthStateChange/);
+  assert.match(source,/settingsLoadGenerationRef\.current \+= 1/);
+  assert.match(source,/setUserId\(nextUserId\)/);
+  assert.match(source,/const isCurrent=.*settingsLoadGenerationRef\.current===generation/);
+  assert.match(source,/if\(!isCurrent\(uid\)\) return;/);
 });

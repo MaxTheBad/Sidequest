@@ -132,12 +132,15 @@ export default function SettingsPage() {
   const [friendRequests, setFriendRequests] = useState<RequestRow[]>([]);
   const [blockedProfiles, setBlockedProfiles] = useState<BlockedProfile[]>([]);
   const [blockedRefreshTick, setBlockedRefreshTick] = useState(0);
+  const [authRevision, setAuthRevision] = useState(0);
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
   const [deactivatedAt, setDeactivatedAt] = useState<string | null>(null);
   const [accountActionLoading, setAccountActionLoading] = useState<"deactivate" | "restore" | "delete" | null>(null);
   const [showDeleteAccountConfirm, setShowDeleteAccountConfirm] = useState(false);
   const [deleteAccountConfirmation, setDeleteAccountConfirmation] = useState("");
   const initialProfileSnapshotRef = useRef<string>("");
+  const observedAuthUserRef = useRef<string | null | undefined>(undefined);
+  const settingsLoadGenerationRef = useRef(0);
   const initialProfileSnapshot = (() => {
     if (!initialProfileSnapshotRef.current) return null;
     try {
@@ -193,9 +196,26 @@ export default function SettingsPage() {
 
   useEffect(() => {
     if (!supabase) return;
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      const nextUserId = session?.user?.id ?? null;
+      if (observedAuthUserRef.current === nextUserId) return;
+      observedAuthUserRef.current = nextUserId;
+      settingsLoadGenerationRef.current += 1;
+      setUserId(nextUserId);
+      setAuthRevision((value) => value + 1);
+    });
+    return () => data.subscription.unsubscribe();
+  }, [supabase]);
+
+  useEffect(() => {
+    if (!supabase) return;
+    const generation=++settingsLoadGenerationRef.current;
+    let active=true;
+    const isCurrent=(uid?:string|null)=>active&&settingsLoadGenerationRef.current===generation&&(uid===undefined||observedAuthUserRef.current===undefined||observedAuthUserRef.current===uid);
 
     const run = async () => {
       const { data } = await supabase.auth.getSession();
+      if(!isCurrent()) return;
       const uid = data.session?.user?.id ?? null;
       const userEmail = data.session?.user?.email ?? "";
       setUserId(uid);
@@ -209,14 +229,17 @@ export default function SettingsPage() {
         .select("display_name,username,username_changed_at,city,region,country_code,bio,friends_visibility,show_location,radius_km,avatar_url,avatar_source_url,deactivated_at,people_discovery_enabled")
         .eq("id", uid)
         .maybeSingle();
+      if(!isCurrent(uid)) return;
 
       const { data: authUser } = await supabase.auth.getUser();
+      if(!isCurrent(uid)) return;
       const authMeta = (authUser.user?.user_metadata || {}) as Record<string, unknown>;
       const { data: discoverySettings } = await supabase
         .from("people_discovery_settings")
         .select("birth_date,gender_identity")
         .eq("user_id", uid)
         .maybeSingle();
+      if(!isCurrent(uid)) return;
 
       setCity(profile?.city ?? (typeof authMeta.city === "string" ? authMeta.city : ""));
       setRegion(profile?.region ?? (typeof authMeta.region === "string" ? authMeta.region : ""));
@@ -336,7 +359,8 @@ export default function SettingsPage() {
     };
 
     void run();
-  }, [supabase, blockedRefreshTick]);
+    return()=>{active=false;};
+  }, [supabase, blockedRefreshTick, authRevision]);
 
   async function getAccessToken() {
     if (!supabase) return null;
