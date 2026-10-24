@@ -957,6 +957,27 @@ html[data-theme="dark"] .mobile-dock-inner { background: rgba(27,25,33,.82); bor
   .home119-desktop-map-note { margin: 0 16px 16px; color: #64748b; font-size: 10px; line-height: 1.45; }
 }
 
+/* Keep browser zoom and narrow desktop windows usable before the full
+   two-column feed + persistent map composition has enough room. */
+@media (min-width: 768px) and (max-width: 1279px) {
+  .home119-desktop-header {
+    grid-template-columns: auto minmax(180px, 1fr) auto;
+    gap: 12px;
+    padding-inline: 24px;
+  }
+  .home119-desktop-header nav { display: none; }
+  .home119-shell { padding-inline: 24px !important; }
+  .home119-desktop-feed-layout { display: block; }
+  .home119-page .feed119-list {
+    width: min(100%, 760px);
+    grid-template-columns: minmax(0, 1fr);
+    margin-inline: auto;
+  }
+  .home119-desktop-map { display: none; }
+  .feed119-title-copy,
+  .feed119-title-copy h3 { min-width: 0; }
+}
+
 /* Route-level premium composition */
 .page-shell { padding-top: clamp(28px, 5vw, 64px); padding-bottom: 120px; }
 .page-shell > section { width: 100%; }

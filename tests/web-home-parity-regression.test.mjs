@@ -40,6 +40,14 @@ test("desktop cards reserve media space and separate host from location actions"
   assert.match(styles, /\.feed119-list \{ box-sizing: border-box; width: 100%;/);
 });
 
+test("narrow desktop and browser zoom reflow to one feed column without the map sidebar", () => {
+  assert.match(styles, /@media \(min-width: 768px\) and \(max-width: 1279px\)/);
+  assert.match(styles, /@media \(min-width: 768px\) and \(max-width: 1279px\)[\s\S]*?\.home119-desktop-feed-layout \{ display: block; \}/);
+  assert.match(styles, /@media \(min-width: 768px\) and \(max-width: 1279px\)[\s\S]*?\.home119-page \.feed119-list \{[\s\S]*?grid-template-columns: minmax\(0, 1fr\)/);
+  assert.match(styles, /@media \(min-width: 768px\) and \(max-width: 1279px\)[\s\S]*?\.home119-desktop-map \{ display: none; \}/);
+  assert.match(styles, /\.feed119-title-copy,[\s\S]*?\.feed119-title-copy h3 \{ min-width: 0; \}/);
+});
+
 test("web discovery expires dated quests at start while preserving undated quests", () => {
   assert.match(source, /status\.in\.\(open,full\)/);
   assert.match(source, /completed_at\.is\.null/);
