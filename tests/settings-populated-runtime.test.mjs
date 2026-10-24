@@ -110,11 +110,15 @@ function fixture(options = {}) {
         return options.sessionError ? ({ data: { session: null }, error: options.sessionError }) : ({ data: { session: authSession }, error: null });
       },
       getUser: async () => ({ data: { user: { user_metadata: {} } }, user: { user_metadata: {} } }),
-      updateUser: async () => ({ error: null }), signOut: async () => ({}),
+      updateUser: async payload => { calls.push({ operation: "auth.updateUser", payload }); return { error: null }; }, signOut: async () => ({}),
       onAuthStateChange(callback) { authListeners.add(callback); return { data: { subscription: { unsubscribe: () => authListeners.delete(callback) } } }; },
     },
     from: query,
     rpc: async (name, payload) => { calls.push({ operation: "rpc", name, payload }); return { data: null, error: options.rpcError || null }; },
+    storage: { from: bucket => ({
+      upload(path, body, uploadOptions) { calls.push({ operation: "storage.upload", bucket, path, body, uploadOptions }); return options.photoUploadDeferred?.promise || Promise.resolve({ error: null }); },
+      getPublicUrl(path) { return { data: { publicUrl: `https://fixture.invalid/${bucket}/${path}` } }; },
+    }) },
   };
   const storage = new Map();
   const windowFixture = {
@@ -146,11 +150,13 @@ function fixture(options = {}) {
   const sandboxModule = { exports: {} };
   const source = readFileSync(new URL("../src/app/settings/page.tsx", import.meta.url), "utf8");
   const output = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText;
-  const documentFixture = { documentElement: { dataset: {} }, getElementById: () => ({ focus() {} }) };
+  const documentFixture = { documentElement: { dataset: {} }, getElementById: () => ({ focus() {} }), createElement: tag => tag === "canvas" ? ({ width: 0, height: 0, getContext: () => ({ clearRect() {}, drawImage() {} }), toBlob: callback => callback(new Blob(["fixture"], { type: "image/jpeg" })) }) : ({}) };
+  class FixtureImage { width = 512; height = 512; onload; onerror; set src(_value) { queueMicrotask(() => this.onload?.()); } }
+  class FixtureURL extends URL { static createObjectURL() { return "blob:fixture"; } static revokeObjectURL() {} }
   vm.runInNewContext(output, {
     module: sandboxModule, exports: sandboxModule.exports, require: name => dependencies[name] ?? (() => { throw new Error(`Unstubbed dependency: ${name}`); })(),
     process: { env: {} }, window: windowFixture, document: documentFixture,
-    navigator: { language: "en-US" }, URL, URLSearchParams, Date, Map, Set, Promise, FormData: class {}, File: class {}, fetch: options.fetch || (async (url, init) => { calls.push({ operation: "fetch", url, init }); return { ok: true, json: async () => ({ ok: true }) }; }),
+    navigator: { language: "en-US" }, URL: FixtureURL, URLSearchParams, Date, Map, Set, Promise, FormData: class { set() {} }, File: class {}, Blob, Image: FixtureImage, queueMicrotask, fetch: options.fetch || (async (url, init) => { calls.push({ operation: "fetch", url, init }); return { ok: true, json: async () => ({ ok: true }) }; }),
   });
 
   function render() { hookIndex = 0; return sandboxModule.exports.default(); }
@@ -351,6 +357,24 @@ test("unmount invalidates a pending mutation before its next request", async () 
   pendingUpsert.resolve({ error: null });
   await saving;
   assert.equal(app.calls.filter(call => call.operation === "rpc" && call.name === "update_people_discovery_settings").length, 0);
+});
+
+test("photo upload cannot reach auth metadata after an account switch", async () => {
+  const pendingUpload = deferred();
+  const app = fixture({ photoUploadDeferred: pendingUpload });
+  app.render();
+  let tree = await app.settle();
+  const fileInput = app.all(tree, node => node.type === "input" && node.props.type === "file")[0];
+  fileInput.props.onChange({ target: { files: [{ name: "synthetic.jpg", type: "image/jpeg", size: 64 }], value: "synthetic" } });
+  await new Promise(resolve => setImmediate(resolve));
+  tree = app.render();
+  app.all(tree, node => node.type === "button" && app.text(node).trim() === "Save photo")[0].props.onClick();
+  for (let index = 0; index < 20 && !app.calls.some(call => call.operation === "storage.upload"); index += 1) await new Promise(resolve => setImmediate(resolve));
+  assert.equal(app.calls.filter(call => call.operation === "storage.upload").length, 1);
+  app.emitAuth({ access_token: "b", user: { id: "b", email: "b@example.test" } });
+  pendingUpload.resolve({ error: null });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(app.calls.filter(call => call.operation === "auth.updateUser").length, 0);
 });
 
 test("a readable different-user session is rejected before feedback dispatch even before its auth event", async () => {
