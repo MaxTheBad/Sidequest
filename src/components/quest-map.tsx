@@ -28,6 +28,7 @@ type Props = {
   userLocation: (Coord & { accuracy?: number }) | null;
   onLocateMe: () => void;
   locationLabel: string;
+  locating?: boolean;
   onSelectQuest: (id: string) => void;
   selectedQuestId: string | null;
   focusQuestId: string | null;
@@ -40,6 +41,7 @@ export default function QuestMap({
   userLocation,
   onLocateMe,
   locationLabel,
+  locating = false,
   onSelectQuest,
   selectedQuestId,
   focusQuestId,
@@ -244,6 +246,8 @@ export default function QuestMap({
         type="button"
         className="absolute bottom-3 left-3 z-[500] inline-flex items-center gap-2 rounded-full border border-slate-700 bg-[#2a1209] px-3 py-2 text-xs font-medium text-white shadow-xl"
         onClick={onLocateMe}
+        disabled={locating}
+        aria-busy={locating}
       >
         <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-white/10">⌖</span>
         <span>{locationLabel}</span>

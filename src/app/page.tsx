@@ -26,6 +26,7 @@ import { getCreateQuestTitles, CREATE_QUEST_BANNER_IMAGES } from "@/lib/create-q
 import { TITLE_SUGGESTIONS, getCategoryTitleSuggestions } from "@questhat/shared";
 import { readStoredUserLocation, writeStoredUserLocation } from "@/lib/location-distance";
 import { getLocationControlCopy } from "@/lib/location-control";
+import { createLocationRequestGate } from "@/lib/location-request.js";
 import { isImageLikeFile, prepareImageForUpload } from "@/lib/media-optimize";
 import { compressVideoForUpload, VIDEO_MAX_DURATION_SECONDS } from "@/lib/video-optimize";
 import { collectQuestStorageUrls, removeStoragePublicUrls } from "@/lib/storage.js";
@@ -322,7 +323,9 @@ export default function Home() {
   const [mapViewTitle, setMapViewTitle] = useState("");
   const [userLocation, setUserLocation] = useState<{ lat: number; lon: number; accuracy?: number } | null>(null);
   const [userLocationStatus, setUserLocationStatus] = useState<"idle" | "loading" | "ready" | "denied" | "error">("idle");
+  const [userLocationSource, setUserLocationSource] = useState<"none" | "stored" | "fresh">("none");
   const [locationPermission, setLocationPermission] = useState<"unknown" | "prompt" | "granted" | "denied">("unknown");
+  const locationRequestGateRef = useRef(createLocationRequestGate());
   const [expandedMedia, setExpandedMedia] = useState<{ items: QuestMediaItem[]; index: number } | null>(null);
   const expandedMediaStripRef = useRef<HTMLDivElement | null>(null);
   const feedVideoRefs = useRef<Record<string, HTMLVideoElement | null>>({});
@@ -632,8 +635,11 @@ export default function Home() {
     const storedLocation = readStoredUserLocation();
     if (!storedLocation) return;
     setUserLocation({ lat: storedLocation.lat, lon: storedLocation.lon, accuracy: storedLocation.accuracy });
+    setUserLocationSource("stored");
     setUserLocationStatus("ready");
   }, []);
+
+  useEffect(() => () => locationRequestGateRef.current.cancel(), []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -2837,16 +2843,20 @@ export default function Home() {
       setUserLocationStatus("error");
       return;
     }
-    setUserLocationStatus("loading");
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
+    locationRequestGateRef.current.request(
+      navigator.geolocation,
+      {
+        onStart: () => setUserLocationStatus("loading"),
+        onSuccess: (position: GeolocationPosition) => {
         const nextLocation = { lat: position.coords.latitude, lon: position.coords.longitude, accuracy: position.coords.accuracy };
         writeStoredUserLocation(nextLocation);
         setUserLocation(nextLocation);
+        setUserLocationSource("fresh");
         setUserLocationStatus("ready");
-      },
-      (error) => {
-        setUserLocationStatus(error.code === error.PERMISSION_DENIED ? "denied" : "error");
+        },
+        onError: (error: GeolocationPositionError) => {
+          setUserLocationStatus(error.code === error.PERMISSION_DENIED ? "denied" : "error");
+        },
       },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
     );
@@ -3886,6 +3896,7 @@ export default function Home() {
     userLocationStatus,
     locationPermission,
     !!(userLocation?.accuracy && userLocation.accuracy > 50000),
+    userLocationSource,
   );
 
   useEffect(() => {
@@ -4156,6 +4167,8 @@ export default function Home() {
               </div>
             </div>
 
+            {userLocationStatus !== "idle" ? <p className="home119-location-status home119-location-status-list" role="status" aria-live="polite">{locationControlCopy.message}</p> : null}
+
             {feedViewMode === "list" ? (
               <div className="home119-desktop-feed-layout">
               <div className="feed119-list grid grid-cols-1">
@@ -4199,7 +4212,7 @@ export default function Home() {
                   <span className="text-sm font-semibold truncate">{creatorProfile?.display_name || "View profile"}</span>
                 </Link>
                 <div className="feed119-top-actions flex items-center gap-2">
-                  <button type="button" className="feed119-location" aria-label={(q.city === "Virtual" || isVirtualQuest(q)) ? "Virtual quest" : distanceLabel ? `View ${formatQuestCityState(q)} on map` : "Show distance — use your location to calculate distance"} title={(q.city === "Virtual" || isVirtualQuest(q)) ? undefined : distanceLabel ? `View ${formatQuestCityState(q)} on map` : "Use your location to calculate distance"} onClick={() => { if (!(q.city === "Virtual" || isVirtualQuest(q))) { if (!userLocation) void requestUserLocation(); else void openQuestCityMap(q); } }} disabled={(q.city === "Virtual" || isVirtualQuest(q))}>
+                  <button type="button" className="feed119-location" aria-label={(q.city === "Virtual" || isVirtualQuest(q)) ? "Virtual quest" : distanceLabel ? `View ${formatQuestCityState(q)} on map` : "Show distance — use your location to calculate distance"} title={(q.city === "Virtual" || isVirtualQuest(q)) ? undefined : distanceLabel ? `View ${formatQuestCityState(q)} on map` : "Use your location to calculate distance"} onClick={() => { if (!(q.city === "Virtual" || isVirtualQuest(q))) { if (!userLocation) void requestUserLocation(); else void openQuestCityMap(q); } }} disabled={(q.city === "Virtual" || isVirtualQuest(q)) || userLocationStatus === "loading"} aria-busy={userLocationStatus === "loading"}>
                     <span className="feed119-location-icon"><AppIcon name="location" /></span>
                     <span><strong>{(q.city === "Virtual" || isVirtualQuest(q)) ? "Virtual quest" : distanceLabel || (userLocation ? "Distance unavailable" : "Show distance")}</strong><small>{(q.city === "Virtual" || isVirtualQuest(q)) ? "Meet online" : (q.city?.trim() || "City tbd")}</small></span>
                   </button>
@@ -4446,6 +4459,7 @@ export default function Home() {
                       items={mapQuestMarkers}
                       userLocation={userLocation}
                       locationLabel={locationControlCopy.label}
+                      locating={userLocationStatus === "loading"}
                       onLocateMe={() => { setSelectedMapQuestId(null); setFocusedMapQuestId(null); void requestUserLocation(); }}
                       onSelectQuest={(questId) => setSelectedMapQuestId((current) => (current === questId ? null : questId))}
                       selectedQuestId={selectedMapQuest?.id || null}
@@ -4485,6 +4499,7 @@ export default function Home() {
                             items={mapQuestMarkers}
                             userLocation={userLocation}
                             locationLabel={locationControlCopy.label}
+                            locating={userLocationStatus === "loading"}
                             onLocateMe={() => {
                               setSelectedMapQuestId(null);
                               setFocusedMapQuestId(null);
