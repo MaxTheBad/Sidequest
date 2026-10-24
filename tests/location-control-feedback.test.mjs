@@ -6,6 +6,7 @@ import { getLocationControlCopy } from "../src/lib/location-control.ts";
 const page = await readFile(new URL("../src/app/page.tsx", import.meta.url), "utf8");
 const helper = await readFile(new URL("../src/lib/location-control.ts", import.meta.url), "utf8");
 const map = await readFile(new URL("../src/components/quest-map.tsx", import.meta.url), "utf8");
+const css = await readFile(new URL("../src/app/globals.css", import.meta.url), "utf8");
 
 test("location control distinguishes pending, denied, unavailable and ready outcomes", () => {
   assert.match(helper, /status === "loading"[\s\S]*label: "Locating…"/);
@@ -33,6 +34,14 @@ test("list and map surfaces explain location results without relying on a prompt
   assert.match(page, /home119-location-status-list/);
   assert.equal((page.match(/locating=\{userLocationStatus === "loading"\}/g) || []).length, 2);
   assert.match(map, /disabled=\{locating\}/);
+});
+
+test("each responsive composition exposes one location live region", () => {
+  assert.match(page, /feedViewMode === "list" && userLocationStatus !== "idle"[^\n]*home119-location-status-list/);
+  assert.match(css, /@media \(min-width: 1280px\) \{ \.home119-location-status-list \{ display: none; \} \}/);
+  assert.equal((page.match(/home119-location-status home119-location-status-list/g) || []).length, 1, "mobile and intermediate List share one global status");
+  assert.equal((page.match(/<aside className="home119-desktop-map"[\s\S]*?role="status" aria-live="polite"/g) || []).length, 1, "desktop List uses the sidebar status after hiding the global one");
+  assert.equal((page.match(/<p className="home119-location-status" role="status" aria-live="polite">/g) || []).length, 2, "desktop List and Map each own one composition-specific status");
 });
 
 test("card action names its distance outcome", () => {

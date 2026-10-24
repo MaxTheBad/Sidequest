@@ -4167,7 +4167,7 @@ export default function Home() {
               </div>
             </div>
 
-            {userLocationStatus !== "idle" ? <p className="home119-location-status home119-location-status-list" role="status" aria-live="polite">{locationControlCopy.message}</p> : null}
+            {feedViewMode === "list" && userLocationStatus !== "idle" ? <p className="home119-location-status home119-location-status-list" role="status" aria-live="polite">{locationControlCopy.message}</p> : null}
 
             {feedViewMode === "list" ? (
               <div className="home119-desktop-feed-layout">
