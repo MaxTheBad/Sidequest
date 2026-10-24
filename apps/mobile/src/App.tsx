@@ -4808,7 +4808,8 @@ function privateThreadIncludesUsers(
     const actionKey = `share:${quest.id}`;
     if (!shareIntentGate.begin(actionKey)) return;
     try {
-      await Share.share(buildQuestSharePayload(quest, env.siteUrl));
+      const payload = buildQuestSharePayload(quest, env.siteUrl, Platform.OS);
+      await Share.share(payload.content, payload.options);
     } catch {
       setStatus("Could not open share sheet.");
     } finally {

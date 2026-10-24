@@ -10,7 +10,7 @@ test("Android handoff counts only after native completion, under the original us
   const done = deferred();
   let launched = false, counted = 0;
   const outcomes = [];
-  const pending = shareQuestAndRecord({ userAgentData: { platform: "Android" }, share: data => { assert.deepEqual(data, payload); launched = true; return done.promise; } }, payload, {
+  const pending = shareQuestAndRecord({ userAgentData: { platform: "Android" }, share: data => { assert.deepEqual(data, { url: payload.url }); launched = true; return done.promise; } }, payload, {
     recordShare: async method => { assert.equal(method, "native"); counted++; return true; },
     onOutcome: result => outcomes.push(result),
   });
@@ -24,6 +24,14 @@ test("Android handoff counts only after native completion, under the original us
   assert.equal(result.confirmation, "handoff", "a target handoff is not recipient delivery");
   assert.equal(result.counted, true);
   assert.doesNotMatch(JSON.stringify(outcomes), /Private|private-id|secret|https:/);
+});
+
+test("system share targets receive only the canonical listing URL", async () => {
+  let shared;
+  const result = await shareQuestPayload({ userAgent: "Macintosh", share: async data => { shared = data; } }, payload);
+  assert.deepEqual(shared, { url: payload.url });
+  assert.doesNotMatch(JSON.stringify(shared), /Private title|Private description/);
+  assert.equal(result.method, "native");
 });
 
 test("Windows and unknown native platforms remain initiated and do not count", async () => {

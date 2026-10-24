@@ -31,9 +31,12 @@ export async function refreshQuestPrivateLocationForIntent(quest, options = {}) 
   }
 }
 
-export function buildQuestSharePayload(quest, siteUrl) {
+export function buildQuestSharePayload(quest, siteUrl, platform = "ios") {
   const url = `${siteUrl.replace(/\/$/, "")}/listing/${encodeURIComponent(quest.id)}`;
-  return { message: `${quest.title} ${url}`, url };
+  if (platform === "android") {
+    return { content: { message: url }, options: { dialogTitle: "Share QuestHat listing" }, url };
+  }
+  return { content: { url }, options: { subject: quest.title }, url };
 }
 
 export function buildQuestCalendarDetails(quest, options = {}) {

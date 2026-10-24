@@ -19,7 +19,11 @@ export async function shareQuestPayload(navigator, payload) {
   let nativeFailed = false;
   if (typeof navigator?.share === "function") {
     try {
-      await navigator.share(payload);
+      // Web Share does not expose the selected target. Passing title/text makes
+      // desktop "Copy" and AirDrop targets concatenate prose with the URL, so
+      // the generic system payload must stay URL-only. Email remains a valid
+      // target with a clickable canonical listing URL.
+      await navigator.share({ url: payload.url });
       // Android resolves after data passes to a target; Windows resolves when the
       // popup opens. Other platforms have no uniform completion signal.
       const platform = navigator.userAgentData?.platform;
