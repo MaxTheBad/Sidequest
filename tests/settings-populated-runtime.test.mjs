@@ -110,7 +110,10 @@ function fixture(options = {}) {
         return options.sessionError ? ({ data: { session: null }, error: options.sessionError }) : ({ data: { session: authSession }, error: null });
       },
       getUser: async () => ({ data: { user: { user_metadata: {} } }, user: { user_metadata: {} } }),
-      updateUser: async payload => { calls.push({ operation: "auth.updateUser", payload }); return { error: null }; }, signOut: async () => ({}),
+      updateUser: async payload => { calls.push({ operation: "auth.updateUser", payload }); return { error: null }; },
+      signInWithPassword: async payload => { calls.push({ operation: "auth.signInWithPassword", payload }); return { error: null }; },
+      signInWithOAuth: async payload => { calls.push({ operation: "auth.signInWithOAuth", payload }); return { error: null }; },
+      signOut: async () => { calls.push({ operation: "auth.signOut" }); return {}; },
       onAuthStateChange(callback) { authListeners.add(callback); return { data: { subscription: { unsubscribe: () => authListeners.delete(callback) } } }; },
     },
     from: query,
@@ -126,7 +129,7 @@ function fixture(options = {}) {
     history: { replaceState() {} },
     localStorage: { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value), removeItem: key => storage.delete(key) },
     sessionStorage: { getItem() { return null; }, setItem() {}, removeItem() {} },
-    matchMedia: () => ({ matches: false }), confirm: () => false,
+    matchMedia: () => ({ matches: false }), confirm: () => Boolean(options.confirm),
   };
   const dependencies = {
     react: hooks,
@@ -139,7 +142,7 @@ function fixture(options = {}) {
     "@/components/city-autocomplete-input": () => null,
     "@/lib/countries": { COUNTRY_OPTIONS: [{ code: "US", name: "United States" }] },
     "@/lib/supabase": { getSupabaseClient: () => supabase },
-    "@/lib/media-optimize": { isImageLikeFile: () => true, prepareImageForUpload: async file => file },
+    "@/lib/media-optimize": { isImageLikeFile: () => true, prepareImageForUpload: async file => options.normalizedPhotoDeferred ? options.normalizedPhotoDeferred.promise : file },
     "@/lib/use-username-availability": { useUsernameAvailability: () => "available" },
     "@/lib/username": { normalizeUsername: value => String(value).trim().toLowerCase() },
     "@/lib/security-audit": { recordSecurityAudit: async () => undefined },
@@ -152,7 +155,12 @@ function fixture(options = {}) {
   const output = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText;
   const documentFixture = { documentElement: { dataset: {} }, getElementById: () => ({ focus() {} }), createElement: tag => tag === "canvas" ? ({ width: 0, height: 0, getContext: () => ({ clearRect() {}, drawImage() {} }), toBlob: callback => callback(new Blob(["fixture"], { type: "image/jpeg" })) }) : ({}) };
   class FixtureImage { width = 512; height = 512; onload; onerror; set src(_value) { queueMicrotask(() => this.onload?.()); } }
-  class FixtureURL extends URL { static createObjectURL() { return "blob:fixture"; } static revokeObjectURL() {} }
+  const createdObjectUrls = [];
+  const revokedObjectUrls = [];
+  class FixtureURL extends URL {
+    static createObjectURL() { const value = `blob:fixture-${createdObjectUrls.length + 1}`; createdObjectUrls.push(value); options.onCreateObjectURL?.(value); return value; }
+    static revokeObjectURL(value) { revokedObjectUrls.push(value); }
+  }
   vm.runInNewContext(output, {
     module: sandboxModule, exports: sandboxModule.exports, require: name => dependencies[name] ?? (() => { throw new Error(`Unstubbed dependency: ${name}`); })(),
     process: { env: {} }, window: windowFixture, document: documentFixture,
@@ -189,10 +197,13 @@ function fixture(options = {}) {
     authSession = session;
     authListeners.forEach(listener => listener(event, session));
   }
+  function setSessionSilently(session) {
+    authSession = session;
+  }
   function unmount() {
     slots.forEach(slot => slot?.cleanup?.());
   }
-  return { render, settle, runPendingEffects, text, all, storage, calls, emitAuth, unmount, documentFixture };
+  return { render, settle, runPendingEffects, text, all, storage, calls, emitAuth, setSessionSilently, unmount, documentFixture, createdObjectUrls, revokedObjectUrls };
 }
 
 test("actual populated Settings page preserves profile, theme, photo, people, and blocked controls", async () => {
@@ -352,11 +363,117 @@ test("unmount invalidates a pending mutation before its next request", async () 
   const tree = await app.settle();
   const profileForm = app.all(tree, node => node.type === "form" && app.all(node, child => child.type === "button" && app.text(child).includes("Save profile")).length)[0];
   const saving = profileForm.props.onSubmit({ preventDefault() {} });
+  for (let index = 0; index < 20 && !app.calls.some(call => call.operation === "upsert"); index += 1) await new Promise(resolve => setImmediate(resolve));
   assert.equal(app.calls.filter(call => call.operation === "upsert").length, 1);
   app.unmount();
   pendingUpsert.resolve({ error: null });
   await saving;
   assert.equal(app.calls.filter(call => call.operation === "rpc" && call.name === "update_people_discovery_settings").length, 0);
+});
+
+test("a deferred current-photo acquisition cannot repaint account B", async () => {
+  const pendingFetch = deferred();
+  const app = fixture({ fetch: async () => pendingFetch.promise });
+  app.render();
+  let tree = await app.settle();
+  const adjust = app.all(tree, node => node.type === "button" && app.text(node).trim() === "Adjust current photo")[0];
+  const adjusting = adjust.props.onClick();
+  await new Promise(resolve => setImmediate(resolve));
+  app.emitAuth({ access_token: "b", user: { id: "b", email: "b@example.test" } });
+  pendingFetch.resolve({ blob: async () => new Blob(["photo"], { type: "image/jpeg" }) });
+  await adjusting;
+  await new Promise(resolve => setImmediate(resolve));
+  tree = app.render();
+  assert.equal(app.createdObjectUrls.length, 0);
+  assert.doesNotMatch(app.text(tree), /Could not load current photo/);
+  assert.equal(app.all(tree, node => node.type === "button" && app.text(node).trim() === "Save photo").length, 0);
+});
+
+test("a deferred file normalization cannot repaint account B", async () => {
+  const pendingNormalize = deferred();
+  const app = fixture({ normalizedPhotoDeferred: pendingNormalize });
+  app.render();
+  let tree = await app.settle();
+  const fileInput = app.all(tree, node => node.type === "input" && node.props.type === "file")[0];
+  fileInput.props.onChange({ target: { files: [{ name: "a.jpg", type: "image/jpeg", size: 20 }], value: "a.jpg" } });
+  app.emitAuth({ access_token: "b", user: { id: "b", email: "b@example.test" } });
+  pendingNormalize.resolve({ name: "a.jpg", type: "image/jpeg", size: 20 });
+  await new Promise(resolve => setImmediate(resolve));
+  tree = app.render();
+  assert.equal(app.createdObjectUrls.length, 0);
+  assert.equal(app.all(tree, node => node.type === "button" && app.text(node).trim() === "Save photo").length, 0);
+});
+
+test("a canceled photo operation revokes the temporary object URL it created", async () => {
+  let app;
+  app = fixture({
+    onCreateObjectURL() {
+      app.emitAuth({ access_token: "b", user: { id: "b", email: "b@example.test" } });
+    },
+  });
+  app.render();
+  let tree = await app.settle();
+  app.all(tree, node => node.type === "button" && app.text(node).trim() === "Adjust current photo")[0].props.onClick();
+  for (let index = 0; index < 20 && app.revokedObjectUrls.length === 0; index += 1) await new Promise(resolve => setImmediate(resolve));
+  app.render();
+  assert.deepEqual(app.revokedObjectUrls, app.createdObjectUrls);
+});
+
+test("fresh session identity blocks stale profile and preferences dispatch before auth event", async () => {
+  const sessionB = { access_token: "token-b", user: { id: "b", email: "b@example.test" } };
+  const app = fixture();
+  app.render();
+  let tree = await app.settle();
+  const profileForm = app.all(tree, node => node.type === "form" && app.all(node, child => child.type === "button" && app.text(child).includes("Save profile")).length)[0];
+  app.setSessionSilently(sessionB);
+  await profileForm.props.onSubmit({ preventDefault() {} });
+  assert.equal(app.calls.filter(call => call.operation === "upsert" || call.operation === "rpc" || call.operation === "auth.updateUser").length, 0);
+
+  app.emitAuth({ access_token: "fixture", user: { id: "user", email: "fixture@example.test" } });
+  tree = await app.settle();
+  app.all(tree, node => node.type === "button" && app.text(node).trim() === "Preferences")[0].props.onClick();
+  tree = app.render();
+  const preferencesForm = app.all(tree, node => node.type === "form" && app.all(node, child => child.type === "button" && app.text(child).includes("Save preferences")).length)[0];
+  app.setSessionSilently(sessionB);
+  await preferencesForm.props.onSubmit({ preventDefault() {} });
+  assert.equal(app.calls.filter(call => call.operation === "auth.updateUser").length, 0);
+});
+
+test("fresh session identity blocks credential and lifecycle mutations before auth event", async () => {
+  const sessionB = { access_token: "token-b", user: { id: "b", email: "b@example.test" } };
+  const app = fixture({ confirm: true });
+  app.render();
+  let tree = await app.settle();
+
+  app.all(tree, node => node.type === "button" && app.text(node).trim() === "Account")[0].props.onClick();
+  tree = app.render();
+  const emailForm = app.all(tree, node => node.type === "form" && app.text(node).includes("Change email"))[0];
+  app.setSessionSilently(sessionB);
+  await emailForm.props.onSubmit({ preventDefault() {} });
+  assert.equal(app.calls.filter(call => call.operation === "auth.updateUser").length, 0);
+
+  app.emitAuth({ access_token: "fixture", user: { id: "user", email: "fixture@example.test" } });
+  tree = await app.settle();
+  app.all(tree, node => node.type === "button" && app.text(node).trim() === "Account")[0].props.onClick();
+  tree = app.render();
+  const passwordForm = app.all(tree, node => node.type === "form" && app.text(node).includes("Update password"))[0];
+  const passwordInputs = app.all(passwordForm, node => node.type === "input" && node.props.type === "password");
+  passwordInputs[0].props.onChange({ target: { value: "old-password" } });
+  passwordInputs[1].props.onChange({ target: { value: "new-password" } });
+  passwordInputs[2].props.onChange({ target: { value: "new-password" } });
+  tree = app.render();
+  const filledPasswordForm = app.all(tree, node => node.type === "form" && app.text(node).includes("Update password"))[0];
+  app.setSessionSilently(sessionB);
+  await filledPasswordForm.props.onSubmit({ preventDefault() {} });
+  assert.equal(app.calls.filter(call => call.operation === "auth.signInWithPassword" || call.operation === "auth.updateUser").length, 0);
+
+  app.emitAuth({ access_token: "fixture", user: { id: "user", email: "fixture@example.test" } });
+  tree = await app.settle();
+  app.all(tree, node => node.type === "button" && app.text(node).trim() === "Account")[0].props.onClick();
+  tree = app.render();
+  app.setSessionSilently(sessionB);
+  await app.all(tree, node => node.type === "button" && app.text(node).trim() === "Deactivate account")[0].props.onClick();
+  assert.equal(app.calls.filter(call => call.operation === "rpc" && call.name === "deactivate_my_account").length, 0);
 });
 
 test("photo upload cannot reach auth metadata after an account switch", async () => {

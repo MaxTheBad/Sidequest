@@ -301,8 +301,10 @@ export default function SettingsPage() {
       setDeactivatedAt(profile?.deactivated_at || null);
 
       if (!profile?.avatar_url && metaAvatar) {
+        const operation = beginAccountOperation(uid);
+        if (!operation || !await getValidatedSession(operation)) return;
         await supabase.from("profiles").upsert({ id: uid, avatar_url: metaAvatar });
-        if (!isCurrent(uid)) return;
+        if (!isCurrent(uid) || !isCurrentAccountOperation(operation)) return;
       }
       setMarketingOptIn(Boolean(authMeta.marketing_opt_in));
       const resolvedDob = discoverySettings?.birth_date || (typeof authMeta.dob === "string" ? authMeta.dob : "");
@@ -575,7 +577,9 @@ export default function SettingsPage() {
       form.set("mode", tiktokShareMode);
       form.set("title", tiktokCaption);
       form.set("privacyLevel", tiktokPrivacyLevel);
-      const response = await fetch("/api/tiktok/publish", { method: "POST", headers: { authorization: `Bearer ${token}` }, body: form });
+      const publishToken = await getAccessToken(operation);
+      if (!publishToken) return;
+      const response = await fetch("/api/tiktok/publish", { method: "POST", headers: { authorization: `Bearer ${publishToken}` }, body: form });
       const data = (await response.json().catch(() => null)) as { ok?: boolean; message?: string; error?: string } | null;
       if (!isCurrentAccountOperation(operation)) return;
       if (!response.ok || !data?.ok) throw new Error(data?.error || "TikTok could not receive the video.");
@@ -712,6 +716,7 @@ export default function SettingsPage() {
         avatar_url: avatarUrl || null,
       });
 
+    if (!await getValidatedSession(operation)) return;
     const profileSaveResult =
       usernameChanged && !usernameCooldownActive
         ? await saveNameAndBase()
@@ -721,6 +726,7 @@ export default function SettingsPage() {
 
     if (usernameChanged && !usernameCooldownActive && error?.message.toLowerCase().includes("once every 24 hours")) {
       usernameBlocked = true;
+      if (!await getValidatedSession(operation)) return;
       ({ error } = await saveBaseProfile());
       if (!isCurrentAccountOperation(operation)) return;
     }
@@ -741,6 +747,7 @@ export default function SettingsPage() {
         return setStatus(discoveryLocationErrorMessage(failure as { code?: number } | null));
       }
     }
+    if (!await getValidatedSession(operation)) return;
     const { error: discoveryError } = await supabase.rpc("update_people_discovery_settings", {
       p_enabled: peopleDiscoveryEnabled,
       p_birth_date: dob || null,
@@ -753,6 +760,7 @@ export default function SettingsPage() {
     const savedUsername = usernameBlocked ? initial.username || username : username;
     const savedActualName = usernameBlocked ? initial.actualName || savedUsername : actualName;
 
+    if (!await getValidatedSession(operation)) return;
     const { error: metaErr } = await supabase.auth.updateUser({
       data: {
         full_name: savedActualName,
@@ -874,25 +882,34 @@ export default function SettingsPage() {
 
   async function startAdjustCurrentPhoto() {
     if (!supabase || !userId || !avatarUrl) return;
+    const operation = beginAccountOperation(userId);
+    if (!operation) return;
+    let nextPreviewUrl = "";
     try {
       const { data: profile } = await supabase
         .from("profiles")
         .select("avatar_source_url,avatar_url")
         .eq("id", userId)
         .maybeSingle();
+      if (!isCurrentAccountOperation(operation)) return;
       const sourceUrl = profile?.avatar_source_url || profile?.avatar_url || avatarUrl;
       const res = await fetch(sourceUrl);
+      if (!isCurrentAccountOperation(operation)) return;
       const blob = await res.blob();
+      if (!isCurrentAccountOperation(operation)) return;
       const file = new File([blob], "current-avatar.jpg", { type: blob.type || "image/jpeg" });
+      nextPreviewUrl = URL.createObjectURL(file);
+      if (!isCurrentAccountOperation(operation)) { URL.revokeObjectURL(nextPreviewUrl); return; }
       setPhotoFile(file);
       setCropZoom(1.2);
       setCropOffsetX(0);
       setCropOffsetY(0);
       if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl);
-      setPhotoPreviewUrl(URL.createObjectURL(file));
+      setPhotoPreviewUrl(nextPreviewUrl);
       setShowPhotoCropper(true);
     } catch {
-      setStatus("Could not load current photo for adjusting.");
+      if (nextPreviewUrl && !isCurrentAccountOperation(operation)) URL.revokeObjectURL(nextPreviewUrl);
+      if (isCurrentAccountOperation(operation)) setStatus("Could not load current photo for adjusting.");
     }
   }
 
@@ -910,12 +927,14 @@ export default function SettingsPage() {
       cropped = await makeCroppedAvatar(normalized);
       if (!isCurrentAccountOperation(operation)) return;
     } catch (err) {
+      if (!isCurrentAccountOperation(operation)) return;
       setUploadingPhoto(false);
       return setStatus(err instanceof Error ? err.message : "Could not crop image.");
     }
 
     const filePath = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
 
+    if (!await getValidatedSession(operation)) return;
     const { error: uploadError } = await supabase.storage
       .from("profile-photos")
       .upload(filePath, cropped, { upsert: false, contentType: "image/jpeg" });
@@ -928,6 +947,7 @@ export default function SettingsPage() {
 
     const { data: publicData } = supabase.storage.from("profile-photos").getPublicUrl(filePath);
     const originalFilePath = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2)}-original.jpg`;
+    if (!await getValidatedSession(operation)) return;
     const { error: originalUploadError } = await supabase.storage
       .from("profile-photos")
       .upload(originalFilePath, photoFile, { upsert: false, contentType: photoFile.type || "image/jpeg" });
@@ -957,6 +977,8 @@ export default function SettingsPage() {
       auditToken,
     );
     if (!isCurrentAccountOperation(operation)) return;
+    const originalAuditToken = await getAccessToken(operation);
+    if (!originalAuditToken) return;
     await recordSecurityAudit(
       {
         event_type: "media_uploaded",
@@ -972,10 +994,11 @@ export default function SettingsPage() {
           source_context: "profile_photo_original",
         },
       },
-      auditToken,
+      originalAuditToken,
     );
     if (!isCurrentAccountOperation(operation)) return;
 
+    if (!await getValidatedSession(operation)) return;
     let { error: profileErr } = await supabase
       .from("profiles")
       .upsert({ id: userId, avatar_url: publicData.publicUrl, avatar_source_url: originalData.publicUrl, avatar_capture_method: "upload", photo_onboarding_done: true });
@@ -990,6 +1013,7 @@ export default function SettingsPage() {
     );
 
     if (optionalPhotoMetadataRejected) {
+      if (!await getValidatedSession(operation)) return;
       const fallback = await supabase.from("profiles").upsert({ id: userId, avatar_url: publicData.publicUrl, avatar_source_url: originalData.publicUrl });
       if (!isCurrentAccountOperation(operation)) return;
       profileErr = fallback.error;
@@ -998,6 +1022,7 @@ export default function SettingsPage() {
     setUploadingPhoto(false);
     if (profileErr) return setStatus(`Could not save photo: ${profileErr.message}`);
 
+    if (!await getValidatedSession(operation)) return;
     const { error: metaErr } = await supabase.auth.updateUser({ data: { avatar_url: publicData.publicUrl } });
     if (!isCurrentAccountOperation(operation)) return;
     if (metaErr) return setStatus(`Could not save photo metadata: ${metaErr.message}`);
@@ -1021,11 +1046,13 @@ export default function SettingsPage() {
     const ok = window.confirm("Remove your profile photo?");
     if (!ok) return;
 
+    if (!await getValidatedSession(operation)) return;
     const { error } = await supabase
       .from("profiles")
       .upsert({ id: userId, avatar_url: null });
     if (!isCurrentAccountOperation(operation)) return;
     if (error) return setStatus(error.message);
+    if (!await getValidatedSession(operation)) return;
     await supabase.auth.updateUser({ data: { avatar_url: null } });
     if (!isCurrentAccountOperation(operation)) return;
     setAvatarUrl("");
@@ -1066,6 +1093,7 @@ export default function SettingsPage() {
     if (!operation) return;
 
     const addingRecoveryEmail = !email;
+    if (!await getValidatedSession(operation)) return;
     const { error } = await supabase.auth.updateUser(
       { email: newEmail.trim().toLowerCase() },
       { emailRedirectTo: `${window.location.origin}/auth/callback` },
@@ -1087,10 +1115,12 @@ export default function SettingsPage() {
     if (newPassword.length < 8) return setStatus("Password must be at least 8 characters.");
     if (newPassword !== confirmPassword) return setStatus("Passwords do not match.");
 
+    if (!await getValidatedSession(operation)) return;
     const { error: verifyError } = await supabase.auth.signInWithPassword({ email, password: oldPassword });
     if (!isCurrentAccountOperation(operation)) return;
     if (verifyError) return setStatus("Current password is incorrect.");
 
+    if (!await getValidatedSession(operation)) return;
     const { error } = await supabase.auth.updateUser({ password: newPassword });
     if (!isCurrentAccountOperation(operation)) return;
     if (error) return setStatus(error.message);
@@ -1108,9 +1138,11 @@ export default function SettingsPage() {
     setAccountActionLoading("deactivate");
     setStatus("");
     try {
+      if (!await getValidatedSession(operation)) return;
       const { error } = await supabase.rpc("deactivate_my_account");
       if (!isCurrentAccountOperation(operation)) return;
       if (error) throw error;
+      if (!await getValidatedSession(operation)) return;
       await supabase.auth.signOut();
       window.location.assign("/");
     } catch (error) {
@@ -1127,6 +1159,7 @@ export default function SettingsPage() {
     setAccountActionLoading("restore");
     setStatus("");
     try {
+      if (!await getValidatedSession(operation)) return;
       const { error } = await supabase.rpc("reactivate_my_account");
       if (!isCurrentAccountOperation(operation)) return;
       if (error) throw error;
@@ -1176,6 +1209,7 @@ export default function SettingsPage() {
           createdAt: Date.now(),
         }));
         const redirectTo = `${process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") || window.location.origin}/auth/callback`;
+        if (!await getValidatedSession(operation)) return;
         const oauth = await supabase.auth.signInWithOAuth({ provider: "apple", options: { redirectTo } });
         if (!isCurrentAccountOperation(operation)) return;
         if (oauth.error) {
@@ -1185,6 +1219,7 @@ export default function SettingsPage() {
         return;
       }
       if (!response.ok || !data.ok) throw new Error(data.error || "Could not delete the account.");
+      if (!await getValidatedSession(operation)) return;
       await supabase.auth.signOut();
       window.location.assign("/");
     } catch (error) {
@@ -1200,6 +1235,7 @@ export default function SettingsPage() {
     const operation = beginAccountOperation(userId);
     if (!operation) return;
 
+    if (!await getValidatedSession(operation)) return;
     const { error } = await supabase.auth.updateUser({
       data: {
         marketing_opt_in: marketingOptIn,
@@ -1225,6 +1261,7 @@ export default function SettingsPage() {
     if (!supabase || !userId || notificationPreferencesSaving) return;
     const operation = beginAccountOperation(userId);
     if (!operation) return;
+    if (!await getValidatedSession(operation)) return;
     setNotificationPreferencesSaving(true);
     setStatus("");
     const { error } = await supabase.from("notification_preferences").upsert({
@@ -1243,6 +1280,7 @@ export default function SettingsPage() {
     if (!operation) return;
     const ok = window.confirm("Restart onboarding for this account?");
     if (!ok) return;
+    if (!await getValidatedSession(operation)) return;
     const { error } = await supabase.from("profiles").upsert({ id: userId, onboarding_done: false });
     if (!isCurrentAccountOperation(operation)) return;
     if (error) return setStatus(error.message);
@@ -1254,6 +1292,7 @@ export default function SettingsPage() {
     if (!supabase || !userId) return;
     const operation = beginAccountOperation(userId);
     if (!operation) return;
+    if (!await getValidatedSession(operation)) return;
     const { error } = await supabase
       .from("friends")
       .delete()
@@ -1265,7 +1304,9 @@ export default function SettingsPage() {
   }
 
   async function signOut() {
-    if (!supabase) return;
+    if (!supabase || !userId) return;
+    const operation = beginAccountOperation(userId);
+    if (!operation || !await getValidatedSession(operation)) return;
     await supabase.auth.signOut();
     window.location.href = "/";
   }
@@ -1405,17 +1446,25 @@ export default function SettingsPage() {
                         return;
                       }
 
+                      const operation = beginAccountOperation(userId);
+                      if (!operation) { e.target.value = ""; return; }
                       void (async () => {
+                        let nextPreviewUrl = "";
                         try {
                           const file = await prepareImageForUpload(picked, { maxWidth: 2200, maxHeight: 2200, quality: 0.9 });
+                          if (!isCurrentAccountOperation(operation)) return;
+                          nextPreviewUrl = URL.createObjectURL(file);
+                          if (!isCurrentAccountOperation(operation)) { URL.revokeObjectURL(nextPreviewUrl); return; }
                           setPhotoFile(file);
                           setCropZoom(1.2);
                           setCropOffsetX(0);
                           setCropOffsetY(0);
                           if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl);
-                          setPhotoPreviewUrl(URL.createObjectURL(file));
+                          setPhotoPreviewUrl(nextPreviewUrl);
                           setShowPhotoCropper(true);
                         } catch (err) {
+                          if (nextPreviewUrl && !isCurrentAccountOperation(operation)) URL.revokeObjectURL(nextPreviewUrl);
+                          if (!isCurrentAccountOperation(operation)) return;
                           setPhotoFile(null);
                           if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl);
                           setPhotoPreviewUrl("");
@@ -1788,6 +1837,7 @@ export default function SettingsPage() {
                               if (!client || !userId) return;
                               const operation = beginAccountOperation(userId);
                               if (!operation) return;
+                              if (!await getValidatedSession(operation)) return;
                               const { error } = await client
                                 .from("friends")
                                 .delete()
@@ -1841,6 +1891,7 @@ export default function SettingsPage() {
                                   if (!client || !userId) return;
                                   const operation = beginAccountOperation(userId);
                                   if (!operation) return;
+                                  if (!await getValidatedSession(operation)) return;
                                   const { error } = await client
                                     .from("friends")
                                     .update({ status: "accepted" })
@@ -1863,6 +1914,7 @@ export default function SettingsPage() {
                                 if (!client || !userId) return;
                                 const operation = beginAccountOperation(userId);
                                 if (!operation) return;
+                                if (!await getValidatedSession(operation)) return;
                                 const { error } = await client
                                   .from("friends")
                                   .delete()
