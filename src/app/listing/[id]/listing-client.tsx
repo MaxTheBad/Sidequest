@@ -15,7 +15,7 @@ import { GENDER_IDENTITY_OPTIONS } from "@/lib/people-discovery";
 import { downloadQuestCalendarFile } from "@/lib/quest-calendar";
 import { listingJoinAuthPath } from "@/lib/auth-return";
 import { PostQuestFollowUp } from "@/components/post-quest-followup";
-import { isQuestClosedForJoining, QUEST_CLOSED_MESSAGE } from "@/lib/quest-join-eligibility";
+import { isQuestClosedForJoining, nextQuestJoinBoundary, QUEST_CLOSED_MESSAGE } from "@/lib/quest-join-eligibility";
 import { captureProductEvent } from "@/components/posthog-provider";
 import { membershipReviewProperties, runQuestJoinRequest } from "@/lib/product-analytics";
 
@@ -138,6 +138,7 @@ export default function ListingPage({ questId, onClose }: { questId?: string; on
   const [submittingReport, setSubmittingReport] = useState(false);
   const [reportFeedback, setReportFeedback] = useState("");
   const [renderedAt] = useState(() => Date.now());
+  const [joinClockNow, setJoinClockNow] = useState(() => Date.now());
   const [showPeopleFinder, setShowPeopleFinder] = useState(false);
   const [peopleResults, setPeopleResults] = useState<PeopleDiscoveryResult[]>([]);
   const [peopleLoading, setPeopleLoading] = useState(false);
@@ -180,6 +181,26 @@ export default function ListingPage({ questId, onClose }: { questId?: string; on
     if (typeof window === "undefined") return;
     dialogRef.current?.scrollTo({ top: 0, left: 0, behavior: "auto" });
   }, [listingId]);
+
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let disposed = false;
+    const refreshAndSchedule = () => {
+      if (disposed) return;
+      const now = Date.now();
+      setJoinClockNow(now);
+      const boundary = nextQuestJoinBoundary(listing, now);
+      if (boundary === null) return;
+      timer = setTimeout(refreshAndSchedule, Math.min(Math.max(0, boundary - now), 2_147_483_647));
+    };
+    refreshAndSchedule();
+    return () => {
+      disposed = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [listing]);
+
+  const listingClosedForJoining = isQuestClosedForJoining(listing, joinClockNow);
 
   function getListingHostName() {
     if (!listing) return null;
@@ -661,7 +682,10 @@ export default function ListingPage({ questId, onClose }: { questId?: string; on
 
   async function toggleJoin() {
     if (!listing || listing.id !== listingId || !supabase) return setStatus("Joining is unavailable. Please try again.");
-    if (!userId) return router.push(listingJoinAuthPath(listing.id));
+    if (!userId) {
+      if (isQuestClosedForJoining(listing)) return setStatus(QUEST_CLOSED_MESSAGE);
+      return router.push(listingJoinAuthPath(listing.id));
+    }
     if (listing.creator_id === userId) return setStatus("You can’t join your own listing.");
 
     if (myMembershipStatus === "approved" || myMembershipStatus === "pending") {
@@ -1392,7 +1416,7 @@ export default function ListingPage({ questId, onClose }: { questId?: string; on
                         })}
                       </div>
                     ) : <p className="rounded-xl border border-dashed bg-white/70 p-4 text-sm text-slate-600">No opted-in people match these filters yet. Try a wider distance or age range.</p>}
-                    <button type="button" disabled={!peopleSelectedIds.length || peopleSending || isQuestClosedForJoining(listing)} className="w-full rounded-xl bg-[#0f7486] px-4 py-3 font-bold text-white disabled:opacity-40" onClick={() => void sendPeopleInvitations()}>{peopleSending ? "Sending…" : `Invite ${peopleSelectedIds.length || "selected"}`}</button>
+                    <button type="button" disabled={!peopleSelectedIds.length || peopleSending || listingClosedForJoining} className="w-full rounded-xl bg-[#0f7486] px-4 py-3 font-bold text-white disabled:opacity-40" onClick={() => void sendPeopleInvitations()}>{peopleSending ? "Sending…" : `Invite ${peopleSelectedIds.length || "selected"}`}</button>
                   </div>
                 )}
               </div>
@@ -1416,7 +1440,7 @@ export default function ListingPage({ questId, onClose }: { questId?: string; on
               </details>
             )}
 
-            {isManager && pendingMembers.length > 0 && <section id="detail119-requests" className="detail119-section"><h2>Join requests <span className="detail119-pending-count">{pendingMembers.length} pending</span></h2>{pendingMembers.map(member => { const person = memberProfileOf(member); return <div className="detail119-request" key={member.user_id}><Link className="detail119-person" href={`/profile/${member.user_id}`}>{person?.avatar_url ? <img src={person.avatar_url} alt="" /> : <span className="detail119-avatar"><AppIcon name="user" /></span>}<span><strong>{person?.display_name || "Member"}</strong><span>Wants to join this quest</span></span><span aria-hidden="true">›</span></Link><div className="detail119-request-actions"><button className="detail119-primary" type="button" disabled={Boolean(membershipAction) || isQuestClosedForJoining(listing)} onClick={() => void setMemberApproval(member.user_id, "approved")}><AppIcon name="check" />{membershipAction === member.user_id ? "Updating…" : "Approve"}</button><button className="detail119-danger" type="button" disabled={Boolean(membershipAction)} onClick={() => void declineMember(member.user_id)}>× &nbsp; Decline</button></div>{listing.exact_address && <button className="detail119-share-address" type="button" disabled={Boolean(membershipAction) || isQuestClosedForJoining(listing)} onClick={() => void setMemberApproval(member.user_id, "approved", true)}><AppIcon name="location" />Approve and share exact address</button>}</div>; })}</section>}
+            {isManager && pendingMembers.length > 0 && <section id="detail119-requests" className="detail119-section"><h2>Join requests <span className="detail119-pending-count">{pendingMembers.length} pending</span></h2>{pendingMembers.map(member => { const person = memberProfileOf(member); return <div className="detail119-request" key={member.user_id}><Link className="detail119-person" href={`/profile/${member.user_id}`}>{person?.avatar_url ? <img src={person.avatar_url} alt="" /> : <span className="detail119-avatar"><AppIcon name="user" /></span>}<span><strong>{person?.display_name || "Member"}</strong><span>Wants to join this quest</span></span><span aria-hidden="true">›</span></Link><div className="detail119-request-actions"><button className="detail119-primary" type="button" disabled={Boolean(membershipAction) || listingClosedForJoining} onClick={() => void setMemberApproval(member.user_id, "approved")}><AppIcon name="check" />{membershipAction === member.user_id ? "Updating…" : "Approve"}</button><button className="detail119-danger" type="button" disabled={Boolean(membershipAction)} onClick={() => void declineMember(member.user_id)}>× &nbsp; Decline</button></div>{listing.exact_address && <button className="detail119-share-address" type="button" disabled={Boolean(membershipAction) || listingClosedForJoining} onClick={() => void setMemberApproval(member.user_id, "approved", true)}><AppIcon name="location" />Approve and share exact address</button>}</div>; })}</section>}
             <div className="rounded-xl border bg-gray-50 p-3 quest-detail-section quest-comments-section">
               <div className="detail119-comment-heading"><select aria-label="Sort comments" value={commentSort} onChange={event => setCommentSort(event.target.value)}><option value="newest">Newest first</option><option value="oldest">Oldest first</option></select><span>{comments.length} comments</span></div>
               {comments.length ? (
@@ -1453,7 +1477,7 @@ export default function ListingPage({ questId, onClose }: { questId?: string; on
               <button type="button" onClick={() => void askQuestion("private")}><span><QuestCategoryIcon name="navigate-outline" /></span>Message</button>
             </div>
             <PostQuestFollowUp key={`${listing.id}:${userId || "guest"}`} quest={listing} userId={userId} approvedParticipant={myMembershipStatus === "approved"} isHost={isOwner} members={members} onLifecycleSaved={(next) => setListing((current) => current?.id === next.id ? { ...current, ...next } : current)} />
-            {isOwner ? <footer className="detail119-footer"><Link href={`/listing/${listing.id}/edit`}><QuestCategoryIcon name="create-outline" />Edit quest</Link><button type="button" className="detail119-danger" onClick={() => void deleteListing()}>Delete listing</button></footer> : <button ref={joinButtonRef} type="button" className="detail119-primary detail119-join" disabled={isQuestClosedForJoining(listing) && !hasJoined && myMembershipStatus !== "pending"} onClick={() => void toggleJoin()}>{myMembershipStatus === "pending" ? "Cancel request" : myMembershipStatus === "declined" ? "Request again" : hasJoined ? "Leave quest" : isQuestClosedForJoining(listing) ? "Quest ended" : listing.join_mode === "approval_required" ? "Request to join" : "Join now"}</button>}
+            {isOwner ? <footer className="detail119-footer"><Link href={`/listing/${listing.id}/edit`}><QuestCategoryIcon name="create-outline" />Edit quest</Link><button type="button" className="detail119-danger" onClick={() => void deleteListing()}>Delete listing</button></footer> : <button ref={joinButtonRef} type="button" className="detail119-primary detail119-join" disabled={listingClosedForJoining && !hasJoined && myMembershipStatus !== "pending"} onClick={() => void toggleJoin()}>{myMembershipStatus === "pending" ? "Cancel request" : myMembershipStatus === "declined" ? "Request again" : hasJoined ? "Leave quest" : listingClosedForJoining ? "Quest ended" : listing.join_mode === "approval_required" ? "Request to join" : "Join now"}</button>}
 
             {status && (
               <p role="status" className="text-xs text-gray-600">
