@@ -15,7 +15,8 @@ import { GENDER_IDENTITY_OPTIONS } from "@/lib/people-discovery";
 import { downloadQuestCalendarFile } from "@/lib/quest-calendar";
 import { listingJoinAuthPath } from "@/lib/auth-return";
 import { PostQuestFollowUp } from "@/components/post-quest-followup";
-import { isQuestClosedForJoining, nextQuestJoinBoundary, QUEST_CLOSED_MESSAGE } from "@/lib/quest-join-eligibility";
+import { isQuestClosedForJoining, QUEST_CLOSED_MESSAGE } from "@/lib/quest-join-eligibility";
+import { createQuestJoinClock } from "@/lib/quest-join-clock";
 import { captureProductEvent } from "@/components/posthog-provider";
 import { membershipReviewProperties, runQuestJoinRequest } from "@/lib/product-analytics";
 
@@ -183,21 +184,7 @@ export default function ListingPage({ questId, onClose }: { questId?: string; on
   }, [listingId]);
 
   useEffect(() => {
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    let disposed = false;
-    const refreshAndSchedule = () => {
-      if (disposed) return;
-      const now = Date.now();
-      setJoinClockNow(now);
-      const boundary = nextQuestJoinBoundary(listing, now);
-      if (boundary === null) return;
-      timer = setTimeout(refreshAndSchedule, Math.min(Math.max(0, boundary - now), 2_147_483_647));
-    };
-    refreshAndSchedule();
-    return () => {
-      disposed = true;
-      if (timer) clearTimeout(timer);
-    };
+    return createQuestJoinClock({ quest: listing, onTick: setJoinClockNow });
   }, [listing]);
 
   const listingClosedForJoining = isQuestClosedForJoining(listing, joinClockNow);
@@ -887,6 +874,7 @@ export default function ListingPage({ questId, onClose }: { questId?: string; on
 
   async function toggleExactAccess(targetUserId: string, allow: boolean) {
     if (!supabase || !listing || !isManager) return;
+    if (allow && isQuestClosedForJoining(listing)) return setStatus(QUEST_CLOSED_MESSAGE);
     if (allow) {
       const { error } = await supabase.from("quest_exact_location_access").upsert({ quest_id: listing.id, user_id: targetUserId, granted_by: userId });
       if (error) return setStatus(error.message);
@@ -1298,6 +1286,7 @@ export default function ListingPage({ questId, onClose }: { questId?: string; on
                           <button
                             type="button"
                             className={`text-xs border rounded px-2 py-0.5 font-semibold leading-none ${hasExactAccess ? "bg-emerald-200 border-emerald-500 text-emerald-950" : "bg-red-200 border-red-500 text-red-950"}`}
+                            disabled={!hasExactAccess && listingClosedForJoining}
                             onClick={() => void toggleExactAccess(m.user_id, !hasExactAccess)}
                           >
                             {hasExactAccess ? "Exact: on" : "Exact: off"}
