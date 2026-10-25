@@ -13,7 +13,7 @@ test("listing join auth return preserves the listing intent without joining", ()
 test("public listing and home Join both preserve intent; return only focuses Join", () => {
   const listing = readFileSync(new URL("../src/app/listing/[id]/listing-client.tsx", import.meta.url), "utf8");
   const home = readFileSync(new URL("../src/app/page.tsx", import.meta.url), "utf8");
-  assert.match(listing, /if \(!userId\) return router\.push\(listingJoinAuthPath\(listing\.id\)\)/);
+  assert.match(listing, /if \(!userId\) \{\s*if \(isQuestClosedForJoining\(listing\)\) return setStatus\(QUEST_CLOSED_MESSAGE\);\s*return router\.push\(listingJoinAuthPath\(listing\.id\)\);\s*\}/);
   assert.match(home, /storeAuthReturn\(window\.sessionStorage, `\/listing\/\$\{id\}\?join=1`\)/);
   assert.match(home, /if \(returnTo && activeUserId\)/);
   const returnEffect = listing.slice(listing.indexOf('new URLSearchParams(window.location.search)'), listing.indexOf("async function checkInToQuest"));
