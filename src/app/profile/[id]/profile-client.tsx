@@ -114,12 +114,18 @@ export default function ProfilePage() {
       if (!p) return setStatus("Profile not found.");
 
       setProfile(p as Profile);
-      const { data: q, error: qErr } = await supabase
+      let questsQuery = supabase
         .from("quests")
         .select("id,title,city,skill_level")
         .eq("creator_id", profileId)
-        .order("created_at", { ascending: false })
-        .limit(50);
+        .order("created_at", { ascending: false });
+      // Visitors see only upcoming public-discovery quests. Owners retain
+      // their existing full quest history on their own profile.
+      if (uid !== profileId) {
+        const nowIso = new Date().toISOString();
+        questsQuery = questsQuery.or(`and(status.in.(open,full),completed_at.is.null,or(ends_at.is.null,ends_at.gt.${nowIso}),starts_at.gt.${nowIso})`);
+      }
+      const { data: q, error: qErr } = await questsQuery.limit(50);
 
       if (qErr) return setStatus(qErr.message);
       setQuests((q as Quest[]) || []);
