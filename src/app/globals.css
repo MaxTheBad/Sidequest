@@ -886,6 +886,7 @@ html[data-theme="dark"] .mobile-dock-inner { background: rgba(27,25,33,.82); bor
   html[data-theme="dark"] body:has(.home119-page) .mobile-topbar .nav-brand,
   html[data-theme="dark"] body:has(.home119-page) .mobile-topbar .icon-control { color: #f8fafc; }
   html[data-theme="dark"] body:has(.home119-page) .mobile-topbar .icon-control { border-color: rgba(255,255,255,.08); background: #142332; }
+  html[data-theme="dark"] body:has(.home119-page) .app-footer { color: #e2e8f0; border-color: rgba(255,255,255,.08) !important; background: #0b1825 !important; }
   html[data-theme="dark"] .home119-page { color: #f8fafc; background: #06121f !important; }
   html[data-theme="dark"] .home119-search { border-color: rgba(255,255,255,.09); color: #7d8999; background: #171923; }
   html[data-theme="dark"] .home119-search input { color: #f8fafc; }
